@@ -187,7 +187,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         @Nullable List<NodeAllocationResult> nodeDecisions
     ) {
         final Type decisionType = decision.type();
-        AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
+        AllocationStatus allocationStatus = switch (decisionType) {
+            case YES, NOT_PREFERRED -> null;
+            default -> AllocationStatus.fromDecision(decisionType);
+        };
         return new AllocateUnassignedDecision(assignedNode, nodeDecisions, allocationStatus, null, false, 0L, 0L);
     }
 

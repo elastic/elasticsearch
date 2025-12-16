@@ -1,34 +1,36 @@
 {
-  "cluster.delete_voting_config_exclusions":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/voting-config-exclusions.html",
-      "description":"Clears cluster voting config exclusions."
+  "cluster.delete_voting_config_exclusions": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions",
+      "description": "Clear cluster voting config exclusions"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_cluster/voting_config_exclusions",
-          "methods":[
+          "path": "/_cluster/voting_config_exclusions",
+          "methods": [
             "DELETE"
           ]
         }
       ]
     },
-    "params":{
+    "params": {
       "wait_for_removal": {
-        "type":"boolean",
-        "description":"Specifies whether to wait for all excluded nodes to be removed from the cluster before clearing the voting configuration exclusions list.",
-        "default":true
+        "type": "boolean",
+        "description": "Specifies whether to wait for all excluded nodes to be removed from the cluster before clearing the voting configuration exclusions list.",
+        "default": true
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for submitting request to master",
-        "default":"30s"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for submitting request to master"
       }
     }
   }

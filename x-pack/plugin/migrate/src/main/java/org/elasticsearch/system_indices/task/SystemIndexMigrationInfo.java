@@ -13,9 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +26,6 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * Holds the data required to migrate a single system index, including metadata from the current index. If necessary, computes the settings
@@ -143,30 +140,25 @@ final class SystemIndexMigrationInfo extends SystemResourceMigrationInfo {
 
     /**
      * Invokes the pre-migration hook for the feature that owns this index.
-     * See {@link SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)}.
-     * @param clusterService For retrieving the state.
+     * See {@link SystemIndexPlugin#prepareForIndicesMigration(ProjectMetadata, Client, ActionListener)}.
+     * @param project The project metadata
      * @param client For performing any update operations necessary to prepare for the upgrade.
      * @param listener Call {@link ActionListener#onResponse(Object)} when preparation for migration is complete.
      */
-    void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-        owningFeature.getPreMigrationFunction().prepareForIndicesMigration(clusterService, client, listener);
+    void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+        owningFeature.getPreMigrationFunction().prepareForIndicesMigration(project, client, listener);
     }
 
     /**
      * Invokes the post-migration hooks for the feature that owns this index.
-     * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}.
+     * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, Client, ActionListener)}.
+     *
      * @param metadata The metadata that was passed into the listener by the pre-migration hook.
-     * @param clusterService For retrieving the state.
      * @param client For performing any update operations necessary to prepare for the upgrade.
      * @param listener Call {@link ActionListener#onResponse(Object)} when the hook is finished.
      */
-    void indicesMigrationComplete(
-        Map<String, Object> metadata,
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Boolean> listener
-    ) {
-        owningFeature.getPostMigrationFunction().indicesMigrationComplete(metadata, clusterService, client, listener);
+    void indicesMigrationComplete(Map<String, Object> metadata, Client client, ActionListener<Boolean> listener) {
+        owningFeature.getPostMigrationFunction().indicesMigrationComplete(metadata, client, listener);
     }
 
     /**
@@ -244,73 +236,5 @@ final class SystemIndexMigrationInfo extends SystemResourceMigrationInfo {
                 newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey()));
             });
         return newIndexSettings.build();
-    }
-
-    /**
-     * Convenience factory method holding the logic for creating instances from a Feature object.
-     * @param feature The feature that
-     * @param metadata The current metadata, as index migration depends on the current state of the cluster.
-     * @param indexScopedSettings This is necessary to make adjustments to the indices settings for unmanaged indices.
-     * @return A {@link Stream} of {@link SystemIndexMigrationInfo}s that represent all the indices the given feature currently owns.
-     */
-    static Stream<SystemIndexMigrationInfo> fromFeature(
-        SystemIndices.Feature feature,
-        Metadata metadata,
-        IndexScopedSettings indexScopedSettings
-    ) {
-        return feature.getIndexDescriptors()
-            .stream()
-            .flatMap(
-                descriptor -> descriptor.getMatchingIndices(metadata.getDefaultProject())
-                    .stream()
-                    .map(metadata.getProject()::index)
-                    .filter(imd -> {
-                        assert imd != null
-                            : "got null IndexMetadata for index in system index descriptor [" + descriptor.getIndexPattern() + "]";
-                        return Objects.nonNull(imd);
-                    })
-                    .map(imd -> SystemIndexMigrationInfo.build(imd, descriptor, feature, indexScopedSettings))
-            );
-    }
-
-    static SystemIndexMigrationInfo fromTaskState(
-        SystemIndexMigrationTaskState taskState,
-        SystemIndices systemIndices,
-        Metadata metadata,
-        IndexScopedSettings indexScopedSettings
-    ) {
-        SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(taskState.getCurrentIndex());
-        SystemIndices.Feature feature = systemIndices.getFeature(taskState.getCurrentFeature());
-        IndexMetadata imd = metadata.getProject().index(taskState.getCurrentIndex());
-
-        // It's possible for one or both of these to happen if the executing node fails during execution and:
-        // 1. The task gets assigned to a node with a different set of plugins installed.
-        // 2. The index in question is somehow deleted before we got to it.
-        // The first case shouldn't happen, master nodes must have all `SystemIndexPlugins` installed.
-        // In the second case, we should just start over.
-        if (descriptor == null) {
-            String errorMsg = format(
-                "couldn't find system index descriptor for index [%s] from feature [%s], which likely means this node is missing a plugin",
-                taskState.getCurrentIndex(),
-                taskState.getCurrentFeature()
-            );
-            logger.warn(errorMsg);
-            assert false : errorMsg;
-            throw new IllegalStateException(errorMsg);
-        }
-
-        if (imd == null) {
-            String errorMsg = format(
-                "couldn't find index [%s] from feature [%s] with descriptor pattern [%s]",
-                taskState.getCurrentIndex(),
-                taskState.getCurrentFeature(),
-                descriptor.getIndexPattern()
-            );
-            logger.warn(errorMsg);
-            assert false : errorMsg;
-            throw new IllegalStateException(errorMsg);
-        }
-
-        return build(imd, descriptor, feature, indexScopedSettings);
     }
 }

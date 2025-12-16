@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
@@ -32,6 +32,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptRequest> implements ToXContentFragment {
 
+    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = TransportVersion.fromName("stored_script_content_length");
+
     @Nullable
     private final String id;
 
@@ -45,8 +47,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
-            || in.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
+        if (in.getTransportVersion().supports(STORED_SCRIPT_CONTENT_LENGTH)) {
             contentLength = in.readVInt();
         } else {
             BytesReference content = in.readBytesReference();
@@ -106,8 +107,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
-            || out.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
+        if (out.getTransportVersion().supports(STORED_SCRIPT_CONTENT_LENGTH)) {
             out.writeVInt(contentLength);
         } else {
             // generate a bytes reference of the correct size (the content isn't actually used in 8.18)

@@ -9,16 +9,24 @@ package org.elasticsearch.xpack.inference.services.openai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
@@ -28,17 +36,37 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_WithUrlOrganizationUserDefined() throws URISyntaxException, IOException {
-        var request = createRequest("www.google.com", "org", "secret", "abc", "model", "user");
+    public void testCreateRequest_WithUrlOrganizationUser_AndCustomHeadersDefined() throws IOException {
+
+        var headerKey = "key";
+        var headerValue = "value";
+
+        var model = new OpenAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new OpenAiEmbeddingsServiceSettings("model", URI.create("www.elastic.co"), "org", null, null, null, false, null),
+            new OpenAiEmbeddingsTaskSettings("user", Map.of(headerKey, headerValue)),
+            null,
+            new DefaultSecretSettings(new SecureString("secret".toCharArray()))
+        );
+
+        var request = new OpenAiEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            new Truncator.TruncationResult(List.of("abc"), new boolean[] { false }),
+            model
+        );
+
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is("www.google.com"));
+        assertThat(httpPost.getURI().toString(), is("www.elastic.co"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
+        assertThat(httpPost.getLastHeader(headerKey).getValue(), is(headerValue));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));

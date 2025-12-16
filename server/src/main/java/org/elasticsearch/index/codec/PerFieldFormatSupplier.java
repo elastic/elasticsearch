@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -21,11 +20,19 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
@@ -33,9 +40,27 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  */
 public class PerFieldFormatSupplier {
 
+    private static final Set<String> INCLUDE_META_FIELDS;
+    private static final Set<String> EXCLUDE_MAPPER_TYPES;
+
+    static {
+        // TODO: should we just allow all fields to use tsdb doc values codec?
+        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
+        // But _tsid and _ts_routing_hash should always use the tsdb codec.
+        Set<String> includeMetaField = new HashSet<>(3);
+        includeMetaField.add(TimeSeriesIdFieldMapper.NAME);
+        includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
+        includeMetaField.add(SeqNoFieldMapper.NAME);
+        // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
+        // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
+        INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
+        EXCLUDE_MAPPER_TYPES = Set.of("geo_shape");
+    }
+
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
+    private static final KnnVectorsFormat knnVectorsFormat = new ES93HnswVectorsFormat();
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(true);
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
@@ -47,14 +72,21 @@ public class PerFieldFormatSupplier {
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
+    }
 
+    private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
+        // we migrated to using a new postings format for the standard indices with Lucene 10.3
         if (mapperService != null
-            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
-            && mapperService.getIndexSettings().getMode().useDefaultPostingsFormat()) {
-            defaultPostingsFormat = Elasticsearch900Lucene101Codec.DEFAULT_POSTINGS_FORMAT;
+            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)) {
+            if (IndexSettings.USE_ES_812_POSTINGS_FORMAT.get(mapperService.getIndexSettings().getSettings())) {
+                return es812PostingsFormat;
+            } else {
+                return Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
+            }
         } else {
-            // our own posting format using PFOR
-            defaultPostingsFormat = es812PostingsFormat;
+            // our own posting format using PFOR, used for logsdb and tsdb indices by default
+            return es812PostingsFormat;
         }
     }
 
@@ -98,7 +130,7 @@ public class PerFieldFormatSupplier {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat);
+                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings());
             }
         }
         return knnVectorsFormat;
@@ -106,7 +138,9 @@ public class PerFieldFormatSupplier {
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
         if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
+            return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
+                ? tsdbDocValuesFormatLargeNumericBlock
+                : tsdbDocValuesFormat;
         }
         return docValuesFormat;
     }
@@ -116,15 +150,25 @@ public class PerFieldFormatSupplier {
             return false;
         }
 
+        if (excludeMapperTypes(field)) {
+            return false;
+        }
+
         return mapperService != null
-            && (isTimeSeriesModeIndex() || isLogsModeIndex())
+            && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 
     private boolean excludeFields(String fieldName) {
-        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
-        // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
+        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
+    }
+
+    private boolean excludeMapperTypes(String fieldName) {
+        var typeName = getMapperType(fieldName);
+        if (typeName == null) {
+            return false;
+        }
+        return EXCLUDE_MAPPER_TYPES.contains(getMapperType(fieldName));
     }
 
     private boolean isTimeSeriesModeIndex() {
@@ -135,4 +179,13 @@ public class PerFieldFormatSupplier {
         return mapperService != null && IndexMode.LOGSDB == mapperService.getIndexSettings().getMode();
     }
 
+    String getMapperType(final String field) {
+        if (mapperService != null) {
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper != null) {
+                return mapper.typeName();
+            }
+        }
+        return null;
+    }
 }

@@ -1,68 +1,81 @@
 {
-  "ml.get_records":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-record.html",
-      "description":"Retrieves anomaly records for an anomaly detection job."
+  "ml.get_records": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-records",
+      "description": "Get anomaly records for an anomaly detection job"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/anomaly_detectors/{job_id}/results/records",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/{job_id}/results/records",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "job_id":{
-              "type":"string",
-              "description":"The ID of the job"
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The ID of the job"
             }
           }
         }
       ]
     },
-    "params":{
-      "exclude_interim":{
-        "type":"boolean",
-        "description":"Exclude interim results"
+    "params": {
+      "exclude_interim": {
+        "type": "boolean",
+        "default": false,
+        "description": "Exclude interim results"
       },
-      "from":{
-        "type":"int",
-        "description":"skips a number of records"
+      "from": {
+        "type": "int",
+        "default": 0,
+        "description": "skips a number of records"
       },
-      "size":{
-        "type":"int",
-        "description":"specifies a max number of records to get"
+      "size": {
+        "type": "int",
+        "default": 100,
+        "description": "specifies a max number of records to get"
       },
-      "start":{
-        "type":"string",
-        "description":"Start time filter for records"
+      "start": {
+        "type": "date",
+        "default": "-1",
+        "description": "Start time filter for records"
       },
-      "end":{
-        "type":"string",
-        "description":"End time filter for records"
+      "end": {
+        "type": "date",
+        "default": "-1",
+        "description": "End time filter for records"
       },
-      "record_score":{
-        "type":"double",
-        "description":"Returns records with anomaly scores greater or equal than this value"
+      "record_score": {
+        "type": "double",
+        "default": 0,
+        "description": "Returns records with anomaly scores greater or equal than this value"
       },
-      "sort":{
-        "type":"string",
-        "description":"Sort records by a particular field"
+      "sort": {
+        "type": "string",
+        "default": "record_score",
+        "description": "Sort records by a particular field"
       },
-      "desc":{
-        "type":"boolean",
-        "description":"Set the sort direction"
+      "desc": {
+        "type": "boolean",
+        "default": false,
+        "description": "Set the sort direction"
       }
     },
-    "body":{
-      "description":"Record selection criteria"
+    "body": {
+      "description": "Record selection criteria",
+      "required": false
     }
   }
 }

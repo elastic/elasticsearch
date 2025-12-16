@@ -11,7 +11,6 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
@@ -23,8 +22,6 @@ import java.util.Map;
 import java.util.Set;
 
 public interface InferenceService extends Closeable {
-
-    default void init(Client client) {}
 
     String name();
 
@@ -140,6 +137,16 @@ public interface InferenceService extends Closeable {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
+
+    /**
+     * Perform multimodal embedding inference on the model using the embedding schema.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 
     /**
      * Chunk long text.

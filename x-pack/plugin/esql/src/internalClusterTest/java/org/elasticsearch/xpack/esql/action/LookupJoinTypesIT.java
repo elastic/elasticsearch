@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.apache.lucene.queryparser.ext.Extensions.Pair;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -21,6 +25,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -33,6 +38,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,15 +49,26 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -59,9 +76,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -102,154 +121,236 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         );
     }
 
-    private static final Map<String, TestConfigs> testConfigurations = new HashMap<>();
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        List<Object[]> operations = new ArrayList<>();
+        operations.add(new Object[] { null });
+        if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
+            for (BinaryComparisonOperation operation : BinaryComparisonOperation.values()) {
+                operations.add(new Object[] { operation });
+            }
+        }
+        return operations;
+    }
+
+    private final BinaryComparisonOperation operationParameterized;
+
+    public LookupJoinTypesIT(BinaryComparisonOperation operation) {
+        this.operationParameterized = operation;
+    }
+
+    private static final Map<Pair<String, BinaryComparisonOperation>, TestConfigs> testConfigurations = new HashMap<>();
     static {
-        // Initialize the test configurations for string tests
-        {
-            TestConfigs configs = testConfigurations.computeIfAbsent("strings", TestConfigs::new);
-            configs.addPasses(KEYWORD, KEYWORD);
-            configs.addPasses(TEXT, KEYWORD);
-            configs.addFailsUnsupported(KEYWORD, TEXT);
-        }
+        List<BinaryComparisonOperation> operations = new ArrayList<>(List.of(BinaryComparisonOperation.values()));
+        operations.add(null); // null means field-based join
+        for (BinaryComparisonOperation operation : operations) {
 
-        // Test integer types
-        var integerTypes = List.of(BYTE, SHORT, INTEGER, LONG);
-        {
-            TestConfigs configs = testConfigurations.computeIfAbsent("integers", TestConfigs::new);
-            for (DataType mainType : integerTypes) {
-                for (DataType lookupType : integerTypes) {
-                    configs.addPasses(mainType, lookupType);
-                }
+            // Initialize the test configurations for string tests
+            {
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("strings", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                configs.addPasses(KEYWORD, KEYWORD, operation);
+                configs.addPasses(TEXT, KEYWORD, operation);
+                configs.addFailsUnsupported(KEYWORD, TEXT, operation);
             }
-        }
 
-        // Test float and double
-        var floatTypes = List.of(HALF_FLOAT, FLOAT, DOUBLE, SCALED_FLOAT);
-        {
-            TestConfigs configs = testConfigurations.computeIfAbsent("floats", TestConfigs::new);
-            for (DataType mainType : floatTypes) {
-                for (DataType lookupType : floatTypes) {
-                    configs.addPasses(mainType, lookupType);
-                }
-            }
-        }
-
-        // Tests for mixed-numerical types
-        {
-            TestConfigs configs = testConfigurations.computeIfAbsent("mixed-numerical", TestConfigs::new);
-            for (DataType mainType : integerTypes) {
-                for (DataType lookupType : floatTypes) {
-                    configs.addPasses(mainType, lookupType);
-                    configs.addPasses(lookupType, mainType);
-                }
-            }
-        }
-
-        // Tests for mixed-date/time types
-        var dateTypes = List.of(DATETIME, DATE_NANOS);
-        {
-            TestConfigs configs = testConfigurations.computeIfAbsent("mixed-temporal", TestConfigs::new);
-            for (DataType mainType : dateTypes) {
-                for (DataType lookupType : dateTypes) {
-                    if (mainType != lookupType) {
-                        configs.addFails(mainType, lookupType);
+            // Test integer types
+            var integerTypes = List.of(BYTE, SHORT, INTEGER, LONG);
+            {
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("integers", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                for (DataType mainType : integerTypes) {
+                    for (DataType lookupType : integerTypes) {
+                        configs.addPasses(mainType, lookupType, operation);
                     }
                 }
             }
-        }
 
-        // Union types; non-exhaustive and can be extended
-        {
-            TestConfigs configs = testConfigurations.computeIfAbsent("union-types", TestConfigs::new);
-            configs.addUnionTypePasses(SHORT, INTEGER, INTEGER);
-            configs.addUnionTypePasses(BYTE, DOUBLE, LONG);
-            configs.addUnionTypePasses(DATETIME, DATE_NANOS, DATE_NANOS);
-            configs.addUnionTypePasses(DATE_NANOS, DATETIME, DATETIME);
-            configs.addUnionTypePasses(SCALED_FLOAT, HALF_FLOAT, DOUBLE);
-            configs.addUnionTypePasses(TEXT, KEYWORD, KEYWORD);
-        }
+            // Test float and double
+            var floatTypes = List.of(HALF_FLOAT, FLOAT, DOUBLE, SCALED_FLOAT);
+            {
 
-        // Tests for all unsupported types
-        DataType[] unsupported = Join.UNSUPPORTED_TYPES;
-        {
-            Collection<TestConfigs> existing = testConfigurations.values();
-            TestConfigs configs = testConfigurations.computeIfAbsent("unsupported", TestConfigs::new);
-            for (DataType type : unsupported) {
-                if (type == NULL
-                    || type == DOC_DATA_TYPE
-                    || type == TSID_DATA_TYPE
-                    || type == AGGREGATE_METRIC_DOUBLE
-                    || type.esType() == null
-                    || type.isCounter()
-                    || DataType.isRepresentable(type) == false) {
-                    // Skip unmappable types, or types not supported in ES|QL in general
-                    continue;
-                }
-                if (existingIndex(existing, type, type)) {
-                    // Skip existing configurations
-                    continue;
-                }
-                configs.addFailsUnsupported(type, type);
-            }
-        }
-
-        // Tests for all types where left and right are the same type
-        DataType[] supported = {
-            BOOLEAN,
-            LONG,
-            INTEGER,
-            DOUBLE,
-            SHORT,
-            BYTE,
-            FLOAT,
-            HALF_FLOAT,
-            DATETIME,
-            DATE_NANOS,
-            IP,
-            KEYWORD,
-            SCALED_FLOAT };
-        {
-            Collection<TestConfigs> existing = testConfigurations.values();
-            TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);
-            for (DataType type : supported) {
-                assertThat("Claiming supported for unsupported type: " + type, List.of(unsupported).contains(type), is(false));
-                if (existingIndex(existing, type, type) == false) {
-                    // Only add the configuration if it doesn't already exist
-                    configs.addPasses(type, type);
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("floats", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                for (DataType mainType : floatTypes) {
+                    for (DataType lookupType : floatTypes) {
+                        configs.addPasses(mainType, lookupType, operation);
+                    }
                 }
             }
-        }
 
-        // Assert that unsupported types are not in the supported list
-        for (DataType type : unsupported) {
-            assertThat("Claiming supported for unsupported type: " + type, List.of(supported).contains(type), is(false));
-        }
+            // Tests for mixed-numerical types
+            {
 
-        // Assert that unsupported+supported covers all types:
-        List<DataType> missing = new ArrayList<>();
-        for (DataType type : DataType.values()) {
-            boolean isUnsupported = List.of(unsupported).contains(type);
-            boolean isSupported = List.of(supported).contains(type);
-            if (isUnsupported == false && isSupported == false) {
-                missing.add(type);
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("mixed-numerical", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                for (DataType mainType : integerTypes) {
+                    for (DataType lookupType : floatTypes) {
+                        configs.addPasses(mainType, lookupType, operation);
+                        configs.addPasses(lookupType, mainType, operation);
+                    }
+                }
             }
-        }
-        assertThat(missing + " are not in the supported or unsupported list", missing.size(), is(0));
 
-        // Tests for all other type combinations
-        {
-            Collection<TestConfigs> existing = testConfigurations.values();
-            TestConfigs configs = testConfigurations.computeIfAbsent("others", TestConfigs::new);
-            for (DataType mainType : supported) {
-                for (DataType lookupType : supported) {
-                    if (existingIndex(existing, mainType, lookupType) == false) {
+            // Tests for mixed-date/time types
+            var dateTypes = List.of(DATETIME, DATE_NANOS);
+            {
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("mixed-temporal", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                for (DataType mainType : dateTypes) {
+                    for (DataType lookupType : dateTypes) {
+                        if (mainType != lookupType) {
+                            configs.addFails(mainType, lookupType);
+                        }
+                    }
+                }
+            }
+
+            // Union types; non-exhaustive and can be extended
+            {
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("union-types", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                configs.addUnionTypePasses(SHORT, INTEGER, INTEGER);
+                configs.addUnionTypePasses(BYTE, DOUBLE, LONG);
+                configs.addUnionTypePasses(DATETIME, DATE_NANOS, DATE_NANOS);
+                configs.addUnionTypePasses(DATE_NANOS, DATETIME, DATETIME);
+                configs.addUnionTypePasses(SCALED_FLOAT, HALF_FLOAT, DOUBLE);
+                configs.addUnionTypePasses(TEXT, KEYWORD, KEYWORD);
+
+            }
+
+            // Tests for all unsupported types
+            DataType[] unsupported = Join.UNSUPPORTED_TYPES;
+            boolean isLessOrGreater = operation == BinaryComparisonOperation.GT
+                || operation == BinaryComparisonOperation.GTE
+                || operation == BinaryComparisonOperation.LT
+                || operation == BinaryComparisonOperation.LTE;
+            {
+
+                Collection<TestConfigs> existing = testConfigurations.values();
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("unsupported", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                for (DataType type : unsupported) {
+                    if (type == NULL
+                        || type == DOC_DATA_TYPE
+                        || type == TSID_DATA_TYPE
+                        || type == AGGREGATE_METRIC_DOUBLE  // need special handling for loads at the moment
+                        || type == DENSE_VECTOR  // need special handling for loads at the moment
+                        || type == EXPONENTIAL_HISTOGRAM
+                        || type == TDIGEST
+                        || type == HISTOGRAM
+                        || type == GEOHASH
+                        || type == GEOTILE
+                        || type == GEOHEX
+                        || type.esType() == null
+                        || type.isCounter()
+                        || DataType.isRepresentable(type) == false) {
+                        // Skip unmappable types, or types not supported in ES|QL in general
+                        continue;
+                    }
+                    if (existingIndex(existing, type, type, operation)) {
+                        // Skip existing configurations
+                        continue;
+                    }
+                    if (operation != null && type == DENSE_VECTOR
+                        || isLessOrGreater
+                            && (type == GEO_POINT || type == GEO_SHAPE || type == CARTESIAN_POINT || type == CARTESIAN_SHAPE)) {
+                        configs.addUnsupportedComparisonFails(type, type, operation);
+                    } else {
+                        configs.addFailsUnsupported(type, type, operation);
+                    }
+                }
+            }
+
+            // Tests for all types where left and right are the same type
+            DataType[] supported = {
+                BOOLEAN,
+                LONG,
+                INTEGER,
+                DOUBLE,
+                SHORT,
+                BYTE,
+                FLOAT,
+                HALF_FLOAT,
+                DATETIME,
+                DATE_NANOS,
+                IP,
+                KEYWORD,
+                SCALED_FLOAT };
+            {
+                Collection<TestConfigs> existing = testConfigurations.values();
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("same", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                for (DataType type : supported) {
+                    assertThat("Claiming supported for unsupported type: " + type, List.of(unsupported).contains(type), is(false));
+                    if (existingIndex(existing, type, type, operation) == false) {
                         // Only add the configuration if it doesn't already exist
-                        configs.addFails(mainType, lookupType);
+                        if (type == BOOLEAN && isLessOrGreater) {
+                            // Boolean does not support inequality operations
+                            configs.addUnsupportedComparisonFails(type, type, operation);
+                        } else {
+                            configs.addPasses(type, type, operation);
+                        }
+                    }
+                }
+            }
+
+            // Assert that unsupported types are not in the supported list
+            for (DataType type : unsupported) {
+                assertThat("Claiming supported for unsupported type: " + type, List.of(supported).contains(type), is(false));
+            }
+
+            // Assert that unsupported+supported covers all types:
+            List<DataType> missing = new ArrayList<>();
+            for (DataType type : DataType.values()) {
+                boolean isUnsupported = List.of(unsupported).contains(type);
+                boolean isSupported = List.of(supported).contains(type);
+                if (isUnsupported == false && isSupported == false) {
+                    missing.add(type);
+                }
+            }
+            assertThat(missing + " are not in the supported or unsupported list", missing.size(), is(0));
+
+            // Tests for all other type combinations
+            {
+                Collection<TestConfigs> existing = testConfigurations.values();
+
+                TestConfigs configs = testConfigurations.computeIfAbsent(
+                    new Pair<>("others", operation),
+                    x -> new TestConfigs(x.cur(), x.cud())
+                );
+                for (DataType mainType : supported) {
+                    for (DataType lookupType : supported) {
+                        if (existingIndex(existing, mainType, lookupType, operation) == false) {
+                            if (operation == null) {
+                                // Only add the configuration if it doesn't already exist
+                                configs.addFails(mainType, lookupType);
+                            } else if (isLessOrGreater) {
+                                configs.addIncompatibleDifferentTypesLessGreater(mainType, lookupType, operation);
+                            } else {
+                                configs.addMismatchedComparisonFailsEqualNotEqual(mainType, lookupType, operation);
+                            }
+                        }
                     }
                 }
             }
         }
-
         // Make sure we have never added two configurations with the same lookup index name.
         // This prevents accidentally adding the same test config to two different groups.
         Set<String> knownTypes = new HashSet<>();
@@ -263,23 +364,37 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
     }
 
-    private static boolean existingIndex(Collection<TestConfigs> existing, DataType mainType, DataType lookupType) {
-        String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType();
+    static String stringForOperation(BinaryComparisonOperation operation) {
+        return operation == null ? "_field" : "_" + operation.name().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean existingIndex(
+        Collection<TestConfigs> existing,
+        DataType mainType,
+        DataType lookupType,
+        BinaryComparisonOperation operation
+    ) {
+        String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType() + stringForOperation(operation);
         return existing.stream().anyMatch(c -> c.exists(indexName));
     }
 
     /** This test generates documentation for the supported output types of the lookup join. */
     public void testOutputSupportedTypes() throws Exception {
-        Map<List<DocsV3Support.Param>, DataType> signatures = new LinkedHashMap<>();
+        Set<DocsV3Support.TypeSignature> signatures = new LinkedHashSet<>();
         for (TestConfigs configs : testConfigurations.values()) {
-            if (configs.group.equals("unsupported") || configs.group.equals("union-types")) {
+            if (configs.group.equals("unsupported") || configs.group.equals("union-types") || configs.operation != null) {
                 continue;
             }
             for (TestConfig config : configs.configs.values()) {
                 if (config instanceof TestConfigPasses) {
-                    signatures.put(
-                        List.of(new DocsV3Support.Param(config.mainType(), List.of()), new DocsV3Support.Param(config.lookupType(), null)),
-                        null
+                    signatures.add(
+                        new DocsV3Support.TypeSignature(
+                            List.of(
+                                new DocsV3Support.Param(config.mainType(), List.of()),
+                                new DocsV3Support.Param(config.lookupType(), null)
+                            ),
+                            null
+                        )
                     );
                 }
             }
@@ -288,43 +403,44 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     public void testLookupJoinStrings() {
-        testLookupJoinTypes("strings");
+        testLookupJoinTypes("strings", operationParameterized);
+
     }
 
     public void testLookupJoinIntegers() {
-        testLookupJoinTypes("integers");
+        testLookupJoinTypes("integers", operationParameterized);
     }
 
     public void testLookupJoinFloats() {
-        testLookupJoinTypes("floats");
+        testLookupJoinTypes("floats", operationParameterized);
     }
 
     public void testLookupJoinMixedNumerical() {
-        testLookupJoinTypes("mixed-numerical");
+        testLookupJoinTypes("mixed-numerical", operationParameterized);
     }
 
     public void testLookupJoinMixedTemporal() {
-        testLookupJoinTypes("mixed-temporal");
+        testLookupJoinTypes("mixed-temporal", operationParameterized);
     }
 
     public void testLookupJoinSame() {
-        testLookupJoinTypes("same");
+        testLookupJoinTypes("same", operationParameterized);
     }
 
     public void testLookupJoinUnsupported() {
-        testLookupJoinTypes("unsupported");
+        testLookupJoinTypes("unsupported", operationParameterized);
     }
 
     public void testLookupJoinOthers() {
-        testLookupJoinTypes("others");
+        testLookupJoinTypes("others", operationParameterized);
     }
 
     public void testLookupJoinUnionTypes() {
-        testLookupJoinTypes("union-types");
+        testLookupJoinTypes("union-types", operationParameterized);
     }
 
-    private void testLookupJoinTypes(String group) {
-        TestConfigs configs = testConfigurations.get(group);
+    private void testLookupJoinTypes(String group, BinaryComparisonOperation operation) {
+        TestConfigs configs = testConfigurations.get(new Pair<>(group, operation));
         initIndexes(configs);
         initData(configs);
         for (TestConfig config : configs.values()) {
@@ -359,6 +475,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             indexRequests.add(indexRequest);
         }
         indexRandom(true, indexRequests);
+    }
+
+    static String suffixLeftFieldName(BinaryComparisonOperation operation) {
+        if (operation != null) {
+            return "_left";
+        }
+        return "";
     }
 
     private static String propertyFor(String fieldName, DataType type) {
@@ -434,10 +557,13 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     private static class TestConfigs {
         final String group;
         final Map<String, TestConfig> configs;
+        @Nullable
+        final BinaryComparisonOperation operation; // null means field based join
 
-        TestConfigs(String group) {
+        TestConfigs(String group, BinaryComparisonOperation operation) {
             this.group = group;
             this.configs = new LinkedHashMap<>();
+            this.operation = operation;
         }
 
         public List<TestMapping> indices() {
@@ -522,22 +648,24 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             configs.put(config.lookupIndexName(), config);
         }
 
-        private void addPasses(DataType mainType, DataType lookupType) {
-            add(new TestConfigPasses(mainType, lookupType));
+        private void addPasses(DataType mainType, DataType lookupType, BinaryComparisonOperation operation) {
+            add(new TestConfigPasses(mainType, lookupType, operation));
         }
 
         private void addUnionTypePasses(DataType mainType, DataType otherMainType, DataType lookupType) {
-            add(new TestConfigPassesUnionType(mainType, otherMainType, lookupType));
+            add(new TestConfigPassesUnionType(mainType, otherMainType, lookupType, operation));
         }
 
         private void addFails(DataType mainType, DataType lookupType) {
-            String fieldName = LOOKUP_INDEX_PREFIX + lookupType.esType();
+            String fieldNameLeft = LOOKUP_INDEX_PREFIX + lookupType.esType() + suffixLeftFieldName(operation);
+            String fieldNameRight = LOOKUP_INDEX_PREFIX + lookupType.esType();
+
             String errorMessage = String.format(
                 Locale.ROOT,
                 "JOIN left field [%s] of type [%s] is incompatible with right field [%s] of type [%s]",
-                fieldName,
+                fieldNameLeft,
                 mainType.widenSmallNumeric(),
-                fieldName,
+                fieldNameRight,
                 lookupType.widenSmallNumeric()
             );
             add(
@@ -545,12 +673,72 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     mainType,
                     lookupType,
                     VerificationException.class,
-                    e -> assertThat(e.getMessage(), containsString(errorMessage))
+                    e -> assertThat(e.getMessage(), containsString(errorMessage)),
+                    operation
                 )
             );
         }
 
-        private void addFailsUnsupported(DataType mainType, DataType lookupType) {
+        private void addMismatchedComparisonFailsEqualNotEqual(
+            DataType mainType,
+            DataType lookupType,
+            BinaryComparisonOperation operation
+        ) {
+            String fieldNameLeft = LOOKUP_INDEX_PREFIX + lookupType.esType() + suffixLeftFieldName(operation);
+            String fieldNameRight = LOOKUP_INDEX_PREFIX + lookupType.esType();
+            final Consumer<VerificationException> assertion = e -> {
+                String errorMessage1 = String.format(
+                    Locale.ROOT,
+                    "first argument of [%s %s %s] is [",
+                    fieldNameLeft,
+                    operation.symbol(),
+                    fieldNameRight
+                );
+                String errorMessage3 = String.format(Locale.ROOT, " but was [%s]", lookupType.widenSmallNumeric().typeName());
+                assertThat(e.getMessage(), containsString(errorMessage1));
+                assertThat(e.getMessage(), containsString("] so second argument must also be ["));
+                assertThat(e.getMessage(), containsString(errorMessage3));
+            };
+
+            add(new TestConfigFails<>(mainType, lookupType, VerificationException.class, assertion, operation));
+        }
+
+        private void addIncompatibleDifferentTypesLessGreater(DataType mainType, DataType lookupType, BinaryComparisonOperation operation) {
+            String fieldNameLeft = LOOKUP_INDEX_PREFIX + lookupType.esType() + suffixLeftFieldName(operation);
+            String fieldNameRight = LOOKUP_INDEX_PREFIX + lookupType.esType();
+
+            String errorMessage1 = String.format(Locale.ROOT, "argument of [%s %s %s]", fieldNameLeft, operation.symbol(), fieldNameRight);
+
+            add(new TestConfigFails<>(mainType, lookupType, VerificationException.class, e -> {
+                assertThat(e.getMessage().toLowerCase(Locale.ROOT), containsString(errorMessage1));
+                assertThat(
+                    e.getMessage().toLowerCase(Locale.ROOT),
+                    anyOf(List.of(containsString(mainType.widenSmallNumeric().typeName()), containsString("numeric")))
+                );
+                assertThat(e.getMessage().toLowerCase(Locale.ROOT), containsString(lookupType.typeName()));
+            }, operation));
+        }
+
+        private void addUnsupportedComparisonFails(DataType mainType, DataType lookupType, BinaryComparisonOperation operation) {
+            String fieldNameLeft = LOOKUP_INDEX_PREFIX + lookupType.esType() + suffixLeftFieldName(operation);
+            String fieldNameRight = LOOKUP_INDEX_PREFIX + lookupType.esType();
+
+            String errorMessage1 = String.format(
+                Locale.ROOT,
+                "first argument of [%s %s %s] must be",
+                fieldNameLeft,
+                operation.symbol(),
+                fieldNameRight
+            );
+            String errorMessage2 = String.format(Locale.ROOT, "found value [%s] type [%s]", fieldNameLeft, mainType.typeName());
+
+            add(new TestConfigFails<>(mainType, lookupType, VerificationException.class, e -> {
+                assertThat(e.getMessage().toLowerCase(Locale.ROOT), containsString(errorMessage1));
+                assertThat(e.getMessage().toLowerCase(Locale.ROOT), containsString(errorMessage2));
+            }, operation));
+        }
+
+        private void addFailsUnsupported(DataType mainType, DataType lookupType, BinaryComparisonOperation operation) {
             String fieldName = "lookup_" + lookupType.esType();
             String errorMessage = String.format(
                 Locale.ROOT,
@@ -563,7 +751,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     mainType,
                     lookupType,
                     VerificationException.class,
-                    e -> assertThat(e.getMessage(), containsString(errorMessage))
+                    e -> assertThat(e.getMessage(), containsString(errorMessage)),
+                    operation
                 )
             );
         }
@@ -573,6 +762,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         DataType mainType();
 
         DataType lookupType();
+
+        BinaryComparisonOperation operation();
 
         default TestMapping mainIndex() {
             return new TestMapping(MAIN_INDEX, List.of(propertySpecFor(mainFieldName(), mainType())), null);
@@ -603,7 +794,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         default String lookupIndexName() {
-            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType() + stringForOperation(operation());
         }
 
         default TestMapping lookupIndex() {
@@ -623,20 +814,39 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             return LOOKUP_INDEX_PREFIX + lookupType().esType();
         }
 
-        default String testQuery() {
-            String mainField = mainFieldName();
-            String lookupField = lookupFieldName();
-            String lookupIndex = lookupIndexName();
+        default String testQuery(BinaryComparisonOperation operation) {
+            if (operation != null) {
+                String mainField = mainFieldName();
+                String lookupField = lookupFieldName();
+                String lookupFieldLeft = lookupFieldName() + suffixLeftFieldName(operation);
+                String lookupIndex = lookupIndexName();
 
-            return String.format(
-                Locale.ROOT,
-                "FROM %s | RENAME %s AS %s | LOOKUP JOIN %s ON %s | KEEP other",
-                MAIN_INDEX,
-                mainField,
-                lookupField,
-                lookupIndex,
-                lookupField
-            );
+                return String.format(
+                    Locale.ROOT,
+                    "FROM %s | EVAL %s = %s | LOOKUP JOIN %s ON %s %s %s | KEEP other",
+                    MAIN_INDEX,
+                    lookupFieldLeft,
+                    mainField,
+                    lookupIndex,
+                    lookupFieldLeft,
+                    operation.symbol(),
+                    lookupField
+                );
+            } else {
+                String mainField = mainFieldName();
+                String lookupField = lookupFieldName();
+                String lookupIndex = lookupIndexName();
+
+                return String.format(
+                    Locale.ROOT,
+                    "FROM %s | RENAME %s AS %s | LOOKUP JOIN %s ON %s | KEEP other",
+                    MAIN_INDEX,
+                    mainField,
+                    lookupField,
+                    lookupIndex,
+                    lookupField
+                );
+            }
         }
 
         void doTest();
@@ -657,7 +867,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private static void validateIndex(String indexName, String fieldName, Object expectedValue) {
         String query = String.format(Locale.ROOT, "FROM %s | KEEP %s", indexName, fieldName);
-        try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+        try (var response = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
             ColumnInfo info = response.response().columns().getFirst();
             assertThat("Expected index '" + indexName + "' to have column '" + fieldName + ": " + query, info.name(), is(fieldName));
             Iterator<Object> results = response.response().column(0).iterator();
@@ -670,15 +880,24 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     /**
      * Test case for a pair of types that can successfully be used in {@code LOOKUP JOIN}.
      */
-    private record TestConfigPasses(DataType mainType, DataType lookupType) implements TestConfig {
+    private record TestConfigPasses(DataType mainType, DataType lookupType, BinaryComparisonOperation operation) implements TestConfig {
         @Override
         public void doTest() {
-            String query = testQuery();
-            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+            String query = testQuery(operation);
+            try (var response = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
                 Iterator<Object> results = response.response().column(0).iterator();
                 assertTrue("Expected at least one result for query: " + query, results.hasNext());
                 Object indexedResult = response.response().column(0).iterator().next();
-                assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+                List<BinaryComparisonOperation> valueProducingOperations = new ArrayList<>();
+                valueProducingOperations.add(null);
+                valueProducingOperations.addAll(
+                    List.of(BinaryComparisonOperation.EQ, BinaryComparisonOperation.GTE, BinaryComparisonOperation.LTE)
+                );
+                if (valueProducingOperations.contains(operation)) {
+                    assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+                } else {
+                    assertTrue("Expected valid result: " + query, (indexedResult == null) || (indexedResult.equals("value") == false));
+                }
             }
         }
     }
@@ -686,15 +905,26 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     /**
      * Test case for a {@code LOOKUP JOIN} where a field with a mapping conflict is cast to the type of the lookup field.
      */
-    private record TestConfigPassesUnionType(DataType mainType, DataType otherMainType, DataType lookupType) implements TestConfig {
+    private record TestConfigPassesUnionType(
+        DataType mainType,
+        DataType otherMainType,
+        DataType lookupType,
+        BinaryComparisonOperation operation
+    ) implements TestConfig {
         @Override
         public String lookupIndexName() {
             // Override so it doesn't clash with other lookup indices from non-union type tests.
-            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_union_" + otherMainType().esType() + "_" + lookupType().esType();
+            return LOOKUP_INDEX_PREFIX
+                + mainType().esType()
+                + "_union_"
+                + otherMainType().esType()
+                + "_"
+                + lookupType().esType()
+                + stringForOperation(operation());
         }
 
         private String additionalIndexName() {
-            return mainFieldName() + "_as_" + otherMainType().typeName();
+            return mainFieldName() + "_as_" + otherMainType().typeName() + stringForOperation(operation());
         }
 
         @Override
@@ -708,37 +938,67 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         @Override
-        public String testQuery() {
-            String mainField = mainFieldName();
-            String lookupField = lookupFieldName();
-            String lookupIndex = lookupIndexName();
+        public String testQuery(BinaryComparisonOperation operation) {
+            if (operation == null) {
+                String mainField = mainFieldName();
+                String lookupField = lookupFieldName();
+                String lookupIndex = lookupIndexName();
 
-            return String.format(
-                Locale.ROOT,
-                "FROM %s, %s | EVAL %s = %s::%s | LOOKUP JOIN %s ON %s | KEEP other",
-                MAIN_INDEX,
-                additionalIndexName(),
-                lookupField,
-                mainField,
-                lookupType.typeName(),
-                lookupIndex,
-                lookupField
-            );
+                return String.format(
+                    Locale.ROOT,
+                    "FROM %s, %s | EVAL %s = %s::%s | LOOKUP JOIN %s ON %s | KEEP other",
+                    MAIN_INDEX,
+                    additionalIndexName(),
+                    lookupField,
+                    mainField,
+                    lookupType.typeName(),
+                    lookupIndex,
+                    lookupField
+                );
+            } else {
+                String mainField = mainFieldName();
+                String lookupField = lookupFieldName();
+                String lookupIndex = lookupIndexName();
+                String lookupFieldLeft = lookupField + suffixLeftFieldName(operation);
+
+                return String.format(
+                    Locale.ROOT,
+                    "FROM %s, %s | EVAL %s = %s::%s | LOOKUP JOIN %s ON %s %s %s | KEEP other",
+                    MAIN_INDEX,
+                    additionalIndexName(),
+                    lookupFieldLeft,
+                    mainField,
+                    lookupType.typeName(),
+                    lookupIndex,
+                    lookupFieldLeft,
+                    operation.symbol(),
+                    lookupField
+                );
+            }
         }
 
         @Override
         public void doTest() {
-            String query = testQuery();
-            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+            String query = testQuery(operation);
+            try (var response = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
                 Iterator<Object> results = response.response().column(0).iterator();
 
                 assertTrue("Expected at least two results for query, but result was empty: " + query, results.hasNext());
                 Object indexedResult = results.next();
-                assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+                List<BinaryComparisonOperation> valueProducingOperations = new ArrayList<>();
+                valueProducingOperations.add(null);
+                valueProducingOperations.addAll(
+                    List.of(BinaryComparisonOperation.EQ, BinaryComparisonOperation.GTE, BinaryComparisonOperation.LTE)
+                );
+                if (valueProducingOperations.contains(operation)) {
+                    assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
 
-                assertTrue("Expected at least two results for query: " + query, results.hasNext());
-                indexedResult = results.next();
-                assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+                    assertTrue("Expected at least two results for query: " + query, results.hasNext());
+                    indexedResult = results.next();
+                    assertThat("Expected valid result: " + query, indexedResult, equalTo("value"));
+                } else {
+                    assertTrue("Expected valid result: " + query, (indexedResult == null) || (indexedResult.equals("value") == false));
+                }
             }
         }
     }
@@ -746,18 +1006,22 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     /**
      * Test case for a pair of types that generate an error message when used in {@code LOOKUP JOIN}.
      */
-    private record TestConfigFails<E extends Exception>(DataType mainType, DataType lookupType, Class<E> exception, Consumer<E> assertion)
-        implements
-            TestConfig {
+    private record TestConfigFails<E extends Exception>(
+        DataType mainType,
+        DataType lookupType,
+        Class<E> exception,
+        Consumer<E> assertion,
+        BinaryComparisonOperation operation
+    ) implements TestConfig {
         @Override
         public void doTest() {
-            String query = testQuery();
+            String query = testQuery(operation);
             E e = expectThrows(
                 exception(),
                 "Expected exception " + exception().getSimpleName() + " but no exception was thrown: " + query,
                 () -> {
                     // noinspection EmptyTryBlock
-                    try (var ignored = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+                    try (var ignored = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
                         // We use try-with-resources to ensure the request is closed if the exception is not thrown (less cluttered errors)
                     }
                 }
@@ -767,10 +1031,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private boolean isValidDataType(DataType dataType) {
-        return UNDER_CONSTRUCTION.get(dataType) == null || UNDER_CONSTRUCTION.get(dataType).isEnabled();
+        return UNDER_CONSTRUCTION.contains(dataType) == false;
     }
 
-    private static void saveJoinTypes(Supplier<Map<List<DocsV3Support.Param>, DataType>> signatures) throws Exception {
+    private static void saveJoinTypes(Supplier<Set<DocsV3Support.TypeSignature>> signatures) throws Exception {
         if (System.getProperty("generateDocs") == null) {
             return;
         }

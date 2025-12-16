@@ -7,23 +7,16 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,15 +25,12 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelp
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomManageRolesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
-
-    private RestClient oldVersionClient = null;
-    private RestClient newVersionClient = null;
 
     public void testRolesWithDescription() throws Exception {
         assumeTrue(
@@ -76,7 +66,8 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByVersion(SECURITY_ROLE_DESCRIPTION);
+                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, RoleDescriptor.SECURITY_ROLE_DESCRIPTION));
+
                     // succeed when role description is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
                     createRole(client(), "my-valid-mixed-role", initialRole);
@@ -158,8 +149,8 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testRolesWithManageRoles() throws Exception {
         assumeTrue(
-            "The manage roles privilege is supported after transport version: " + TransportVersions.V_8_16_0,
-            minimumTransportVersion().before(TransportVersions.V_8_16_0)
+            "The manage roles privilege is supported after transport version: " + MANAGE_ROLES_PRIVILEGE,
+            minimumTransportVersion().before(MANAGE_ROLES_PRIVILEGE)
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -190,7 +181,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByVersion(TransportVersions.V_8_16_0);
+                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, MANAGE_ROLES_PRIVILEGE));
                     // succeed when role manage roles is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
                     createRole(client(), "my-valid-mixed-role", initialRole);
@@ -232,7 +223,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.V_8_16_0.toReleaseVersion()
+                                    + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );
@@ -246,7 +237,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.V_8_16_0.toReleaseVersion()
+                                    + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );
@@ -312,71 +303,15 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
-    private boolean nodeSupportTransportVersion(Map<String, Object> nodeDetails, TransportVersion transportVersion) {
-        String nodeVersionString = (String) nodeDetails.get("version");
-        TransportVersion nodeTransportVersion = getTransportVersionWithFallback(
-            nodeVersionString,
-            nodeDetails.get("transport_version"),
-            () -> TransportVersions.ZERO
-        );
-
-        if (nodeTransportVersion.equals(TransportVersions.ZERO)) {
+    private boolean nodeSupportTransportVersion(TestNodeInfo testNodeInfo, TransportVersion transportVersion) {
+        if (testNodeInfo.transportVersion().equals(TransportVersion.zero())) {
             // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
             // In that case, the node will be current (upgraded), and remote indices are supported for sure.
-            var nodeIsCurrent = nodeVersionString.equals(Build.current().version());
+            var nodeIsCurrent = testNodeInfo.version().equals(Build.current().version());
             assertTrue(nodeIsCurrent);
             return true;
         }
-        return nodeTransportVersion.onOrAfter(transportVersion);
-    }
-
-    private void createClientsByVersion(TransportVersion transportVersion) throws IOException {
-        var clientsByCapability = getRestClientByCapability(transportVersion);
-        if (clientsByCapability.size() == 2) {
-            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
-                if (client.getKey() == false) {
-                    oldVersionClient = client.getValue();
-                } else {
-                    newVersionClient = client.getValue();
-                }
-            }
-            assertThat(oldVersionClient, notNullValue());
-            assertThat(newVersionClient, notNullValue());
-        } else {
-            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
-        }
-    }
-
-    private void closeClientsByVersion() throws IOException {
-        if (oldVersionClient != null) {
-            oldVersionClient.close();
-            oldVersionClient = null;
-        }
-        if (newVersionClient != null) {
-            newVersionClient.close();
-            newVersionClient = null;
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<Boolean, RestClient> getRestClientByCapability(TransportVersion transportVersion) throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
-        assertOK(response);
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
-        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
-            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            var capabilitySupported = nodeSupportTransportVersion(nodeDetails, transportVersion);
-            Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
-                .add(HttpHost.create((String) httpInfo.get("publish_address")));
-        }
-        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
-        for (var entry : hostsByCapability.entrySet()) {
-            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
-        }
-        return clientsByCapability;
+        return testNodeInfo.transportVersion().supports(transportVersion);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeDescription, boolean includeManageRoles) {

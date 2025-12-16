@@ -1,0 +1,23 @@
+pr: 138139
+summary: Support window function in time-series aggregations
+area: ES|QL
+type: enhancement
+issues: []
+highlight:
+  title: Evaluate time series aggregation functions over sliding windows
+  body: |-
+    Time series aggregations in ES|QL can be optionally calculated over a sliding time window. Using a window
+    larger than the time bucket interval reduces jitter in dashboards, by taking a larger number of data points into
+    account.
+
+    Windows can be specified in all supported time series aggregations, as a second argument. For instance, the
+    following ES|QL query calculates the average rate of requests per host every minute, using a 10-minute window:
+
+    TS metrics
+    | WHERE TRANGE(1h)
+    | STATS avg(rate(requests, 10m)) BY TBUCKET(1m), host
+
+    Acceptable window values are currently limited to multiples of the time bucket value (e.g. `BUCKET` or `TBUCKET`),
+    as specified in the BY-clause. If no window is provided, it's implicitly set to the time bucket value,
+    matching existing behavior.
+  notable: true

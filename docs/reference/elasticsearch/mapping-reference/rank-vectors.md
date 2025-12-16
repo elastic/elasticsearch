@@ -1,18 +1,13 @@
 ---
-navigation_title: "Rank Vectors"
+navigation_title: "Rank vectors"
+applies_to:
+  stack: preview 9.0
+  serverless: preview
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/rank-vectors.html
-  # That link will 404 until 8.18 is current
-  # (see https://www.elastic.co/guide/en/elasticsearch/reference/8.18/rank-vectors.html)
 ---
 
-# Rank Vectors [rank-vectors]
-
-
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
+# Rank vectors [rank-vectors]
 
 The `rank_vectors` field type enables late-interaction dense vector scoring in Elasticsearch. The number of vectors per field can vary, but they must all share the same number of dimensions and element type.
 
@@ -37,8 +32,29 @@ PUT my-rank-vectors-float/_doc/1
   "my_vector" : [[0.5, 10, 6], [-0.5, 10, 10]]
 }
 ```
+% TESTSETUP
 
-In addition to the `float` element type, `byte` and `bit` element types are also supported.
+In addition to the `float` element type, `bfloat16`, `byte`, and `bit` element types are also supported.
+
+Here is an example of using this field with `bfloat16` elements.
+```console
+PUT my-rank-vectors-bfloat16
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "rank_vectors",
+        "element_type": "bfloat16"
+      }
+    }
+  }
+}
+
+PUT my-rank-vectors-bfloat16/_doc/1
+{
+  "my_vector" : [[0.5, 10, 6], [-0.5, 10, 10]]
+}
+```
 
 Here is an example of using this field with `byte` elements.
 
@@ -90,11 +106,14 @@ The `rank_vectors` field type supports the following parameters:
 $$$rank-vectors-element-type$$$
 
 `element_type`
-:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and bit.
+:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and `bit`.
 
 ::::{dropdown} Valid values for element_type
 `float`
 :   indexes a 4-byte floating-point value per dimension. This is the default value.
+
+`bfloat16` {applies_to}`stack: ga 9.3`
+:   indexes a 2-byte floating-point value per dimension.
 
 `byte`
 :   indexes a 1-byte integer value per dimension.

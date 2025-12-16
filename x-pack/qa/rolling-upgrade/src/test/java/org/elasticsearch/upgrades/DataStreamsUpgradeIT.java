@@ -8,15 +8,12 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.settings.SecureString;
@@ -208,19 +205,21 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             createDataStreamFromNonDataStreamIndices(dataStreamFromNonDataStreamIndices);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             Map<String, Map<String, Object>> oldIndicesMetadata = getIndicesMetadata(dataStreamName);
+            String oldWriteIndex = getDataStreamBackingIndexNames(dataStreamName).getLast();
             upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0, ilmEnabled);
             cancelReindexTask(dataStreamName);
             upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0, ilmEnabled);
             cancelReindexTask(dataStreamFromNonDataStreamIndices);
             Map<String, Map<String, Object>> upgradedIndicesMetadata = getIndicesMetadata(dataStreamName);
+            String newWriteIndex = getDataStreamBackingIndexNames(dataStreamName).getLast();
 
             if (ilmEnabled) {
-                checkILMPhase(dataStreamName, upgradedIndicesMetadata);
+                checkILMPhase(dataStreamName, newWriteIndex);
                 // Delete the data streams to avoid ILM continuously running cluster state tasks, see
                 // https://github.com/elastic/elasticsearch/issues/129097#issuecomment-3016122739
                 deleteDataStream(dataStreamName);
             } else {
-                compareIndexMetadata(oldIndicesMetadata, upgradedIndicesMetadata);
+                compareIndexMetadata(oldIndicesMetadata, oldWriteIndex, upgradedIndicesMetadata);
             }
         }
     }
@@ -262,9 +261,9 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void compareIndexMetadata(
         Map<String, Map<String, Object>> oldIndicesMetadata,
+        String oldWriteIndex,
         Map<String, Map<String, Object>> upgradedIndicesMetadata
     ) {
-        String oldWriteIndex = getWriteIndexFromDataStreamIndexMetadata(oldIndicesMetadata);
         for (Map.Entry<String, Map<String, Object>> upgradedIndexEntry : upgradedIndicesMetadata.entrySet()) {
             String upgradedIndexName = upgradedIndexEntry.getKey();
             if (upgradedIndexName.startsWith(".migrated-")) {
@@ -287,10 +286,8 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void checkILMPhase(String dataStreamName, Map<String, Map<String, Object>> upgradedIndicesMetadata) throws Exception {
-        var writeIndex = getWriteIndexFromDataStreamIndexMetadata(upgradedIndicesMetadata);
+    private void checkILMPhase(String dataStreamName, String writeIndex) throws Exception {
         assertBusy(() -> {
-
             Request request = new Request("GET", dataStreamName + "/_ilm/explain");
             Response response = client().performRequest(request);
             Map<String, Object> responseMap = XContentHelper.convertToMap(
@@ -302,19 +299,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             for (var index : indices.keySet()) {
                 if (index.equals(writeIndex) == false) {
                     Map<String, Object> ilmInfo = (Map<String, Object>) indices.get(index);
-                    assertThat("Index has not moved to cold ILM phase", ilmInfo.get("phase"), equalTo("cold"));
+                    assertThat("Index [" + index + "] has not moved to cold ILM phase, " + indices, ilmInfo.get("phase"), equalTo("cold"));
                 }
             }
         }, 30, TimeUnit.SECONDS);
-    }
-
-    private String getWriteIndexFromDataStreamIndexMetadata(Map<String, Map<String, Object>> indexMetadataForDataStream) {
-        return indexMetadataForDataStream.entrySet()
-            .stream()
-            .sorted((o1, o2) -> Long.compare(getCreationDate(o2.getValue()), getCreationDate(o1.getValue())))
-            .map(Map.Entry::getKey)
-            .findFirst()
-            .get();
     }
 
     private void startILM() throws IOException {
@@ -550,25 +538,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             indexTemplate.replace("$TEMPLATE", templateWithNoTimestamp).replace("$PATTERN", dataStreamFromNonDataStreamIndices + "-*")
         );
         String indexName = dataStreamFromNonDataStreamIndices + "-01";
-        if (minimumTransportVersion().before(TransportVersions.V_8_0_0)) {
-            /*
-             * It is not possible to create a 7.x index template with a type. And you can't create an empty index with a type. But you can
-             * create the index with a type by posting a document to an index with a type. We do that here so that we test that the type is
-             * removed when we reindex into 8.x.
-             */
-            String typeName = "test-type";
-            Request createIndexRequest = new Request("POST", indexName + "/" + typeName);
-            createIndexRequest.setJsonEntity("""
-                {
-                  "@timestamp": "2099-11-15T13:12:00",
-                  "message": "GET /search HTTP/1.1 200 1070000",
-                  "user": {
-                    "id": "kimchy"
-                  }
-                }""");
-            createIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
-            assertOK(client().performRequest(createIndexRequest));
-        }
         assertOK(client().performRequest(putIndexTemplateRequest));
         bulkLoadDataMissingTimestamp(indexName);
         /*

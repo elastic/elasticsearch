@@ -16,6 +16,7 @@ import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
+import org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin;
 import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
@@ -24,6 +25,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
@@ -56,10 +58,14 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
     @Inject
     protected abstract ProviderFactory getProviderFactory();
 
+    @Inject
+    protected abstract BuildFeatures getBuildFeatures();
+
     @Override
     public void apply(Project project) {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         var buildParams = loadBuildParams(project);
+        project.getPluginManager().apply(InternalTestRerunPlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
         // for fips mode check
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
@@ -164,9 +170,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
             test.systemProperties(sysprops);
 
-            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
-            if (System.getProperty("ignore.tests.seed") != null) {
-                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeed());
+            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability
+            // also ignore when configuration cache is on since the test seed as task input would break
+            // configuration cache reuse.
+            if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
+                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
             } else {
                 test.systemProperty("tests.seed", buildParams.get().getTestSeed());
             }
@@ -330,24 +338,22 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             .matching(test -> TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()))
             .configureEach(test -> {
                 // See also SystemJvmOptions.maybeAttachEntitlementAgent.
+                SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = test.getExtensions()
+                    .getByType(SystemPropertyCommandLineArgumentProvider.class);
 
                 // Agent
-                if (agentFiles.isEmpty() == false) {
-                    test.getInputs().files(agentFiles);
-                    test.systemProperty("es.entitlement.agentJar", agentFiles.getAsPath());
-                    test.systemProperty("jdk.attach.allowAttachSelf", true);
-                }
+                test.getInputs().files(agentFiles).optional(true);
+                nonInputSystemProperties.systemProperty("es.entitlement.agentJar", agentFiles::getAsPath);
+                nonInputSystemProperties.systemProperty("jdk.attach.allowAttachSelf", () -> agentFiles.isEmpty() ? "false" : "true");
 
                 // Bridge
-                if (bridgeFiles.isEmpty() == false) {
-                    String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
-                    test.getInputs().files(bridgeFiles);
-                    // Tests may not be modular, but the JDK still is
-                    test.jvmArgs(
-                        "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
-                            + modulesContainingEntitlementInstrumentation
-                    );
-                }
+                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+                test.getInputs().files(bridgeFiles).optional(true);
+                // Tests may not be modular, but the JDK still is
+                test.jvmArgs(
+                    "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
+                        + modulesContainingEntitlementInstrumentation
+                );
             });
     }
 

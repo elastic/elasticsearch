@@ -1,5 +1,0 @@
-pr: 133245
-summary: Add query heads priority to `SliceQueue`
-area: ES|QL
-type: enhancement
-issues: []

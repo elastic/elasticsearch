@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Object"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/object.html
@@ -38,6 +41,7 @@ Internally, this document is indexed as a simple, flat list of key-value pairs, 
   "manager.name.last":  "Smith"
 }
 ```
+% NOTCONSOLE
 
 An explicit mapping for the above document could look like this:
 

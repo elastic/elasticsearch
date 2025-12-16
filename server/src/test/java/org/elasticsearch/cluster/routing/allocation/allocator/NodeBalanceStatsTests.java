@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -27,6 +26,9 @@ import java.util.Map;
 public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<ClusterBalanceStats.NodeBalanceStats> {
     private static final String UNKNOWN = "UNKNOWN";
     private static final int UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE = -1;
+    private static final TransportVersion NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS = TransportVersion.fromName(
+        "node_weights_added_to_node_balance_stats"
+    );
 
     @Override
     protected Writeable.Reader<ClusterBalanceStats.NodeBalanceStats> instanceReader() {
@@ -56,31 +58,12 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         return createTestInstance();
     }
 
-    public void testSerializationWithTransportVersionV_8_12_0() throws IOException {
-        ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
-        // Serialization changes based on this version
-        final var oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_12_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
-        );
-        ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
-
-        // Assert the values are as expected
-        assertEquals(instance.nodeId(), deserialized.nodeId());
-        assertEquals(instance.roles(), deserialized.roles());
-        assertEquals(instance.undesiredShardAllocations(), deserialized.undesiredShardAllocations());
-
-        // Assert the default values are as expected
-        assertNull(deserialized.nodeWeight());
-    }
-
     public void testSerializationWithTransportVersionNodeWeightsAddedToNodeBalanceStats() throws IOException {
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version
         final var oldVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS,
+            NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS,
             TransportVersion.current()
         );
         ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);

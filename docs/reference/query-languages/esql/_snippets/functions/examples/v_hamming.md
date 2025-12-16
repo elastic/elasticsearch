@@ -3,22 +3,22 @@
 **Example**
 
 ```esql
- from colors
- | eval similarity = v_hamming(rgb_vector, [0, 255, 255])
- | sort similarity desc, color asc
+from colors
+| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127])
+| sort similarity desc, color asc
 ```
 
 | color:text | similarity:double |
 | --- | --- |
-| red | 24.0 |
-| orange | 20.0 |
-| gold | 18.0 |
-| indigo | 18.0 |
-| bisque | 17.0 |
-| maroon | 17.0 |
-| pink | 17.0 |
-| salmon | 17.0 |
-| black | 16.0 |
-| firebrick | 16.0 |
+| red | 23.0 |
+| indigo | 19.0 |
+| orange | 19.0 |
+| black | 17.0 |
+| gold | 17.0 |
+| bisque | 16.0 |
+| chartreuse | 16.0 |
+| green | 16.0 |
+| maroon | 16.0 |
+| navy | 16.0 |
 
 

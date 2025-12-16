@@ -24,15 +24,15 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
-import org.elasticsearch.xpack.inference.chunking.NoneChunkingSettings;
-import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
@@ -190,7 +190,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
-                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case FLOAT, BFLOAT16 -> randomChunkedInferenceEmbeddingFloat(model, inputs);
                 case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
             };
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
@@ -211,7 +211,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             }
             chunks.add(
                 new EmbeddingResults.Chunk(
-                    new TextEmbeddingByteResults.Embedding(values),
+                    new DenseEmbeddingByteResults.Embedding(values),
                     new ChunkedInference.TextOffset(0, input.length())
                 )
             );
@@ -222,7 +222,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
-        assert elementType == DenseVectorFieldMapper.ElementType.FLOAT;
+        assert elementType == DenseVectorFieldMapper.ElementType.FLOAT || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
@@ -233,7 +233,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             }
             chunks.add(
                 new EmbeddingResults.Chunk(
-                    new TextEmbeddingFloatResults.Embedding(values),
+                    new DenseEmbeddingFloatResults.Embedding(values),
                     new ChunkedInference.TextOffset(0, input.length())
                 )
             );
@@ -272,7 +272,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     ) throws IOException {
         ChunkedInference results = switch (model.getTaskType()) {
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
-                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case FLOAT, BFLOAT16 -> randomChunkedInferenceEmbeddingFloat(model, inputs);
                 case BIT, BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
             };
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
@@ -415,8 +415,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, entryChunk, matchedText);
                         double[] values = parseDenseVector(entryChunk.rawEmbeddings(), embeddingLength, field.contentType());
                         EmbeddingResults.Embedding<?> embedding = switch (elementType) {
-                            case FLOAT -> new TextEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values));
-                            case BYTE, BIT -> new TextEmbeddingByteResults.Embedding(byteArrayOf(values));
+                            case FLOAT, BFLOAT16 -> new DenseEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values));
+                            case BYTE, BIT -> new DenseEmbeddingByteResults.Embedding(byteArrayOf(values));
                         };
                         chunks.add(new EmbeddingResults.Chunk(embedding, offset));
                     }

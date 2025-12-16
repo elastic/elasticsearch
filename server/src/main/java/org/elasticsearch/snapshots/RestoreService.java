@@ -104,6 +104,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -115,6 +116,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
@@ -267,14 +269,14 @@ public final class RestoreService implements ClusterStateApplier {
      * @param projectId project for the restore
      * @param request  restore request
      * @param listener restore listener
-     * @param updater  handler that allows callers to make modifications to {@link Metadata}
+     * @param updater  handler that allows callers to make modifications to {@link ProjectMetadata}
      *                 in the same cluster state update as the restore operation
      */
     public void restoreSnapshot(
         final ProjectId projectId,
         final RestoreSnapshotRequest request,
         final ActionListener<RestoreCompletionResponse> listener,
-        final BiConsumer<ClusterState, Metadata.Builder> updater
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
         assert Repository.assertSnapshotMetaThread();
 
@@ -368,8 +370,8 @@ public final class RestoreService implements ClusterStateApplier {
      * @param repository     the repository to restore from
      * @param request        restore request
      * @param repositoryData current repository data for the repository to restore from
-     * @param updater        handler that allows callers to make modifications to {@link Metadata} in the same cluster state update as the
-     *                       restore operation
+     * @param updater        handler that allows callers to make modifications to {@link ProjectMetadata} in the same cluster state update
+     *                       as the restore operation
      * @param listener       listener to resolve once restore has been started
      * @throws IOException   on failure to load metadata from the repository
      */
@@ -378,7 +380,7 @@ public final class RestoreService implements ClusterStateApplier {
         Repository repository,
         RestoreSnapshotRequest request,
         RepositoryData repositoryData,
-        BiConsumer<ClusterState, Metadata.Builder> updater,
+        BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
         assert Repository.assertSnapshotMetaThread();
@@ -1074,7 +1076,7 @@ public final class RestoreService implements ClusterStateApplier {
         if (prefix != null) {
             index = index.substring(prefix.length());
         }
-        renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+        renamedIndex = safeRenameIndex(index, request.renamePattern(), request.renameReplacement());
         if (prefix != null) {
             renamedIndex = prefix + renamedIndex;
         }
@@ -1371,7 +1373,7 @@ public final class RestoreService implements ClusterStateApplier {
 
         private final Collection<DataStream> dataStreamsToRestore;
 
-        private final BiConsumer<ClusterState, Metadata.Builder> updater;
+        private final BiConsumer<ClusterState, ProjectMetadata.Builder> updater;
 
         private final AllocationActionListener<RestoreCompletionResponse> listener;
         private final Settings settings;
@@ -1387,7 +1389,7 @@ public final class RestoreService implements ClusterStateApplier {
             SnapshotInfo snapshotInfo,
             Metadata metadata,
             Collection<DataStream> dataStreamsToRestore,
-            BiConsumer<ClusterState, Metadata.Builder> updater,
+            BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
             Settings settings,
             ActionListener<RestoreCompletionResponse> listener
         ) {
@@ -1573,7 +1575,7 @@ public final class RestoreService implements ClusterStateApplier {
             // Restore global state if needed
             if (request.includeGlobalState()) {
                 applyGlobalStateRestore(currentState, mdBuilder, projectId);
-                fileSettingsService.handleSnapshotRestore(currentState, mdBuilder, projectId);
+                fileSettingsService.handleSnapshotRestore(currentState, builder, mdBuilder, projectId);
             }
 
             if (completed(shards)) {
@@ -1586,7 +1588,7 @@ public final class RestoreService implements ClusterStateApplier {
                 );
             }
 
-            updater.accept(currentState, mdBuilder);
+            updater.accept(currentState, mdBuilder.getProject(projectId));
             final ClusterState updatedClusterState = builder.metadata(mdBuilder)
                 .blocks(blocks)
                 .putRoutingTable(projectId, rtBuilder.build())
@@ -1966,6 +1968,27 @@ public final class RestoreService implements ClusterStateApplier {
         MetadataCreateIndexService.validateIndexName(renamedIndexName, projectMetadata, routingTable);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
+    }
+
+    // package-private for unit testing
+    static String safeRenameIndex(String index, String renamePattern, String renameReplacement) {
+        final var matcher = Pattern.compile(renamePattern).matcher(index);
+        var found = matcher.find();
+        if (found) {
+            final var sb = new StringBuilder();
+            do {
+                matcher.appendReplacement(sb, renameReplacement);
+                found = matcher.find();
+            } while (found && sb.length() <= MAX_INDEX_NAME_BYTES);
+
+            if (sb.length() > MAX_INDEX_NAME_BYTES) {
+                throw new IllegalArgumentException("index name would exceed " + MAX_INDEX_NAME_BYTES + " bytes after rename");
+            }
+            matcher.appendTail(sb);
+            return sb.toString();
+        } else {
+            return index;
+        }
     }
 
     private static void ensureSearchableSnapshotsRestorable(

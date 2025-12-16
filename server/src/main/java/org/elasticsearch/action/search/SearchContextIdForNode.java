@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public final class SearchContextIdForNode implements Writeable {
     private final String node;
@@ -37,42 +37,16 @@ public final class SearchContextIdForNode implements Writeable {
     }
 
     SearchContextIdForNode(StreamInput in) throws IOException {
-        boolean allowNull = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
-        this.node = allowNull ? in.readOptionalString() : in.readString();
+        this.node = in.readOptionalString();
         this.clusterAlias = in.readOptionalString();
-        this.searchContextId = allowNull ? in.readOptionalWriteable(ShardSearchContextId::new) : new ShardSearchContextId(in);
+        this.searchContextId = in.readOptionalWriteable(ShardSearchContextId::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        boolean allowNull = out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
-        if (allowNull) {
-            out.writeOptionalString(node);
-        } else {
-            if (node == null) {
-                // We should never set a null node if the cluster is not fully upgraded to a version that can handle it.
-                throw new IOException(
-                    "Cannot write null node value to a node in version "
-                        + out.getTransportVersion().toReleaseVersion()
-                        + ". The target node must be specified to retrieve the ShardSearchContextId."
-                );
-            }
-            out.writeString(node);
-        }
+        out.writeOptionalString(node);
         out.writeOptionalString(clusterAlias);
-        if (allowNull) {
-            out.writeOptionalWriteable(searchContextId);
-        } else {
-            if (searchContextId == null) {
-                // We should never set a null search context id if the cluster is not fully upgraded to a version that can handle it.
-                throw new IOException(
-                    "Cannot write null search context ID to a node in version "
-                        + out.getTransportVersion().toReleaseVersion()
-                        + ". A valid search context ID is required to identify the shard's search context in this version."
-                );
-            }
-            searchContextId.writeTo(out);
-        }
+        out.writeOptionalWriteable(searchContextId);
     }
 
     @Nullable
@@ -102,5 +76,19 @@ public final class SearchContextIdForNode implements Writeable {
             + clusterAlias
             + '\''
             + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchContextIdForNode that = (SearchContextIdForNode) o;
+        return Objects.equals(node, that.node)
+            && Objects.equals(searchContextId, that.searchContextId)
+            && Objects.equals(clusterAlias, that.clusterAlias);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(node, searchContextId, clusterAlias);
     }
 }

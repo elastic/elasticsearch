@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -16,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,8 +26,8 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -36,10 +38,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETIES;
+import static org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender.MAX_RETRIES;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -52,6 +62,7 @@ import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
 
@@ -60,7 +71,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -74,15 +85,15 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     public void testDoesNotAttempt_ToRetrieveAuthorization_IfBaseUrlIsNull() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(null, threadPool, logger);
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(null, threadPool, logger, createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertTrue(authResponse.getTaskTypes().isEmpty());
+            assertTrue(authResponse.getEndpointIds().isEmpty());
             assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -96,15 +107,15 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     public void testDoesNotAttempt_ToRetrieveAuthorization_IfBaseUrlIsEmpty() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("", threadPool, logger);
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("", threadPool, logger, createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
-            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertTrue(authResponse.getTaskTypes().isEmpty());
+            assertTrue(authResponse.getEndpointIds().isEmpty());
             assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -119,33 +130,42 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory()
+        );
 
         try (var sender = senderFactory.createSender()) {
-            String responseJson = """
+            String responseWithInvalidIdField = """
                 {
-                    "models": [
-                        {
-                          "invalid-field": "model-a",
-                          "task-types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
+                  "inference_endpoints": [
+                    {
+                      "id": 123,
+                      "model_name": "jina-reranker-v2",
+                      "task_type": "rerank",
+                      "status": "preview",
+                      "properties": [],
+                      "release_date": "2024-05-01"
+                    }
+                  ]
                 }
                 """;
 
-            queueWebServerResponsesForRetries(responseJson);
+            queueWebServerResponsesForRetries(responseWithInvalidIdField);
 
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var exception = expectThrows(XContentParseException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(exception.getMessage(), containsString("failed to parse field [models]"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [inference_endpoints]"));
 
             var stringCaptor = ArgumentCaptor.forClass(String.class);
             var exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
             verify(logger).warn(stringCaptor.capture(), exceptionCaptor.capture());
             var message = stringCaptor.getValue();
-            assertThat(message, containsString("failed to parse field [models]"));
+            assertThat(message, containsString("failed to parse field [inference_endpoints]"));
 
             var capturedException = exceptionCaptor.getValue();
             assertThat(capturedException, instanceOf(XContentParseException.class));
@@ -156,7 +176,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
      * Queues the required number of responses to handle the retries of the internal sender.
      */
     private void queueWebServerResponsesForRetries(String responseJson) {
-        for (int i = 0; i < MAX_RETIES; i++) {
+        for (int i = 0; i < MAX_RETRIES; i++) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
         }
     }
@@ -165,28 +185,81 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory()
+        );
 
         try (var sender = senderFactory.createSender()) {
-            String responseJson = """
-                {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
-                }
-                """;
+            var responseData = getEisAuthorizationResponseWithMultipleEndpoints(eisGatewayUrl);
 
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
 
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
-            assertThat(authResponse.getAuthorizedModelIds(), is(Set.of("model-a")));
+            assertThat(
+                authResponse.getTaskTypes(),
+                is(
+                    EnumSet.of(
+                        TaskType.CHAT_COMPLETION,
+                        TaskType.SPARSE_EMBEDDING,
+                        TaskType.TEXT_EMBEDDING,
+                        TaskType.RERANK,
+                        TaskType.COMPLETION
+                    )
+                )
+            );
+            assertThat(authResponse.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
+            assertTrue(authResponse.isAuthorized());
+            assertThat(
+                authResponse.getEndpoints(responseData.inferenceIds()),
+                containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
+            );
+
+            var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
+            verify(logger, times(1)).debug(loggerArgsCaptor.capture());
+
+            var message = loggerArgsCaptor.getValue();
+            assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
+
+            assertNoAuthHeader(webServer.requests());
+        }
+    }
+
+    private static void assertNoAuthHeader(List<MockRequest> requests) {
+        assertThat(requests.size(), is(1));
+        assertNull(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION));
+    }
+
+    public void testGetAuthorization_ReturnsAValidResponse_WithAuthHeader() throws IOException {
+        var secret = "secret-token";
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createApplierFactory(secret)
+        );
+
+        var elserResponseBody = getEisElserAuthorizationResponse(eisGatewayUrl).responseJson();
+
+        try (var sender = senderFactory.createSender()) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponseBody));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorization(listener, sender);
+
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+
+            assertThat(authResponse.getEndpointIds(), is(Set.of(ELSER_V2_ENDPOINT_ID)));
             assertTrue(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
@@ -194,34 +267,44 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
 
             var message = loggerArgsCaptor.getValue();
             assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
+
+            assertAuthHeader(webServer.requests(), secret);
         }
     }
 
-    @SuppressWarnings("unchecked")
+    private static void assertAuthHeader(List<MockRequest> requests, String secret) {
+        assertThat(requests.size(), is(1));
+        assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is(apiKey(secret)));
+    }
+
     public void testGetAuthorization_OnResponseCalledOnce() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory()
+        );
 
-        ActionListener<ElasticInferenceServiceAuthorizationModel> listener = mock(ActionListener.class);
-        String responseJson = """
-                {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
-                }
-            """;
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+        ActionListener<ElasticInferenceServiceAuthorizationModel> onlyOnceListener = ActionListener.assertOnce(listener);
+
+        var elserResponse = getEisElserAuthorizationResponse(eisGatewayUrl);
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
 
         try (var sender = senderFactory.createSender()) {
-            authHandler.getAuthorization(listener, sender);
+            authHandler.getAuthorization(onlyOnceListener, sender);
             authHandler.waitForAuthRequestCompletion(TIMEOUT);
 
-            verify(listener, times(1)).onResponse(any());
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertThat(authResponse.getTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+            assertThat(authResponse.getEndpointIds(), is(Set.of(ELSER_V2_ENDPOINT_ID)));
+            assertTrue(authResponse.isAuthorized());
+            assertThat(authResponse.getEndpoints(Set.of(ELSER_V2_ENDPOINT_ID)), is(elserResponse.expectedEndpoints()));
+
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(1)).debug(loggerArgsCaptor.capture());
 
@@ -231,7 +314,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     }
 
     public void testGetAuthorization_InvalidResponse() throws IOException {
-        var senderMock = mock(Sender.class);
+        var senderMock = createMockSender();
         var senderFactory = mock(HttpRequestSender.Factory.class);
         when(senderFactory.createSender()).thenReturn(senderMock);
 
@@ -242,7 +325,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         }).when(senderMock).sendWithoutQueuing(any(), any(), any(), any(), any());
 
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("abc", threadPool, logger);
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("abc", threadPool, logger, createNoopApplierFactory());
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -257,6 +340,5 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var message = loggerArgsCaptor.getValue();
             assertThat(message, containsString("Failed to retrieve the authorization information from the Elastic Inference Service."));
         }
-
     }
 }

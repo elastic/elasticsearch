@@ -8,6 +8,7 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.Version
 import java.nio.file.Paths
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
@@ -29,9 +30,11 @@ esplugin {
   requiresKeystore =false
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
+  mapping from: /slf4j-.*/, to: 'slf4j'
+  mapping from: /log4j-.*/, to: 'log4j'
 }
 
 configurations {
@@ -43,26 +46,42 @@ dependencies {
   compileOnly project(":server")
   api project(':libs:grok')
   api project(":libs:ssl-config")
+
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+
+  api "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+  api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
+
+  // Ideally this would be `runtimeOnly` so that we don't accidentally write code against the SLF4j API
+  // However, some child plugins (like security) need to use slf4j directly in order to manage logging for their dependencies :(
+  // And due to the way our plugin loading handles java modules between dependent plugins, this plugin (x-pack-core) needs to declare
+  //  a module dependency on slf4j (`requires org.slf4j`) so that security can also be dependent on it
+  // And having a module dependency counts as using the jar, so we can't make it `runtimeOnly` :(
+
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
+
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+
   api "commons-codec:commons-codec:${versions.commonscodec}"
+
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(':modules:mapper-extras')
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   implementation project(":x-pack:plugin:core:template-resources")
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
-  testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:lang-mustache')
@@ -139,7 +158,9 @@ tasks.named("thirdPartyAudit").configure {
     //commons-logging provided dependencies
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
-    'javax.jms.Message'
+    'javax.jms.Message',
+    // HttpClient5 can use Conscrypt (TLS using BoringSSL), but we don't want that
+    'org.conscrypt.Conscrypt',
   )
 }
 

@@ -4,10 +4,12 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | double |
 | boolean | boolean |
 | date | date |
 | date_nanos | date_nanos |
 | double | double |
+| exponential_histogram | double |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |

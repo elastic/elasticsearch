@@ -1,55 +1,64 @@
 {
-  "indices.put_template":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates-v1.html",
-      "description":"Creates or updates an index template."
+  "indices.put_template": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-template",
+      "description": "Create or update a legacy index template"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "deprecated": {
+      "version": "7.8.0",
+      "description": "Legacy index templates are deprecated in favor of composable templates"
     },
-    "url":{
-      "paths":[
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
         {
-          "path":"/_template/{name}",
-          "methods":[
+          "path": "/_template/{name}",
+          "methods": [
             "PUT",
             "POST"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"The name of the template"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the template"
             }
           }
         }
       ]
     },
-    "params":{
-      "order":{
-        "type":"number",
-        "description":"The order for this template when merging multiple matching ones (higher numbers are merged later, overriding the lower numbers)"
+    "params": {
+      "order": {
+        "type": "int",
+        "description": "The order for this template when merging multiple matching ones (higher numbers are merged later, overriding the lower numbers)"
       },
-      "create":{
-        "type":"boolean",
-        "description":"Whether the index template should only be added if new or can also replace an existing one",
-        "default":false
+      "create": {
+        "type": "boolean",
+        "description": "Whether the index template should only be added if new or can also replace an existing one",
+        "default": false
       },
-      "cause":{
-        "type":"string",
+      "cause": {
+        "type": "string",
         "description": "User defined reason for creating/updating the index template",
-        "default":""
+        "default": ""
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     },
-    "body":{
-      "description":"The template definition",
-      "required":true
+    "body": {
+      "description": "The template definition",
+      "required": true
     }
   }
 }

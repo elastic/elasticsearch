@@ -49,23 +49,11 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
         );
     }
 
-    public static Map<String, Object> modelAttributes(Model model) {
-        var modelAttributesMap = new HashMap<String, Object>();
-        modelAttributesMap.put("service", model.getConfigurations().getService());
-        modelAttributesMap.put("task_type", model.getTaskType().toString());
-
-        if (Objects.nonNull(model.getServiceSettings().modelId())) {
-            modelAttributesMap.put("model_id", model.getServiceSettings().modelId());
-        }
-
-        return modelAttributesMap;
+    public static Map<String, Object> serviceAttributes(Model model) {
+        return Map.of("service", model.getConfigurations().getService(), "task_type", model.getTaskType().toString());
     }
 
-    public static Map<String, Object> routingAttributes(boolean hasBeenRerouted, String nodeIdHandlingRequest) {
-        return Map.of("rerouted", hasBeenRerouted, "node_id", nodeIdHandlingRequest);
-    }
-
-    public static Map<String, Object> modelAttributes(UnparsedModel model) {
+    public static Map<String, Object> serviceAttributes(UnparsedModel model) {
         return Map.of("service", model.service(), "task_type", model.taskType().toString());
     }
 
@@ -75,15 +63,15 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
         }
 
         if (throwable instanceof ElasticsearchStatusException ese) {
-            return Map.of("status_code", ese.status().getStatus(), "error.type", String.valueOf(ese.status().getStatus()));
+            return Map.of("status_code", ese.status().getStatus(), "error_type", String.valueOf(ese.status().getStatus()));
         }
 
-        return Map.of("error.type", throwable.getClass().getSimpleName());
+        return Map.of("error_type", throwable.getClass().getSimpleName());
     }
 
-    public static Map<String, Object> modelAndResponseAttributes(Model model, @Nullable Throwable throwable) {
+    public static Map<String, Object> serviceAndResponseAttributes(Model model, @Nullable Throwable throwable) {
         var metricAttributes = new HashMap<String, Object>();
-        metricAttributes.putAll(modelAttributes(model));
+        metricAttributes.putAll(serviceAttributes(model));
         metricAttributes.putAll(responseAttributes(throwable));
         return metricAttributes;
     }

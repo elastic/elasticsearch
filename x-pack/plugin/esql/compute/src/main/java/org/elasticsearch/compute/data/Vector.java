@@ -95,6 +95,12 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     void allowPassingToDifferentDriver();
 
     /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    Vector deepCopy(BlockFactory blockFactory);
+
+    /**
      * Builds {@link Vector}s. Typically, you use one of it's direct supinterfaces like {@link IntVector.Builder}.
      * This is {@link Releasable} and should be released after building the vector or if building the vector fails.
      */

@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
@@ -616,7 +617,8 @@ public abstract class FieldMapper extends Mapper {
                 mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
+                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
                 }
@@ -777,7 +779,7 @@ public abstract class FieldMapper extends Mapper {
      * A configurable parameter for a field mapper
      * @param <T> the type of the value the parameter holds
      */
-    public static final class Parameter<T> implements Supplier<T> {
+    public static class Parameter<T> implements Supplier<T> {
 
         public final String name;
         private List<String> deprecatedNames = List.of();
@@ -1313,6 +1315,32 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> indexParam(
+            Function<FieldMapper, Boolean> initializer,
+            IndexSettings indexSettings,
+            Supplier<Boolean> isDimension
+        ) {
+            return Parameter.boolParam(
+                "index",
+                false,
+                initializer,
+                () -> useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false
+            );
+        }
+
+        public static boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {
+            if (indexSettings.useDocValuesSkipper() == false) {
+                return false;
+            }
+            if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (isDimension) {
+                    return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                }
+                return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
+            }
+            return false;
+        }
+
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
@@ -1335,6 +1363,14 @@ public abstract class FieldMapper extends Mapper {
             // norms can be updated from 'true' to 'false' but not vice-versa
             return Parameter.boolParam("norms", true, initializer, defaultValueSupplier)
                 .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
         }
 
         /**
@@ -1367,6 +1403,76 @@ public abstract class FieldMapper extends Mapper {
         ) {
             return Parameter.enumParam("on_script_error", true, initializer, OnScriptError.FAIL, OnScriptError.class)
                 .requiresParameter(dependentScriptParam);
+        }
+    }
+
+    public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
+        public static final String PARAMETER_NAME = "doc_values";
+
+        public static FeatureFlag EXTENDED_DOC_VALUES_PARAMS_FF = new FeatureFlag("extended_doc_values_options");
+
+        public record Values(boolean enabled, Cardinality cardinality) {
+            public enum Cardinality {
+                LOW,
+                HIGH;
+
+                @Override
+                public String toString() {
+                    return name().toLowerCase(Locale.ROOT);
+                }
+            }
+
+            public static Values DISABLED = new Values(false, Cardinality.LOW);
+        }
+
+        public final Parameter<Values.Cardinality> cardinalityParameter;
+
+        public DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer) {
+            super(PARAMETER_NAME, false, () -> defaultValue, null, initializer, null, Values::toString);
+
+            cardinalityParameter = Parameter.enumParam(
+                "cardinality",
+                false,
+                m -> initializer.apply(m).cardinality,
+                defaultValue.cardinality,
+                Values.Cardinality.class
+            );
+        }
+
+        @Override
+        public void parse(String field, MappingParserContext context, Object value) {
+            if (value instanceof Map<?, ?> valueMap && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+                cardinalityParameter.parse(field, context, valueMap.get(cardinalityParameter.name));
+
+                setValue(new Values(true, cardinalityParameter.getValue()));
+            } else {
+                if (XContentMapValues.nodeBooleanValue(value, name)) {
+                    setValue(getDefaultValue());
+                } else {
+                    setValue(Values.DISABLED);
+                }
+            }
+        }
+
+        @Override
+        public void setValue(Values value) {
+            super.setValue(value);
+            cardinalityParameter.setValue(value.cardinality);
+        }
+
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+            Values value = getValue();
+            if (includeDefaults || isConfigured()) {
+                if (value.enabled == false) {
+                    builder.field(name, false);
+                } else if (EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+                    builder.field(name, true);
+                } else {
+                    builder.startObject(name);
+                    builder.field(cardinalityParameter.name, value.cardinality);
+                    builder.endObject();
+                }
+            }
         }
     }
 
@@ -1464,11 +1570,7 @@ public abstract class FieldMapper extends Mapper {
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);
 
-        protected void addScriptValidation(
-            Parameter<Script> scriptParam,
-            Parameter<Boolean> indexParam,
-            Parameter<Boolean> docValuesParam
-        ) {
+        protected void addScriptValidation(Parameter<Script> scriptParam, Parameter<Boolean> indexParam, Supplier<Boolean> docValuesParam) {
             scriptParam.addValidator(s -> {
                 if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
                     throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
@@ -1650,6 +1752,30 @@ public abstract class FieldMapper extends Mapper {
         protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
             return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
         }
+    }
+
+    /**
+     * Creates mappers for fields that require additional context for supporting synthetic source.
+     */
+    public abstract static class TextFamilyBuilder extends Builder {
+
+        private final IndexVersion indexCreatedVersion;
+        private final boolean isWithinMultiField;
+
+        protected TextFamilyBuilder(String name, IndexVersion indexCreatedVersion, boolean isWithinMultiField) {
+            super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.isWithinMultiField = isWithinMultiField;
+        }
+
+        public IndexVersion indexCreatedVersion() {
+            return indexCreatedVersion;
+        }
+
+        public boolean isWithinMultiField() {
+            return isWithinMultiField;
+        }
+
     }
 
     public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {

@@ -30,11 +30,11 @@ import static org.elasticsearch.common.Strings.format;
 
 public record VectorData(float[] floatVector, byte[] byteVector) implements Writeable, ToXContentFragment {
 
-    private VectorData(float[] floatVector) {
+    public VectorData(float[] floatVector) {
         this(floatVector, null);
     }
 
-    private VectorData(byte[] byteVector) {
+    public VectorData(byte[] byteVector) {
         this(null, byteVector);
     }
 
@@ -56,7 +56,7 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
         if (byteVector != null) {
             return byteVector;
         }
-        DenseVectorFieldMapper.ElementType.BYTE.checkVectorBounds(floatVector);
+        DenseVectorFieldMapper.BYTE_ELEMENT.checkVectorBounds(floatVector);
         byte[] vec = new byte[floatVector.length];
         for (int i = 0; i < floatVector.length; i++) {
             vec[i] = (byte) floatVector[i];
@@ -75,11 +75,9 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
         return vec;
     }
 
-    public void addToBuffer(ByteBuffer byteBuffer) {
+    public void addToBuffer(DenseVectorFieldMapper.Element element, ByteBuffer byteBuffer) {
         if (floatVector != null) {
-            for (float val : floatVector) {
-                byteBuffer.putFloat(val);
-            }
+            element.writeValues(byteBuffer, floatVector);
         } else {
             byteBuffer.put(byteVector);
         }

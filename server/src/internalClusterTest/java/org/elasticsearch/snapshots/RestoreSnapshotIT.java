@@ -12,6 +12,8 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -20,6 +22,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -63,6 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -1024,5 +1030,165 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    public void testExplainUnassigableDuringRestore() {
+        final String repoName = "repo-" + randomIdentifier();
+        createRepository(repoName, FsRepository.TYPE);
+        final String indexName = "index-" + randomIdentifier();
+        createIndexWithContent(indexName);
+        final String snapshotName = "snapshot-" + randomIdentifier();
+        createSnapshot(repoName, snapshotName, List.of(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repoName,
+            snapshotName
+        )
+            .setIndices(indexName)
+            .setRestoreGlobalState(false)
+            .setWaitForCompletion(true)
+            .setIndexSettings(
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node-" + randomIdentifier())
+            )
+            .get();
+
+        logger.info("--> restoreSnapshotResponse: {}", Strings.toString(restoreSnapshotResponse, true, true));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), greaterThan(0));
+
+        final var clusterExplainResponse1 = client().execute(
+            TransportClusterAllocationExplainAction.TYPE,
+            new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName).setShard(0).setPrimary(true)
+        ).actionGet();
+
+        logger.info("--> clusterExplainResponse1: {}", Strings.toString(clusterExplainResponse1, true, true));
+        for (var nodeDecision : clusterExplainResponse1.getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision()
+            .getNodeDecisions()) {
+            assertEquals(
+                Set.of("restore_in_progress", "filter"),
+                nodeDecision.getCanAllocateDecision().getDecisions().stream().map(Decision::label).collect(Collectors.toSet())
+            );
+        }
+
+        updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name"), indexName);
+
+        final var clusterExplainResponse2 = client().execute(
+            TransportClusterAllocationExplainAction.TYPE,
+            new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName).setShard(0).setPrimary(true)
+        ).actionGet();
+
+        logger.info("--> clusterExplainResponse2: {}", Strings.toString(clusterExplainResponse2, true, true));
+        for (var nodeDecision : clusterExplainResponse2.getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision()
+            .getNodeDecisions()) {
+            assertEquals(
+                Set.of("restore_in_progress"),
+                nodeDecision.getCanAllocateDecision().getDecisions().stream().map(Decision::label).collect(Collectors.toSet())
+            );
+            assertEquals(
+                Set.of("restore_in_progress"),
+                nodeDecision.getCanAllocateDecision().getDecisions().stream().map(Decision::label).collect(Collectors.toSet())
+            );
+            assertThat(
+                nodeDecision.getCanAllocateDecision().getDecisions().get(0).getExplanation(),
+                startsWith(
+                    "Restore from snapshot failed because the configured constraints prevented allocation on any of the available nodes. "
+                        + "Please check constraints applied in index and cluster settings, then retry the restore."
+                )
+            );
+        }
+    }
+
+    public void testRenameReplacementValidation() throws Exception {
+        String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        // Create an index with a long name (255 characters of 'b')
+        String indexName = "b".repeat(255);
+        createIndex(indexName);
+        indexRandomDocs(indexName, 10);
+
+        String snapshotName = "test-snap";
+        createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
+
+        logger.info("--> delete the index");
+        cluster().wipeIndices(indexName);
+
+        logger.info("--> attempt restore with excessively long rename_replacement (should fail validation)");
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                .setIndices(indexName)
+                .setRenamePattern("b")
+                .setRenameReplacement("1".repeat(randomIntBetween(266, 10_000)))
+                .setWaitForCompletion(true)
+                .get()
+        );
+        assertThat(exception.getMessage(), containsString("rename_replacement UTF-8 byte length"));
+        assertThat(exception.getMessage(), containsString("exceeds maximum allowed length"));
+
+        logger.info("--> restore with rename pattern that creates too-long index name (should fail)");
+        IllegalArgumentException exception2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                .setIndices(indexName)
+                .setRenamePattern("b")
+                .setRenameReplacement("aa")
+                .setWaitForCompletion(true)
+                .get()
+        );
+        assertThat(exception2.getMessage(), containsString("index name would exceed"));
+        assertThat(exception2.getMessage(), containsString("bytes after rename"));
+
+        logger.info("--> restore with valid simple rename (should succeed)");
+        RestoreSnapshotResponse restoreResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setRenamePattern("b+")
+            .setRenameReplacement("restored")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
+        assertTrue("Renamed index should exist", indexExists("restored"));
+        ensureGreen("restored");
+
+        cluster().wipeIndices("restored");
+
+        logger.info("--> restore with back-reference in replacement (should succeed)");
+        RestoreSnapshotResponse restoreResponseBackRef = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setRenamePattern("(b{100}).*")
+            .setRenameReplacement("$1-restored")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restoreResponseBackRef.getRestoreInfo().failedShards(), equalTo(0));
+        String backRefIndex = "b".repeat(100) + "-restored";
+        assertTrue("Back-ref index should exist", indexExists(backRefIndex));
+        ensureGreen(backRefIndex);
+
+        cluster().wipeIndices(backRefIndex);
+
+        logger.info("--> restore with non-matching pattern (should leave name unchanged)");
+        RestoreSnapshotResponse restoreResponseNoMatch = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setRenamePattern("z")
+            .setRenameReplacement("replaced")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restoreResponseNoMatch.getRestoreInfo().failedShards(), equalTo(0));
+        assertTrue("Original index name should exist when pattern doesn't match", indexExists(indexName));
     }
 }

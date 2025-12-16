@@ -17,8 +17,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -55,7 +55,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     protected Settings followerClusterSettings() {
         final Settings.Builder settings = Settings.builder().put(super.followerClusterSettings());
         if (randomBoolean()) {
-            settings.put(RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), 1);
+            settings.put(RemoteClusterSettings.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), 1);
         }
         return settings.build();
     }
@@ -158,7 +158,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     private Integer getRemoteMaxPendingConnectionListeners() {
         var response = followerClient().admin().cluster().prepareNodesInfo("_local").clear().setSettings(true).get();
         var settings = response.getNodes().get(0).getSettings();
-        return RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
+        return RemoteClusterSettings.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
     }
 
     private void cleanRemoteCluster() throws Exception {

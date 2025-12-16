@@ -31,22 +31,25 @@ public final class StdDevDoubleGroupingAggregatorFunction implements GroupingAgg
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
       new IntermediateStateDesc("count", ElementType.LONG)  );
 
-  private final StdDevStates.GroupingState state;
+  private final VarianceStates.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
+  private final boolean stdDev;
+
   public StdDevDoubleGroupingAggregatorFunction(List<Integer> channels,
-      StdDevStates.GroupingState state, DriverContext driverContext) {
+      VarianceStates.GroupingState state, DriverContext driverContext, boolean stdDev) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.stdDev = stdDev;
   }
 
   public static StdDevDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new StdDevDoubleGroupingAggregatorFunction(channels, StdDevDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+      DriverContext driverContext, boolean stdDev) {
+    return new StdDevDoubleGroupingAggregatorFunction(channels, StdDevDoubleAggregator.initGrouping(driverContext.bigArrays(), stdDev), driverContext, stdDev);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

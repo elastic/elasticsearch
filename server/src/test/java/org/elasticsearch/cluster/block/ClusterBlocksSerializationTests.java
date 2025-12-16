@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -36,6 +35,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterBlocksSerializationTests extends AbstractWireSerializingTestCase<
     ClusterBlocksSerializationTests.ClusterBlocksTestWrapper> {
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     @Override
     protected Writeable.Reader<ClusterBlocksTestWrapper> instanceReader() {
@@ -147,7 +148,7 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
         final ClusterBlocks clusterBlocks = builder.build();
 
         final var out = new BytesStreamOutput();
-        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         out.setTransportVersion(bwcVersion);
         clusterBlocks.writeTo(out);
 
@@ -171,7 +172,7 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
         final ClusterBlocks clusterBlocks = builder.build();
 
         final var out = new BytesStreamOutput();
-        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         out.setTransportVersion(bwcVersion);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> clusterBlocks.writeTo(out));
         assertThat(e.getMessage(), containsString("Cannot write multi-project blocks to a stream with version"));
@@ -223,7 +224,7 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
 
         final var diff = current.diff(base);
         final var out = new BytesStreamOutput();
-        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         out.setTransportVersion(bwcVersion);
         diff.writeTo(out);
 
@@ -252,7 +253,7 @@ public class ClusterBlocksSerializationTests extends AbstractWireSerializingTest
 
         final var diff = current.diff(base);
         final var out = new BytesStreamOutput();
-        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        final TransportVersion bwcVersion = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         out.setTransportVersion(bwcVersion);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> diff.writeTo(out));
         assertThat(e.getMessage(), containsString("Cannot write multi-project blocks diff to a stream with version"));

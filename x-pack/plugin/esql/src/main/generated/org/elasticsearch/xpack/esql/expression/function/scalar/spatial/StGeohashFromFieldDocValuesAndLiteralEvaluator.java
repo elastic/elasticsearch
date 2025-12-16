@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class StGeohashFromFieldDocValuesAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeohashFromFieldDocValuesAndLiteralEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator encoded;
@@ -44,6 +47,13 @@ public final class StGeohashFromFieldDocValuesAndLiteralEvaluator implements Eva
     try (LongBlock encodedBlock = (LongBlock) encoded.eval(page)) {
       return eval(page.getPositionCount(), encodedBlock);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += encoded.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public LongBlock eval(int positionCount, LongBlock encodedBlock) {

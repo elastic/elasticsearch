@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -107,7 +108,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
     ) {
         return new DateFieldMapper.DateFieldType(
             AGGREGABLE_DATE,
-            isSearchable,
+            IndexType.points(isSearchable, true),
             randomBoolean(),
             true,
             formatter,

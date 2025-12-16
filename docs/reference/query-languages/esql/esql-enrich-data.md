@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: unavailable
 navigation_title: "Combine data with ENRICH"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-enrich-data.html
@@ -6,16 +9,18 @@ mapped_pages:
 
 # Combine data from multiple indices with `ENRICH` [esql-enrich-data]
 
+This page provides an overview of the {{esql}} `ENRICH` command. For complete syntax details and examples, refer to the [`ENRICH` command reference](/reference/query-languages/esql/commands/enrich.md).
+
 The {{esql}} [`ENRICH`](/reference/query-languages/esql/commands/enrich.md) processing command combines, at query-time, data from one or more source indexes with field-value combinations found in {{es}} enrich indexes.
 
 For example, you can use `ENRICH` to:
-
 * Identify web services or vendors based on known IP addresses
 * Add product information to retail orders based on product IDs
 * Supplement contact information based on an email address
 
-[`ENRICH`](/reference/query-languages/esql/commands/enrich.md) is similar to [`LOOKUP join`](/reference/query-languages/esql/commands/lookup-join.md) in the fact that they both help you join data together. You should use `ENRICH` when:
+## Compare `ENRICH` and `LOOKUP JOIN`
 
+[`ENRICH`](/reference/query-languages/esql/commands/enrich.md) is similar to [`LOOKUP join`](/reference/query-languages/esql/commands/lookup-join.md) in the fact that they both help you join data together. You should use `ENRICH` when:
 * Enrichment data doesn't change frequently
 * You can accept index-time overhead
 * You can accept having multiple matches combined into multi-values
@@ -23,7 +28,11 @@ For example, you can use `ENRICH` to:
 * You do not need fine-grained security: There are no restrictions to specific enrich policies or document and field level security.
 * You want to match using ranges or spatial relations
 
-### How the `ENRICH` command works [esql-how-enrich-works]
+## Syntax reference
+
+For complete syntax details and examples, refer to the [ENRICH command reference](/reference/query-languages/esql/commands/enrich.md).
+
+## How the `ENRICH` command works [esql-how-enrich-works]
 
 The `ENRICH` command adds new columns to a table, with data from {{es}} indices. It requires a few special components:
 
@@ -43,8 +52,7 @@ An enrich policy contains:
 * A *match field* from the source indices used to match incoming documents
 * *Enrich fields* containing enrich data from the source indices you want to add to incoming documents
 
-After [creating a policy](#esql-create-enrich-policy), it must be [executed](#esql-execute-enrich-policy) before it can be used. Executing an enrich policy uses data from the policy’s source indices to create a streamlined system index called the *enrich index*. The `ENRICH` command uses this index to match and enrich an input table.
-
+After [creating a policy](#esql-create-enrich-policy), it must be [executed](#esql-execute-enrich-policy) before it can be used. Executing an enrich policy uses data from the policy's source indices to create a streamlined system index called the *enrich index*. The `ENRICH` command uses this index to match and enrich an input table.
 
 $$$esql-source-index$$$
 
@@ -60,14 +68,16 @@ Directly matching rows from input tables to documents in source indices could be
 
 Enrich indices contain enrich data from source indices but have a few special properties to help streamline them:
 
-* They are system indices, meaning they’re managed internally by {{es}} and only intended for use with enrich processors and the {{esql}} `ENRICH` command.
+* They are system indices, meaning they're managed internally by {{es}} and only intended for use with enrich processors and the {{esql}} `ENRICH` command.
 * They always begin with `.enrich-*`.
-* They are read-only, meaning you can’t directly change them.
+* They are read-only, meaning you can't directly change them.
 * They are [force merged](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) for fast retrieval.
 
+## Using `ENRICH` across clusters
 
+You can use `ENRICH` with remote clusters. For detailed information about cross-cluster enrichment syntax and configuration, refer to [ENRICH across clusters](/reference/query-languages/esql/esql-cross-clusters.md#ccq-enrich).
 
-### Set up an enrich policy [esql-set-up-enrich-policy]
+## Set up an enrich policy [esql-set-up-enrich-policy]
 
 To start using `ENRICH`, follow these steps:
 
@@ -81,10 +91,7 @@ Once you have enrich policies set up, you can [update your enrich data](#esql-up
 
 ::::{important}
 The `ENRICH` command performs several operations and may impact the speed of your query.
-
 ::::
-
-
 
 ### Prerequisites [esql-enrich-prereqs]
 
@@ -92,7 +99,6 @@ To use enrich policies, you must have:
 
 * `read` index privileges for any indices used
 * The `enrich_user` [built-in role](/reference/elasticsearch/roles.md)
-
 
 ### Add enrich data [esql-create-enrich-source-index]
 
@@ -102,17 +108,13 @@ You can manage source indices just like regular {{es}} indices using the [docume
 
 You also can set up [{{beats}}](beats://reference/index.md), such as a [{{filebeat}}](beats://reference/filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](beats://reference/index.md).
 
-
 ### Create an enrich policy [esql-create-enrich-policy]
 
 After adding enrich data to your source indices, use the [create enrich policy API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-put-policy) or [Index Management in {{kib}}](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-mgmt.html#manage-enrich-policies) to create an enrich policy.
 
 ::::{warning}
-Once created, you can’t update or change an enrich policy. See [Update an enrich policy](docs-content://manage-data/ingest/transform-enrich/set-up-an-enrich-processor.md#update-enrich-policies).
-
+Once created, you can't update or change an enrich policy. See [Update an enrich policy](docs-content://manage-data/ingest/transform-enrich/set-up-an-enrich-processor.md#update-enrich-policies).
 ::::
-
-
 
 ### Execute the enrich policy [esql-execute-enrich-policy]
 
@@ -122,14 +124,12 @@ Once the enrich policy is created, you need to execute it using the [execute enr
 :alt: esql enrich policy
 :::
 
-The *enrich index* contains documents from the policy’s source indices. Enrich indices always begin with `.enrich-*`, are read-only, and are [force merged](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge).
+The *enrich index* contains documents from the policy's source indices. Enrich indices always begin with `.enrich-*`, are read-only, and are [force merged](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge).
 
 ::::{warning}
 Enrich indices should only be used by the [enrich processor](/reference/enrich-processor/enrich-processor.md) or the [{{esql}} `ENRICH` command](/reference/query-languages/esql/commands/enrich.md). Avoid using enrich indices for other purposes.
 
 ::::
-
-
 
 ### Use the enrich policy [esql-use-enrich]
 
@@ -185,15 +185,13 @@ ROW a = "1"
 
 In case of name collisions, the newly created columns will override existing columns.
 
-
-### Update an enrich index [esql-update-enrich-data]
+## Update an enrich index [esql-update-enrich-data]
 
 Once created, you cannot update or index documents to an enrich index. Instead, update your source indices and [execute](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-execute-policy) the enrich policy again. This creates a new enrich index from your updated source indices. The previous enrich index will be deleted with a delayed maintenance job that executes by default every 15 minutes.
 
+## Update an enrich policy [esql-update-enrich-policies]
 
-### Update an enrich policy [esql-update-enrich-policies]
-
-Once created, you can’t update or change an enrich policy. Instead, you can:
+Once created, you can't update or change an enrich policy. Instead, you can:
 
 1. Create and [execute](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-execute-policy) a new enrich policy.
 2. Replace the previous enrich policy with the new enrich policy in any in-use enrich processors or {{esql}} queries.
@@ -204,13 +202,13 @@ Once created, you can’t update or change an enrich policy. Instead, you can:
 The {{esql}} `ENRICH` command supports all three enrich policy types:
 
 `geo_match`
-:   Matches enrich data to incoming documents based on a [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md). For an example, see [Example: Enrich your data based on geolocation](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-based-on-geolocation.md).
+:   Matches enrich data to incoming documents based on a [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md). For an example, refer to [Example: Enrich your data based on geolocation](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-based-on-geolocation.md).
 
 `match`
-:   Matches enrich data to incoming documents based on a [`term` query](/reference/query-languages/query-dsl/query-dsl-term-query.md). For an example, see [Example: Enrich your data based on exact values](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-based-on-exact-values.md).
+:   Matches enrich data to incoming documents based on a [`term` query](/reference/query-languages/query-dsl/query-dsl-term-query.md). For an example, refer to [Example: Enrich your data based on exact values](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-based-on-exact-values.md).
 
 `range`
-:   Matches a number, date, or IP address in incoming documents to a range in the enrich index based on a [`term` query](/reference/query-languages/query-dsl/query-dsl-term-query.md). For an example, see [Example: Enrich your data by matching a value to a range](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-by-matching-value-to-range.md).
+:   Matches a number, date, or IP address in incoming documents to a range in the enrich index based on a [`term` query](/reference/query-languages/query-dsl/query-dsl-term-query.md). For an example, refer to [Example: Enrich your data by matching a value to a range](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-by-matching-value-to-range.md).
 
 While all three enrich policy types are supported, there are some limitations to be aware of:
 
@@ -218,4 +216,8 @@ While all three enrich policy types are supported, there are some limitations to
 * It is required that the `match_field` in the `ENRICH` command is of the correct type. For example, if the enrich policy is of type `geo_match`, the `match_field` in the `ENRICH` command must be of type `geo_point` or `geo_shape`. Likewise, a `range` enrich policy requires a `match_field` of type `integer`, `long`, `date`, or `ip`, depending on the type of the range field in the original enrich index.
 * However, this constraint is relaxed for `range` policies when the `match_field` is of type `KEYWORD`. In this case the field values will be parsed during query execution, row by row. If any value fails to parse, the output values for that row will be set to `null`, an appropriate warning will be produced and the query will continue to execute.
 
-
+## Related pages
+  
+* [`ENRICH` command reference](/reference/query-languages/esql/commands/enrich.md): Complete syntax documentation and examples
+* [`ENRICH` across clusters](/reference/query-languages/esql/esql-cross-clusters.md#ccq-enrich) - Cross-cluster enrichment configuration
+* [LOOKUP JOIN command](/reference/query-languages/esql/commands/lookup-join.md) - Alternative approach for joining data

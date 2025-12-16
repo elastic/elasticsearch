@@ -16,9 +16,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.NO_VERSION;
@@ -63,7 +64,7 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
 
     static ReservedStateMetadata getMetadata(ClusterState state, ErrorState errorState) {
         return errorState.projectId()
-            .map(p -> ReservedClusterStateService.getPotentiallyNewProject(state, p).reservedStateMetadata())
+            .map(ProjectStateRegistry.get(state)::reservedStateMetadata)
             .orElseGet(() -> state.metadata().reservedStateMetadata())
             .get(errorState.namespace());
     }
@@ -93,13 +94,17 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
         var errorMetadata = new ReservedStateErrorMetadata(errorState.version(), errorState.errorKind(), errorState.errors());
 
         if (errorState.projectId().isPresent()) {
-            ProjectMetadata project = currentState.metadata().getProject(errorState.projectId().get());
+            ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(currentState);
 
-            ReservedStateMetadata reservedMetadata = project.reservedStateMetadata().get(errorState.namespace());
+            ProjectId projectId = errorState.projectId().get();
+            ReservedStateMetadata reservedMetadata = projectStateRegistry.reservedStateMetadata(projectId).get(errorState.namespace());
             ReservedStateMetadata.Builder resBuilder = ReservedStateMetadata.builder(errorState.namespace(), reservedMetadata);
             resBuilder.errorMetadata(errorMetadata);
 
-            stateBuilder.putProjectMetadata(ProjectMetadata.builder(project).put(resBuilder.build()));
+            stateBuilder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder(projectStateRegistry).putReservedStateMetadata(projectId, resBuilder.build()).build()
+            );
         } else {
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
 

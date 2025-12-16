@@ -8,9 +8,9 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -102,7 +102,7 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("usr", SUPER_USER_PASSWD)))
             .admin()
             .cluster()
-            .execute(ResetFeatureStateAction.INSTANCE, req, new ActionListener<>() {
+            .execute(TransportResetFeatureStateAction.TYPE, req, new ActionListener<>() {
                 @Override
                 public void onResponse(ResetFeatureStateResponse response) {
                     fail("Shouldn't reach here");
@@ -129,7 +129,7 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(user, password)))
             .admin()
             .cluster()
-            .execute(ResetFeatureStateAction.INSTANCE, req, new ActionListener<>() {
+            .execute(TransportResetFeatureStateAction.TYPE, req, new ActionListener<>() {
                 @Override
                 public void onResponse(ResetFeatureStateResponse response) {
                     long failures = response.getFeatureStateResetStatuses()

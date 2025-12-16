@@ -226,8 +226,18 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
 
     private void testRandom(BlockFactory factory) {
         int leftSize = between(100, 10000);
-        ElementType[] leftColumns = randomArray(1, 10, ElementType[]::new, RandomBlock::randomElementType);
-        ElementType[] rightColumns = randomArray(1, 10, ElementType[]::new, RandomBlock::randomElementType);
+        ElementType[] leftColumns = randomArray(
+            1,
+            10,
+            ElementType[]::new,
+            () -> RandomBlock.randomElementExcluding(List.of(ElementType.AGGREGATE_METRIC_DOUBLE, ElementType.TDIGEST))
+        );
+        ElementType[] rightColumns = randomArray(
+            1,
+            10,
+            ElementType[]::new,
+            () -> RandomBlock.randomElementExcluding(List.of(ElementType.AGGREGATE_METRIC_DOUBLE, ElementType.TDIGEST))
+        );
 
         RandomPage left = randomPage(factory, leftColumns, leftSize);
         try (RightChunkedLeftJoin join = new RightChunkedLeftJoin(left.page, rightColumns.length)) {

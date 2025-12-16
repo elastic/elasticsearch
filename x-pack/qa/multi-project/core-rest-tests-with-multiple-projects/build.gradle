@@ -30,8 +30,8 @@ dependencies {
   clusterModules project(':test:external-modules:test-multi-project')
   restTestConfig project(path: ':modules:data-streams', configuration: "restTests")
   restTestConfig project(path: ':modules:ingest-common', configuration: "basicRestSpecs")
-  restTestConfig project(path: ':modules:reindex', configuration: "basicRestSpecs")
-  restTestConfig project(path: ':modules:streams', configuration: "basicRestSpecs")
+  restTestConfig project(path: ':modules:reindex', configuration: "restTests")
+  restTestConfig project(path: ':modules:streams', configuration: "restTests")
 }
 
 // let the yamlRestTests see the classpath of test
@@ -73,6 +73,9 @@ tasks.named("yamlRestTest").configure {
     '^reindex/60_wait_for_active_shards/can override wait_for_active_shards', // <- Requires a single shard
     '^reindex/90_remote/*',
     '^reindex/95_parent_join/Reindex from remote*',
+
+    // Linked project configuration via ClusterSettings currently does not support multi-project
+    '^cluster.stats/30_ccs_stats/cross-cluster search stats search',
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [];

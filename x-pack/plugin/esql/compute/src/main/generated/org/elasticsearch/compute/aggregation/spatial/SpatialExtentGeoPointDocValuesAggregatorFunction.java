@@ -111,11 +111,12 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
 
   private void addRawBlock(LongBlock encodedBlock) {
     for (int p = 0; p < encodedBlock.getPositionCount(); p++) {
-      if (encodedBlock.isNull(p)) {
+      int encodedValueCount = encodedBlock.getValueCount(p);
+      if (encodedValueCount == 0) {
         continue;
       }
       int encodedStart = encodedBlock.getFirstValueIndex(p);
-      int encodedEnd = encodedStart + encodedBlock.getValueCount(p);
+      int encodedEnd = encodedStart + encodedValueCount;
       for (int encodedOffset = encodedStart; encodedOffset < encodedEnd; encodedOffset++) {
         long encodedValue = encodedBlock.getLong(encodedOffset);
         SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
@@ -128,11 +129,12 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (encodedBlock.isNull(p)) {
+      int encodedValueCount = encodedBlock.getValueCount(p);
+      if (encodedValueCount == 0) {
         continue;
       }
       int encodedStart = encodedBlock.getFirstValueIndex(p);
-      int encodedEnd = encodedStart + encodedBlock.getValueCount(p);
+      int encodedEnd = encodedStart + encodedValueCount;
       for (int encodedOffset = encodedStart; encodedOffset < encodedEnd; encodedOffset++) {
         long encodedValue = encodedBlock.getLong(encodedOffset);
         SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);

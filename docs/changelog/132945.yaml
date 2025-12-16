@@ -1,5 +1,0 @@
-pr: 132945
-summary: Disable child span for streaming tasks
-area: Machine Learning
-type: bug
-issues: []

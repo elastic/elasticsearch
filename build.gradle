@@ -77,7 +77,7 @@ tasks.named('zipAggregation').configure {
   destinationDirectory.set(layout.buildDirectory.dir("distributions"));
 
   dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
-  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
+  from(zipTree("build-tools/build/nmcp/zip/publicationElastic.zip"))
 }
 
 /**
@@ -95,7 +95,7 @@ tasks.named('zipAggregation').configure {
 ext.testArtifact = { p, String name = "test" ->
   def projectDependency = p.dependencies.create(p)
   projectDependency.capabilities {
-    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-${name}-artifacts")
+    requireCapabilities("${p.group}:${projectDependency.name}-${name}-artifacts")
   };
 }
 
@@ -190,6 +190,21 @@ tasks.register("updateCIBwcVersions") {
       [
         new StepExpansion(
           templatePath: ".buildkite/pipelines/periodic.bwc.template.yml",
+          versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
+          variable: "BWC_STEPS"
+        ),
+      ]
+    )
+
+    writeBuildkitePipeline(
+      ".buildkite/pipelines/periodic-java-ea.yml",
+      ".buildkite/pipelines/periodic-java-ea.template.yml",
+      [
+        new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(
+          templatePath: ".buildkite/pipelines/periodic-java-ea.bwc.template.yml",
           versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
           variable: "BWC_STEPS"
         ),
@@ -323,18 +338,13 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
+
     if (project.path == ':') {
       resolveJavaToolChain = true
-
-      // ensure we have best possible caching of bwc builds
-      dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix4:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix5:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
+    }
+    // ensure we have best possible caching of bwc builds
+    if(project.path.startsWith(":distribution:bwc:")) {
+      dependsOn project.tasks.matching { it.name == 'buildBwcLinuxTar' }
     }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)

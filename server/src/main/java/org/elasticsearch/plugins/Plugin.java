@@ -36,10 +36,12 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -192,6 +194,14 @@ public abstract class Plugin implements Closeable {
          * Provider for indexing pressure
          */
         IndexingPressure indexingPressure();
+
+        /**
+         * A service for registering for linked project configuration updates.
+         */
+        LinkedProjectConfigService linkedProjectConfigService();
+
+        /** A resolver for project routing information */
+        ProjectRoutingResolver projectRoutingResolver();
     }
 
     /**

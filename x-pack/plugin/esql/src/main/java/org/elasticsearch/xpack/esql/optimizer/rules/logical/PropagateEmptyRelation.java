@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -17,19 +18,22 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @SuppressWarnings("removal")
-public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimizerRule<UnaryPlan, LogicalOptimizerContext> {
+public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimizerRule<UnaryPlan, LogicalOptimizerContext>
+    implements
+        OptimizerRules.LocalAware<UnaryPlan> {
     public PropagateEmptyRelation() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
@@ -37,11 +41,14 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
     @Override
     protected LogicalPlan rule(UnaryPlan plan, LogicalOptimizerContext ctx) {
         LogicalPlan p = plan;
-        if (plan.child() instanceof LocalRelation local && local.supplier() == EmptyLocalSupplier.EMPTY) {
+        if (plan.child() instanceof LocalRelation local && local.hasEmptySupplier()) {
             // only care about non-grouped aggs might return something (count)
             if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
                 List<Block> emptyBlocks = aggsFromEmpty(ctx.foldCtx(), agg.aggregates());
-                p = replacePlanByRelation(plan, LocalSupplier.of(emptyBlocks.toArray(Block[]::new)));
+                p = replacePlanByRelation(
+                    plan,
+                    LocalSupplier.of(emptyBlocks.isEmpty() ? new Page(0) : new Page(emptyBlocks.toArray(Block[]::new)))
+                );
             } else {
                 p = PruneEmptyPlans.skipPlan(plan);
             }
@@ -83,5 +90,10 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
 
     private static LogicalPlan replacePlanByRelation(UnaryPlan plan, LocalSupplier supplier) {
         return new LocalRelation(plan.source(), plan.output(), supplier);
+    }
+
+    @Override
+    public Rule<UnaryPlan, LogicalPlan> local() {
+        return new LocalPropagateEmptyRelation();
     }
 }

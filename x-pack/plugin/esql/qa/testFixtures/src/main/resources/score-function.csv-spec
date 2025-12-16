@@ -125,3 +125,78 @@ book_no:keyword | title:text                                                    
 2714            | Return of the King Being the Third Part of The Lord of the Rings | 1.9245924949645996
 7350            | Return of the Shadow                                             | 0.0
 ;
+
+evalUsingScoreAndLimit
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+FROM books
+| EVAL title_match = SCORE(MATCH(title, "aardvark"))
+| LIMIT 2
+| KEEP title_match
+;
+
+title_match:double
+0
+0
+;
+
+evalUsingScoreAndLimit2
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+FROM books
+| WHERE author == "J R R Tolkien"
+| EVAL title_match_ring = SCORE(MATCH(title, "ring")), title_match_hobbit = SCORE(MATCH(title, "hobbit"))
+| keep title_match_ring, title_match_hobbit
+;
+
+title_match_ring:double   | title_match_hobbit:double
+0                         | 3.45605206489563
+;
+
+evalUsingScoreAndTopN
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+FROM books
+| SORT book_no desc
+| EVAL title_match_towers = SCORE(MATCH(title, "towers"))
+| limit 10
+| keep book_no, title_match_towers
+;
+
+book_no:keyword | title_match_towers:double
+9896            | 0
+9801            | 0
+9607            | 0
+9032            | 0
+8956            | 0
+8875            | 3.5007452964782715
+8873            | 0
+8678            | 0
+8615            | 0
+8605            | 0
+;
+
+evalUsingScoreAndFilter
+required_capability: score_function
+required_capability: match_function
+required_capability: pushing_down_eval_with_score
+
+FROM books
+| sort book_no desc
+| EVAL title_match_world = SCORE(MATCH(title, "world"))
+| WHERE title_match_world > 0 and to_integer(book_no) < 8500
+| LIMIT 10
+| KEEP book_no, title_match_world
+| SORT book_no asc
+| LIMIT 1
+;
+
+book_no:keyword  |  title_match_world:double
+7912             |  2.7460334300994873
+;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -78,10 +77,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
+        QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         return new Term(source, field, query, queryBuilder);
     }
 
@@ -90,9 +86,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
-            out.writeOptionalNamedWriteable(queryBuilder());
-        }
+        out.writeOptionalNamedWriteable(queryBuilder());
     }
 
     @Override
@@ -113,6 +107,15 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
+            fieldVerifier(plan, this, field, failures);
+        };
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        // check plan again after predicates are pushed down into subqueries
+        return (plan, failures) -> {
+            super.postOptimizationPlanVerification().accept(plan, failures);
             fieldVerifier(plan, this, field, failures);
         };
     }

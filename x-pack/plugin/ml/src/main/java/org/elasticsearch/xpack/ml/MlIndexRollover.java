@@ -43,8 +43,6 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
 
     private static final Logger logger = LogManager.getLogger(MlIndexRollover.class);
 
-    private static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = TransportVersion.fromName("ml_rollover_legacy_indices");
-
     public record IndexPatternAndAlias(String indexPattern, String alias) {}
 
     private final IndexNameExpressionResolver expressionResolver;
@@ -61,7 +59,7 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Wait for all nodes to be upgraded to ensure that the
         // newly created index will be of the latest version.
-        return minTransportVersion.supports(ML_ROLLOVER_LEGACY_INDICES);
+        return true;
     }
 
     @Override

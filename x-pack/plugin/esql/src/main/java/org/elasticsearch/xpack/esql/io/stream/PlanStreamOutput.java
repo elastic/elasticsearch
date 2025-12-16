@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,8 +28,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
@@ -154,16 +151,14 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
-            Integer cacheId = attributeIdFromCache(attribute);
-            if (cacheId != null) {
-                writeZLong(cacheId);
-                return false;
-            }
-
-            cacheId = cacheAttribute(attribute);
-            writeZLong(-1 - cacheId);
+        Integer cacheId = attributeIdFromCache(attribute);
+        if (cacheId != null) {
+            writeZLong(cacheId);
+            return false;
         }
+
+        cacheId = cacheAttribute(attribute);
+        writeZLong(-1 - cacheId);
         return true;
     }
 
@@ -185,17 +180,15 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
-            Integer cacheId = esFieldIdFromCache(field);
-            if (cacheId != null) {
-                writeZLong(cacheId);
-                return false;
-            }
-
-            cacheId = cacheEsField(field);
-            writeZLong(-1 - cacheId);
+        Integer cacheId = esFieldIdFromCache(field);
+        if (cacheId != null) {
+            writeZLong(cacheId);
+            return false;
         }
-        writeCachedStringWithVersionCheck(this, field.getWriteableName());
+
+        cacheId = cacheEsField(field);
+        writeZLong(-1 - cacheId);
+        writeCachedString(field.getWriteableName());
         return true;
     }
 

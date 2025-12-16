@@ -22,7 +22,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermQuery;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -368,7 +368,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testRangeFilter() throws IOException {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(
             "test",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -426,7 +426,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
      * Tests a filter that needs the cache to be fast.
      */
     public void testPhraseFilter() throws IOException {
-        MappedFieldType ft = new TextFieldMapper.TextFieldType("test", randomBoolean());
+        MappedFieldType ft = new TextFieldMapper.TextFieldType("test", randomBoolean(), false);
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
             new KeyedFilter("q1", new MatchPhraseQueryBuilder("test", "will find me").slop(0))
@@ -825,7 +825,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testComplexUnionDisabledFilterByFilter() throws IOException {
         MappedFieldType dft = new DateFieldMapper.DateFieldType(
             "date",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -921,7 +921,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         debugTestCase(
             builder,
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(1));
@@ -1215,7 +1215,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggs() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1300,7 +1300,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggsManyDocs() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1371,7 +1371,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testSubAggsManyFilters() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
-            true,
+            IndexType.points(true, false),
             false,
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
@@ -1482,46 +1482,16 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
     public void testDocValuesFieldExistsForNumber() throws IOException {
         NumberFieldMapper.NumberType numberType = randomFrom(NumberFieldMapper.NumberType.values());
-        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType(
-            "f",
-            numberType,
-            true,
-            false,
-            true,
-            true,
-            null,
-            Map.of(),
-            null,
-            false,
-            null,
-            null,
-            false
-        );
+        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType("f", numberType);
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             final LuceneDocument document = new LuceneDocument();
-            numberType.addFields(document, "f", i, true, true, false);
+            numberType.addFields(document, "f", i, IndexType.points(true, true), false);
             return document;
         });
     }
 
     public void testDocValuesFieldExistsForNumberWithoutData() throws IOException {
-        docValuesFieldExistsNoDataTestCase(
-            new NumberFieldMapper.NumberFieldType(
-                "f",
-                randomFrom(NumberFieldMapper.NumberType.values()),
-                true,
-                false,
-                true,
-                true,
-                null,
-                Map.of(),
-                null,
-                false,
-                null,
-                null,
-                false
-            )
-        );
+        docValuesFieldExistsNoDataTestCase(new NumberFieldMapper.NumberFieldType("f", randomFrom(NumberFieldMapper.NumberType.values())));
     }
 
     public void testDocValuesFieldExistsForKeyword() throws IOException {

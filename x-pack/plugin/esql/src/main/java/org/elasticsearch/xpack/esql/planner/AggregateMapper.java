@@ -23,43 +23,45 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
  * Static class used to convert aggregate expressions to the named expressions that represent their intermediate state.
  */
-final class AggregateMapper {
+public final class AggregateMapper {
 
-    // TODO: Do we need this cache?
-    /** Cache of aggregates to intermediate expressions. */
-    private final HashMap<Expression, List<NamedExpression>> cache = new HashMap<>();
-
-    public List<NamedExpression> mapNonGrouping(List<? extends NamedExpression> aggregates) {
+    public static List<NamedExpression> mapNonGrouping(List<? extends NamedExpression> aggregates) {
         return doMapping(aggregates, false);
     }
 
-    public List<NamedExpression> mapNonGrouping(NamedExpression aggregate) {
-        return map(aggregate, false).toList();
-    }
-
-    public List<NamedExpression> mapGrouping(List<? extends NamedExpression> aggregates) {
+    public static List<NamedExpression> mapGrouping(List<? extends NamedExpression> aggregates) {
         return doMapping(aggregates, true);
     }
 
-    private List<NamedExpression> doMapping(List<? extends NamedExpression> aggregates, boolean grouping) {
+    private static List<NamedExpression> doMapping(List<? extends NamedExpression> aggregates, boolean grouping) {
+        Set<Expression> seen = new HashSet<>();
         AttributeMap.Builder<NamedExpression> attrToExpressionsBuilder = AttributeMap.builder();
-        aggregates.stream().flatMap(ne -> map(ne, grouping)).forEach(ne -> attrToExpressionsBuilder.put(ne.toAttribute(), ne));
+        for (NamedExpression agg : aggregates) {
+            Expression inner = Alias.unwrap(agg);
+            if (seen.add(inner)) {
+                for (var ne : computeEntryForAgg(agg.name(), inner, grouping)) {
+                    attrToExpressionsBuilder.put(ne.toAttribute(), ne);
+                }
+            }
+        }
         return attrToExpressionsBuilder.build().values().stream().toList();
     }
 
-    public List<NamedExpression> mapGrouping(NamedExpression aggregate) {
-        return map(aggregate, true).toList();
-    }
-
-    private Stream<NamedExpression> map(NamedExpression ne, boolean grouping) {
-        return cache.computeIfAbsent(Alias.unwrap(ne), aggKey -> computeEntryForAgg(ne.name(), aggKey, grouping)).stream();
+    public static List<IntermediateStateDesc> intermediateStateDesc(AggregateFunction fn, boolean grouping) {
+        if (fn instanceof ToAggregator toAggregator) {
+            var supplier = toAggregator.supplier();
+            return grouping ? supplier.groupingIntermediateStateDesc() : supplier.nonGroupingIntermediateStateDesc();
+        } else {
+            throw new EsqlIllegalArgumentException("Aggregate has no defined intermediate state: " + fn);
+        }
     }
 
     private static List<NamedExpression> computeEntryForAgg(String aggAlias, Expression aggregate, boolean grouping) {
@@ -96,7 +98,7 @@ final class AggregateMapper {
             } else {
                 dataType = DataType.fromEs(is.dataType());
             }
-            return new ReferenceAttribute(Source.EMPTY, Attribute.rawTemporaryName(aggAlias, is.name()), dataType);
+            return new ReferenceAttribute(Source.EMPTY, null, Attribute.rawTemporaryName(aggAlias, is.name()), dataType);
         });
     }
 
@@ -109,7 +111,10 @@ final class AggregateMapper {
             case INT -> DataType.INTEGER;
             case LONG -> DataType.LONG;
             case DOUBLE -> DataType.DOUBLE;
-            case FLOAT, NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
+            case DOC -> DataType.DOC_DATA_TYPE;
+            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM;
+            case TDIGEST -> DataType.TDIGEST;
+            case FLOAT, NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
                 "unsupported agg type: " + elementType
             );
         };

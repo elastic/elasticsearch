@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,22 +28,18 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
         this.testCase = testCaseSupplier.get();
     }
 
-    @Before
-    public void checkCapability() {
-        assumeTrue("Similarity function is not enabled", capability().isEnabled());
-    }
-
-    /**
-     * Get the capability of the vector similarity function to check
-     */
-    protected abstract EsqlCapabilities.Cap capability();
+    public abstract String getBaseEvaluatorName();
 
     protected static Iterable<Object[]> similarityParameters(
         String className,
-        VectorSimilarityFunction.SimilarityEvaluatorFunction similarityFunction
+        DenseVectorFieldMapper.SimilarityFunction similarityFunction
     ) {
 
-        final String evaluatorName = className + "Evaluator" + "[left=Attribute[channel=0], right=Attribute[channel=1]]";
+        final String evaluatorName = className
+            + "Evaluator["
+            + "left=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=0]]], "
+            + "right=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=1]]]"
+            + "]";
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
@@ -66,5 +63,54 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
         }));
 
         return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    public final void testEvaluatorToStringWhenOneVectorIsLiteral() {
+        Expression literal = buildLiteralExpression(testCase).children().getFirst();
+        Expression field = buildFieldExpression(testCase).children().getLast();
+        var expression = build(testCase.getSource(), List.of(literal, field));
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        var factory = evaluator(expression);
+        final String evaluatorName = getBaseEvaluatorName()
+            + "Evaluator"
+            + "[left=ConstantVectorProvider[vector="
+            + testCase.getData().getFirst().getValue()
+            + "],"
+            + " right=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=0]]]]";
+
+        try (EvalOperator.ExpressionEvaluator ev = factory.get(driverContext())) {
+            if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+                assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+            }
+            assertThat(ev.toString(), equalTo(evaluatorName));
+        }
+    }
+
+    public final void testFactoryToStringWhenOneVectorIsLiteral() {
+
+        Expression literal = buildLiteralExpression(testCase).children().getFirst();
+        Expression field = buildFieldExpression(testCase).children().getLast();
+        var expression = build(testCase.getSource(), List.of(literal, field));
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        var factory = evaluator(expression);
+        if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+            assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+        }
+        final String evaluatorName = getBaseEvaluatorName()
+            + "Evaluator"
+            + "[left=ConstantVectorProvider[vector="
+            + testCase.getData().getFirst().getValue()
+            + "],"
+            + " right=ExpressionVectorProvider[expressionEvaluator=[Attribute[channel=0]]]]";
+
+        assertThat(factory.toString(), equalTo(evaluatorName));
     }
 }

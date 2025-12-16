@@ -13,9 +13,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -33,18 +34,19 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends AsyncOperatorTestCase {
     protected ThreadPool threadPool;
@@ -52,15 +54,14 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Before
     public void setThreadPool() {
-        threadPool = new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                between(1, 10),
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
+        threadPool = createThreadPool(
+            new ScalingExecutorBuilder(
+                "inference_response",
+                0,
+                10,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.inference_response_thread_pool"
             )
         );
     }
@@ -80,8 +81,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @Override
+    protected int largeInputSize() {
+        return between(100, 1_000);
+    }
+
+    @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+        return new AbstractBlockSourceOperator(blockFactory, between(100, 8 * 1024)) {
             @Override
             protected int remaining() {
                 return size - currentPosition;
@@ -134,9 +140,18 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                     listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
                 });
             }
+
+            private void runWithRandomDelay(Runnable runnable) {
+                threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.executor("inference_response"));
+            }
         };
 
-        return new InferenceService(mockClient);
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(InferenceSettings.getSettings()));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+
+        return new InferenceService(mockClient, clusterService);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);
@@ -199,18 +214,15 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             }
 
             @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
+
+            @Override
             public void close() {
 
             }
         };
-    }
-
-    private void runWithRandomDelay(Runnable runnable) {
-        if (randomBoolean()) {
-            runnable.run();
-        } else {
-            threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
-        }
     }
 
     public static class BlockStringReader {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDoubleFromStringEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator in;
 
   public ToDoubleFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
@@ -115,6 +118,13 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
   @Override
   public void close() {
     Releasables.closeExpectNoException(in);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

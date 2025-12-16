@@ -70,6 +70,11 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public BytesRefBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
     public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return vector.lookup(positions, targetBlockSize);
     }

@@ -50,7 +50,6 @@ import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortedSetSortField;
@@ -86,6 +85,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
@@ -1096,7 +1096,7 @@ public class InternalEngineTests extends EngineTestCase {
                 new Engine.Get(true, true, "1"),
                 mappingLookup,
                 documentParser,
-                searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchNoDocsQuery()))
+                searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, Queries.NO_DOCS_INSTANCE))
             )
         ) {
             assertFalse(get.exists());
@@ -1678,7 +1678,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
+                        assertThat(msg, Uid.decodeId(((Translog.Index) op).uid()), is(in(liveDocs)));
                         assertEquals(msg, ((Translog.Index) op).source(), B_1);
                     }
                 } else {
@@ -1766,7 +1766,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), is(in(liveDocs)));
+                        assertThat(msg, Uid.decodeId(((Translog.Index) op).uid()), is(in(liveDocs)));
                     }
                 } else {
                     Translog.Operation op = ops.get(seqno);

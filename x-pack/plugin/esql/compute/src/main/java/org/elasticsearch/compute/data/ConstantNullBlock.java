@@ -12,6 +12,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 
@@ -26,7 +27,9 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         FloatBlock,
         DoubleBlock,
         BytesRefBlock,
-        AggregateMetricDoubleBlock {
+        AggregateMetricDoubleBlock,
+        ExponentialHistogramBlock,
+        TDigestBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
@@ -85,6 +88,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public ConstantNullBlock filter(int... positions) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
+    }
+
+    @Override
+    public ConstantNullBlock deepCopy(BlockFactory blockFactory) {
+        return (ConstantNullBlock) blockFactory.newConstantNullBlock(positionCount);
     }
 
     @Override
@@ -283,6 +291,37 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public long getLong(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public void serializeTDigest(int valueIndex, SerializedTDigestOutput out, BytesRef scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public TDigestHolder getTDigestHolder(int valueIndex) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public DoubleBlock buildHistogramComponentBlock(Component component) {
+        // if all histograms are null, the component block is also a constant null block with the same position count
+        this.incRef();
+        return this;
+    }
+
+    @Override
+    public void serializeExponentialHistogram(int valueIndex, SerializedOutput out, BytesRef scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

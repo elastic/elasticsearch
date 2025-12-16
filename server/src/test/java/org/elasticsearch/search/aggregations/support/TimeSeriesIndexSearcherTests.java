@@ -43,7 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+import static org.elasticsearch.index.IndexSortConfig.IndexSortConfigDefaults.TIME_SERIES_SORT;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
@@ -214,8 +214,8 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
     private RandomIndexWriter getIndexWriter(Directory dir) throws IOException {
 
         IndexWriterConfig iwc = newIndexWriterConfig();
-        boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
-        boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+        boolean tsidReverse = TIME_SERIES_SORT.order().get(0).equals(SortOrder.DESC.toString());
+        boolean timestampReverse = TIME_SERIES_SORT.order().get(1).equals(SortOrder.DESC.toString());
         Sort sort = new Sort(
             new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, tsidReverse),
             new SortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG, timestampReverse)
@@ -227,8 +227,8 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
     private BucketCollector getBucketCollector(long totalCount) {
         return new BucketCollector() {
 
-            final boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
-            final boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+            final boolean tsidReverse = TIME_SERIES_SORT.order().get(0).equals(SortOrder.DESC.toString());
+            final boolean timestampReverse = TIME_SERIES_SORT.order().get(1).equals(SortOrder.DESC.toString());
             BytesRef currentTSID = null;
             int currentTSIDord = -1;
             long currentTimestamp = 0;

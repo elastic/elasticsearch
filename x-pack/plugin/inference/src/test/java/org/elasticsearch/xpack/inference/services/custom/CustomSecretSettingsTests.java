@@ -28,13 +28,11 @@ import static org.hamcrest.Matchers.is;
 
 public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestCase<CustomSecretSettings> {
     public static CustomSecretSettings createRandom() {
-        Map<String, SecureString> secretParameters = randomMap(
-            0,
-            5,
-            () -> tuple(randomAlphaOfLength(5), new SecureString(randomAlphaOfLength(5).toCharArray()))
-        );
+        return new CustomSecretSettings(createRandomSecretParameters());
+    }
 
-        return new CustomSecretSettings(secretParameters);
+    private static Map<String, SecureString> createRandomSecretParameters() {
+        return randomMap(0, 5, () -> tuple(randomAlphaOfLength(5), new SecureString(randomAlphaOfLength(5).toCharArray())));
     }
 
     public void testFromMap() {
@@ -131,7 +129,9 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
 
     @Override
     protected CustomSecretSettings mutateInstance(CustomSecretSettings instance) {
-        return randomValueOtherThan(instance, CustomSecretSettingsTests::createRandom);
+        return new CustomSecretSettings(
+            randomValueOtherThan(instance.getSecretParameters(), CustomSecretSettingsTests::createRandomSecretParameters)
+        );
     }
 
     @Override

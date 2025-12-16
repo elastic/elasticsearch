@@ -32,7 +32,7 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        if (signature.get(1).equals(DataType.NULL)) {
+        if (validPerPosition.get(0).contains(signature.get(0)) && signature.get(1).equals(DataType.NULL)) {
             return equalTo("second argument of [" + sourceForSignature(signature) + "] cannot be null, received []");
         }
         return equalTo(
@@ -40,7 +40,9 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 true,
                 validPerPosition,
                 signature,
-                (v, p) -> p == 1 ? "integer" : "boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types"
+                (v, p) -> p == 1
+                    ? "integer"
+                    : "any type except counter types, dense_vector, aggregate_metric_double or exponential_histogram"
             )
         );
     }

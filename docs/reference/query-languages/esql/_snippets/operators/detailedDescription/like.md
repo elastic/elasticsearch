@@ -31,3 +31,15 @@ ROW message = "foobar"
 ```
 
 
+Patterns may be specified with REST query placeholders as well
+
+```esql
+FROM employees
+| WHERE first_name LIKE ?pattern
+| KEEP first_name, last_name
+```
+
+```{applies_to}
+stack: ga 9.3
+```
+

@@ -51,7 +51,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
     def "resolves expanded bwc versions from source"() {
         given:
         internalBuild()
-        bwcMinorProjectSetup()
+        bwcProjectSetup("major1")
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-download'
 
@@ -72,16 +72,16 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
         def result = gradleRunner("setupDistro").build()
         then:
-        result.task(":distribution:bwc:minor:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:major1:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated("distribution/bwc/minor/build/install/elastic-distro",
+        assertExtractedDistroIsCreated("distribution/bwc/major1/build/install/elastic-distro",
                 'bwc-marker.txt')
     }
 
     def "fails on resolving bwc versions with no bundled jdk"() {
         given:
         internalBuild()
-        bwcMinorProjectSetup()
+        bwcProjectSetup("major1")
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-download'
 
@@ -105,12 +105,47 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 "without a bundled JDK is not supported.")
     }
 
-    private void bwcMinorProjectSetup() {
-        settingsFile << """
-        include ':distribution:bwc:minor'
+    def "resolves detached version from source"() {
+        given:
+        internalBuild()
+        bwcProjectSetup("main")
+        buildFile << """
+            apply plugin: 'elasticsearch.internal-distribution-download'
+
+            System.setProperty("tests.bwc.main.version", "9.2.0")
+
+            elasticsearch_distributions {
+              test_distro {
+                  version = "9.2.0"
+                  type = "archive"
+                  platform = "linux"
+                  architecture = Architecture.current();
+                  detachedVersion = true
+              }
+            }
+
+            tasks.register("setupDistro", Sync) {
+                from(elasticsearch_distributions.test_distro)
+                into("build/distro")
+            }
         """
-        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "bwc", "minor")
-        new File(bwcSubProjectFolder, 'bwc-marker.txt') << "bwc=minor"
+
+        when:
+        def result = gradleRunner("setupDistro").build()
+
+        then:
+        result.task(":distribution:bwc:main:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
+        result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
+        assertExtractedDistroIsCreated("distribution/bwc/main/build/install/elastic-distro",
+            'bwc-marker.txt')
+    }
+
+    private void bwcProjectSetup(String bwcProjectName) {
+        settingsFile << """
+        include ':distribution:bwc:$bwcProjectName'
+        """
+        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "bwc", bwcProjectName)
+        new File(bwcSubProjectFolder, 'bwc-marker.txt') << "bwc=$bwcProjectName"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             apply plugin:'base'
 

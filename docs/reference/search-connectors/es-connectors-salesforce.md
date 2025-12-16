@@ -53,6 +53,7 @@ PUT _connector/my-salesforce-connector
   "service_type": "salesforce"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -190,8 +191,9 @@ You can deploy the Salesforce connector as a self-managed connector using Docker
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -363,6 +365,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch documents using SOSL query.
 
@@ -374,6 +377,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
 **Fetch standard and custom objects using SOQL and SOSL queries**
@@ -392,6 +396,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch documents for custom objects via SOQL and SOSL query.
 
@@ -407,6 +412,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields$$$
 **Fetch documents with standard and custom fields**
@@ -421,6 +427,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch documents with all custom fields for Connector object.
 
@@ -432,6 +439,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch documents with all standard fields for Account object.
 
@@ -443,6 +451,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ### Documents and syncs [es-connectors-salesforce-client-documents-syncs]
@@ -509,4 +518,4 @@ See [connectors security](/reference/search-connectors/es-connectors-security.md
 
 This connector is built with the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/salesforce.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/salesforce) (branch *main*, compatible with Elastic *9.0*).

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,11 +30,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
     private final Map<String, SnapshotStats> repositorySnapshotStats;
 
     public RepositoriesStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            repositorySnapshotStats = in.readMap(SnapshotStats::readFrom);
-        } else {
-            repositorySnapshotStats = new HashMap<>();
-        }
+        repositorySnapshotStats = in.readMap(SnapshotStats::readFrom);
     }
 
     public RepositoriesStats(Map<String, SnapshotStats> repositorySnapshotStats) {
@@ -43,9 +39,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeMap(repositorySnapshotStats, StreamOutput::writeWriteable);
-        }
+        out.writeMap(repositorySnapshotStats, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -70,12 +64,16 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         long totalUploadReadTimeInMillis
     ) implements ToXContentObject, Writeable {
 
+        private static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = TransportVersion.fromName(
+            "extended_snapshot_stats_in_node_info"
+        );
+
         public static final SnapshotStats ZERO = new SnapshotStats(0, 0);
 
         public static SnapshotStats readFrom(StreamInput in) throws IOException {
             final long totalReadThrottledNanos = in.readVLong();
             final long totalWriteThrottledNanos = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
+            if (in.getTransportVersion().supports(EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
                 return new SnapshotStats(
                     in.readVLong(),
                     in.readVLong(),
@@ -128,7 +126,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(totalReadThrottledNanos);
             out.writeVLong(totalWriteThrottledNanos);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
+            if (out.getTransportVersion().supports(EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO)) {
                 out.writeVLong(shardSnapshotsStarted);
                 out.writeVLong(shardSnapshotsCompleted);
                 out.writeVLong(shardSnapshotsInProgress);

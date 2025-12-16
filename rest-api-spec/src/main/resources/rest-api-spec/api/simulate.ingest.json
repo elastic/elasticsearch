@@ -1,53 +1,61 @@
 {
-  "simulate.ingest":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-ingest-api.html",
-      "description":"Simulates running ingest with example documents."
+  "simulate.ingest": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-simulate-ingest",
+      "description": "Simulate data ingestion"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ingest/_simulate",
-          "methods":[
+          "path": "/_ingest/_simulate",
+          "methods": [
             "GET",
             "POST"
           ]
         },
         {
-          "path":"/_ingest/{index}/_simulate",
-          "methods":[
+          "path": "/_ingest/{index}/_simulate",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"Default index for docs which don't provide one"
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "Default index for docs which don't provide one"
             }
           }
         }
       ]
     },
-    "params":{
-      "pipeline":{
-        "type":"string",
-        "description":"The pipeline id to preprocess incoming documents with if no pipeline is given for a particular document"
+    "params": {
+      "pipeline": {
+        "type": "string",
+        "description": "The pipeline id to preprocess incoming documents with if no pipeline is given for a particular document"
       },
-      "merge_type":{
-        "type":"string",
-        "description":"The mapping merge type if mapping overrides are being provided in mapping_addition. The allowed values are one of index or template. The index option merges mappings the way they would be merged into an existing index. The template option merges mappings the way they would be merged into a template.",
+      "merge_type": {
+        "type": "enum",
+        "description": "The mapping merge type if mapping overrides are being provided in mapping_addition.\nThe allowed values are one of index or template.\nThe index option merges mappings the way they would be merged into an existing index.\nThe template option merges mappings the way they would be merged into a template.",
+        "options": [
+          "index",
+          "template"
+        ],
         "default": "index"
       }
     },
-    "body":{
-      "description":"The simulate definition",
-      "required":true
+    "body": {
+      "description": "The simulate definition",
+      "required": true
     }
   }
 }

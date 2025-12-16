@@ -13,25 +13,33 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.AbstractThreadedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -47,6 +55,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,6 +67,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -67,17 +78,22 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest.RESOLVED_FIELDS_CAPS;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
+    public static final String EXCLUSION = "-";
     public static final String NAME = "indices:data/read/field_caps";
     public static final ActionType<FieldCapabilitiesResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<FieldCapabilitiesResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
@@ -97,6 +113,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final boolean ccsCheckCompatibility;
     private final ThreadPool threadPool;
     private final TimeValue forceConnectTimeoutSecs;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportFieldCapabilitiesAction(
@@ -125,39 +142,54 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.threadPool = threadPool;
         this.forceConnectTimeoutSecs = clusterService.getSettings().getAsTime("search.ccs.force_connect_timeout", null);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
     }
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        executeRequest(
-            task,
-            request,
-            (transportService, conn, fieldCapabilitiesRequest, responseHandler) -> transportService.sendRequest(
-                conn,
-                REMOTE_TYPE.name(),
-                fieldCapabilitiesRequest,
-                TransportRequestOptions.EMPTY,
-                responseHandler
-            ),
-            listener
-        );
+        executeRequest(task, request, new LinkedRequestExecutor<FieldCapabilitiesResponse>() {
+            @Override
+            public void executeRemoteRequest(
+                TransportService transportService,
+                Transport.Connection conn,
+                FieldCapabilitiesRequest remoteRequest,
+                ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
+            ) {
+                transportService.sendRequest(conn, REMOTE_TYPE.name(), remoteRequest, TransportRequestOptions.EMPTY, responseHandler);
+            }
+
+            @Override
+            public FieldCapabilitiesResponse read(StreamInput in) throws IOException {
+                return new FieldCapabilitiesResponse(in);
+            }
+
+            @Override
+            public FieldCapabilitiesResponse wrapPrimary(FieldCapabilitiesResponse primary) {
+                return primary;
+            }
+
+            @Override
+            public FieldCapabilitiesResponse unwrapPrimary(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+                return fieldCapabilitiesResponse;
+            }
+        }, listener);
     }
 
-    public void executeRequest(
+    public <R extends ActionResponse> void executeRequest(
         Task task,
         FieldCapabilitiesRequest request,
-        LinkedRequestExecutor linkedRequestExecutor,
-        ActionListener<FieldCapabilitiesResponse> listener
+        LinkedRequestExecutor<R> linkedRequestExecutor,
+        ActionListener<R> listener
     ) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
         searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, linkedRequestExecutor, l)));
     }
 
-    private void doExecuteForked(
+    private <R extends ActionResponse> void doExecuteForked(
         Task task,
         FieldCapabilitiesRequest request,
-        LinkedRequestExecutor linkedRequestExecutor,
-        ActionListener<FieldCapabilitiesResponse> listener
+        LinkedRequestExecutor<R> linkedRequestExecutor,
+        ActionListener<R> listener
     ) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
@@ -165,26 +197,80 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Executor singleThreadedExecutor = buildSingleThreadedExecutor();
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
-        // retrieve the initial timestamp in case the action is a cross cluster search
+        // retrieve the initial timestamp in case the action is a cross-cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
+        final var minTransportVersion = new AtomicReference<>(clusterService.state().getMinTransportVersion());
+        final IndicesOptions originalIndicesOptions = request.indicesOptions();
+        final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
-            .groupIndices(request.indicesOptions(), request.indices());
+            .groupIndices(
+                resolveCrossProject ? indicesOptionsForCrossProjectFanout(originalIndicesOptions) : originalIndicesOptions,
+                request.indices(),
+                request.returnLocalAll()
+            );
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
-        if (localIndices == null) {
-            // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
-            concreteIndices = Strings.EMPTY_ARRAY;
+
+        final String[] concreteLocalIndices;
+        final List<ResolvedIndexExpression> resolvedLocallyList;
+        if (request.getResolvedIndexExpressions() != null) {
+            // in CPS the Security Action Filter would populate resolvedExpressions for the local project
+            // thus we can get the concreteLocalIndices based on the resolvedLocallyList
+            resolvedLocallyList = request.getResolvedIndexExpressions().expressions();
+            concreteLocalIndices = resolvedLocallyList.stream()
+                .map(r -> r.localExpressions().indices())
+                .flatMap(Set::stream)
+                .distinct()
+                .toArray(String[]::new);
         } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
+            // In CCS/Local only search we have to populate resolvedLocallyList one by one for each localIndices.indices()
+            // only if the request is includeResolvedTo()
+            resolvedLocallyList = new ArrayList<>();
+            if (localIndices == null) {
+                // in the case we have one or more remote indices but no local we don't expand to all local indices
+                // in this case resolvedLocallyList will remain empty
+                concreteLocalIndices = Strings.EMPTY_ARRAY;
+            } else {
+                concreteLocalIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
+                if (request.includeResolvedTo()) {
+                    ProjectMetadata projectMetadata = projectState.metadata();
+                    IndicesOptions indicesOptions = localIndices.indicesOptions();
+                    String[] localIndexNames = localIndices.indices();
+                    if (localIndexNames.length == 0) {
+                        // Empty indices array means match all
+                        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(projectMetadata, indicesOptions);
+                        resolvedLocallyList.add(createResolvedIndexExpression(Metadata.ALL, concreteIndexNames));
+                    } else if (false == IndexNameExpressionResolver.isNoneExpression(localIndexNames)) {
+                        // if it's neither match all nor match none, but we want to include resolutions we loop for all the indicesNames
+                        for (String localIndexName : localIndexNames) {
+                            if (false == localIndexName.startsWith(EXCLUSION)) {
+                                // we populate resolvedLocally iff is not an exclusion
+                                String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(
+                                    projectMetadata,
+                                    indicesOptions,
+                                    localIndices.includeDataStreams(),
+                                    localIndexName
+                                );
+                                resolvedLocallyList.add(createResolvedIndexExpression(localIndexName, concreteIndexNames));
+                            }
+                        }
+                    }
+                }
+
+            }
         }
 
-        if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
-            listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
+        if (concreteLocalIndices.length == 0 && remoteClusterIndices.isEmpty()) {
+            FieldCapabilitiesResponse.Builder responseBuilder = FieldCapabilitiesResponse.builder();
+            responseBuilder.withMinTransportVersion(minTransportVersion.get());
+            if (request.includeResolvedTo()) {
+                responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(resolvedLocallyList));
+            }
+            listener.onResponse(linkedRequestExecutor.wrapPrimary(responseBuilder.build()));
             return;
         }
 
-        checkIndexBlocks(projectState, concreteIndices);
+        checkIndexBlocks(projectState, concreteLocalIndices);
         final FailureCollector indexFailures = new FailureCollector();
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = new HashMap<>();
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
@@ -195,6 +281,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             indexResponses.clear();
             indexMappingHashToResponses.clear();
         };
+        Map<String, ResolvedIndexExpressions.Builder> resolvedRemotelyBuilder = new ConcurrentHashMap<>();
+        for (String clusterAlias : remoteClusterIndices.keySet()) {
+            resolvedRemotelyBuilder.put(clusterAlias, ResolvedIndexExpressions.builder());
+        }
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();
@@ -256,7 +346,32 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
+                Map<String, ResolvedIndexExpressions> resolvedRemotely = resolvedRemotelyBuilder.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
+                ResolvedIndexExpressions resolvedLocally = new ResolvedIndexExpressions(resolvedLocallyList);
+                if (resolveCrossProject) {
+                    final Exception ex = CrossProjectIndexResolutionValidator.validate(
+                        request.indicesOptions(),
+                        request.getProjectRouting(),
+                        resolvedLocally,
+                        resolvedRemotely
+                    );
+                    if (ex != null) {
+                        listener.onFailure(ex);
+                        return;
+                    }
+                }
+                mergeIndexResponses(
+                    request,
+                    fieldCapTask,
+                    indexResponses,
+                    indexFailures,
+                    resolvedLocally,
+                    resolvedRemotely,
+                    minTransportVersion,
+                    listener.map(linkedRequestExecutor::wrapPrimary)
+                );
             }
         })) {
             // local cluster
@@ -269,7 +384,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 request,
                 localIndices,
                 nowInMillis,
-                concreteIndices,
+                concreteLocalIndices,
                 singleThreadedExecutor,
                 handleIndexResponse,
                 handleIndexFailure,
@@ -282,8 +397,29 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
-                FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(clusterAlias, request, originalIndices, nowInMillis);
+                FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(
+                    clusterAlias,
+                    request,
+                    originalIndices,
+                    nowInMillis,
+                    resolveCrossProject
+                );
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
+
+                    if (request.includeResolvedTo() && response.getResolvedLocally() != null) {
+                        ResolvedIndexExpressions resolvedOnRemoteProject = response.getResolvedLocally();
+                        // for bwc we need to check that resolvedOnRemoteProject Exists in the response
+                        if (resolvedOnRemoteProject != null) {
+                            for (ResolvedIndexExpression remoteResolvedExpression : resolvedOnRemoteProject.expressions()) {
+                                resolvedRemotelyBuilder.computeIfPresent(clusterAlias, (k, v) -> {
+                                    v.addExpression(remoteResolvedExpression);
+                                    return v;
+                                });
+                            }
+                        }
+
+                    }
+
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                         String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
                         handleIndexResponse.accept(
@@ -300,11 +436,47 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         Exception ex = failure.getException();
                         for (String index : failure.getIndices()) {
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                            if (request.includeResolvedTo()) {
+                                ResolvedIndexExpression err = new ResolvedIndexExpression(
+                                    index,
+                                    new ResolvedIndexExpression.LocalExpressions(
+                                        Set.of(),
+                                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                                        null
+                                    ),
+                                    Set.of()
+                                );
+                                resolvedRemotelyBuilder.computeIfPresent(clusterAlias, (k, v) -> {
+                                    v.addExpression(err);
+                                    return v;
+                                });
+                            }
                         }
                     }
+                    minTransportVersion.accumulateAndGet(response.minTransportVersion(), (lhs, rhs) -> {
+                        if (lhs == null || rhs == null) {
+                            return null;
+                        }
+                        return TransportVersion.min(lhs, rhs);
+                    });
                 }, ex -> {
                     for (String index : originalIndices.indices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                        if (request.includeResolvedTo()) {
+                            ResolvedIndexExpression err = new ResolvedIndexExpression(
+                                index,
+                                new ResolvedIndexExpression.LocalExpressions(
+                                    Set.of(),
+                                    ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                                    null
+                                ),
+                                Set.of()
+                            );
+                            resolvedRemotelyBuilder.computeIfPresent(clusterAlias, (k, v) -> {
+                                v.addExpression(err);
+                                return v;
+                            });
+                        }
                     }
                 });
 
@@ -326,7 +498,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             transportService,
                             conn,
                             remoteRequest,
-                            new ActionListenerResponseHandler<>(responseListener, FieldCapabilitiesResponse::new, singleThreadedExecutor)
+                            new ActionListenerResponseHandler<>(
+                                responseListener,
+                                in -> linkedRequestExecutor.unwrapPrimary(linkedRequestExecutor.read(in)),
+                                singleThreadedExecutor
+                            )
                         )
                     )
                 );
@@ -337,6 +513,20 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .maybeEnsureConnectedAndGetConnection(clusterAlias, ensureConnected, connectionListener);
             }
         }
+    }
+
+    private static ResolvedIndexExpression createResolvedIndexExpression(String original, String[] concreteIndexNames) {
+        boolean isWildcard = Regex.isSimpleMatchPattern(original);
+        // if it is a wildcard we consider it successful even if it didn't resolve to any concrete index
+        ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult = concreteIndexNames.length > 0 || isWildcard
+            ? ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+            : ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
+
+        return new ResolvedIndexExpression(
+            original,
+            new ResolvedIndexExpression.LocalExpressions(Set.of(concreteIndexNames), resolutionResult, null),
+            Collections.emptySet()
+        );
     }
 
     private Executor buildSingleThreadedExecutor() {
@@ -362,13 +552,19 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         });
     }
 
-    public interface LinkedRequestExecutor {
+    public interface LinkedRequestExecutor<R extends ActionResponse> {
         void executeRemoteRequest(
             TransportService transportService,
             Transport.Connection conn,
             FieldCapabilitiesRequest remoteRequest,
             ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
         );
+
+        R read(StreamInput in) throws IOException;
+
+        R wrapPrimary(FieldCapabilitiesResponse primary);
+
+        FieldCapabilitiesResponse unwrapPrimary(R r);
     }
 
     private static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
@@ -389,35 +585,53 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
+        ResolvedIndexExpressions resolvedLocally,
+        Map<String, ResolvedIndexExpressions> resolvedRemotely,
+        AtomicReference<TransportVersion> minTransportVersion,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.size() > 0) {
+        if (indexResponses.isEmpty() == false) {
             if (request.isMergeResults()) {
-                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
+                ActionListener.completeWith(
+                    listener,
+                    () -> merge(indexResponses, resolvedLocally, resolvedRemotely, task, request, failures, minTransportVersion)
+                );
             } else {
-                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
+                listener.onResponse(
+                    FieldCapabilitiesResponse.builder()
+                        .withIndexResponses(new ArrayList<>(indexResponses.values()))
+                        .withResolvedLocally(resolvedLocally)
+                        .withResolvedRemotely(resolvedRemotely)
+                        .withMinTransportVersion(minTransportVersion.get())
+                        .withFailures(failures)
+                        .build()
+                );
+            }
+        } else if (indexFailures.isEmpty() == false) {
+            /*
+             * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
+             * Instead, they should always be passed through the response object, as part of "failures".
+             */
+            if (failures.stream()
+                .anyMatch(
+                    failure -> failure.getException() instanceof IllegalStateException ise
+                        && ise.getCause() instanceof ElasticsearchTimeoutException
+                )) {
+                listener.onResponse(
+                    FieldCapabilitiesResponse.builder()
+                        .withFailures(failures)
+                        .withResolvedLocally(resolvedLocally)
+                        .withResolvedRemotely(resolvedRemotely)
+                        .withMinTransportVersion(minTransportVersion.get())
+                        .build()
+                );
+            } else {
+                // throw back the first exception
+                listener.onFailure(failures.get(0).getException());
             }
         } else {
-            // we have no responses at all, maybe because of errors
-            if (indexFailures.isEmpty() == false) {
-                /*
-                 * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
-                 * Instead, they should always be passed through the response object, as part of "failures".
-                 */
-                if (failures.stream()
-                    .anyMatch(
-                        failure -> failure.getException() instanceof IllegalStateException ise
-                            && ise.getCause() instanceof ElasticsearchTimeoutException
-                    )) {
-                    listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
-                } else {
-                    // throw back the first exception
-                    listener.onFailure(failures.get(0).getException());
-                }
-            } else {
-                listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
-            }
+            listener.onResponse(FieldCapabilitiesResponse.builder().withMinTransportVersion(minTransportVersion.get()).build());
         }
     }
 
@@ -425,12 +639,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         String clusterAlias,
         FieldCapabilitiesRequest request,
         OriginalIndices originalIndices,
-        long nowInMillis
+        long nowInMillis,
+        boolean resolveCrossProject
     ) {
+        IndicesOptions indicesOptions = originalIndices.indicesOptions();
+        if (indicesOptions.resolveCrossProjectIndexExpression()) {
+            // if is a CPS request reset CrossProjectModeOptions to Default and use lenient IndicesOptions.
+            indicesOptions = indicesOptionsForCrossProjectFanout(indicesOptions);
+        }
         FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
         remoteRequest.clusterAlias(clusterAlias);
         remoteRequest.setMergeResults(false); // we need to merge on this node
-        remoteRequest.indicesOptions(originalIndices.indicesOptions());
+        remoteRequest.indicesOptions(indicesOptions);
         remoteRequest.indices(originalIndices.indices());
         remoteRequest.fields(request.fields());
         remoteRequest.filters(request.filters());
@@ -439,6 +659,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
         remoteRequest.includeEmptyFields(request.includeEmptyFields());
+        remoteRequest.includeResolvedTo(request.includeResolvedTo() || resolveCrossProject);
         return remoteRequest;
     }
 
@@ -450,9 +671,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private static FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
+        ResolvedIndexExpressions resolvedLocally,
+        Map<String, ResolvedIndexExpressions> resolvedRemotely,
         CancellableTask task,
         FieldCapabilitiesRequest request,
-        List<FieldCapabilitiesFailure> failures
+        List<FieldCapabilitiesFailure> failures,
+        AtomicReference<TransportVersion> minTransportVersion
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         task.ensureNotCancelled();
@@ -469,7 +693,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
                 }
-                innerMerge(subIndices, fieldsBuilder, request, indexResponses[lastPendingIndex]);
+                innerMerge(subIndices, fieldsBuilder, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }
         }
@@ -482,6 +706,22 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             collectFields(fieldsBuilder, fields, request.includeIndices());
         }
 
+        List<String> failedIndices = failures.stream().flatMap(f -> Arrays.stream(f.getIndices())).toList();
+        List<ResolvedIndexExpression> collect = resolvedLocally.expressions().stream().map(expression -> {
+            if (failedIndices.contains(expression.original())) {
+                return new ResolvedIndexExpression(
+                    expression.original(),
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    expression.remoteExpressions()
+                );
+            }
+            return expression;
+        }).toList();
+
         // The merge method is only called on the primary coordinator for cross-cluster field caps, so we
         // log relevant "5xx" errors that occurred in this 2xx response to ensure they are only logged once.
         // These failures have already been deduplicated, before this method was called.
@@ -493,7 +733,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 );
             }
         }
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(fields), failures);
+
+        FieldCapabilitiesResponse.Builder responseBuilder = FieldCapabilitiesResponse.builder()
+            .withIndices(indices)
+            .withFields(Collections.unmodifiableMap(fields))
+            .withFailures(failures)
+            .withMinTransportVersion(minTransportVersion.get());
+        if (request.includeResolvedTo() && minTransportVersion.get().supports(RESOLVED_FIELDS_CAPS)) {
+            // add resolution to response iff includeResolvedTo and all the nodes in the cluster supports it
+            responseBuilder.withResolvedLocally(new ResolvedIndexExpressions(collect)).withResolvedRemotely(resolvedRemotely);
+        }
+        return responseBuilder.build();
     }
 
     private static boolean shouldLogException(Exception e) {
@@ -589,15 +839,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void innerMerge(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-        FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
     ) {
-        Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
-            response.getOriginVersion(),
-            response.get(),
-            request.filters(),
-            request.types()
-        );
+        Map<String, IndexFieldCapabilities> fields = response.get();
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();

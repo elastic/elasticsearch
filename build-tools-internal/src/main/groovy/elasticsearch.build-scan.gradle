@@ -7,15 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import java.lang.management.ManagementFactory;
-import java.time.LocalDateTime;
 
-import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
-
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
+import org.elasticsearch.gradle.Architecture
+
+import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 // Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
 def taskNames = gradle.startParameter.taskNames.join(' ')
@@ -32,10 +30,10 @@ develocity {
     // Automatically publish scans from Elasticsearch CI
     if (onCI) {
       publishing.onlyIf { true }
-      if(server.isPresent() == false) {
+      if (server.isPresent() == false) {
         server = 'https://gradle-enterprise.elastic.co'
       }
-    } else if( server.isPresent() == false) {
+    } else if (server.isPresent() == false) {
       publishing.onlyIf { false }
     }
 
@@ -99,6 +97,15 @@ develocity {
           tag 'pull-request'
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
           link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
+        } else if (System.getenv('ELASTICSEARCH_PR_NUMBER')) {
+          // For tracking es-pr-check failures in the serverless repo caused by elasticsearch PRs
+          def esPr = System.getenv('ELASTICSEARCH_PR_NUMBER')
+          def esCommit = System.getenv('ELASTICSEARCH_SUBMODULE_COMMIT')
+          value 'Git Commit ID', esCommit
+          tag "pr/${esPr}"
+          tag 'pull-request'
+          link 'Source', "https://github.com/elastic/elasticsearch/pull/${esPr}/commits/${esCommit}"
+          link 'Pull Request', "https://github.com/elastic/elasticsearch/pull/${esPr}"
         } else {
           value 'Git Commit ID', gitRevision.get()
           link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
@@ -114,9 +121,15 @@ develocity {
               .start()
               .waitFor()
 
+            // Attach build scan ID as build metadata
+            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanId}")
+              .start()
+              .waitFor()
+
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
-            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT')?:"0") > 0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
             def process = [
               'buildkite-agent',
               'annotate',

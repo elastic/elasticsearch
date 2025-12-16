@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -87,35 +86,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            int size = in.readVInt();
-            assert size <= 1 : "Expected to read 0 or 1 mappings, but received " + size;
-            if (size == 1) {
-                String type = in.readString();
-                if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-                    throw new IllegalArgumentException("Expected to receive mapping type of [_doc] but got [" + type + "]");
-                }
-                mappings = in.readString();
-            }
-        } else {
-            mappings = in.readString();
-        }
+        mappings = in.readString();
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
         origin = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            requireDataStream = in.readBoolean();
-        } else {
-            requireDataStream = false;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            initializeFailureStore = in.readBoolean();
-        } else {
-            initializeFailureStore = true;
-        }
+        requireDataStream = in.readBoolean();
+        initializeFailureStore = in.readBoolean();
     }
 
     public CreateIndexRequest() {
@@ -510,26 +489,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         settings.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if ("{}".equals(mappings)) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(1);
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                out.writeString(mappings);
-            }
-        } else {
-            out.writeString(mappings);
-        }
+        out.writeString(mappings);
         out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
         out.writeString(origin);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(this.requireDataStream);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(this.initializeFailureStore);
-        }
+        out.writeBoolean(this.requireDataStream);
+        out.writeBoolean(this.initializeFailureStore);
     }
 
     @Override

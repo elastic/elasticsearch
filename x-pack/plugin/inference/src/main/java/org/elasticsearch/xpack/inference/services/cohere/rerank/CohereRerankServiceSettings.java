@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
@@ -45,6 +43,7 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSet
 
 public class CohereRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
     public static final String NAME = "cohere_rerank_service_settings";
+    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -108,24 +107,10 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     public CohereRerankServiceSettings(StreamInput in) throws IOException {
         this.uri = createOptionalUri(in.readOptionalString());
-
-        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            // An older node sends these fields, so we need to skip them to progress through the serialized data
-            in.readOptionalEnum(SimilarityMeasure.class);
-            in.readOptionalVInt();
-            in.readOptionalVInt();
-        }
-
         this.modelId = in.readOptionalString();
+        this.rateLimitSettings = new RateLimitSettings(in);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
             this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
@@ -185,29 +170,16 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
-
-        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            // An old node expects this data to be present, so we need to send at least the booleans
-            // indicating that the fields are not set
-            out.writeOptionalEnum(null);
-            out.writeOptionalVInt(null);
-            out.writeOptionalVInt(null);
-        }
-
         out.writeOptionalString(modelId);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             out.writeEnum(apiVersion);
         }
     }

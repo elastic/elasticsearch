@@ -1,0 +1,5 @@
+pr: 137017
+summary: Manage INLINE STATS count(*) on result sets with no columns
+area: ES|QL
+type: bug
+issues: []

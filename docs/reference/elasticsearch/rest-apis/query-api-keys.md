@@ -212,10 +212,12 @@ POST /_security/api_key
 A successful call returns a JSON structure that provides API key information. For example:
 
 ```console-result
+{
   "id": "VuaCfGcBCdbkQm-e5aOx",
   "name": "application-key-1",
   "api_key": "ui2lp2axTNmsyakw9tvNnw",
   "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
+}
 ```
 % TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 % TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]

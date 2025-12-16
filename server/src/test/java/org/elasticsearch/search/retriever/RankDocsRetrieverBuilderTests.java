@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -70,6 +71,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                     null,
                     randomInt(10),
                     randomIntBetween(10, 100),
+                    randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
                     randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                     randomFloat()
                 );
@@ -123,6 +125,9 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             }
         }
         assertNull(source.postFilter());
+
+        // the default `from` is -1, when `extractToSearchSourceBuilder` is run, it should modify this to the default
+        assertEquals(SearchService.DEFAULT_FROM, source.from());
     }
 
     public void testTopDocsQuery() throws IOException {

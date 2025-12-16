@@ -36,11 +36,8 @@ Combining `query` and `retrievers` is not supported.
     Required when `query` is specified.
     
     When used with the [multi-field query format](../retrievers.md#multi-field-query-format) (`query` parameter), normalizes scores per [field grouping](../retrievers.md#multi-field-field-grouping).
-    Otherwise serves as the default normalizer for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer.
 
-    :::{note}
-    **Top-level normalizer support for sub-retrievers**: The ability to use a top-level normalizer as a default for sub-retrievers was introduced in Elasticsearch 9.2+. In earlier versions, only per-retriever normalizers are supported.
-    :::
+    Otherwise this serves as the default normalizer for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer. {applies_to}`stack: ga 9.2`
 
     ::::{warning}
     Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
@@ -83,8 +80,7 @@ Each entry in the `retrievers` array specifies the following parameters:
 
     Specifies how the retriever's score will be normalized before applying the specified `weight`.
     See [normalizers](#linear-retriever-normalizers) for supported values.
-    If not specified, uses the top-level `normalizer` or defaults to `none` if no top-level normalizer is set.
-    {applies_to}`stack: ga 9.2`
+    If not specified, uses the top-level `normalizer` (9.2+) or defaults to `none` (earlier versions).
 
 See also [this hybrid search example](retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
@@ -119,7 +115,7 @@ GET my_index/_search
               "num_candidates": 100
             }
           },
-          "weight": 5 # KNN query weighted 5x
+          "weight": 5 <1> 
         },
         {
           "retriever": {
@@ -131,7 +127,7 @@ GET my_index/_search
               }
             }
           },
-          "weight": 1.5 # BM25 query weighted 1.5x
+          "weight": 1.5 <2> 
         }
       ],
       "normalizer": "minmax"
@@ -139,6 +135,9 @@ GET my_index/_search
   }
 }
 ```
+
+1. KNN query weighted 5x
+2. BM25 query weighted 1.5x
 
 In this example, the `minmax` normalizer is applied to both the kNN retriever and the standard retriever. The top-level normalizer serves as a default that can be overridden by individual sub-retrievers. When using the multi-field query format, the top-level normalizer is applied to all generated inner retrievers.
 

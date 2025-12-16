@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -41,23 +42,23 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         AtomicReference<LongWithAttributes> attrs = new AtomicReference<>();
         LongAsyncCounter longAsyncCounter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", attrs::get);
 
-        attrs.set(new LongWithAttributes(1L, Map.of("k", 1L)));
+        attrs.set(new LongWithAttributes(1L, Map.of("es_test_attribute", 1L)));
 
         otelMeter.collectMetrics();
 
         List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(longAsyncCounter);
         assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 1L)));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("es_test_attribute", 1L)));
         assertThat(metrics.get(0).getLong(), equalTo(1L));
 
-        attrs.set(new LongWithAttributes(2L, Map.of("k", 5L)));
+        attrs.set(new LongWithAttributes(2L, Map.of("es_test_attribute", 5L)));
 
         otelMeter.getRecorder().resetCalls();
         otelMeter.collectMetrics();
 
         metrics = otelMeter.getRecorder().getMeasurements(longAsyncCounter);
         assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 5L)));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("es_test_attribute", 5L)));
         assertThat(metrics.get(0).getLong(), equalTo(2L));
 
         longAsyncCounter.close();
@@ -73,23 +74,23 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         AtomicReference<DoubleWithAttributes> attrs = new AtomicReference<>();
         DoubleAsyncCounter doubleAsyncCounter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "unit", attrs::get);
 
-        attrs.set(new DoubleWithAttributes(1.0, Map.of("k", 1.0)));
+        attrs.set(new DoubleWithAttributes(1.0, Map.of("es_test_attribute", 1.0)));
 
         otelMeter.collectMetrics();
 
         List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(doubleAsyncCounter);
         assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 1.0)));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("es_test_attribute", 1.0)));
         assertThat(metrics.get(0).getDouble(), equalTo(1.0));
 
-        attrs.set(new DoubleWithAttributes(2.0, Map.of("k", 5.0)));
+        attrs.set(new DoubleWithAttributes(2.0, Map.of("es_test_attribute", 5.0)));
 
         otelMeter.getRecorder().resetCalls();
         otelMeter.collectMetrics();
 
         metrics = otelMeter.getRecorder().getMeasurements(doubleAsyncCounter);
         assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 5.0)));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("es_test_attribute", 5.0)));
         assertThat(metrics.get(0).getDouble(), equalTo(2.0));
 
         doubleAsyncCounter.close();
@@ -101,7 +102,26 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         assertThat(metrics, hasSize(0));
     }
 
-    public void testNullGaugeRecord() throws Exception {
+    public void testLongWithInvalidAttribute() {
+        registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
+
+        AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
+        assertThat(error.getMessage(), containsString("Attribute name [index] is forbidden"));
+    }
+
+    public void testDoubleWithInvalidAttribute() {
+        registry.registerDoubleAsyncCounter(
+            "es.test.name.total",
+            "desc",
+            "unit",
+            () -> new DoubleWithAttributes(1.0, Map.of("es_has_timestamp", "false"))
+        );
+
+        AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
+        assertThat(error.getMessage(), containsString("Attribute name [es_has_timestamp] is forbidden"));
+    }
+
+    public void testNullRecord() throws Exception {
         DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter(
             "es.test.name.total",
             "desc",

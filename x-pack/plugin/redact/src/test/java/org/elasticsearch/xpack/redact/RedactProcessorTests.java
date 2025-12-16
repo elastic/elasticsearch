@@ -11,6 +11,8 @@ import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestPipelineFieldAccessPattern;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -361,6 +363,27 @@ public class RedactProcessorTests extends ESTestCase {
 
             assertEquals("<REDACTED> will be redacted", redactedDoc.getFieldValue("to_redact", String.class));
             // validate ingest metadata path correctly resolved
+            assertTrue(redactedDoc.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class));
+            // validate ingest metadata structure correct
+            var ingestMeta = redactedDoc.getIngestMetadata();
+            assertTrue(ingestMeta.containsKey(RedactProcessor.REDACT_KEY));
+            var redactMetadata = (HashMap<String, Object>) ingestMeta.get(RedactProcessor.REDACT_KEY);
+            assertTrue(redactMetadata.containsKey(RedactProcessor.IS_REDACTED_KEY));
+            assertTrue((Boolean) redactMetadata.get(RedactProcessor.IS_REDACTED_KEY));
+        }
+        {
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(
+                null,
+                "t",
+                "d",
+                new HashMap<>(config),
+                null
+            );
+            var ingestDoc = createIngestDoc(Map.of("to_redact", "thisisanemail@address.com will be redacted"));
+            var redactedDoc = IngestPipelineTestUtils.runWithAccessPattern(IngestPipelineFieldAccessPattern.FLEXIBLE, ingestDoc, processor);
+
+            assertEquals("<REDACTED> will be redacted", redactedDoc.getFieldValue("to_redact", String.class));
+            // validate ingest metadata path correctly resolved in classic mode
             assertTrue(redactedDoc.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class));
             // validate ingest metadata structure correct
             var ingestMeta = redactedDoc.getIngestMetadata();

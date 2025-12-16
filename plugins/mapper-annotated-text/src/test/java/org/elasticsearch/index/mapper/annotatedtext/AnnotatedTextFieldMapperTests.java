@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -291,7 +293,33 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertTrue(fields.get(0).fieldType().stored());
     }
 
-    public void testStoreParameterDefaults() throws IOException {
+    public void testStoreParameterDefaultsToFalse() throws IOException {
+        // given
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "annotated_text"); }));
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+
+        // then
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse(fields.getFirst().fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsToFalseWhenSyntheticSourceIsEnabled() throws IOException {
+        // given
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        DocumentMapper mapper = createMapperService(indexSettings, fieldMapping(b -> { b.field("type", "annotated_text"); }))
+            .documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+
+        // then
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse(fields.getFirst().fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsWhenIndexVersionIsNotLatest() throws IOException {
         var timeSeriesIndexMode = randomBoolean();
         var isStored = randomBoolean();
         var hasKeywordFieldForSyntheticSource = randomBoolean();
@@ -330,7 +358,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
         });
-        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, () -> true, mapping).documentMapper();
 
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
@@ -673,5 +703,15 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

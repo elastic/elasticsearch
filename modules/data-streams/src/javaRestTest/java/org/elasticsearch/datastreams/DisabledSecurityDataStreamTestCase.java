@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
@@ -23,11 +25,15 @@ import org.junit.ClassRule;
  */
 public abstract class DisabledSecurityDataStreamTestCase extends ESRestTestCase {
 
+    protected static LocalClusterConfigProvider clusterConfig = c -> {};
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
+        .feature(FeatureFlag.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG)
+        .apply(() -> clusterConfig) // allows sub-classes to apply a custom cluster configuration
         .build();
 
     @Override

@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,13 +41,8 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
-            this.onlyRankDocs = in.readBoolean();
-        } else {
-            this.queryBuilders = null;
-            this.onlyRankDocs = false;
-        }
+        this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
+        this.onlyRankDocs = in.readBoolean();
     }
 
     @Override
@@ -85,10 +79,12 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeNamedWriteable, rankDocs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
-            out.writeBoolean(onlyRankDocs);
-        }
+        out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
+        out.writeBoolean(onlyRankDocs);
+    }
+
+    public QueryBuilder[] getQueryBuilders() {
+        return queryBuilders;
     }
 
     @Override
@@ -145,6 +141,6 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 }

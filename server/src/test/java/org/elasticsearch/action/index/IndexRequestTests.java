@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -47,6 +48,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -190,6 +192,8 @@ public class IndexRequestTests extends ESTestCase {
             .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
         indexRequest.source("{}", XContentType.JSON);
         indexRequest.setDynamicTemplates(dynamicTemplates);
+        Map<String, Map<String, String>> dynamicTemplateParams = createRandomDynamicTemplateParams(0, 10);
+        indexRequest.setDynamicTemplateParams(dynamicTemplateParams);
         indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
@@ -198,9 +202,15 @@ public class IndexRequestTests extends ESTestCase {
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         IndexRequest serialized = new IndexRequest(in);
         assertEquals(XContentType.JSON, serialized.getContentType());
-        assertEquals(new BytesArray("{}"), serialized.source());
+        assertThat(serialized.source(), equalBytes(new BytesArray("{}")));
         assertEquals(isRequireAlias, serialized.isRequireAlias());
         assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
+    }
+
+    private static Map<String, Map<String, String>> createRandomDynamicTemplateParams(int min, int max) {
+        return IntStream.range(0, randomIntBetween(min, max))
+            .boxed()
+            .collect(Collectors.toMap(n -> "field-" + n, n -> Map.of("key-" + n, "value-" + n)));
     }
 
     // reindex makes use of index requests without a source so this needs to be handled
@@ -250,6 +260,58 @@ public class IndexRequestTests extends ESTestCase {
             in.setTransportVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
+        }
+    }
+
+    public void testSerializeDynamicTemplateParams() throws Exception {
+        IndexRequest indexRequest = new IndexRequest("foo").id("1");
+        indexRequest.source("{}", XContentType.JSON);
+        // Empty dynamic templates
+        {
+            if (randomBoolean()) {
+                indexRequest.setDynamicTemplateParams(Map.of());
+            }
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplateParams(), anEmptyMap());
+        }
+        // old version
+        {
+            indexRequest.setDynamicTemplateParams(createRandomDynamicTemplateParams(1, 10));
+            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.minimumCompatible(),
+                TransportVersionUtils.getPreviousVersion(IndexRequest.INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS)
+            );
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplateParams(), anEmptyMap());
+        }
+        // new version
+        {
+            Map<String, Map<String, String>> dynamicTemplateParams = createRandomDynamicTemplateParams(0, 10);
+            indexRequest.setDynamicTemplateParams(dynamicTemplateParams);
+            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
+                random(),
+                IndexRequest.INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS,
+                TransportVersion.current()
+            );
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplateParams(), equalTo(dynamicTemplateParams));
         }
     }
 
@@ -480,6 +542,7 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));
         assertThat(copy.ifPrimaryTerm(), equalTo(indexRequest.ifPrimaryTerm()));
         assertThat(copy.isRequireDataStream(), equalTo(indexRequest.isRequireDataStream()));
+        assertThat(copy.tsid(), equalTo(indexRequest.tsid()));
     }
 
     private IndexRequest createTestInstance() {
@@ -495,6 +558,7 @@ public class IndexRequestTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(0, 20); i++) {
             indexRequest.addPipeline(randomAlphaOfLength(20));
         }
+        indexRequest.tsid(randomFrom(new BytesRef(randomAlphaOfLength(20)), null));
         return indexRequest;
     }
 }

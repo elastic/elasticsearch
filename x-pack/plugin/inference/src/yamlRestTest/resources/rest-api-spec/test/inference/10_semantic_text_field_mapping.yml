@@ -549,6 +549,33 @@ setup:
   - not_exists: fields.dense_field.inference
 
 ---
+"Field caps with semantic query does not fail":
+  - requires:
+      cluster_features: "semantic_query.filter_field_caps_fix"
+      reason: "fixed bug with semantic query filtering in field_caps (#116106)"
+  # We need at least one document present to exercise can-match phase
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      field_caps:
+        index: test-index
+        fields: "*"
+        body:
+          index_filter:
+            semantic:
+              field: "sparse_field"
+              query: "test"
+
+  - match: { indices: [ "test-index" ] }
+  - match: { fields.sparse_field.text.searchable: true }
+
+---
 "Users can set dense vector index options and index documents using those options":
   - requires:
       cluster_features: "semantic_text.index_options"
@@ -1452,3 +1479,397 @@ setup:
   - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.prune": true }
   - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 5.0 }
   - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
+
+---
+"Updating inference_id to different task type should succeed given no model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": dense-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  # We index a doc to check inference fields are as expected
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "One day they started playing the piano."
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: dense-inference-id }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: text_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+
+---
+"Updating inference_id to non existing endpoint should succeed given no model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: non-existing-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": non-existing-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+---
+"Updating inference_id to non existing endpoint should fail given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      catch: missing
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: non-existing-inference-id
+  - match: { error.reason: "non-existing-inference-id does not exist in this cluster."}
+
+---
+"Updating inference_id to different task type should fail given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[sparse_field\\].*because.inference.endpoint.\\[sparse-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different dimensions should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 8,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different similarity should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "l2_norm",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different element_type should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "element_type": "byte",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id to compatible endpoint should succeed given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "alternate_sparse_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: sparse-inference-id-2
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id-2 }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": alternate_sparse_embedding_test_service }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+
+  # We index another doc to later check inference fields new updated endpoint
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          sparse_field: "One day they started playing the piano."
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings

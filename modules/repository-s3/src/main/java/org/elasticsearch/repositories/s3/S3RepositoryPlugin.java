@@ -101,12 +101,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private static Region getDefaultRegion() {
-        try {
-            return DefaultAwsRegionProviderChain.builder().build().getRegion();
-        } catch (Exception e) {
-            logger.info("failed to obtain region from default provider chain", e);
-            return null;
-        }
+        return DefaultAwsRegionProviderChain.builder().build().getRegion();
     }
 
     @Override
@@ -152,11 +147,13 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.READ_TIMEOUT_SETTING,
             S3ClientSettings.MAX_CONNECTIONS_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
+            S3ClientSettings.API_CALL_TIMEOUT_SETTING,
             S3ClientSettings.UNUSED_USE_THROTTLE_RETRIES_SETTING,
             S3ClientSettings.USE_PATH_STYLE_ACCESS,
             S3ClientSettings.UNUSED_SIGNER_OVERRIDE,
             S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
             S3ClientSettings.REGION,
+            S3ClientSettings.CONNECTION_MAX_IDLE_TIME_SETTING,
             S3Service.REPOSITORY_S3_CAS_TTL_SETTING,
             S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING,
             S3Repository.ACCESS_KEY_SETTING,

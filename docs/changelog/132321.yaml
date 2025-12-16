@@ -1,6 +1,0 @@
-pr: 132321
-summary: Avoid internal server error when suggester requires unigrams but no unigrams are provided, return bad request instead
-area: Analysis
-type: bug
-issues:
- - 131928

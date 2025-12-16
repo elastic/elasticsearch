@@ -145,8 +145,8 @@ unsupported:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [dense_vector_field_type]
-      reason: "uses original_type"
+          capabilities: [dense_vector_agg_metric_double_if_version, histogram_field_support_v0]
+      reason: "fetches dense_vector, histogram field support"
 
   - do:
       allowed_warnings_regex:
@@ -182,7 +182,7 @@ unsupported:
   - match: { columns.10.name: geo_shape }
   - match: { columns.10.type: geo_shape }
   - match: { columns.11.name: histogram }
-  - match: { columns.11.type: unsupported }
+  - match: { columns.11.type: histogram }
   - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
   - match: { columns.13.name: ip_range }
@@ -232,7 +232,7 @@ unsupported:
   - match: { values.0.8: "POINT (10.0 12.0)" }
   - match: { values.0.9: "POINT (10.0 12.0)" }
   - match: { values.0.10: "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)" }
-  - match: { values.0.11: null }
+  - match: { values.0.11: "{\"values\":[0.1,0.25,0.35,0.4,0.45,0.5],\"counts\":[8,17,8,7,6,2]}" }
   - match: { values.0.12: null }
   - match: { values.0.13: null }
   - match: { values.0.14: null }
@@ -283,7 +283,7 @@ unsupported:
   - match: { columns.10.name: geo_shape }
   - match: { columns.10.type: geo_shape }
   - match: { columns.11.name: histogram }
-  - match: { columns.11.type: unsupported }
+  - match: { columns.11.type: histogram }
   - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
   - match: { columns.13.name: ip_range }
@@ -325,8 +325,8 @@ unsupported:
   - do:
       esql.query:
         body:
-          query: 'from test | keep histogram | limit 0'
-  - match: { columns.0.name: histogram }
+          query: 'from test | keep search_as_you_type | limit 0'
+  - match: { columns.0.name: search_as_you_type }
   - match: { columns.0.type: unsupported }
   - length: { values: 0 }
 
@@ -342,8 +342,8 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ dense_vector_field_type ]
-      reason: "support for sorting when dense_vector_field_type present"
+          capabilities: [ dense_vector_agg_metric_double_if_version, histogram_field_support_v0]
+      reason: "support for sorting when dense_vector_field_type present, histogram field support"
 
   - do:
       allowed_warnings_regex:
@@ -376,7 +376,7 @@ unsupported with sort:
   - match: { columns.10.name: geo_shape }
   - match: { columns.10.type: geo_shape }
   - match: { columns.11.name: histogram }
-  - match: { columns.11.type: unsupported }
+  - match: { columns.11.type: histogram }
   - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
   - match: { columns.13.name: ip_range }
@@ -426,7 +426,7 @@ unsupported with sort:
   - match: { values.0.8: "POINT (10.0 12.0)" }
   - match: { values.0.9: "POINT (10.0 12.0)" }
   - match: { values.0.10: "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)" }
-  - match: { values.0.11: null }
+  - match: { values.0.11: "{\"values\":[0.1,0.25,0.35,0.4,0.45,0.5],\"counts\":[8,17,8,7,6,2]}" }
   - match: { values.0.12: null }
   - match: { values.0.13: null }
   - match: { values.0.14: null }
@@ -444,6 +444,7 @@ unsupported with sort:
   - match: { values.0.26: xy }
   - match: { values.0.27: "foo bar" }
   - match: { values.0.28: 3 }
+
 ---
 nested declared inline:
   - do:

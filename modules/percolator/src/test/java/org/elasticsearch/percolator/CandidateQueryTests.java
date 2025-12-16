@@ -50,7 +50,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -73,12 +72,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -224,7 +225,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
             List<Supplier<Query>> queryFunctions = new ArrayList<>();
-            queryFunctions.add(MatchNoDocsQuery::new);
+            queryFunctions.add(() -> Queries.NO_DOCS_INSTANCE);
             queryFunctions.add(MatchAllDocsQuery::new);
             queryFunctions.add(() -> new TermQuery(new Term("unknown_field", "value")));
             String field1 = randomFrom(stringFields);
@@ -301,7 +302,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 document.add(new TextField(entry.getKey(), value, Field.Store.NO));
             }
             for (Integer intValue : intValues) {
-                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, true, true, false);
+                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", intValue, IndexType.points(true, true), false);
             }
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);
@@ -402,7 +403,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 }
             }
             {
-                addQuery(new MatchNoDocsQuery(), documents);
+                addQuery(Queries.NO_DOCS_INSTANCE, documents);
             }
             {
                 addQuery(new MatchAllDocsQuery(), documents);
@@ -424,7 +425,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             }
 
             for (int[] range : ranges) {
-                NumberFieldMapper.NumberType.INTEGER.addFields(document, "int_field", between(range[0], range[1]), true, true, false);
+                NumberFieldMapper.NumberType.INTEGER.addFields(
+                    document,
+                    "int_field",
+                    between(range[0], range[1]),
+                    IndexType.points(true, true),
+                    false
+                );
                 logger.info("Test with document: {}" + document);
                 MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
                 duelRun(queryStore, memoryIndex, shardSearcher);
@@ -485,7 +492,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(new TermQuery(new Term("field", id)), Occur.MUST);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+                builder.add(Queries.NO_DOCS_INSTANCE, Occur.MUST_NOT);
             }
             if (randomBoolean()) {
                 builder.add(new CustomQuery(new Term("field", id)), Occur.MUST);
@@ -496,7 +503,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(new TermQuery(new Term("field", id)), Occur.SHOULD);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+                builder.add(Queries.NO_DOCS_INSTANCE, Occur.MUST_NOT);
             }
             if (randomBoolean()) {
                 builder.add(new CustomQuery(new Term("field", id)), Occur.SHOULD);
@@ -508,7 +515,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             builder.add(new MatchAllDocsQuery(), Occur.MUST);
             builder.add(new MatchAllDocsQuery(), Occur.MUST);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+                builder.add(Queries.NO_DOCS_INSTANCE, Occur.MUST_NOT);
             } else if (randomBoolean()) {
                 builder.add(new MatchAllDocsQuery(), Occur.MUST_NOT);
             }
@@ -519,7 +526,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
             builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+                builder.add(Queries.NO_DOCS_INSTANCE, Occur.MUST_NOT);
             } else if (randomBoolean()) {
                 builder.add(new MatchAllDocsQuery(), Occur.MUST_NOT);
             }
@@ -545,7 +552,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             return builder.build();
         });
         queryFunctions.add((id) -> new MatchAllDocsQuery());
-        queryFunctions.add((id) -> new MatchNoDocsQuery("no reason at all"));
+        queryFunctions.add((id) -> Queries.NO_DOCS_INSTANCE);
 
         int numDocs = randomIntBetween(queryFunctions.size(), queryFunctions.size() * 3);
         List<LuceneDocument> documents = new ArrayList<>();

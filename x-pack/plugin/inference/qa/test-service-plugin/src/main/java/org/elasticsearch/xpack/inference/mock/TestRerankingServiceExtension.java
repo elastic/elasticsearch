@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -25,6 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettings;
@@ -48,6 +50,8 @@ import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceServic
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
 
+    public static final int RERANK_WINDOW_SIZE = 333;
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
@@ -62,7 +66,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public static class TestInferenceService extends AbstractTestInferenceService {
+    public static class TestInferenceService extends AbstractTestInferenceService implements RerankingInferenceService {
         public static final String NAME = "test_reranking_service";
 
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.RERANK);
@@ -143,6 +147,21 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         @Override
+        public void embeddingInfer(
+            Model model,
+            EmbeddingRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
             @Nullable String query,
@@ -200,6 +219,11 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             return TestServiceSettings.fromMap(serviceSettingsMap);
         }
 
+        @Override
+        public int rerankerWindowSize(String modelId) {
+            return RERANK_WINDOW_SIZE;
+        }
+
         public static class Configuration {
             public static InferenceServiceConfiguration get() {
                 return configuration.getOrCompute();
@@ -220,6 +244,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                     );
 
                     return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setName(NAME)
                         .setTaskTypes(supportedTaskTypes)
                         .setConfigurations(configurationMap)
                         .build();
@@ -309,7 +334,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             String model = (String) map.remove("model_id");
 
             if (model == null) {
-                validationException.addValidationError("missing model");
+                model = (String) map.remove("model");
+                if (model == null) {
+                    validationException.addValidationError("missing model");
+                }
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

@@ -34,7 +34,8 @@ public class RestClusterStatsAction extends BaseRestHandler {
         "verbose-dense-vector-mapping-stats",
         "ccs-stats",
         "retrievers-usage-stats",
-        "esql-stats"
+        "esql-stats",
+        "extended-search-usage-stats"
     );
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
 
@@ -55,10 +56,10 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest(
-            request.paramAsBoolean("include_remotes", false),
-            request.paramAsStringArray("nodeId", null)
-        );
+        boolean includeRemotes = request.paramAsBoolean("include_remotes", false);
+        ClusterStatsRequest clusterStatsRequest = request.isServerlessRequest()
+            ? ClusterStatsRequest.newServerlessRequest(request.paramAsStringArray("nodeId", null))
+            : new ClusterStatsRequest(includeRemotes, request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.setTimeout(getTimeout(request));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()

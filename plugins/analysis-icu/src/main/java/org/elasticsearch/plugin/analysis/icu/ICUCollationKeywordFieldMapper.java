@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -62,26 +63,25 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         public CollationFieldType(
             String name,
-            boolean isSearchable,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Collator collator,
             String nullValue,
             int ignoreAbove,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.collator = collator;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
         }
 
         public CollationFieldType(String name, boolean searchable, Collator collator) {
-            this(name, searchable, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
+            this(name, IndexType.terms(searchable, true), false, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
         public CollationFieldType(String name, Collator collator) {
-            this(name, true, false, true, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
+            this(name, IndexType.terms(true, true), false, collator, null, Integer.MAX_VALUE, Collections.emptyMap());
         }
 
         @Override
@@ -250,12 +250,10 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             false
         ).acceptsNull();
 
-        final Parameter<Integer> ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE)
-            .addValidator(v -> {
-                if (v < 0) {
-                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
-                }
-            });
+        final Parameter<Integer> ignoreAbove = Parameter.ignoreAboveParam(
+            m -> toType(m).ignoreAbove,
+            IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE
+        );
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
         public Builder(String name) {
@@ -329,9 +327,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             final Collator collator = params.buildCollator();
             CollationFieldType ft = new CollationFieldType(
                 context.buildFullName(leafName()),
-                indexed.getValue(),
+                IndexType.terms(indexed.get(), hasDocValues.get()),
                 stored.getValue(),
-                hasDocValues.getValue(),
                 collator,
                 nullValue.getValue(),
                 ignoreAbove.getValue(),

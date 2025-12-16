@@ -27,6 +27,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -726,7 +727,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToMonth() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
@@ -749,7 +750,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToYear() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
@@ -769,7 +770,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToMonthValueCount() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .rateMode("value_count")
@@ -791,7 +792,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToYearValueCount() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .rateMode("value_count")
@@ -812,7 +813,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFilterWithHistogramField() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
@@ -929,7 +930,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     private DateFieldMapper.DateFieldType dateFieldType(String name) {
         return new DateFieldMapper.DateFieldType(
             name,
-            true,
+            IndexType.points(true, true),
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

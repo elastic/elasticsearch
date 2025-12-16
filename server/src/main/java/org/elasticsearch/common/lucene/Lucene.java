@@ -64,7 +64,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,13 +87,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Lucene {
 
-    public static final String LATEST_CODEC = "Lucene101";
+    public static final String LATEST_CODEC = "Lucene103";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -112,6 +115,8 @@ public class Lucene {
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(TOTAL_HITS_EQUAL_TO_ZERO, EMPTY_SCORE_DOCS);
 
+    private static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = TransportVersion.fromName("search_incremental_top_docs_null");
+
     private Lucene() {}
 
     /**
@@ -124,6 +129,14 @@ public class Lucene {
             list.add(info.files());
         }
         return Iterables.flatten(list);
+    }
+
+    /**
+     * Returns the additional files that the {@param current} index commit introduces compared to the {@param previous} one.
+     */
+    public static Set<String> additionalFileNames(IndexCommit previous, IndexCommit current) throws IOException {
+        final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
+        return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -386,8 +399,7 @@ public class Lucene {
      */
     public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
         if (topDocs == null) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19)) {
+            if (out.getTransportVersion().supports(SEARCH_INCREMENTAL_TOP_DOCS_NULL)) {
                 out.writeByte((byte) -1);
                 return;
             } else {
@@ -435,8 +447,7 @@ public class Lucene {
     public static TopDocs readTopDocsIncludingShardIndex(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == -1) {
-            assert in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.SEARCH_INCREMENTAL_TOP_DOCS_NULL_BACKPORT_8_19);
+            assert in.getTransportVersion().supports(SEARCH_INCREMENTAL_TOP_DOCS_NULL);
             return null;
         } else if (type == 0) {
             TotalHits totalHits = readTotalHits(in);
@@ -625,7 +636,7 @@ public class Lucene {
      * Returns the generic version of the provided {@link SortField} that
      * can be used to merge documents coming from different shards.
      */
-    private static SortField rewriteMergeSortField(SortField sortField) {
+    public static SortField rewriteMergeSortField(SortField sortField) {
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
@@ -634,16 +645,19 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
-        } else if (sortField.getClass() == SortedNumericSortField.class) {
-            SortField newSortField = new SortField(
-                sortField.getField(),
-                ((SortedNumericSortField) sortField).getNumericType(),
-                sortField.getReverse()
-            );
+        } else if (sortField instanceof SortedNumericSortField snsf) {
+            SortField newSortField = new SortField(sortField.getField(), snsf.getNumericType(), sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
+        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource fcs) {
+            SortField newSortField = new SortField(sortField.getField(), fcs.reducedType(), sortField.getReverse());
+            Object missingValue = fcs.missingValue(sortField.getReverse());
+            if (missingValue != null) {
+                newSortField.setMissingValue(missingValue);
+            }
+            return newSortField;
         } else {
             return sortField;
         }
@@ -651,19 +665,9 @@ public class Lucene {
 
     static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
         sortField = rewriteMergeSortField(sortField);
-        if (sortField.getClass() != SortField.class) {
-            throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
-        }
         out.writeOptionalString(sortField.getField());
-        if (sortField.getComparatorSource() != null) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField
-                .getComparatorSource();
-            writeSortType(out, comparatorSource.reducedType());
-            writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
-        } else {
-            writeSortType(out, sortField.getType());
-            writeMissingValue(out, sortField.getMissingValue());
-        }
+        writeSortType(out, sortField.getType());
+        writeMissingValue(out, sortField.getMissingValue());
         out.writeBoolean(sortField.getReverse());
     }
 

@@ -12,12 +12,12 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.ClassRule;
@@ -48,12 +48,13 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
     }
 
     public void testTimeSeriesQuerying() throws IOException {
-        assumeTrue("time series querying relies on query pragma", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var settings = Settings.builder()
-            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false)
-            .build();
+            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false);
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            settings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
         String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-k8s-mapping.json"));
-        createIndex("k8s", settings, mapping);
+        createIndex("k8s", settings.build(), mapping);
 
         Request bulk = new Request("POST", "/k8s/_bulk");
         bulk.addParameter("refresh", "true");
@@ -69,7 +70,6 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
             .query("FROM k8s | KEEP k8s.pod.name, @timestamp | SORT @timestamp, k8s.pod.name");
-        builder.pragmas(Settings.builder().put("time_series", true).build());
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
         @SuppressWarnings("unchecked")
         List<Map<?, ?>> columns = (List<Map<?, ?>>) result.get("columns");

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class HypotEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HypotEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator n1;
@@ -57,32 +60,42 @@ public final class HypotEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += n1.baseRamBytesUsed();
+    baseRamBytesUsed += n2.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock n1Block, DoubleBlock n2Block) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (n1Block.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (n1Block.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (n1Block.getValueCount(p) != 1) {
-          if (n1Block.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (n2Block.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (n2Block.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (n2Block.getValueCount(p) != 1) {
-          if (n2Block.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Hypot.process(n1Block.getDouble(n1Block.getFirstValueIndex(p)), n2Block.getDouble(n2Block.getFirstValueIndex(p))));
+        double n1 = n1Block.getDouble(n1Block.getFirstValueIndex(p));
+        double n2 = n2Block.getDouble(n2Block.getFirstValueIndex(p));
+        result.appendDouble(Hypot.process(n1, n2));
       }
       return result.build();
     }
@@ -91,7 +104,9 @@ public final class HypotEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleVector eval(int positionCount, DoubleVector n1Vector, DoubleVector n2Vector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Hypot.process(n1Vector.getDouble(p), n2Vector.getDouble(p)));
+        double n1 = n1Vector.getDouble(p);
+        double n2 = n2Vector.getDouble(p);
+        result.appendDouble(p, Hypot.process(n1, n2));
       }
       return result.build();
     }

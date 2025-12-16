@@ -33,6 +33,7 @@ GET my-index-000001/_search
   "from": 0                    <3>
 }
 ```
+% TEST[setup:my_index]
 
 1. Collapse the result set using the `user.id` field
 2. Sort the results by `http.response.bytes`
@@ -82,6 +83,7 @@ GET /my-index-000001/_search
   ]
 }
 ```
+% TEST[setup:my_index]
 
 1. Collapse the result set using the `user.id` field
 2. The name used for the inner hit section in the response
@@ -134,6 +136,7 @@ GET /my-index-000001/_search
   ]
 }
 ```
+% TEST[setup:my_index]
 
 1. Collapse the result set using the `user.id` field
 2. Return the three largest HTTP responses for the user
@@ -169,11 +172,11 @@ GET /my-index-000001/_search
   "search_after": ["dd5ce1ad"]
 }
 ```
-
+% TEST[setup:my_index]
 
 ## Rescore collapse results [rescore-collapse-results]
 
-You can use field collapsing alongside the [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) search parameter. Rescorers run on every shard for the top-ranked document per collapsed field. To maintain a reliable order, it is recommended to cluster documents sharing the same collapse field value on one shard. This is achieved by assigning the collapse field value as the [routing key](/reference/elasticsearch/rest-apis/search-shard-routing.md#search-routing) during indexing:
+You can use field collapsing alongside the [`rescore`](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) search parameter. Rescorers run on every shard for the top-ranked document per collapsed field. To maintain a reliable order, it is recommended to cluster documents sharing the same collapse field value on one shard. This is achieved by assigning the collapse field value as the [routing key](/reference/elasticsearch/rest-apis/search-shard-routing.md#search-routing) during indexing:
 
 ```console
 POST /my-index-000001/_doc?routing=xyz      <1>
@@ -183,13 +186,14 @@ POST /my-index-000001/_doc?routing=xyz      <1>
   "user.id": "xyz"
 }
 ```
+% TEST[setup:my_index]
 
 1. Assign routing with the collapse field value (`user.id`).
 
 
 By doing this, you guarantee that only one top document per collapse key gets rescored globally.
 
-The following request utilizes field collapsing on the `user.id` field and then rescores the top groups with a [query rescorer](/reference/elasticsearch/rest-apis/filter-search-results.md#query-rescorer):
+The following request utilizes field collapsing on the `user.id` field and then rescores the top groups with a [query rescorer](/reference/elasticsearch/rest-apis/rescore-search-results.md#query-rescorer):
 
 ```console
 GET /my-index-000001/_search
@@ -216,6 +220,7 @@ GET /my-index-000001/_search
    }
 }
 ```
+% TEST[setup:my_index]
 
 ::::{warning}
 Rescorers are not applied to [`inner hits`](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md).
@@ -252,6 +257,8 @@ GET /my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
+% TEST[s/_search/_search\?filter_path=hits.hits/]
 
 ```console-result
 {

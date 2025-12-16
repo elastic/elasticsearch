@@ -12,13 +12,81 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.1.9 [elasticsearch-9.1.9-breaking-changes]
+```{applies_to}
+stack: ga 9.1.9
+```
+
+There are no breaking changes associated with this release.
+
+## 9.2.2 [elasticsearch-9.2.2-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.8 [elasticsearch-9.1.8-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.7 [elasticsearch-9.1.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.1 [elasticsearch-9.2.1-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.6 [elasticsearch-9.1.6-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.0 [elasticsearch-9.2.0-breaking-changes]
+
+Ingest Node:
+* Simulate API: Return 400 on invalid processor(s) [#130325](https://github.com/elastic/elasticsearch/pull/130325) (issue: [#120731](https://github.com/elastic/elasticsearch/issues/120731))
+
+Mapping:
+* Don't enable norms for fields of type text when the index mode is LogsDB or TSDB [#131317](https://github.com/elastic/elasticsearch/pull/131317)
+
+Vector Search:
+* Enable `exclude_source_vectors` by default for new indices [#131907](https://github.com/elastic/elasticsearch/pull/131907)
+
+
+
+## 9.0.8 [elasticsearch-9.0.8-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.5 [elasticsearch-9.1.5-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.4 [elasticsearch-9.1.4-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.0.7 [elasticsearch-9.0.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.0.6 [elasticsearch-9.0.6-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.3 [elasticsearch-9.1.3-breaking-changes]
+
+There are no breaking changes associated with this release.
+
 ## 9.1.2 [elasticsearch-9.1.2-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
+
+## 9.0.5 [elasticsearch-9.0.5-breaking-changes]
+
+There are no breaking changes associated with this release.
 
 ## 9.1.1 [elasticsearch-9.1.1-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.1.0 [elasticsearch-9.1.0-breaking-changes]
 
@@ -43,8 +111,8 @@ Test the upgrade in a non-production environment. Adapt your configuration to th
 For more information, view [#122062](https://github.com/elastic/elasticsearch/pull/122062).
 :::
 
-ES|QL:
 
+ES|QL:
 :::{dropdown} ES|QL now returns partial results by default
 In previous versions, ES|QL queries failed entirely when any error occurred. As of 8.19.0, ES|QL returns partial results instead.
 
@@ -96,8 +164,8 @@ If your workflows rely on detecting remote cluster errors, review your use of `s
 For more information, view [#128163](https://github.com/elastic/elasticsearch/pull/128163)
 :::
 
-Snapshot/Restore:
 
+Snapshot/Restore:
 :::{dropdown} Upgrades `repository-s3` plugin to AWS SDK v2
 The `repository-s3` plugin now uses AWS SDK v2 instead of v1, as AWS will deprecate SDK v1 before the end of Elasticsearch 8.19’s support period. The two SDKs differ in behavior, which may require updates to your configuration.
 
@@ -111,7 +179,7 @@ Existing `repository-s3` configurations may no longer be compatible. Notable dif
 - AWS SDK v2 requires the use of the V4 signature algorithm, therefore, the `s3.client.${CLIENT_NAME}.signer_override` setting is deprecated and no longer has any effect.
 - AWS SDK v2 does not support the `log-delivery-write` canned ACL.
 - AWS SDK v2 counts 4xx responses differently in its metrics reporting.
-- AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v1 could use either a regional endpoint or the global `https://sts.amazonaws.com` one.
+- AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v2 could use either a regional endpoint or the global `https://sts.amazonaws.com` one.
 
 **Action:**
 Test the upgrade in a non-production environment. Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items:
@@ -124,17 +192,16 @@ Test the upgrade in a non-production environment. Adapt your configuration to th
 For more information, view [#126843](https://github.com/elastic/elasticsearch/pull/126843) (issue: [#120993](https://github.com/elastic/elasticsearch/issues/120993))
 :::
 
-## 9.0.5 [elasticsearch-9.0.5-breaking-changes]
 
-No breaking changes in this version.
+
 
 ## 9.0.4 [elasticsearch-9.0.4-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.3 [elasticsearch-9.0.3-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.2 [elasticsearch-9.0.2-breaking-changes]
 
@@ -145,7 +212,7 @@ Snapshot/Restore:
 
 ## 9.0.1 [elasticsearch-9.0.1-breaking-changes]
 
-No breaking changes in this version.
+There are no breaking changes associated with this release.
 
 ## 9.0.0 [elasticsearch-900-breaking-changes]
 

@@ -402,7 +402,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 : allocation.deciders().canAllocate(shardRouting, node, allocation);
             DecidedNode decidedNode = new DecidedNode(nodeShardState, decision);
             (switch (decision.type()) {
-                case YES -> yesNodeShards;
+                case YES, NOT_PREFERRED -> yesNodeShards;
                 case THROTTLE -> throttledNodeShards;
                 case NO -> noNodeShards;
             }).add(decidedNode);

@@ -11,7 +11,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -28,11 +27,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
-import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
@@ -61,15 +58,18 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
-        DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        DenseVectorFieldMapper.ElementType elementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         // dot product means that we need normalized vectors; it's not worth doing that in this test
         SimilarityMeasure similarity = randomValueOtherThan(
             SimilarityMeasure.DOT_PRODUCT,
             () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
         );
         int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
-        Utils.storeSparseModel(modelRegistry);
-        Utils.storeDenseModel(modelRegistry, dimensions, similarity, elementType);
+        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
+        Utils.storeDenseModel("dense-endpoint", modelRegistry, dimensions, similarity, elementType);
 
         Set<IndexVersion> availableVersions = IndexVersionUtils.allReleasedVersions()
             .stream()
@@ -113,11 +113,11 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 .startObject("properties")
                 .startObject(SPARSE_SEMANTIC_FIELD)
                 .field("type", "semantic_text")
-                .field("inference_id", TestSparseInferenceServiceExtension.TestInferenceService.NAME)
+                .field("inference_id", "sparse-endpoint")
                 .endObject()
                 .startObject(DENSE_SEMANTIC_FIELD)
                 .field("type", "semantic_text")
-                .field("inference_id", TestDenseInferenceServiceExtension.TestInferenceService.NAME)
+                .field("inference_id", "dense-endpoint")
                 .endObject()
                 .endObject()
                 .endObject();
@@ -194,13 +194,6 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
             beforeIndexDeletion();
             assertAcked(client().admin().indices().prepareDelete(indexName));
-        }
-    }
-
-    public static class FakeMlPlugin extends Plugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return new MlInferenceNamedXContentProvider().getNamedWriteables();
         }
     }
 }

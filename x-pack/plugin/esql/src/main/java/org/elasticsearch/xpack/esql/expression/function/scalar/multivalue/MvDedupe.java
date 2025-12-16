@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
 
 /**
  * Removes duplicate values from a multivalued field.
@@ -42,6 +42,9 @@ public class MvDedupe extends AbstractMultivalueFunction {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
@@ -65,6 +68,9 @@ public class MvDedupe extends AbstractMultivalueFunction {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -89,7 +95,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptCounters(field(), sourceText(), DEFAULT);
+        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override

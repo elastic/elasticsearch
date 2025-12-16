@@ -9,9 +9,11 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
@@ -34,34 +36,25 @@ import java.util.stream.Collectors;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
- * <p>
- * Note: We are currently transitioning to a file-based system to load and maintain transport versions. These file-based transport
- * versions are named and are referred to as named transport versions. Named transport versions also maintain a linked list of their
- * own patch versions to simplify transport version compatibility checks. Transport versions that continue to be loaded through
- * {@link TransportVersions} are referred to as unnamed transport versions. Unnamed transport versions will continue being used
- * over the wire as we only need the id for compatibility checks even against named transport versions. There are changes
- * throughout {@link TransportVersion} that are for this transition. For now, continue to use the existing system of adding unnamed
- * transport versions to {@link TransportVersions}.
- * <p>
- * Prior to 8.8.0, the release {@link Version} was used everywhere. This class separates the wire protocol version from the release version.
- * <p>
- * Each transport version constant has an id number, which for versions prior to 8.9.0 is the same as the release version for backwards
- * compatibility. In 8.9.0 this is changed to an incrementing number, disconnected from the release version.
- * <p>
- * Each version constant has a unique id string. This is not actually used in the binary protocol, but is there to ensure each protocol
- * version is only added to the source file once. This string needs to be unique (normally a UUID, but can be any other unique nonempty
- * string). If two concurrent PRs add the same transport version, the different unique ids cause a git conflict, ensuring that the second PR
- * to be merged must be updated with the next free version first. Without the unique id string, git will happily merge the two versions
- * together, resulting in the same transport version being used across multiple commits, causing problems when you try to upgrade between
- * those two merged commits.
+ *
+ * <h2>Defining transport versions</h2>
+ * Transport versions can be defined anywhere, including in plugins/modules. Defining a new transport version is done via the
+ * {@link TransportVersion#fromName(String)} method, for example:
+ * <pre>
+ *     private static final TransportVersion MY_NEW_TRANSPORT_VERSION = TransportVersion.fromName("my-new-transport-version");
+ * </pre>
+ *
+ * Names must be logically unique. The same name must not be used to represent two transport versions with differing behavior. However,
+ * the same name may be used to define the same constant at multiple use-sites. Alternatively, a single constant can be shared across
+ * multiple use sites.
  *
  * <h2>Version compatibility</h2>
- * The earliest compatible version is hardcoded in the {@link TransportVersions#MINIMUM_COMPATIBLE} field. Previously, this was dynamically
+ * The earliest compatible version is hardcoded in the {@link VersionsHolder#MINIMUM_COMPATIBLE} field. Previously, this was dynamically
  * calculated from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version
  * numbers. So the minimum compatible version is hard-coded as the transport version used by the highest minor release of the previous
- * major version. {@link TransportVersions#MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
+ * major version. {@link VersionsHolder#MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
  * <p>
- * The earliest CCS compatible version is hardcoded at {@link TransportVersions#MINIMUM_CCS_VERSION}, as the transport version used by the
+ * The earliest CCS compatible version is hardcoded at {@link VersionsHolder#MINIMUM_CCS_VERSION}, as the transport version used by the
  * previous minor release. This should be updated appropriately whenever a minor release happens.
  *
  * <h2>Scope of usefulness of {@link TransportVersion}</h2>
@@ -73,6 +66,16 @@ import java.util.stream.Collectors;
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
 public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
+
+    @Deprecated(forRemoval = true)
+    public boolean onOrAfter(TransportVersion version) {
+        throw new UnsupportedOperationException("use TransportVersion.supports(...) instead");
+    }
+
+    @Deprecated(forRemoval = true)
+    public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
+        throw new UnsupportedOperationException("use TransportVersion.supports(...) && TransportVersion.supports(...) == false instead");
+    }
 
     /**
      * Constructs an unnamed transport version.
@@ -105,19 +108,22 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
     /**
      * Constructs a named transport version along with its set of compatible patch versions from x-content.
-     * This method takes in the parameter {@code latest} which is the highest valid transport version id
-     * supported by this node. Versions newer than the current transport version id for this node are discarded.
+     * This method takes in the parameter {@code upperBound} which is the highest transport version id
+     * that will be loaded by this node.
      */
-    public static TransportVersion fromBufferedReader(
+    static TransportVersion fromBufferedReader(
         String component,
         String path,
         boolean nameInFile,
         boolean isNamed,
         BufferedReader bufferedReader,
-        Integer latest
+        Integer upperBound
     ) {
         try {
-            String line = bufferedReader.readLine();
+            String line;
+            do {
+                line = bufferedReader.readLine();
+            } while (line.replaceAll("\\s+", "").startsWith("#"));
             String[] parts = line.replaceAll("\\s+", "").split(",");
             String check;
             while ((check = bufferedReader.readLine()) != null) {
@@ -152,7 +158,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 if (idIndex > 0 && ids.get(idIndex - 1) <= ids.get(idIndex)) {
                     throw new IllegalStateException("invalid transport version file format [" + toComponentPath(component, path) + "]");
                 }
-                if (ids.get(idIndex) > latest) {
+                if (ids.get(idIndex) > upperBound) {
                     break;
                 }
                 transportVersion = new TransportVersion(name, ids.get(idIndex), transportVersion);
@@ -167,15 +173,15 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         String component,
         String resourceRoot,
         Function<String, InputStream> resourceLoader,
-        String latestFileName
+        String upperBoundFileName
     ) {
-        TransportVersion latest = parseFromBufferedReader(
+        TransportVersion upperBound = parseFromBufferedReader(
             component,
-            resourceRoot + "/latest/" + latestFileName,
+            resourceRoot + "/upper_bounds/" + upperBoundFileName,
             resourceLoader,
             (c, p, br) -> fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
         );
-        if (latest != null) {
+        if (upperBound != null) {
             List<String> versionRelativePaths = parseFromBufferedReader(
                 component,
                 resourceRoot + "/definitions/manifest.txt",
@@ -189,7 +195,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                         component,
                         resourceRoot + "/definitions/" + versionRelativePath,
                         resourceLoader,
-                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("named/"), br, latest.id())
+                        (c, p, br) -> fromBufferedReader(c, p, false, versionRelativePath.startsWith("referable/"), br, upperBound.id())
                     );
                     if (transportVersion != null) {
                         transportVersions.add(transportVersion);
@@ -228,15 +234,32 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * Finds a {@link TransportVersion} by its name. The parameter {@code name} must be a {@link String}
      * direct value or validation checks will fail. {@code TransportVersion.fromName("direct_value")}.
      * <p>
-     * This will only return the latest known named transport version for a given name and not its
+     * This will only return the latest known referable transport version for a given name and not its
      * patch versions. Patch versions are constructed as a linked list internally and may be found by
      * cycling through them in a loop using {@link TransportVersion#nextPatchVersion()}.
-     *
      */
     public static TransportVersion fromName(String name) {
         TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_NAME.get(name);
         if (known == null) {
-            throw new IllegalStateException("unknown transport version [" + name + "]");
+            LevenshteinDistance ld = new LevenshteinDistance();
+            List<Tuple<Float, String>> scoredNames = new ArrayList<>();
+            for (String key : VersionsHolder.ALL_VERSIONS_BY_NAME.keySet()) {
+                float distance = ld.getDistance(name, key);
+                if (distance > 0.7f) {
+                    scoredNames.add(new Tuple<>(distance, key));
+                }
+            }
+            StringBuilder message = new StringBuilder("Unknown transport version [");
+            message.append(name);
+            message.append("].");
+            if (scoredNames.isEmpty() == false) {
+                List<String> names = scoredNames.stream().map(Tuple::v2).toList();
+                message.append(" Did you mean ");
+                message.append(names);
+                message.append("?");
+            }
+            message.append(" If this is a new transport version, run './gradlew generateTransportVersion'.");
+            throw new IllegalStateException(message.toString());
         }
         return known;
     }
@@ -263,7 +286,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
      */
     public static boolean isCompatible(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE);
+        return version.id >= VersionsHolder.MINIMUM_COMPATIBLE.id;
     }
 
     /**
@@ -275,6 +298,29 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
+     * Sentinel value for lowest possible transport version
+     */
+    public static TransportVersion zero() {
+        return VersionsHolder.ZERO;
+    }
+
+    /**
+     * Reference to the earliest compatible transport version to this version of the codebase.
+     * This should be the transport version used by the highest minor version of the previous major.
+     */
+    public static TransportVersion minimumCompatible() {
+        return VersionsHolder.MINIMUM_COMPATIBLE;
+    }
+
+    /**
+     * Reference to the minimum transport version that can be used with CCS.
+     * This should be the transport version used by the previous minor release.
+     */
+    public static TransportVersion minimumCCSVersion() {
+        return VersionsHolder.MINIMUM_CCS_VERSION;
+    }
+
+    /**
      * Sorted list of all defined transport versions
      */
     public static List<TransportVersion> getAllVersions() {
@@ -282,7 +328,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * @return whether this is a known {@link TransportVersion}, i.e. one declared in {@link TransportVersions}. Other versions may exist
+     * @return whether this is a known {@link TransportVersion}, i.e. one declared via {@link #fromName(String)}. Other versions may exist
      *         in the wild (they're sent over the wire by numeric ID) but we don't know how to communicate using such versions.
      */
     public boolean isKnown() {
@@ -290,14 +336,14 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * @return the newest known {@link TransportVersion} which is no older than this instance. Returns {@link TransportVersions#ZERO} if
+     * @return the newest known {@link TransportVersion} which is no older than this instance. Returns {@link VersionsHolder#ZERO} if
      *         there are no such versions.
      */
     public TransportVersion bestKnownVersion() {
         if (isKnown()) {
             return this;
         }
-        TransportVersion bestSoFar = TransportVersions.ZERO;
+        TransportVersion bestSoFar = VersionsHolder.ZERO;
         for (final var knownVersion : VersionsHolder.ALL_VERSIONS_BY_ID.values()) {
             if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
                 bestSoFar = knownVersion;
@@ -312,26 +358,9 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
     /**
      * Returns {@code true} if this version is a patch version at or after {@code version}.
-     * <p>
-     * This should not be used normally. It is used for matching patch versions of the same base version,
-     * using the standard version number format specified in {@link TransportVersions}.
-     * When a patch version of an existing transport version is created, {@code transportVersion.isPatchFrom(patchVersion)}
-     * will match any transport version at or above {@code patchVersion} that is also of the same base version.
-     * <p>
-     * For example, {@code version.isPatchFrom(8_800_0_04)} will return the following for the given {@code version}:
-     * <ul>
-     *     <li>{@code 8_799_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_799_0_09.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_800_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_800_0_03.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_800_0_04.isPatchFrom(8_800_0_04)}: {@code true}</li>
-     *     <li>{@code 8_800_0_49.isPatchFrom(8_800_0_04)}: {@code true}</li>
-     *     <li>{@code 8_800_1_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_801_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     * </ul>
      */
     public boolean isPatchFrom(TransportVersion version) {
-        return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
+        return id >= version.id && id < version.id + 100 - (version.id % 100);
     }
 
     /**
@@ -340,7 +369,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * and all of its patch ids for compatibility. This replaces the pattern
      * of {@code wireTV.onOrAfter(TV_FEATURE) || wireTV.isPatchFrom(TV_FEATURE_BACKPORT) || ...}
      * for unnamed transport versions with {@code wireTV.supports(TV_FEATURE)} for named
-     * transport versions (since named versions know about their own patch versions).
+     * transport versions (since referable versions know about their own patch versions).
      * <p>
      * The recommended use of this method is to declare a static final {@link TransportVersion}
      * as part of the file that it's used in. This constant is then used in conjunction with
@@ -372,7 +401,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * }
      */
     public boolean supports(TransportVersion version) {
-        if (onOrAfter(version)) {
+        if (id >= version.id) {
             return true;
         }
         TransportVersion nextPatchVersion = version.nextPatchVersion;
@@ -411,10 +440,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * This class holds various data structures for looking up known transport versions both
-     * named and unnamed. While we transition to named transport versions, this class will
-     * load and merge unnamed transport versions from {@link TransportVersions} along with
-     * named transport versions specified in a manifest file in resources.
+     * This class holds various data structures for loading transport versions
      */
     private static class VersionsHolder {
 
@@ -422,11 +448,15 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         private static final Map<Integer, TransportVersion> ALL_VERSIONS_BY_ID;
         private static final Map<String, TransportVersion> ALL_VERSIONS_BY_NAME;
         private static final IntFunction<String> VERSION_LOOKUP_BY_RELEASE;
+
         private static final TransportVersion CURRENT;
+        private static final TransportVersion ZERO;
+        private static final TransportVersion MINIMUM_COMPATIBLE;
+        private static final TransportVersion MINIMUM_CCS_VERSION;
 
         static {
             // collect all the transport versions from server and es modules/plugins (defined in server)
-            List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
+            List<TransportVersion> allVersions = new ArrayList<>();
             List<TransportVersion> streamVersions = collectFromResources(
                 "<server>",
                 "/transport",
@@ -441,7 +471,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             // set version lookup by release before adding serverless versions
             // serverless versions should not affect release version
             VERSION_LOOKUP_BY_RELEASE = ReleaseVersions.generateVersionsLookup(
-                TransportVersions.class,
+                "/org/elasticsearch/TransportVersions.csv",
                 allVersions.get(allVersions.size() - 1).id()
             );
 
@@ -460,7 +490,20 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             ALL_VERSIONS = Collections.unmodifiableList(allVersions);
             ALL_VERSIONS_BY_ID = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));
             ALL_VERSIONS_BY_NAME = Collections.unmodifiableMap(allVersionsByName);
+
             CURRENT = ALL_VERSIONS.getLast();
+            ZERO = new TransportVersion(0);
+            MINIMUM_COMPATIBLE = loadConstant("minimum_compatible");
+            MINIMUM_CCS_VERSION = loadConstant("minimum_ccs_version");
+        }
+
+        private static TransportVersion loadConstant(String name) {
+            return parseFromBufferedReader(
+                "<server>",
+                "/transport/constants/" + name + ".csv",
+                TransportVersion.class::getResourceAsStream,
+                (c, p, br) -> fromBufferedReader(c, p, false, false, br, Integer.MAX_VALUE)
+            );
         }
 
         private static List<TransportVersion> addTransportVersions(Collection<TransportVersion> addFrom, List<TransportVersion> addTo) {

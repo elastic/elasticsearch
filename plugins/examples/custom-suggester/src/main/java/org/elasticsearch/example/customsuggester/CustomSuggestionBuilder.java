@@ -134,6 +134,6 @@ public class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionB
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-import org.gradle.api.DefaultTask;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
@@ -20,15 +20,17 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.VerificationException;
+import org.gradle.api.tasks.VerificationTask;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
 /**
- * Validates that each transport version named reference has a constant definition.
+ * Validates that each transport version reference has a referable definition.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
+public abstract class ValidateTransportVersionReferencesTask extends PrecommitTask implements VerificationTask {
 
     @ServiceReference("transportVersionResources")
     abstract Property<TransportVersionResourcesService> getTransportResources();
@@ -50,14 +52,14 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
         TransportVersionResourcesService resources = getTransportResources().get();
 
         for (var tvReference : TransportVersionReference.listFromFile(namesFile)) {
-            if (resources.namedDefinitionExists(tvReference.name()) == false) {
-                throw new RuntimeException(
+            if (resources.referableDefinitionExists(tvReference.name()) == false) {
+                throw new VerificationException(
                     "TransportVersion.fromName(\""
                         + tvReference.name()
                         + "\") was used at "
                         + tvReference.location()
-                        + ", but lacks a"
-                        + " transport version definition. This can be generated with the <TODO> task" // todo
+                        + ", but lacks a transport version definition. "
+                        + "If this is a new transport version, run './gradlew generateTransportVersion'."
                 );
             }
         }

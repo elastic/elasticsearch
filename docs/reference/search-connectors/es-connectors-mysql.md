@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic MySQL connector* is a [connector](/reference/search-connectors/index.md) for [MySQL](https://www.mysql.com) data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/mysql.py) (branch *main*, compatible with Elastic *9.0*).
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mysql) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
@@ -48,6 +48,7 @@ PUT _connector/my-mysql-connector
   "service_type": "mysql"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -232,6 +233,7 @@ This connector has the following known issues:
       }
     }
     ```
+    % TEST[skip:TODO]
 
 * **Upgrading to 8.8 does not migrate MySQL sync rules.**
 
@@ -272,8 +274,9 @@ You can deploy the MySQL connector as a self-managed connector using Docker. Fol
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -360,6 +363,7 @@ For example:
     }
 ]
 ```
+% NOTCONSOLE
 
 ::::{warning}
 When using advanced rules, a query can bypass the configuration field `tables`. This will happen if the query specifies a table that doesn’t appear in the configuration. This can also happen if the configuration specifies `*` to fetch all tables while the advanced sync rule requests for only a subset of tables.

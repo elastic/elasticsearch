@@ -10,15 +10,21 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightSide;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineLimitTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistOrderByBeforeInlineJoin;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
@@ -28,7 +34,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
@@ -41,9 +47,11 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineSa
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownConjunctionsToKnnPrefilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterAndLimitIntoUnionAll;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
@@ -66,6 +74,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateE
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
@@ -83,7 +92,7 @@ import java.util.List;
  *     <li>The {@link LogicalPlanOptimizer#substitutions()} phase rewrites things to expand out shorthand in the syntax.  For example,
  *     a nested expression embedded in a stats gets replaced with an eval followed by a stats, followed by another eval.  This phase
  *     also applies surrogates, such as replacing an average with a sum divided by a count.</li>
- *     <li>{@link LogicalPlanOptimizer#operators(boolean)} (NB: The word "operator" is extremely overloaded and referrers to many different
+ *     <li>{@link LogicalPlanOptimizer#operators()} (NB: The word "operator" is extremely overloaded and referrers to many different
  *     things.) transform the tree in various different ways.  This includes folding (i.e. computing constant expressions at parse
  *     time), combining expressions, dropping redundant clauses, and some normalization such as putting literals on the right whenever
  *     possible.  These rules are run in a loop until none of the rules make any changes to the plan (there is also a safety shut off
@@ -91,14 +100,14 @@ import java.util.List;
  *     <li>{@link LogicalPlanOptimizer#cleanup()}  Which can replace sorts+limit with a TopN</li>
  * </ul>
  *
- * <p>Note that the {@link LogicalPlanOptimizer#operators(boolean)} and {@link LogicalPlanOptimizer#cleanup()} steps are reapplied at the
- * {@link LocalLogicalPlanOptimizer} layer.</p>
+ * <p>Note that the {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()} steps are reapplied
+ * at the {@link LocalLogicalPlanOptimizer} layer.</p>
  */
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
-        operators(false),
+        operators(),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
@@ -113,7 +122,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public LogicalPlan optimize(LogicalPlan verified) {
         var optimized = execute(verified);
 
-        Failures failures = verifier.verify(optimized, false, verified.output());
+        Failures failures = verifier.verify(optimized, verified.output());
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
@@ -142,6 +151,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogateAggregations(),
+            // translate PromQL plans to time-series aggregates before TranslateTimeSeriesAggregate
+            new TranslatePromqlToTimeSeriesAggregate(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateTimeSeriesAggregate(),
             new PruneUnusedIndexMode(),
@@ -156,22 +167,32 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSurrogateExpressions(),
+            // check for a trivial conversion introduced by a surrogate
+            new ReplaceTrivialTypeConversions(),
             new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
 
-    protected static Batch<LogicalPlan> operators(boolean local) {
+    protected static Batch<LogicalPlan> operators() {
         return new Batch<>(
             "Operator Optimization",
-            new CombineProjections(local),
+            new HoistRemoteEnrichLimit(),
+            new CombineProjections(),
             new CombineEvals(),
-            new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
+            /* Then deduplicate aggregations
+               We need this after the constant folding
+               because we could have expressions like
+                    count_distinct(_, 9 + 1)
+                    count_distinct(_, 10)
+               which are semantically identical
+             */
+            new DeduplicateAggs(),
             new PartiallyFoldCase(),
             // boolean
             new BooleanSimplification(),
@@ -192,6 +213,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneColumns(),
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
+            new PushLimitToKnn(),
             new PushDownAndCombineFilters(),
             new PushDownConjunctionsToKnnPrefilters(),
             new PushDownAndCombineSample(),
@@ -201,13 +223,24 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownEnrich(),
             new PushDownJoinPastProject(),
             new PushDownAndCombineOrderBy(),
+            new PushDownFilterAndLimitIntoUnionAll(),
             new PruneRedundantOrderBy(),
             new PruneRedundantSortClauses(),
-            new PruneLeftJoinOnNullMatchingField()
+            new PruneLeftJoinOnNullMatchingField(),
+            new PruneInlineJoinOnEmptyRightSide(),
+            new HoistOrderByBeforeInlineJoin(),
+            new PruneEmptyAggregates()
         );
     }
 
     protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation(), new PropgateUnmappedFields());
+        return new Batch<>(
+            "Clean Up",
+            new ReplaceLimitAndSortAsTopN(),
+            new HoistRemoteEnrichTopN(),
+            new ReplaceRowAsLocalRelation(),
+            new PropgateUnmappedFields(),
+            new CombineLimitTopN()
+        );
     }
 }

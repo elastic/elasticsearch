@@ -9,27 +9,32 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
@@ -45,7 +50,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -53,18 +61,20 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class GoogleVertexAiServiceTests extends ESTestCase {
+public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
 
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -75,7 +85,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -90,6 +100,9 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
+        var provider = GoogleModelGardenProvider.ANTHROPIC.name();
+        var url = "https://non-streaming.url";
+        var streamingUrl = "https://streaming.url";
         var serviceAccountJson = """
             {
                 "some json"
@@ -105,6 +118,11 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 assertThat(vertexAIModel.getServiceSettings().modelId(), is(modelId));
                 assertThat(vertexAIModel.getServiceSettings().location(), is(location));
                 assertThat(vertexAIModel.getServiceSettings().projectId(), is(projectId));
+
+                assertThat(vertexAIModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+                assertThat(vertexAIModel.getServiceSettings().uri(), is(new URI(url)));
+                assertThat(vertexAIModel.getServiceSettings().streamingUri(), is(new URI(streamingUrl)));
+
                 assertThat(vertexAIModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
                 assertThat(vertexAIModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
                 assertThat(vertexAIModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
@@ -123,7 +141,13 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                             GoogleVertexAiServiceFields.LOCATION,
                             location,
                             GoogleVertexAiServiceFields.PROJECT_ID,
-                            projectId
+                            projectId,
+                            GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
+                            provider,
+                            GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                            url,
+                            GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
+                            streamingUrl
                         )
                     ),
                     getTaskSettingsMapEmpty(),
@@ -483,10 +507,13 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException, URISyntaxException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
+        var provider = GoogleModelGardenProvider.ANTHROPIC.name();
+        var url = "https://non-streaming.url";
+        var streamingUrl = "https://streaming.url";
         var autoTruncate = true;
         var serviceAccountJson = """
             {
@@ -503,7 +530,13 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                         GoogleVertexAiServiceFields.LOCATION,
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
-                        projectId
+                        projectId,
+                        GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
+                        provider,
+                        GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                        url,
+                        GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
+                        streamingUrl
                     )
                 ),
                 getTaskSettingsMap(autoTruncate, InputType.INGEST),
@@ -527,6 +560,10 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             assertThat(chatCompletionModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
             assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
             assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().timeUnit(), equalTo(MINUTES));
+
+            assertThat(chatCompletionModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+            assertThat(chatCompletionModel.getServiceSettings().uri(), is(new URI(url)));
+            assertThat(chatCompletionModel.getServiceSettings().streamingUri(), is(new URI(streamingUrl)));
         }
     }
 
@@ -964,8 +1001,6 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
-    // testInfer tested via end-to-end notebook tests in AppEx repo
-
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createGoogleVertexAiService()) {
@@ -1040,10 +1075,47 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
+    public void testChunkedInfer_noInputs() throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), randomSimilarityMeasure()),
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
     private GoogleVertexAiService createGoogleVertexAiService() {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         return new GoogleVertexAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createGoogleVertexAiService();
+    }
+
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("semantic-ranker-default-003"),
+            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
+        assertThat(rerankingInferenceService.rerankerWindowSize("semantic-ranker-default-004"), CoreMatchers.is(600));
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("any other"),
+            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
     }
 
     private Map<String, Object> getRequestConfigMap(

@@ -21,14 +21,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -106,7 +107,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSignificance(SignificanceHeuristic heuristic) throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -203,7 +204,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      * @throws IOException on test setup failure
      */
     public void testSamplingConsistency() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -259,13 +260,13 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < 10; i++) {
                 LuceneDocument doc = new LuceneDocument();
                 if (i % 2 == 0) {
-                    NumberType.LONG.addFields(doc, "long_field", ODD_VALUE, true, true, false);
+                    NumberType.LONG.addFields(doc, "long_field", ODD_VALUE, IndexType.points(true, true), false);
                     doc.add(new Field("text", "odd", TextFieldMapper.Defaults.FIELD_TYPE));
                 } else {
-                    NumberType.LONG.addFields(doc, "long_field", EVEN_VALUE, true, true, false);
+                    NumberType.LONG.addFields(doc, "long_field", EVEN_VALUE, IndexType.points(true, true), false);
                     doc.add(new Field("text", "even", TextFieldMapper.Defaults.FIELD_TYPE));
                 }
-                NumberType.LONG.addFields(doc, "long_field", COMMON_VALUE, true, true, false);
+                NumberType.LONG.addFields(doc, "long_field", COMMON_VALUE, IndexType.points(true, true), false);
                 w.addDocument(doc);
             }
 
@@ -305,7 +306,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
      * Uses the significant terms aggregation on an index with unmapped field
      */
     public void testUnmapped() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -370,7 +371,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldAlias() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -424,7 +425,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldBackground() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         textFieldType.setFielddata(true);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(new StandardAnalyzer());
@@ -685,10 +686,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         testCase(
             createIndex,
             (SignificantStringTerms result) -> { assertEquals(0, result.getBuckets().size()); },
-            new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(Queries.NO_DOCS_INSTANCE)
         );
 
-        debugTestCase(aggregationBuilder, new MatchNoDocsQuery(), createIndex, (result, impl, debug) -> {
+        debugTestCase(aggregationBuilder, Queries.NO_DOCS_INSTANCE, createIndex, (result, impl, debug) -> {
             assertEquals(impl, MapStringTermsAggregator.class);
         }, fieldType);
     }

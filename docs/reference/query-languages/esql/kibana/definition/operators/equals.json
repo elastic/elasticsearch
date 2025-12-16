@@ -226,6 +226,60 @@
       "params" : [
         {
           "name" : "lhs",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "An expression."
+        },
+        {
+          "name" : "rhs",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : "An expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "An expression."
+        },
+        {
+          "name" : "rhs",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : "An expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "An expression."
+        },
+        {
+          "name" : "rhs",
+          "type" : "geotile",
+          "optional" : false,
+          "description" : "An expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "integer",
           "optional" : false,
           "description" : "An expression."

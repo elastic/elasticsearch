@@ -13,8 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ResultDeduplicator;
@@ -736,20 +734,11 @@ public class ShardStateAction {
                                 indexMetadata.getNumberOfShards(),
                                 startedShardEntry.timestampRange
                             );
-                            /*
-                             * Only track 'event.ingested' range this if the cluster state min transport version is on/after the version
-                             * where we added 'event.ingested'. If we don't do that, we will have different cluster states on different
-                             * nodes because we can't send this data over the wire to older nodes.
-                             */
-                            IndexLongFieldRange newEventIngestedMillisRange = IndexLongFieldRange.UNKNOWN;
-                            TransportVersion minTransportVersion = batchExecutionContext.initialState().getMinTransportVersion();
-                            if (minTransportVersion.onOrAfter(TransportVersions.V_8_15_0)) {
-                                newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
-                                    startedShardEntry.shardId.id(),
-                                    indexMetadata.getNumberOfShards(),
-                                    startedShardEntry.eventIngestedRange
-                                );
-                            }
+                            IndexLongFieldRange newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
+                                startedShardEntry.shardId.id(),
+                                indexMetadata.getNumberOfShards(),
+                                startedShardEntry.eventIngestedRange
+                            );
 
                             if (newTimestampMillisRange != currentTimestampMillisRange
                                 || newEventIngestedMillisRange != currentEventIngestedMillisRange) {
@@ -829,7 +818,7 @@ public class ShardStateAction {
         public void clusterStatePublished(ClusterState newClusterState) {
             rerouteService.reroute(
                 "reroute after starting shards",
-                Priority.NORMAL,
+                Priority.HIGH,
                 ActionListener.wrap(
                     r -> logger.trace("reroute after starting shards succeeded"),
                     e -> logger.debug("reroute after starting shards failed", e)
@@ -853,11 +842,7 @@ public class ShardStateAction {
             primaryTerm = in.readVLong();
             this.message = in.readString();
             this.timestampRange = ShardLongFieldRange.readFrom(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                this.eventIngestedRange = ShardLongFieldRange.readFrom(in);
-            } else {
-                this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;
-            }
+            this.eventIngestedRange = ShardLongFieldRange.readFrom(in);
         }
 
         public StartedShardEntry(
@@ -884,9 +869,7 @@ public class ShardStateAction {
             out.writeVLong(primaryTerm);
             out.writeString(message);
             timestampRange.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                eventIngestedRange.writeTo(out);
-            }
+            eventIngestedRange.writeTo(out);
         }
 
         @Override

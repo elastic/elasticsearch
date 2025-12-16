@@ -58,4 +58,14 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
         request().includeIndices(includeIndices);
         return this;
     }
+
+    public FieldCapabilitiesRequestBuilder setReturnLocalAll(boolean returnLocalAll) {
+        request().returnLocalAll(returnLocalAll);
+        return this;
+    }
+
+    public FieldCapabilitiesRequestBuilder setIncludeResolvedTo(boolean resolvedTo) {
+        request().includeResolvedTo(resolvedTo);
+        return this;
+    }
 }

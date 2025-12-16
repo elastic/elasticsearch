@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkE
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
@@ -33,7 +34,6 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -205,16 +205,13 @@ public class PolicyCheckerImpl implements PolicyChecker {
     public void checkFileRead(Class<?> callerClass, Path path) {
         try {
             checkFileRead(callerClass, path, false);
-        } catch (NoSuchFileException e) {
-            assert false : "NoSuchFileException should only be thrown when following links";
-            var notEntitledException = new NotEntitledException(e.getMessage());
-            notEntitledException.addSuppressed(e);
-            throw notEntitledException;
+        } catch (IOException e) {
+            throw new AssertionError("IOException should be impossible unless following links", e);
         }
     }
 
     @Override
-    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws NoSuchFileException {
+    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws IOException {
         if (isPathOnDefaultFilesystem(path) == false) {
             return;
         }
@@ -228,15 +225,9 @@ public class PolicyCheckerImpl implements PolicyChecker {
         Path realPath = null;
         boolean canRead = entitlements.fileAccess().canRead(path);
         if (canRead && followLinks) {
-            try {
-                realPath = path.toRealPath();
-                if (realPath.equals(path) == false) {
-                    canRead = entitlements.fileAccess().canRead(realPath);
-                }
-            } catch (NoSuchFileException e) {
-                throw e; // rethrow
-            } catch (IOException e) {
-                canRead = false;
+            realPath = path.toRealPath();
+            if (realPath.equals(path) == false) {
+                canRead = entitlements.fileAccess().canRead(realPath);
             }
         }
 
@@ -490,6 +481,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
             if (jarFileUrl == null || handleNetworkOrFileUrlCheck(callerClass, jarFileUrl) == false) {
                 checkUnsupportedURLProtocolConnection(callerClass, "jar with unsupported inner protocol");
             }
+        } else if (isJrtUrl(url)) {
+            checkEntitlementPresent(callerClass, ReadJdkImageEntitlement.class);
         } else {
             checkUnsupportedURLProtocolConnection(callerClass, url.getProtocol());
         }
@@ -558,6 +551,10 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
     private static boolean isJarUrl(java.net.URL url) {
         return "jar".equals(url.getProtocol());
+    }
+
+    private static boolean isJrtUrl(java.net.URL url) {
+        return "jrt".equals(url.getProtocol());
     }
 
     // We have to use class names for sun.net.www classes as java.base does not export them

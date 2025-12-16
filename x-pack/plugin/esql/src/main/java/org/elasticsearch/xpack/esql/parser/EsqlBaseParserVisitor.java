@@ -19,6 +19,12 @@ import org.antlr.v4.runtime.tree.ParseTreeVisitor;
  */
 public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#statements}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitStatements(EsqlBaseParser.StatementsContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#singleStatement}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -112,6 +118,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternOrSubquery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIndexPatternOrSubquery(EsqlBaseParser.IndexPatternOrSubqueryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#subquery}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSubquery(EsqlBaseParser.SubqueryContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPattern}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -178,11 +196,23 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fieldName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFieldName(EsqlBaseParser.FieldNameContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePattern}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fieldNamePattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFieldNamePattern(EsqlBaseParser.FieldNamePatternContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
    * @param ctx the parse tree
@@ -235,6 +265,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
@@ -413,17 +449,35 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#inlineStatsCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseConfiguration}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseKeyByFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
    * @param ctx the parse tree
@@ -431,11 +485,17 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#fuseCommand}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
+  T visitSetCommand(EsqlBaseParser.SetCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#setField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSetField(EsqlBaseParser.SetFieldContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
@@ -614,6 +674,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitEntryExpression(EsqlBaseParser.EntryExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mapValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMapValue(EsqlBaseParser.MapValueContext ctx);
+  /**
    * Visit a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
@@ -738,9 +804,75 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
+  T visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#valueName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitValueName(EsqlBaseParser.ValueNameContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlParam}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlParam(EsqlBaseParser.PromqlParamContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlParamName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlParamValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlQueryContent}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlQueryContent(EsqlBaseParser.PromqlQueryContentContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlQueryPart}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlQueryPart(EsqlBaseParser.PromqlQueryPartContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlIndexPattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlIndexPattern(EsqlBaseParser.PromqlIndexPatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlClusterString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlClusterString(EsqlBaseParser.PromqlClusterStringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlSelectorString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlSelectorString(EsqlBaseParser.PromqlSelectorStringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlUnquotedIndexString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlUnquotedIndexString(EsqlBaseParser.PromqlUnquotedIndexStringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlIndexString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlIndexString(EsqlBaseParser.PromqlIndexStringContext ctx);
 }

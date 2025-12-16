@@ -32,18 +32,24 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
 public class S3HttpHandlerTests extends ESTestCase {
 
     public void testRejectsBadUri() {
         assertEquals(
             RestStatus.INTERNAL_SERVER_ERROR,
-            handleRequest(new S3HttpHandler("bucket", "path"), randomFrom("GET", "PUT", "POST", "DELETE", "HEAD"), "/not-in-bucket")
-                .status()
+            handleRequest(
+                new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel()),
+                randomFrom("GET", "PUT", "POST", "DELETE", "HEAD"),
+                "/not-in-bucket"
+            ).status()
         );
     }
 
@@ -71,7 +77,7 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testSimpleObjectOperations() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
 
         assertEquals(RestStatus.NOT_FOUND, handleRequest(handler, "GET", "/bucket/path/blob").status());
 
@@ -79,9 +85,12 @@ public class S3HttpHandlerTests extends ESTestCase {
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
             </ListBucketResult>""");
 
-        final var body = randomAlphaOfLength(50);
+        final var body = new BytesArray(randomAlphaOfLength(50).getBytes(StandardCharsets.UTF_8));
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/blob", body).status());
-        assertEquals(new TestHttpResponse(RestStatus.OK, body), handleRequest(handler, "GET", "/bucket/path/blob"));
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, body, addETag(S3HttpHandler.getEtagFromContents(body), TestHttpExchange.EMPTY_HEADERS)),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
@@ -125,29 +134,39 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testGetWithBytesRange() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
         final var blobName = "blob_name_" + randomIdentifier();
         final var blobPath = "/bucket/path/" + blobName;
         final var blobBytes = randomBytesReference(256);
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", blobPath, blobBytes).status());
 
+        final var expectedEtag = S3HttpHandler.getEtagFromContents(blobBytes);
+
         assertEquals(
             "No Range",
-            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.OK, blobBytes, addETag(expectedEtag, TestHttpExchange.EMPTY_HEADERS)),
             handleRequest(handler, "GET", blobPath)
         );
 
         var end = blobBytes.length() - 1;
         assertEquals(
             "Exact Range: bytes=0-" + end,
-            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, contentRangeHeader(0, end, blobBytes.length())),
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes,
+                addETag(expectedEtag, contentRangeHeader(0, end, blobBytes.length()))
+            ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
         );
 
         end = randomIntBetween(blobBytes.length() - 1, Integer.MAX_VALUE);
         assertEquals(
             "Larger Range: bytes=0-" + end,
-            new TestHttpResponse(RestStatus.PARTIAL_CONTENT, blobBytes, contentRangeHeader(0, blobBytes.length() - 1, blobBytes.length())),
+            new TestHttpResponse(
+                RestStatus.PARTIAL_CONTENT,
+                blobBytes,
+                addETag(expectedEtag, contentRangeHeader(0, blobBytes.length() - 1, blobBytes.length()))
+            ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(0, end))
         );
 
@@ -155,7 +174,11 @@ public class S3HttpHandlerTests extends ESTestCase {
         end = randomIntBetween(start, Integer.MAX_VALUE);
         assertEquals(
             "Invalid Range: bytes=" + start + '-' + end,
-            new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(
+                RestStatus.REQUESTED_RANGE_NOT_SATISFIED,
+                BytesArray.EMPTY,
+                addETag(expectedEtag, TestHttpExchange.EMPTY_HEADERS)
+            ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
 
@@ -163,7 +186,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         end = randomIntBetween(0, start - 1);
         assertEquals(
             "Weird Valid Range: bytes=" + start + '-' + end,
-            new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
+            new TestHttpResponse(RestStatus.OK, blobBytes, addETag(expectedEtag, TestHttpExchange.EMPTY_HEADERS)),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
 
@@ -175,14 +198,14 @@ public class S3HttpHandlerTests extends ESTestCase {
             new TestHttpResponse(
                 RestStatus.PARTIAL_CONTENT,
                 blobBytes.slice(start, length),
-                contentRangeHeader(start, end, blobBytes.length())
+                addETag(expectedEtag, contentRangeHeader(start, end, blobBytes.length()))
             ),
             handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, bytesRangeHeader(start, end))
         );
     }
 
     public void testSingleMultipartUpload() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
 
         final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
         final var uploadId = getUploadId(createUploadResponse.body());
@@ -241,7 +264,15 @@ public class S3HttpHandlerTests extends ESTestCase {
             <Contents><Key>path/blob</Key><Size>100</Size></Contents>\
             </ListBucketResult>""");
 
-        assertEquals(new TestHttpResponse(RestStatus.OK, part1 + part2), handleRequest(handler, "GET", "/bucket/path/blob"));
+        final var expectedContents = new BytesArray((part1 + part2).getBytes(StandardCharsets.UTF_8));
+        assertEquals(
+            new TestHttpResponse(
+                RestStatus.OK,
+                expectedContents,
+                addETag(S3HttpHandler.getEtagFromContents(expectedContents), TestHttpExchange.EMPTY_HEADERS)
+            ),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
 
         assertEquals(new TestHttpResponse(RestStatus.OK, """
             <?xml version='1.0' encoding='UTF-8'?>\
@@ -252,7 +283,7 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testListAndAbortMultipartUpload() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
 
         assertEquals(new TestHttpResponse(RestStatus.OK, """
             <?xml version='1.0' encoding='UTF-8'?>\
@@ -383,6 +414,146 @@ public class S3HttpHandlerTests extends ESTestCase {
 
     }
 
+    public void testPreventObjectOverwrite() {
+        ensureExactlyOneSuccess(new S3HttpHandler("bucket", "path", S3ConsistencyModel.AWS_DEFAULT), null);
+    }
+
+    public void testConditionalOverwrite() {
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.AWS_DEFAULT);
+
+        final var originalBody = new BytesArray(randomAlphaOfLength(50).getBytes(StandardCharsets.UTF_8));
+        final var originalETag = S3HttpHandler.getEtagFromContents(originalBody);
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", "/bucket/path/blob", originalBody).status());
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, originalBody, addETag(originalETag, TestHttpExchange.EMPTY_HEADERS)),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
+
+        ensureExactlyOneSuccess(handler, originalETag);
+    }
+
+    private static void ensureExactlyOneSuccess(S3HttpHandler handler, String originalETag) {
+        final var tasks = List.of(
+            createPutObjectTask(handler, originalETag),
+            createPutObjectTask(handler, originalETag),
+            createMultipartUploadTask(handler, originalETag),
+            createMultipartUploadTask(handler, originalETag)
+        );
+
+        runInParallel(tasks.size(), i -> tasks.get(i).consumer.run());
+
+        List<TestWriteTask> successfulTasks = tasks.stream().filter(task -> task.status == RestStatus.OK).toList();
+        assertThat(successfulTasks, hasSize(1));
+
+        tasks.stream().filter(task -> task.uploadId != null).forEach(task -> {
+            if (task.status == RestStatus.PRECONDITION_FAILED) {
+                assertNotNull(handler.getUpload(task.uploadId));
+            } else {
+                assertThat(task.status, oneOf(RestStatus.OK, RestStatus.CONFLICT));
+                assertNull(handler.getUpload(task.uploadId));
+            }
+        });
+
+        assertEquals(
+            new TestHttpResponse(
+                RestStatus.OK,
+                successfulTasks.getFirst().body,
+                addETag(S3HttpHandler.getEtagFromContents(successfulTasks.getFirst().body), TestHttpExchange.EMPTY_HEADERS)
+            ),
+            handleRequest(handler, "GET", "/bucket/path/blob")
+        );
+    }
+
+    public void testPutObjectIfMatchWithBlobNotFound() {
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.AWS_DEFAULT);
+        while (true) {
+            final var task = createPutObjectTask(handler, randomIdentifier());
+            task.consumer.run();
+            if (task.status == RestStatus.NOT_FOUND) {
+                break;
+            }
+            assertEquals(RestStatus.CONFLICT, task.status); // chosen randomly so eventually we will escape the loop
+        }
+    }
+
+    public void testCompleteMultipartUploadIfMatchWithBlobNotFound() {
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.AWS_DEFAULT);
+        while (true) {
+            final var task = createMultipartUploadTask(handler, randomIdentifier());
+            task.consumer.run();
+            if (task.status == RestStatus.NOT_FOUND) {
+                break;
+            }
+            assertEquals(RestStatus.CONFLICT, task.status); // chosen randomly so eventually we will escape the loop
+        }
+    }
+
+    private static TestWriteTask createPutObjectTask(S3HttpHandler handler, @Nullable String originalETag) {
+        return new TestWriteTask(
+            (task) -> task.status = handleRequest(handler, "PUT", "/bucket/path/blob", task.body, conditionalWriteHeader(originalETag))
+                .status()
+        );
+    }
+
+    private static TestWriteTask createMultipartUploadTask(S3HttpHandler handler, @Nullable String originalETag) {
+        final var multipartUploadTask = new TestWriteTask(
+            (task) -> task.status = handleRequest(
+                handler,
+                "POST",
+                "/bucket/path/blob?uploadId=" + task.uploadId,
+                new BytesArray(Strings.format("""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+                       <Part>
+                          <ETag>%s</ETag>
+                          <PartNumber>1</PartNumber>
+                       </Part>
+                    </CompleteMultipartUpload>""", task.etag)),
+                conditionalWriteHeader(originalETag)
+            ).status()
+        );
+
+        final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
+        multipartUploadTask.uploadId = getUploadId(createUploadResponse.body());
+
+        final var uploadPart1Response = handleRequest(
+            handler,
+            "PUT",
+            "/bucket/path/blob?uploadId=" + multipartUploadTask.uploadId + "&partNumber=1",
+            multipartUploadTask.body
+        );
+        multipartUploadTask.etag = Objects.requireNonNull(uploadPart1Response.etag());
+
+        return multipartUploadTask;
+    }
+
+    public void testGetETagFromContents() {
+        // empty-string value from Wikipedia, see also org.elasticsearch.common.hash.MessageDigestsTests.testSha256
+        assertETag("", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assertETag("The quick brown fox jumps over the lazy dog", "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592");
+        assertETag("The quick brown fox jumps over the lazy cog", "e4c4d8f3bf76b692de791a173e05321150f7a345b46484fe427f6acc7ecc81be");
+    }
+
+    private static void assertETag(String input, String expectedHash) {
+        assertEquals(
+            "\"es-test-sha-256-" + expectedHash + '"',
+            S3HttpHandler.getEtagFromContents(new BytesArray(input.getBytes(StandardCharsets.UTF_8)))
+        );
+    }
+
+    private static class TestWriteTask {
+        final BytesReference body;
+        final Runnable consumer;
+        String uploadId;
+        String etag;
+        RestStatus status;
+
+        TestWriteTask(Consumer<TestWriteTask> consumer) {
+            this.body = randomBytesReference(50);
+            this.consumer = () -> consumer.accept(this);
+        }
+    }
+
     private void runExtractPartETagsTest(String body, String... expectedTags) {
         assertEquals(List.of(expectedTags), S3HttpHandler.extractPartEtags(new BytesArray(body.getBytes(StandardCharsets.UTF_8))));
     }
@@ -465,6 +636,22 @@ public class S3HttpHandlerTests extends ESTestCase {
         var headers = new Headers();
         headers.put("Content-Range", List.of(Strings.format("bytes %d-%d/%d", start, end, length)));
         return headers;
+    }
+
+    private static Headers conditionalWriteHeader(@Nullable String originalEtag) {
+        var headers = new Headers();
+        if (originalEtag == null) {
+            headers.put("If-None-Match", List.of("*"));
+        } else {
+            headers.put("If-Match", List.of(originalEtag));
+        }
+        return headers;
+    }
+
+    private static Headers addETag(String eTag, Headers headers) {
+        final var newHeaders = new Headers(headers);
+        newHeaders.add("ETag", eTag);
+        return newHeaders;
     }
 
     private static class TestHttpExchange extends HttpExchange {

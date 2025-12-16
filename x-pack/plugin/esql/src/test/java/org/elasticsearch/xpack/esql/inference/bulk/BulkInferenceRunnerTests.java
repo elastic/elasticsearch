@@ -9,17 +9,12 @@ package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -46,17 +41,7 @@ public class BulkInferenceRunnerTests extends ESTestCase {
 
     @Before
     public void setThreadPool() {
-        threadPool = new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                between(1, 20),
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
-        );
+        threadPool = createThreadPool();
     }
 
     @After
@@ -79,7 +64,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
 
-        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
+            .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), equalTo(responses))));
     }
@@ -91,7 +77,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
 
-        inferenceRunnerFactory(new NoOpClient(threadPool)).create(randomBulkExecutionConfig()).executeBulk(requestIterator, listener);
+        inferenceRunnerFactory(new NoOpClient(threadPool)).create(randomBulkExecutionConfig())
+            .executeBulk(requestIterator, assertAnswerUsingSearchThreadPool(listener));
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), empty())));
     }
@@ -110,7 +97,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
 
-        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
+            .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
 
         assertBusy(() -> {
             assertThat(exception.get(), notNullValue());
@@ -137,7 +125,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
 
-        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
+            .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
 
         assertBusy(() -> {
             assertThat(exception.get(), notNullValue());
@@ -167,11 +156,16 @@ public class BulkInferenceRunnerTests extends ESTestCase {
                     latch.countDown();
                 }, ESTestCase::fail);
 
-                inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
+                inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
+                    .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
             });
         }
 
         latch.await(10, TimeUnit.SECONDS);
+    }
+
+    private <T> ActionListener<T> assertAnswerUsingSearchThreadPool(ActionListener<T> actionListener) {
+        return ActionListener.runBefore(actionListener, () -> ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH));
     }
 
     private BulkInferenceRunner.Factory inferenceRunnerFactory(Client client) {

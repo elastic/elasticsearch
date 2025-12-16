@@ -9,7 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -44,7 +45,12 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     @Override
     public Block filter(int... positions) {
-        return new DocBlock(asVector().filter(positions));
+        return new DocBlock(vector.filter(positions));
+    }
+
+    @Override
+    public Block deepCopy(BlockFactory blockFactory) {
+        return new DocBlock(vector.deepCopy(blockFactory));
     }
 
     @Override
@@ -87,6 +93,14 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
         Releasables.closeExpectNoException(vector);
     }
 
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("DocBlock[");
+        sb.append("vector=").append(vector);
+        sb.append(']');
+        return sb.toString();
+    }
+
     /**
      * A builder the for {@link DocBlock}.
      */
@@ -98,9 +112,9 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
         private final IntVector.Builder shards;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
-        private ShardRefCounted shardRefCounters = ShardRefCounted.ALWAYS_REFERENCED;
+        private IndexedByShardId<? extends RefCounted> shardRefCounters = null;
 
-        public Builder setShardRefCounted(ShardRefCounted shardRefCounters) {
+        public Builder shardRefCounters(IndexedByShardId<? extends RefCounted> shardRefCounters) {
             this.shardRefCounters = shardRefCounters;
             return this;
         }
@@ -191,7 +205,13 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shardRefCounters, shards, segments, docs, null);
+                result = new DocVector(
+                    shardRefCounters == null ? AlwaysReferencedIndexedByShardId.INSTANCE : shardRefCounters,
+                    shards,
+                    segments,
+                    docs,
+                    null
+                );
                 return result.asBlock();
             } finally {
                 if (result == null) {

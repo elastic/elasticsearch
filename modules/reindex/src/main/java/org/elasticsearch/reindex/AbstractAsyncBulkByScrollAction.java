@@ -214,7 +214,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             // always include vectors in the response unless explicitly set
             var fetchSource = sourceBuilder.fetchSource();
             if (fetchSource == null) {
-                sourceBuilder.fetchSource(FetchSourceContext.FETCH_ALL_SOURCE);
+                sourceBuilder.fetchSource(FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS);
             } else if (fetchSource.excludeVectors() == null) {
                 sourceBuilder.excludeVectors(false);
             }

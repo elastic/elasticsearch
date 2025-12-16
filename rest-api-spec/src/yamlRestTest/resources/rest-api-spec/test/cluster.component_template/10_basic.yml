@@ -143,6 +143,38 @@
   - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
 
 ---
+"Add data stream lifecycle with downsampling":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_component_template/{name}
+          capabilities: [ "dlm.downsampling_method" ]
+      test_runner_features: [ "capabilities" ]
+      reason: "Downsampling method was added to data stream lifecycle was available from 9.3"
+
+  - do:
+      cluster.put_component_template:
+        name: test-lifecycle
+        body:
+          template:
+            lifecycle:
+              data_retention: "10d"
+              downsampling_method: last_value
+              downsampling:
+                - {"after": "1d", "fixed_interval": "5m"}
+
+  - do:
+      cluster.get_component_template:
+        name: test-lifecycle
+
+  - match: {component_templates.0.name: test-lifecycle}
+  - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
+  - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
+  - match: {component_templates.0.component_template.template.lifecycle.downsampling_method: "last_value"}
+  - match: {component_templates.0.component_template.template.lifecycle.downsampling.0.after: "1d"}
+  - match: {component_templates.0.component_template.template.lifecycle.downsampling.0.fixed_interval: "5m"}
+
+---
 "Get data stream lifecycle with default rollover":
   - requires:
       cluster_features: ["gte_v8.11.0"]

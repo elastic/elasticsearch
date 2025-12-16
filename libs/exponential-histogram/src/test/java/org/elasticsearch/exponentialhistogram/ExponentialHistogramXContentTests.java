@@ -23,6 +23,8 @@ package org.elasticsearch.exponentialhistogram;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -31,66 +33,98 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExponentialHistogramXContentTests extends ExponentialHistogramTestCase {
 
+    public void testNullHistogram() {
+        assertThat(toJson(null), equalTo("null"));
+        checkRoundTrip(null);
+    }
+
     public void testEmptyHistogram() {
         ExponentialHistogram emptyHistogram = ExponentialHistogram.empty();
         assertThat(toJson(emptyHistogram), equalTo("{\"scale\":" + emptyHistogram.scale() + "}"));
     }
 
     public void testFullHistogram() {
-        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(100);
-        histo.setZeroBucket(new ZeroBucket(0.1234, 42));
-        histo.resetBuckets(7);
-        histo.tryAddBucket(-10, 15, false);
-        histo.tryAddBucket(10, 5, false);
-        histo.tryAddBucket(-11, 10, true);
-        histo.tryAddBucket(11, 20, true);
+        ExponentialHistogram histo = createAutoReleasedHistogram(
+            b -> b.zeroBucket(ZeroBucket.create(0.1234, 42))
+                .scale(7)
+                .sum(1234.56)
+                .min(-321.123)
+                .max(123.123)
+                .setNegativeBucket(-10, 15)
+                .setNegativeBucket(10, 5)
+                .setPositiveBucket(-11, 10)
+                .setPositiveBucket(11, 20)
+        );
         assertThat(
             toJson(histo),
             equalTo(
                 "{"
                     + "\"scale\":7,"
+                    + "\"sum\":1234.56,"
+                    + "\"min\":-321.123,"
+                    + "\"max\":123.123,"
                     + "\"zero\":{\"count\":42,\"threshold\":0.1234},"
                     + "\"positive\":{\"indices\":[-11,11],\"counts\":[10,20]},"
                     + "\"negative\":{\"indices\":[-10,10],\"counts\":[15,5]}"
                     + "}"
             )
         );
+        checkRoundTrip(histo);
     }
 
     public void testOnlyZeroThreshold() {
-        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(10);
-        histo.setZeroBucket(new ZeroBucket(5.0, 0));
-        histo.resetBuckets(3);
-        assertThat(toJson(histo), equalTo("{\"scale\":3,\"zero\":{\"threshold\":5.0}}"));
+        ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(3).sum(1.1).zeroBucket(ZeroBucket.create(5.0, 0)));
+        assertThat(toJson(histo), equalTo("{\"scale\":3,\"sum\":1.1,\"zero\":{\"threshold\":5.0}}"));
+        checkRoundTrip(histo);
     }
 
     public void testOnlyZeroCount() {
-        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(10);
-        histo.setZeroBucket(new ZeroBucket(0.0, 7));
-        histo.resetBuckets(2);
-        assertThat(toJson(histo), equalTo("{\"scale\":2,\"zero\":{\"count\":7}}"));
+        ExponentialHistogram histo = createAutoReleasedHistogram(
+            b -> b.zeroBucket(ZeroBucket.create(0.0, 7)).scale(2).sum(1.1).min(0).max(0)
+        );
+        assertThat(toJson(histo), equalTo("{\"scale\":2,\"sum\":1.1,\"min\":0.0,\"max\":0.0,\"zero\":{\"count\":7}}"));
+        checkRoundTrip(histo);
     }
 
     public void testOnlyPositiveBuckets() {
-        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(10);
-        histo.resetBuckets(4);
-        histo.tryAddBucket(-1, 3, true);
-        histo.tryAddBucket(2, 5, true);
-        assertThat(toJson(histo), equalTo("{\"scale\":4,\"positive\":{\"indices\":[-1,2],\"counts\":[3,5]}}"));
+        ExponentialHistogram histo = createAutoReleasedHistogram(
+            b -> b.scale(4).sum(1.1).min(0.5).max(2.5).setPositiveBucket(-1, 3).setPositiveBucket(2, 5)
+        );
+        assertThat(
+            toJson(histo),
+            equalTo("{\"scale\":4,\"sum\":1.1,\"min\":0.5,\"max\":2.5,\"positive\":{\"indices\":[-1,2],\"counts\":[3,5]}}")
+        );
+        checkRoundTrip(histo);
     }
 
     public void testOnlyNegativeBuckets() {
-        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(10);
-        histo.resetBuckets(5);
-        histo.tryAddBucket(-1, 4, false);
-        histo.tryAddBucket(2, 6, false);
-        assertThat(toJson(histo), equalTo("{\"scale\":5,\"negative\":{\"indices\":[-1,2],\"counts\":[4,6]}}"));
+        ExponentialHistogram histo = createAutoReleasedHistogram(
+            b -> b.scale(5).sum(1.1).min(-0.5).max(-0.25).setNegativeBucket(-1, 4).setNegativeBucket(2, 6)
+        );
+        assertThat(
+            toJson(histo),
+            equalTo("{\"scale\":5,\"sum\":1.1,\"min\":-0.5,\"max\":-0.25,\"negative\":{\"indices\":[-1,2],\"counts\":[4,6]}}")
+        );
+        checkRoundTrip(histo);
     }
 
     private static String toJson(ExponentialHistogram histo) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             ExponentialHistogramXContent.serialize(builder, histo);
             return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void checkRoundTrip(ExponentialHistogram histo) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            ExponentialHistogramXContent.serialize(builder, histo);
+            String json = Strings.toString(builder);
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+                ExponentialHistogram parsed = ExponentialHistogramXContent.parseForTesting(parser);
+                assertThat(parsed, equalTo(histo));
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

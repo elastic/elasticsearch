@@ -86,7 +86,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("time_series_dimensions", b -> b.field("time_series_dimensions", List.of("one", "two")));
 
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((FlattenedFieldMapper) m).ignoreAbove()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((FlattenedFieldMapper) m).fieldType().ignoreAbove().get())
+        );
         checker.registerUpdateCheck(
             b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
@@ -960,6 +963,27 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             {"field":{"a":{"b":{"c":"1"}},"b":{"b":{"d":"2"}}}}"""));
     }
 
+    public void testMultipleDotsInPath() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> { b.startObject("field").field("type", "flattened").endObject(); })
+        ).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject(".");
+                {
+                    b.field(".", "bar");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        // This behavior is weird to say the least. But this is the only reasonable way to interpret the meaning of the path `...`
+        assertThat(syntheticSource, equalTo("""
+            {"field":{"":{"":{"":{"":"bar"}}}}}"""));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;
@@ -991,5 +1015,15 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
             assertFalse(info, rightIterator.hasNext());
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

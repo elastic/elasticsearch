@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -131,36 +130,14 @@ public class DataDescription implements ToXContentObject, Writeable {
     }
 
     public DataDescription(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            DataFormat.readFromStream(in);
-        }
         timeFieldName = in.readString();
         timeFormat = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // fieldDelimiter
-            if (in.readBoolean()) {
-                in.read();
-            }
-            // quoteCharacter
-            if (in.readBoolean()) {
-                in.read();
-            }
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            DataFormat.XCONTENT.writeTo(out);
-        }
         out.writeString(timeFieldName);
         out.writeString(timeFormat);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // fieldDelimiter
-            out.writeBoolean(false);
-            // quoteCharacter
-            out.writeBoolean(false);
-        }
     }
 
     @Override

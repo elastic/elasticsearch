@@ -44,6 +44,7 @@ PUT _connector/my-s3-connector
   "service_type": "s3"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -166,8 +167,9 @@ You can deploy the Amazon S3 connector as a self-managed connector using Docker.
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -277,6 +279,7 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
 
 ]
 ```
+% NOTCONSOLE
 
 **Example**: Fetch files/folder starting with `folder1`.
 
@@ -288,6 +291,7 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 **Fetching files and folders by specifying extensions**
 
@@ -302,6 +306,7 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ### Content extraction [es-connectors-s3-client-content-extraction]
@@ -347,4 +352,4 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is built with the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/s3.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/s3) (branch *main*, compatible with Elastic *9.0*).

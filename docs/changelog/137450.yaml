@@ -1,0 +1,5 @@
+pr: 137450
+summary: "Timezone support in DATE_TRUNC, BUCKET and TBUCKET"
+area: ES|QL
+type: feature
+issues: []

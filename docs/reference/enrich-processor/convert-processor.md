@@ -24,7 +24,7 @@ The supported types are: `integer`, `long`, `float`, `double`, `string`, `boolea
 | `auto`        | All values (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 Specifying `auto` will attempt to convert a string-valued `field` into the closest non-string, non-IP type:
- - A whose value is `"true"` or `"false"` (case insensitive) will be converted to a `Boolean`.
+ - A string whose value is `"true"` or `"false"` (case insensitive) will be converted to a `Boolean`.
  - A string representing an integer in decimal or hex format (e.g. `"123"` or `"0x7b"`) will be converted to an `Integer` if the number fits in a 32-bit signed integer, else to a `Long` if it fits in a 64-bit signed integer, else to a `Float` (in which case it may
 lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value).
  - A string representing a floating point number in decimal, scientific, or hex format (e.g. `"123.0"`, `"123.45"`, `"1.23e2"`, or `"0x1.ecp6"`) will be converted to a `Float` (and may lose precision, and will give positive or negative infinity if out of range for a 32-bit floating point value).
@@ -69,4 +69,5 @@ PUT _ingest/pipeline/my-pipeline-id
   ]
 }
 ```
+% NOTCONSOLE
 

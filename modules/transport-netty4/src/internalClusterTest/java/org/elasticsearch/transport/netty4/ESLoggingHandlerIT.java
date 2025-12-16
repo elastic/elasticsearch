@@ -10,11 +10,13 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
 
@@ -117,7 +119,15 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                 TcpTransport.class.getCanonicalName(),
                 Level.DEBUG,
                 ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\], exception:.*"
-            )
+            ) {
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getThrown() instanceof NodeDisconnectedException nodeDisconnectedException
+                        && nodeDisconnectedException.getMessage().contains("closed exceptionally: Netty4TcpChannel{")) {
+                        super.match(event);
+                    }
+                }
+            }
         );
 
         final String nodeName = internalCluster().startNode();

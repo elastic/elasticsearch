@@ -29,6 +29,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -212,9 +213,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
                 new DateFieldMapper.DateFieldType(
                     DATE_FIELD_NAME,
-                    randomBoolean(),
-                    randomBoolean(),
-                    true,
+                    IndexType.points(randomBoolean(), true),
+                    false,
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     Resolution.MILLISECONDS,
                     null,
@@ -492,7 +492,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(
             DATE_FIELD_NAME,
-            true,
+            IndexType.points(true, true),
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

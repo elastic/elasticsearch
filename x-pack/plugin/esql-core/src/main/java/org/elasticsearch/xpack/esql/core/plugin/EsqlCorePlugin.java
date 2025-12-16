@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 
 public class EsqlCorePlugin extends Plugin implements ExtensiblePlugin {
 
-    public static final FeatureFlag AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG = new FeatureFlag("esql_aggregate_metric_double");
-    public static final FeatureFlag DENSE_VECTOR_FEATURE_FLAG = new FeatureFlag("esql_dense_vector");
+    // Note, there is also a feature flag for the field type in the analytics plugin, but for visibility reasons we need
+    // another one here.
+    public static final FeatureFlag T_DIGEST_ESQL_SUPPORT = new FeatureFlag("esql_t_digest_support");
 }

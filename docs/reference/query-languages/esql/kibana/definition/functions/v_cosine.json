@@ -3,10 +3,29 @@
   "type" : "scalar",
   "name" : "v_cosine",
   "description" : "Calculates the cosine similarity between two dense_vectors.",
-  "signatures" : [ ],
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "left",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "first dense_vector to calculate cosine similarity"
+        },
+        {
+          "name" : "right",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "second dense_vector to calculate cosine similarity"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    }
+  ],
   "examples" : [
-    " from colors\n | where color != \"black\"\n | eval similarity = v_cosine(rgb_vector, [0, 255, 255])\n | sort similarity desc, color asc"
+    "from colors\n| where color != \"black\"\n| eval similarity = v_cosine(rgb_vector, [0, 255, 255])\n| sort similarity desc, color asc"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

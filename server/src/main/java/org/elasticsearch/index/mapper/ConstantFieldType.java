@@ -38,13 +38,23 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @SuppressWarnings("this-escape")
     public ConstantFieldType(String name, Map<String, String> meta) {
-        super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        super(name, IndexType.NONE, false, meta);
         assert isSearchable();
+    }
+
+    @Override
+    public boolean isSearchable() {
+        return true;
     }
 
     @Override
     public final boolean isAggregatable() {
         return true;
+    }
+
+    @Override
+    public TextSearchInfo getTextSearchInfo() {
+        return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
     }
 
     /**
@@ -67,7 +77,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         if (matches(pattern, false, context)) {
             return Queries.newMatchAllQuery();
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -81,7 +91,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         if (matches(pattern, true, context)) {
             return Queries.newMatchAllQuery();
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -98,7 +108,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
                 return Queries.newMatchAllQuery();
             }
         }
-        return new MatchNoDocsQuery();
+        return Queries.NO_DOCS_INSTANCE;
     }
 
     @Override
@@ -116,7 +126,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -134,7 +144,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 

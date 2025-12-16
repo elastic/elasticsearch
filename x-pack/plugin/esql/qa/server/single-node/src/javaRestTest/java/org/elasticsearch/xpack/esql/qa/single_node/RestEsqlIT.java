@@ -27,7 +27,7 @@ import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.tools.ProfileParser;
@@ -58,8 +58,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
+import static org.elasticsearch.xpack.esql.planner.PlannerSettings.LUCENE_TOPN_LIMIT;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
@@ -186,6 +187,18 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 }
             }
             """.replace("$LEVEL$", level == null ? "null" : '"' + level + '"'));
+        client().performRequest(request);
+    }
+
+    private void setTruncationWindowMax(Integer size) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "esql.query.result_truncation_max_size": $SIZE$
+                }
+            }
+            """.replace("$SIZE$", size == null ? "null" : Integer.toString(size)));
         client().performRequest(request);
     }
 
@@ -353,6 +366,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 default -> throw new IllegalArgumentException("can't match " + description);
             }
         }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> plans = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("plans");
+        for (Map<String, Object> plan : plans) {
+            assertThat(plan.get("cluster_name"), equalTo("test-cluster"));
+            assertThat(plan.get("node_name"), notNullValue());
+            assertThat(plan.get("plan"), notNullValue());
+            String description = (String) plan.get("description");
+            assertTrue("Unexpected plan description " + description, Set.of("final", "node_reduce", "data").contains(description));
+            switch (description) {
+                case "final", "data" -> {
+                    assertThat((int) plan.get("logical_optimization_nanos"), greaterThanOrEqualTo(0));
+                    assertThat((int) plan.get("physical_optimization_nanos"), greaterThanOrEqualTo(0));
+                    assertFalse(plan.containsKey("reduction_nanos"));
+                }
+                case "node_reduce" -> {
+                    assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
+                    assertFalse(plan.containsKey("logical_optimization_nanos"));
+                    assertFalse(plan.containsKey("physical_optimization_nanos"));
+                }
+                default -> {
+                }
+            }
+        }
     }
 
     private final String PROCESS_NAME = "process_name";
@@ -467,10 +503,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
     @AwaitsFix(bugUrl = "disabled until JOIN infrastructrure properly lands")
     public void testInlineStatsProfile() throws IOException {
-        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
 
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | INLINESTATS AVG(value) | SORT value ASC");
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | INLINE STATS AVG(value) | SORT value ASC");
         builder.profile(true);
         if (Build.current().isSnapshot()) {
             // Lock to shard level partitioning, so we get consistent profile output
@@ -537,6 +572,91 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("OutputOperator")
             )
         );
+    }
+
+    public void testSmallTopNProfile() throws IOException {
+        testTopNProfile(false);
+    }
+
+    public void testGiantTopNProfile() throws IOException {
+        testTopNProfile(true);
+    }
+
+    private void testTopNProfile(boolean giant) throws IOException {
+        try {
+            setTruncationWindowMax(1000000);
+            indexTimestampData(1);
+
+            int size = between(1, LUCENE_TOPN_LIMIT.get(Settings.EMPTY).intValue() - 1);
+            if (giant) {
+                size += LUCENE_TOPN_LIMIT.get(Settings.EMPTY).intValue();
+            }
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | KEEP value | SORT value ASC | LIMIT " + size);
+
+            builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
+            builder.profile(true);
+            builder.pragmasOk();
+
+            Map<String, Object> result = runEsql(builder);
+            ListMatcher values = matchesList();
+            for (int i = 0; i < Math.min(1000, size); i++) {
+                values = values.item(List.of(i));
+            }
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "value").entry("type", "long")),
+                values
+            );
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                fixTypesOnProfile(p);
+                assertThat(p, commonProfile());
+                List<String> sig = new ArrayList<>();
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    sig.add(checkOperatorProfile(o));
+                }
+                String description = p.get("description").toString();
+                switch (description) {
+                    case "data" -> assertMap(
+                        sig,
+                        giant
+                            ? matchesList().item("LuceneSourceOperator")
+                                .item("ValuesSourceReaderOperator")
+                                .item("TopNOperator")
+                                .item("ProjectOperator")
+                                .item("ExchangeSinkOperator")
+                            : matchesList().item("LuceneTopNSourceOperator")
+                                .item("ValuesSourceReaderOperator")
+                                .item("ProjectOperator")
+                                .item("ExchangeSinkOperator")
+                    );
+                    case "node_reduce" -> assertThat(
+                        sig,
+                        // If the coordinating node and data node are the same node then we get this
+                        either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"))
+                            // If the coordinating node and data node are *not* the same node we get this
+                            .or(
+                                matchesList().item("ExchangeSourceOperator")
+                                    .item("TopNOperator")
+                                    .item("ProjectOperator")
+                                    .item("ExchangeSinkOperator")
+                            )
+                    );
+                    case "final" -> assertMap(
+                        sig,
+                        matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("ProjectOperator").item("OutputOperator")
+                    );
+                    default -> throw new IllegalArgumentException("can't match " + description);
+                }
+            }
+        } finally {
+            setTruncationWindowMax(null);
+        }
     }
 
     public void testForceSleepsProfile() throws IOException {
@@ -607,7 +727,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String operators = p.get("operators").toString();
             MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
                 .entry("sleep_millis", greaterThan(0L))
-                .entry("thread_name", Matchers.containsString("[esql_worker]")) // NB: this doesn't run in the test thread
+                .entry("thread_name", containsString("[esql_worker]")) // NB: this doesn't run in the test thread
                 .entry("wake_millis", greaterThan(0L));
             String description = p.get("description").toString();
             switch (description) {
@@ -652,7 +772,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 }
                 """)
         );
-        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled()) {
+        if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()) {
             typesAndValues = new HashMap<>(typesAndValues);
             typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
                 {
@@ -663,15 +783,21 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
         shouldBeSupported.remove(DataType.CARTESIAN_POINT);
         shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
+        shouldBeSupported.remove(DataType.GEOHASH);
+        shouldBeSupported.remove(DataType.GEOTILE);
+        shouldBeSupported.remove(DataType.GEOHEX);
         shouldBeSupported.remove(DataType.NULL);
         shouldBeSupported.remove(DataType.DOC_DATA_TYPE);
         shouldBeSupported.remove(DataType.TSID_DATA_TYPE);
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
-        if (EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled() == false) {
+        shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
+        shouldBeSupported.remove(DataType.TDIGEST);
+        shouldBeSupported.remove(DataType.HISTOGRAM);
+        if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
         for (DataType type : shouldBeSupported) {
-            assertTrue(typesAndValues.containsKey(type));
+            assertTrue(type.typeName(), typesAndValues.containsKey(type));
         }
         assertThat(typesAndValues.size(), equalTo(shouldBeSupported.size()));
 
@@ -712,9 +838,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 Map<String, Object> results = entityAsMap(resp);
                 List<?> columns = (List<?>) results.get("columns");
                 DataType suggestedCast = DataType.suggestedCast(Set.of(listOfTypes.get(i), listOfTypes.get(j)));
-                if (IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled()
-                    && isMillisOrNanos(listOfTypes.get(i))
-                    && isMillisOrNanos(listOfTypes.get(j))) {
+                if (isMillisOrNanos(listOfTypes.get(i)) && isMillisOrNanos(listOfTypes.get(j))) {
                     // datetime and date_nanos are casted to date_nanos implicitly
                     assertThat(columns, equalTo(List.of(Map.ofEntries(Map.entry("name", "my_field"), Map.entry("type", "date_nanos")))));
                 } else {
@@ -940,7 +1064,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("rows_received", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("ram_used", instanceOf(String.class))
-                .entry("ram_bytes_used", greaterThan(0));
+                .entry("ram_bytes_used", greaterThan(0))
+                .entry("receive_nanos", greaterThan(0))
+                .entry("emit_nanos", greaterThan(0));
             case "LuceneTopNSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("current", greaterThan(0))
@@ -951,7 +1077,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("slice_min", 0)
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
-                .entry("slice_index", 0);
+                .entry("slice_index", 0)
+                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);
         };
         MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));

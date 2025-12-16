@@ -120,6 +120,11 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     }
 
     @Override
+    public BooleanVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBooleanVector(value, getPositionCount());
+    }
+
+    @Override
     public long ramBytesUsed() {
         return RAM_BYTES_USED;
     }

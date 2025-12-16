@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
@@ -26,13 +25,14 @@ public class L1NormSimilarityTests extends AbstractVectorSimilarityFunctionTestC
         super(testCaseSupplier);
     }
 
+    @Override
+    public String getBaseEvaluatorName() {
+        return L1Norm.class.getSimpleName();
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return similarityParameters(L1Norm.class.getSimpleName(), L1Norm.SIMILARITY_FUNCTION);
-    }
-
-    protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION;
     }
 
     @Override

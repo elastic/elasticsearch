@@ -1,4 +1,7 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
 esplugin {
   name = 'x-pack-text-structure'
   description = 'Elasticsearch Expanded Pack Plugin - Text Structure'
@@ -9,12 +12,23 @@ base {
   archivesName = 'x-pack-text-structure'
 }
 
+restResources {
+  restApi {
+    include '_common', 'cluster', 'text_structure'
+  }
+}
+
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: ':test:test-clusters')
   api project(':libs:grok')
   api "com.ibm.icu:icu4j:${versions.icu4j}"
   api "net.sf.supercsv:super-csv:${versions.supercsv}"
 }
 
 addQaCheckDependencies(project)
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+}

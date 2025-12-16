@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -56,6 +56,8 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         );
     }
 
+    private static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = TransportVersion.fromName("introduce_failures_lifecycle");
+
     public static DataStreamOptions read(StreamInput in) throws IOException {
         return new DataStreamOptions(in.readOptionalWriteable(DataStreamFailureStore::new));
     }
@@ -73,10 +75,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
-            || failureStore == null
-            || failureStore().enabled() != null) {
+        if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) || failureStore == null || failureStore().enabled() != null) {
             out.writeOptionalWriteable(failureStore);
         } else {
             // When communicating with older versions we need to ensure we do not sent an invalid failure store config.
@@ -139,8 +138,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
                 || failureStore.get() == null
                 || failureStore().mapAndGet(DataStreamFailureStore.Template::enabled).get() != null) {
                 ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));

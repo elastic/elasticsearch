@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -227,9 +226,10 @@ public class AggregationOperator implements Operator {
 
         /**
          * Build.
-         * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
+         *
+         * @param aggregationNanos       Nanoseconds this operator has spent running the aggregations.
          * @param aggregationFinishNanos Nanoseconds this operator has spent running the aggregations.
-         * @param pagesProcessed Count of pages this operator has processed.
+         * @param pagesProcessed         Count of pages this operator has processed.
          */
         public Status(long aggregationNanos, long aggregationFinishNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
             this.aggregationNanos = aggregationNanos;
@@ -241,32 +241,19 @@ public class AggregationOperator implements Operator {
 
         protected Status(StreamInput in) throws IOException {
             aggregationNanos = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                aggregationFinishNanos = in.readOptionalVLong();
-            } else {
-                aggregationFinishNanos = null;
-            }
+            aggregationFinishNanos = in.readOptionalVLong();
             pagesProcessed = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVLong();
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsReceived = 0;
-                rowsEmitted = 0;
-            }
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(aggregationNanos);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalVLong(aggregationFinishNanos);
-            }
+            out.writeOptionalVLong(aggregationFinishNanos);
             out.writeVInt(pagesProcessed);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVLong(rowsReceived);
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override
@@ -354,7 +341,7 @@ public class AggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

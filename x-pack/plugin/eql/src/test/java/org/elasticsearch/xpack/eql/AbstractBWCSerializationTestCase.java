@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -21,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractXContentSerializingTestCase<T> {
 
     private static NavigableSet<TransportVersion> getAllBWCVersions() {
-        return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersions.MINIMUM_COMPATIBLE, true);
+        return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersion.minimumCompatible(), true);
     }
 
     private static final NavigableSet<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();

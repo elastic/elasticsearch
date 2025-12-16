@@ -7,39 +7,50 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
+import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
-
-    @Override
-    public EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("time series available in snapshot builds only", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
-        return super.run(request);
-    }
 
     public void testEmpty() {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
@@ -50,6 +61,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             .setMapping(
                 "@timestamp",
                 "type=date",
+                "project",
+                "type=keyword",
                 "host",
                 "type=keyword,time_series_dimension=true",
                 "cpu",
@@ -59,7 +72,15 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         run("TS empty_index | LIMIT 1").close();
     }
 
-    record Doc(String host, String cluster, long timestamp, int requestCount, double cpu, ByteSizeValue memory) {}
+    record Doc(
+        Collection<String> project,
+        String host,
+        String cluster,
+        long timestamp,
+        int requestCount,
+        double cpu,
+        ByteSizeValue memory
+    ) {}
 
     final List<Doc> docs = new ArrayList<>();
 
@@ -95,6 +116,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             .setMapping(
                 "@timestamp",
                 "type=date",
+                "project",
+                "type=keyword",
                 "host",
                 "type=keyword,time_series_dimension=true",
                 "cluster",
@@ -115,6 +138,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         int numDocs = between(20, 100);
         docs.clear();
         Map<String, Integer> requestCounts = new HashMap<>();
+        List<String> allProjects = List.of("project-1", "project-2", "project-3");
         for (int i = 0; i < numDocs; i++) {
             List<String> hosts = randomSubsetOf(between(1, hostToClusters.size()), hostToClusters.keySet());
             timestamp += between(1, 10) * 1000L;
@@ -128,7 +152,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 });
                 int cpu = randomIntBetween(0, 100);
                 ByteSizeValue memory = ByteSizeValue.ofBytes(randomIntBetween(1024, 1024 * 1024));
-                docs.add(new Doc(host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
+                List<String> projects = randomSubsetOf(between(1, 3), allProjects);
+                docs.add(new Doc(projects, host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
             }
         }
         Randomness.shuffle(docs);
@@ -137,6 +162,8 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 .setSource(
                     "@timestamp",
                     doc.timestamp,
+                    "project",
+                    doc.project,
                     "host",
                     doc.host,
                     "cluster",
@@ -153,21 +180,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareRefresh("hosts").get();
     }
 
-    public void testSimpleMetrics() {
-        List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
-        client().admin().indices().prepareRefresh("hosts").get();
-        try (EsqlQueryResponse resp = run("TS hosts | STATS load=avg(cpu) BY host | SORT host")) {
-            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-            assertThat(rows, hasSize(sortedGroups.size()));
-            for (int i = 0; i < rows.size(); i++) {
-                List<Object> r = rows.get(i);
-                String pod = (String) r.get(1);
-                assertThat(pod, equalTo(sortedGroups.get(i)));
-                List<Double> values = docs.stream().filter(d -> d.host.equals(pod)).map(d -> d.cpu).toList();
-                double avg = values.stream().mapToDouble(n -> n).sum() / values.size();
-                assertThat((double) r.get(0), equalTo(avg));
-            }
-        }
+    public void testWithoutStats() {
         try (EsqlQueryResponse resp = run("TS hosts | SORT @timestamp DESC, host | KEEP @timestamp, host, cpu | LIMIT 5")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             List<Doc> topDocs = docs.stream()
@@ -183,6 +196,34 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(topDocs.get(i).timestamp, equalTo(timestamp));
                 assertThat(topDocs.get(i).host, equalTo(pod));
                 assertThat(topDocs.get(i).cpu, equalTo(cpu));
+            }
+        }
+    }
+
+    public void testImplicitAggregate() {
+        List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
+        client().admin().indices().prepareRefresh("hosts").get();
+        try (EsqlQueryResponse resp = run("TS hosts | STATS load=avg(cpu) BY host | SORT host")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sortedGroups.size()));
+            for (int i = 0; i < rows.size(); i++) {
+                List<Object> r = rows.get(i);
+                String pod = (String) r.get(1);
+                assertThat(pod, equalTo(sortedGroups.get(i)));
+                Map<String, Doc> selected = new HashMap<>();
+                for (Doc doc : docs) {
+                    if (doc.host.equals(pod) == false) {
+                        continue;
+                    }
+                    selected.compute(doc.cluster, (k, v) -> v == null || doc.timestamp > v.timestamp ? doc : v);
+                }
+                double sum = selected.values().stream().mapToDouble(d -> d.cpu).sum();
+                double avg = sum / selected.size();
+                assertThat((double) r.get(0), equalTo(avg));
+            }
+            try (EsqlQueryResponse resp2 = run("TS hosts | STATS load=avg(last_over_time(cpu)) BY host | SORT host")) {
+                List<List<Object>> rows2 = EsqlTestUtils.getValuesList(resp2);
+                assertThat(rows2, equalTo(rows));
             }
         }
     }
@@ -243,27 +284,21 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             final double avg = rates.isEmpty() ? 0.0 : rates.stream().mapToDouble(d -> d).sum() / rates.size();
             assertThat((double) values.get(0).get(1), closeTo(avg, 0.1));
         }
-        try (var resp = run("TS hosts | STATS max(rate(request_count)), min(rate(request_count)), min(cpu), max(cpu)")) {
+        try (var resp = run("TS hosts | STATS max(rate(request_count)), min(rate(request_count))")) {
             assertThat(
                 resp.columns(),
                 equalTo(
                     List.of(
                         new ColumnInfoImpl("max(rate(request_count))", "double", null),
-                        new ColumnInfoImpl("min(rate(request_count))", "double", null),
-                        new ColumnInfoImpl("min(cpu)", "double", null),
-                        new ColumnInfoImpl("max(cpu)", "double", null)
+                        new ColumnInfoImpl("min(rate(request_count))", "double", null)
                     )
                 )
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
-            assertThat(values.get(0), hasSize(4));
+            assertThat(values.get(0), hasSize(2));
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).max().orElse(0.0), 0.1));
             assertThat((double) values.get(0).get(1), closeTo(rates.stream().mapToDouble(d -> d).min().orElse(0.0), 0.1));
-            double minCpu = docs.stream().mapToDouble(d -> d.cpu).min().orElse(Long.MAX_VALUE);
-            double maxCpu = docs.stream().mapToDouble(d -> d.cpu).max().orElse(Long.MIN_VALUE);
-            assertThat((double) values.get(0).get(2), closeTo(minCpu, 0.1));
-            assertThat((double) values.get(0).get(3), closeTo(maxCpu, 0.1));
         }
     }
 
@@ -481,33 +516,122 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testRateProfile() {
-        EsqlQueryRequest request = new EsqlQueryRequest();
-        request.profile(true);
-        request.query("TS hosts | STATS sum(rate(request_count)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
-        try (var resp = run(request)) {
-            EsqlQueryResponse.Profile profile = resp.profile();
-            List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
-            int totalTimeSeries = 0;
-            for (DriverProfile p : dataProfiles) {
-                if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesSourceOperator.Status)) {
-                    totalTimeSeries++;
-                    assertThat(p.operators(), hasSize(2));
-                    assertThat(p.operators().get(1).operator(), equalTo("ExchangeSinkOperator"));
-                } else if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesAggregationOperator.Status)) {
-                    assertThat(p.operators(), hasSize(3));
-                    assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                    assertThat(p.operators().get(1).operator(), containsString("TimeSeriesAggregationOperator"));
-                    assertThat(p.operators().get(2).operator(), equalTo("ExchangeSinkOperator"));
-                } else {
-                    assertThat(p.operators(), hasSize(4));
-                    assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                    assertThat(p.operators().get(1).operator(), containsString("TimeSeriesExtractFieldOperator"));
-                    assertThat(p.operators().get(2).operator(), containsString("EvalOperator"));
-                    assertThat(p.operators().get(3).operator(), equalTo("ExchangeSinkOperator"));
+    public void testProfile() {
+        String dataNode = Iterables.get(clusterService().state().getNodes().getDataNodes().keySet(), 0);
+        Settings indexSettings = Settings.builder()
+            .put("mode", "time_series")
+            .putList("routing_path", List.of("host", "cluster"))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.require._id", dataNode)
+            .build();
+        String index = "my-hosts";
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setSettings(indexSettings)
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "cluster",
+                "type=keyword,time_series_dimension=true",
+                "memory",
+                "type=long,time_series_metric=gauge",
+                "request_count",
+                "type=integer,time_series_metric=counter"
+            )
+            .get();
+        Randomness.shuffle(docs);
+        for (Doc doc : docs) {
+            client().prepareIndex(index)
+                .setSource(
+                    "@timestamp",
+                    doc.timestamp,
+                    "host",
+                    doc.host,
+                    "cluster",
+                    doc.cluster,
+                    "memory",
+                    doc.memory.getBytes(),
+                    "cpu",
+                    doc.cpu,
+                    "request_count",
+                    doc.requestCount
+                )
+                .get();
+        }
+        client().admin().indices().prepareRefresh(index).get();
+        QueryPragmas pragmas = new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), between(3, 10))
+                .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+                .build()
+        );
+        // The rate aggregation is executed with one shard at a time
+        {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.profile(true);
+            request.pragmas(pragmas);
+            request.acceptedPragmaRisks(true);
+            request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster | SORT cluster");
+            try (var resp = run(request)) {
+                EsqlQueryResponse.Profile profile = resp.profile();
+                List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
+                for (DriverProfile p : dataProfiles) {
+                    assertThat(p.operators().get(0).operator(), containsString("TimeSeriesSourceOperator"));
+                    LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
+                    for (LuceneSliceQueue.PartitioningStrategy v : luceneStatus.partitioningStrategies().values()) {
+                        assertThat(v, equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
+                    }
                 }
             }
-            assertThat(totalTimeSeries, equalTo(dataProfiles.size() / 3));
+        }
+        // non-rate aggregation is executed with multiple shards at a time
+        {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.profile(true);
+            request.pragmas(pragmas);
+            request.acceptedPragmaRisks(true);
+            request.query("TS my-hosts | STATS avg(avg_over_time(cpu)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
+            try (var resp = run(request)) {
+                EsqlQueryResponse.Profile profile = resp.profile();
+                List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
+                assertThat(dataProfiles, hasSize(1));
+                List<OperatorStatus> ops = dataProfiles.get(0).operators();
+                assertThat(ops, hasSize(9));
+                assertThat(ops.get(0).operator(), containsString("LuceneSourceOperator"));
+                assertThat(ops.get(0).status(), Matchers.instanceOf(LuceneSourceOperator.Status.class));
+                LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) ops.get(0).status();
+                assertThat(status.processedShards().size(), Matchers.lessThanOrEqualTo(3));
+                // read _timestamp
+                assertThat(ops.get(1).operator(), containsString("ValuesSourceReaderOperator"));
+                // round _timestamp
+                assertThat(ops.get(2).operator(), containsString("EvalOperator"));
+                // read _tisd, cpu
+                assertThat(ops.get(3).operator(), containsString("ValuesSourceReaderOperator"));
+                var readMetrics = (ValuesSourceReaderOperatorStatus) ops.get(3).status();
+                assertThat(
+                    readMetrics.readersBuilt().keySet(),
+                    equalTo(
+                        Set.of("_tsid:column_at_a_time:BytesRefsFromOrds.Singleton", "cpu:column_at_a_time:DoublesFromDocValues.Singleton")
+                    )
+                );
+                assertThat(ops.get(4).operator(), containsString("TimeSeriesAggregationOperator"));
+                assertThat(ops.get(5).operator(), containsString("ValuesSourceReaderOperator"));
+                var readDimensions = (ValuesSourceReaderOperatorStatus) ops.get(5).status();
+                assertThat(readDimensions.readersBuilt(), aMapWithSize(1));
+                assertThat(
+                    Iterables.get(readDimensions.readersBuilt().keySet(), 0),
+                    either(equalTo("cluster:row_stride:BytesRefsFromOrds.Singleton")).or(
+                        equalTo("cluster:column_at_a_time:BytesRefsFromOrds.Singleton")
+                    )
+                );
+                assertThat(ops.get(6).operator(), containsString("EvalOperator"));
+                assertThat(ops.get(7).operator(), containsString("ProjectOperator"));
+                assertThat(ops.get(8).operator(), containsString("ExchangeSinkOperator"));
+            }
         }
     }
 
@@ -529,5 +653,337 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(aggregatorOperators.getFirst().operator(), containsString("LossySumDoubleGroupingAggregatorFunction"));
             }
         }
+    }
+
+    public void testNullMetricsAreSkipped() {
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster")).build();
+        client().admin()
+            .indices()
+            .prepareCreate("sparse-hosts")
+            .setSettings(settings)
+            .setMapping(
+                "@timestamp",
+                "type=date",
+                "host",
+                "type=keyword,time_series_dimension=true",
+                "cluster",
+                "type=keyword,time_series_dimension=true",
+                "memory",
+                "type=long,time_series_metric=gauge",
+                "request_count",
+                "type=integer,time_series_metric=counter"
+            )
+            .get();
+        List<Doc> sparseDocs = new ArrayList<>();
+        // generate 100 docs, 50 will have a null metric
+        // TODO: this is all copied from populateIndex(), refactor it sensibly.
+        Map<String, String> hostToClusters = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            hostToClusters.put("p" + i, randomFrom("qa", "prod"));
+        }
+        long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
+        int numDocs = 100;
+        Map<String, Integer> requestCounts = new HashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            String host = randomFrom(hostToClusters.keySet());
+            timestamp += between(1, 10) * 1000L;
+            int requestCount = requestCounts.compute(host, (k, curr) -> {
+                if (curr == null) {
+                    return randomIntBetween(0, 10);
+                } else {
+                    return curr + randomIntBetween(1, 10);
+                }
+            });
+            int cpu = randomIntBetween(0, 100);
+            ByteSizeValue memory = ByteSizeValue.ofBytes(randomIntBetween(1024, 1024 * 1024));
+            String project = randomFrom("project-1", "project-2", "project-3");
+            sparseDocs.add(new Doc(List.of(project), host, hostToClusters.get(host), timestamp, requestCount, cpu, memory));
+        }
+
+        Randomness.shuffle(sparseDocs);
+        for (int i = 0; i < numDocs; i++) {
+            Doc doc = sparseDocs.get(i);
+            if (i % 2 == 0) {
+                client().prepareIndex("sparse-hosts")
+                    .setSource("@timestamp", doc.timestamp, "host", doc.host, "cluster", doc.cluster, "request_count", doc.requestCount)
+                    .get();
+            } else {
+                client().prepareIndex("sparse-hosts")
+                    .setSource("@timestamp", doc.timestamp, "host", doc.host, "cluster", doc.cluster, "memory", doc.memory.getBytes())
+                    .get();
+            }
+        }
+        client().admin().indices().prepareRefresh("sparse-hosts").get();
+        // Control test
+        try (EsqlQueryResponse resp = run("""
+            TS sparse-hosts
+            | WHERE request_count IS NOT NULL
+            | STATS sum(rate(request_count)) BY cluster, host
+            """)) {
+            assertEquals("Control failed, data loading is broken", 50, resp.documentsFound());
+        }
+
+        try (EsqlQueryResponse resp = run("""
+            TS sparse-hosts
+            | STATS sum(max_over_time(memory)) BY cluster, host
+            """)) {
+            assertEquals("Did not filter nulls on gauge type", 50, resp.documentsFound());
+        }
+
+        try (EsqlQueryResponse resp = run("""
+            TS sparse-hosts
+            | STATS sum(rate(request_count)) BY cluster, host
+            """)) {
+            assertEquals("Did not filter nulls on counter type", 50, resp.documentsFound());
+        }
+    }
+
+    public void testTSIDMetadataAttribute() {
+        List<ColumnInfoImpl> columns = List.of(
+            new ColumnInfoImpl("_tsid", DataType.TSID_DATA_TYPE, null),
+            new ColumnInfoImpl("cluster", DataType.KEYWORD, null)
+        );
+
+        try (EsqlQueryResponse resp = run(" TS hosts METADATA _tsid | KEEP _tsid, cluster | LIMIT 1")) {
+            assertThat(resp.columns(), equalTo(columns));
+
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.getFirst().get(0), Matchers.notNullValue());
+            assertThat(values.getFirst().get(1), Matchers.notNullValue());
+        }
+    }
+
+    public void testGroupByProject() {
+        record TimeSeries(String cluster, String host) {
+
+        }
+        record Sample(int count, double sum) {
+
+        }
+        Map<TimeSeries, Tuple<Sample, Set<String>>> buckets = new HashMap<>();
+        for (Doc doc : docs) {
+            TimeSeries timeSeries = new TimeSeries(doc.cluster, doc.host);
+            buckets.compute(timeSeries, (k, v) -> {
+                if (v == null) {
+                    return Tuple.tuple(new Sample(1, doc.cpu), Set.copyOf(doc.project));
+                } else {
+                    Set<String> projects = Sets.union(v.v2(), Sets.newHashSet(doc.project));
+                    return Tuple.tuple(new Sample(v.v1().count + 1, v.v1().sum + doc.cpu), projects);
+                }
+            });
+        }
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu)) BY project")) {
+            Map<String, Integer> countPerProject = new HashMap<>();
+            Map<String, Double> sumOfAvgPerProject = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue().v1();
+                for (String project : e.getValue().v2()) {
+                    countPerProject.merge(project, 1, Integer::sum);
+                    sumOfAvgPerProject.merge(project, sample.sum / sample.count, Double::sum);
+                }
+            }
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sumOfAvgPerProject.size()));
+            for (List<Object> r : rows) {
+                String project = (String) r.get(1);
+                double actualAvg = (Double) r.get(0);
+                double expectedAvg = sumOfAvgPerProject.get(project) / countPerProject.get(project);
+                assertThat(actualAvg, closeTo(expectedAvg, 0.5));
+            }
+        }
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu)) BY project, cluster")) {
+            record Key(String project, String cluster) {
+
+            }
+            Map<Key, Integer> countPerProject = new HashMap<>();
+            Map<Key, Double> sumOfAvgPerProject = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue().v1();
+                for (String project : e.getValue().v2()) {
+                    Key key = new Key(project, e.getKey().cluster);
+                    countPerProject.merge(key, 1, Integer::sum);
+                    sumOfAvgPerProject.merge(key, sample.sum / sample.count, Double::sum);
+                }
+            }
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sumOfAvgPerProject.size()));
+            for (List<Object> r : rows) {
+                Key key = new Key((String) r.get(1), (String) r.get(2));
+                double actualAvg = (Double) r.get(0);
+                double expectedAvg = sumOfAvgPerProject.get(key) / countPerProject.get(key);
+                assertThat(actualAvg, closeTo(expectedAvg, 0.5));
+            }
+        }
+    }
+
+    public void testGroupByProjectAndTBucket() {
+        record TimeSeries(String cluster, String host, String tbucket) {
+
+        }
+        record Sample(int count, double sum) {
+
+        }
+        Map<TimeSeries, Tuple<Sample, Set<String>>> buckets = new HashMap<>();
+        var rounding = new Rounding.Builder(TimeValue.timeValueMillis(TimeValue.timeValueMinutes(1).millis())).build().prepareForUnknown();
+        for (Doc doc : docs) {
+            var tbucket = DEFAULT_DATE_TIME_FORMATTER.formatMillis(rounding.round(doc.timestamp));
+            TimeSeries timeSeries = new TimeSeries(doc.cluster, doc.host, tbucket);
+            buckets.compute(timeSeries, (k, v) -> {
+                if (v == null) {
+                    return Tuple.tuple(new Sample(1, doc.cpu), Set.copyOf(doc.project));
+                } else {
+                    Set<String> projects = Sets.union(v.v2(), Sets.newHashSet(doc.project));
+                    return Tuple.tuple(new Sample(v.v1().count + 1, v.v1().sum + doc.cpu), projects);
+                }
+            });
+        }
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu)) BY project, tbucket(1minute)")) {
+            record Key(String project, String tbucket) {
+
+            }
+            Map<Key, Integer> countPerProject = new HashMap<>();
+            Map<Key, Double> sumOfAvgPerProject = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue().v1();
+                for (String project : e.getValue().v2()) {
+                    Key key = new Key(project, e.getKey().tbucket);
+                    countPerProject.merge(key, 1, Integer::sum);
+                    sumOfAvgPerProject.merge(key, sample.sum / sample.count, Double::sum);
+                }
+            }
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sumOfAvgPerProject.size()));
+            for (List<Object> r : rows) {
+                Key key = new Key((String) r.get(1), (String) r.get(2));
+                double actualAvg = (Double) r.get(0);
+                double expectedAvg = sumOfAvgPerProject.get(key) / countPerProject.get(key);
+                assertThat(actualAvg, closeTo(expectedAvg, 0.5));
+            }
+        }
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu)) BY  tbucket(1minute), project, cluster")) {
+            record Key(String project, String cluster, String tbucket) {
+
+            }
+            Map<Key, Integer> countPerProject = new HashMap<>();
+            Map<Key, Double> sumOfAvgPerProject = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue().v1();
+                for (String project : e.getValue().v2()) {
+                    Key key = new Key(project, e.getKey().cluster, e.getKey().tbucket);
+                    countPerProject.merge(key, 1, Integer::sum);
+                    sumOfAvgPerProject.merge(key, sample.sum / sample.count, Double::sum);
+                }
+            }
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sumOfAvgPerProject.size()));
+            for (List<Object> r : rows) {
+                Key key = new Key((String) r.get(2), (String) r.get(3), (String) r.get(1));
+                double actualAvg = (Double) r.get(0);
+                double expectedAvg = sumOfAvgPerProject.get(key) / countPerProject.get(key);
+                assertThat(actualAvg, closeTo(expectedAvg, 0.5));
+            }
+        }
+
+    }
+
+    public void testWithDateTrunc() {
+        try (
+            var resp1 = run("TS host* | STATS avg(avg_over_time(cpu)) BY cluster, TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS avg(avg_over_time(cpu)) BY cluster, tbucket");
+        ) {
+            record Key(String cluster, String tbucket) {
+
+            }
+            Map<Key, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            Map<Key, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+        try (
+            var resp1 = run("TS host* | STATS max(avg_over_time(cpu)) BY TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS max(avg_over_time(cpu)) BY tbucket");
+        ) {
+            Map<String, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> (String) e.get(1), e -> round((Double) e.get(0))));
+            Map<String, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> (String) e.get(1), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+        try (
+            var resp1 = run("TS host* | STATS avg(avg_over_time(cpu, 5m)) BY cluster, TBUCKET(1minute)");
+            var resp2 = run("TS host* | EVAL tbucket = DATE_TRUNC(1m, @timestamp) | STATS avg(avg_over_time(cpu, 5m)) BY cluster, tbucket");
+        ) {
+            record Key(String cluster, String tbucket) {
+
+            }
+            Map<Key, Double> results1 = EsqlTestUtils.getValuesList(resp1)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            Map<Key, Double> results2 = EsqlTestUtils.getValuesList(resp2)
+                .stream()
+                .collect(Collectors.toMap(e -> new Key((String) e.get(1), (String) e.get(2)), e -> round((Double) e.get(0))));
+            assertThat(results1, equalTo(results2));
+        }
+    }
+
+    public void testBareAvgOverTimeByTBucket() {
+        record TimeSeries(String cluster, String host, String tbucket) {
+            // Cluster and host are dimensions so grouping by both of them is equal to grouping by _tsid (group by all)
+        }
+        record Sample(int count, double sum) {
+
+        }
+        Map<TimeSeries, Sample> buckets = new HashMap<>();
+        var rounding = new Rounding.Builder(TimeValue.timeValueMillis(TimeValue.timeValueMinutes(1).millis())).build().prepareForUnknown();
+        for (Doc doc : docs) {
+            var tbucket = DEFAULT_DATE_TIME_FORMATTER.formatMillis(rounding.round(doc.timestamp));
+            TimeSeries timeSeries = new TimeSeries(doc.cluster, doc.host, tbucket);
+            buckets.compute(timeSeries, (k, v) -> {
+                if (v == null) {
+                    return new Sample(1, doc.cpu);
+                } else {
+                    return new Sample(v.count + 1, v.sum + doc.cpu);
+                }
+            });
+        }
+        try (var resp = run("TS host* | STATS avg_over_time(cpu) BY tbucket(1minute)")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(buckets.size()));
+
+            Map<String, Double> sumOfAvgPerTBucket = new HashMap<>();
+            Map<String, Integer> countPerTBucket = new HashMap<>();
+            for (List<Object> r : rows) {
+                double avgValue = (Double) r.get(0);
+                String tbucket = (String) r.get(2);
+                sumOfAvgPerTBucket.merge(tbucket, avgValue, Double::sum);
+                countPerTBucket.merge(tbucket, 1, Integer::sum);
+            }
+
+            Map<String, Double> expectedSumOfAvgPerTBucket = new HashMap<>();
+            Map<String, Integer> expectedCountPerTBucket = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue();
+                String tbucket = e.getKey().tbucket;
+                double avg = sample.sum / sample.count;
+                expectedSumOfAvgPerTBucket.merge(tbucket, avg, Double::sum);
+                expectedCountPerTBucket.merge(tbucket, 1, Integer::sum);
+            }
+
+            assertThat(countPerTBucket, equalTo(expectedCountPerTBucket));
+
+            for (String tbucket : sumOfAvgPerTBucket.keySet()) {
+                assertThat(sumOfAvgPerTBucket.get(tbucket), closeTo(expectedSumOfAvgPerTBucket.get(tbucket), 0.5));
+            }
+        }
+    }
+
+    private static double round(double value) {
+        return new BigDecimal(value).setScale(6, RoundingMode.HALF_UP).doubleValue();
     }
 }

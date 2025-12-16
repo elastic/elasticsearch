@@ -138,6 +138,10 @@ public class AllocationService {
         return shardRoutingRoleStrategy;
     }
 
+    public ClusterInfoService getClusterInfoService() {
+        return clusterInfoService;
+    }
+
     /**
      * Applies the started shards. Note, only initializing ShardRouting instances that exist in the routing table should be
      * provided as parameter and no duplicates should be contained.
@@ -791,7 +795,7 @@ public class AllocationService {
         if (allocateDecision.isDecisionTaken()) {
             return new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         } else {
-            return shardsAllocator.decideShardAllocation(shardRouting, allocation);
+            return shardsAllocator.explainShardAllocation(shardRouting, allocation);
         }
     }
 

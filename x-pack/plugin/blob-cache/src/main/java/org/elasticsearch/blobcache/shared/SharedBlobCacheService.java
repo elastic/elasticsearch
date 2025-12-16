@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
@@ -37,6 +39,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,10 +71,19 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.ES_EXECUTOR_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_TO_RECORD;
+
 /**
  * A caching layer on a local node to minimize network roundtrips to the remote blob store.
  */
-public class SharedBlobCacheService<KeyType> implements Releasable {
+public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBase> implements Releasable {
+
+    public interface KeyBase {
+        ShardId shardId();
+    }
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
@@ -293,6 +306,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
         void forceEvictAsync(Predicate<K> cacheKey);
+
+        int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
     }
 
     private abstract static class CacheEntry<T> {
@@ -413,6 +428,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     public BlobCacheMetrics getBlobCacheMetrics() {
         return blobCacheMetrics;
+    }
+
+    public ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     public int getRangeSize() {
@@ -642,7 +661,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     ) {
         if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
             // no free page available and no old enough unused region to be evicted
-            logger.info("No free regions, skipping loading region [{}]", region);
+            logger.debug("No free regions, skipping loading region [{}]", region);
             listener.onResponse(false);
             return;
         }
@@ -747,7 +766,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public void removeFromCache(KeyType cacheKey) {
-        forceEvict(cacheKey::equals);
+        forceEvict(cacheKey.shardId(), cacheKey::equals);
     }
 
     /**
@@ -758,7 +777,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      */
     public int forceEvict(Predicate<KeyType> cacheKeyPredicate) {
         return cache.forceEvict(cacheKeyPredicate);
+    }
 
+    public int forceEvict(ShardId shard, Predicate<KeyType> cacheKeyPredicate) {
+        return cache.forceEvict(shard, cacheKeyPredicate);
     }
 
     /**
@@ -855,7 +877,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      * always be used, ensuring the right ordering between incRef/tryIncRef and ensureOpen
      * (see {@link SharedBlobCacheService.LFUCache#maybeEvictAndTakeForFrequency(Runnable, int)})
      */
-    static class CacheFileRegion<KeyType> extends EvictableRefCounted {
+    static class CacheFileRegion<KeyType extends KeyBase> extends EvictableRefCounted {
 
         private static final VarHandle VH_IO = findIOVarHandle();
 
@@ -1254,7 +1276,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
-            final RangeMissingHandler writer
+            final RangeMissingHandler writer,
+            String resourceDescription
         ) throws Exception {
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
@@ -1273,6 +1296,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     IntConsumer progressUpdater,
                     ActionListener<Void> completionListener
                 ) throws IOException {
+                    String blobFileExtension = getFileExtension(resourceDescription);
+                    String executorName = EsExecutors.executorName(Thread.currentThread());
                     writer.fillCacheRange(
                         channel,
                         channelPos,
@@ -1283,7 +1308,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         completionListener.map(unused -> {
                             var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                            blobCacheMetrics.getCacheMissCounter().increment();
+                            blobCacheMetrics.getCacheMissCounter()
+                                .incrementBy(
+                                    1L,
+                                    Map.of(
+                                        LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
+                                        blobFileExtension,
+                                        ES_EXECUTOR_ATTRIBUTE_KEY,
+                                        executorName != null ? executorName : NON_ES_EXECUTOR_TO_RECORD
+                                    )
+                                );
                             return null;
                         })
                     );
@@ -1610,7 +1644,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
         }
 
-        private final ConcurrentHashMap<RegionKey<KeyType>, LFUCacheEntry> keyMapping = new ConcurrentHashMap<>();
+        private final KeyMapping<ShardId, RegionKey<KeyType>, LFUCacheEntry> keyMapping = new KeyMapping<>();
         private final LFUCacheEntry[] freqs;
         private final int maxFreq;
         private final DecayAndNewEpochTask decayAndNewEpochTask;
@@ -1629,8 +1663,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             decayAndNewEpochTask.close();
         }
 
+        // used by tests
         int getFreq(CacheFileRegion<KeyType> cacheFileRegion) {
-            return keyMapping.get(cacheFileRegion.regionKey).freq;
+            return keyMapping.get(cacheFileRegion.regionKey.file().shardId(), cacheFileRegion.regionKey).freq;
         }
 
         @Override
@@ -1639,10 +1674,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
             // if we did not find an entry
-            var entry = keyMapping.get(regionKey);
+            var entry = keyMapping.get(cacheKey.shardId(), regionKey);
             if (entry == null) {
                 final int effectiveRegionSize = computeCacheFileRegionSize(fileLength, region);
                 entry = keyMapping.computeIfAbsent(
+                    cacheKey.shardId(),
                     regionKey,
                     key -> new LFUCacheEntry(new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize), now)
                 );
@@ -1682,7 +1718,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
                             unlink(entry);
-                            keyMapping.remove(entry.chunk.regionKey, entry);
+                            keyMapping.remove(entry.chunk.regionKey.file.shardId(), entry.chunk.regionKey, entry);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -1693,6 +1729,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
+        }
+
+        private boolean removeKeyMappingForEntry(LFUCacheEntry entry) {
+            return keyMapping.remove(entry.chunk.regionKey.file().shardId(), entry.chunk.regionKey, entry);
         }
 
         @Override
@@ -1715,10 +1755,42 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             });
         }
 
+        @Override
+        public int forceEvict(ShardId shard, Predicate<KeyType> cacheKeyPredicate) {
+            final List<LFUCacheEntry> matchingEntries = new ArrayList<>();
+            keyMapping.forEach(shard, (key, entry) -> {
+                if (cacheKeyPredicate.test(key.file)) {
+                    matchingEntries.add(entry);
+                }
+            });
+
+            var evictedCount = 0;
+            var nonZeroFrequencyEvictedCount = 0;
+            if (matchingEntries.isEmpty() == false) {
+                synchronized (SharedBlobCacheService.this) {
+                    for (LFUCacheEntry entry : matchingEntries) {
+                        int frequency = entry.freq;
+                        boolean evicted = entry.chunk.forceEvict();
+                        if (evicted && entry.chunk.volatileIO() != null) {
+                            unlink(entry);
+                            assert shard.equals(entry.chunk.regionKey.file.shardId());
+                            keyMapping.remove(shard, entry.chunk.regionKey, entry);
+                            evictedCount++;
+                            if (frequency > 0) {
+                                nonZeroFrequencyEvictedCount++;
+                            }
+                        }
+                    }
+                }
+            }
+            blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
+            return evictedCount;
+        }
+
         private LFUCacheEntry initChunk(LFUCacheEntry entry) {
             assert Thread.holdsLock(entry.chunk);
             RegionKey<KeyType> regionKey = entry.chunk.regionKey;
-            if (keyMapping.get(regionKey) != entry) {
+            if (keyMapping.get(regionKey.file().shardId(), regionKey) != entry) {
                 throwAlreadyClosed("no free region found (contender)");
             }
             // new item
@@ -1741,7 +1813,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 if (io != null) {
                     assignToSlot(entry, io);
                 } else {
-                    boolean removed = keyMapping.remove(regionKey, entry);
+                    boolean removed = removeKeyMappingForEntry(entry);
                     assert removed;
                     throwAlreadyClosed("no free region found");
                 }
@@ -1756,7 +1828,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 if (entry.chunk.isEvicted()) {
                     assert regionOwners.remove(freeSlot) == entry.chunk;
                     freeRegions.add(freeSlot);
-                    keyMapping.remove(entry.chunk.regionKey, entry);
+                    removeKeyMappingForEntry(entry);
                     throwAlreadyClosed("evicted during free region allocation");
                 }
                 pushEntryToBack(entry);
@@ -1961,7 +2033,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                 }
                             } finally {
                                 unlink(entry);
-                                keyMapping.remove(entry.chunk.regionKey, entry);
+                                removeKeyMappingForEntry(entry);
                             }
                         }
                     } finally {
@@ -1996,7 +2068,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
                         unlink(entry);
-                        keyMapping.remove(entry.chunk.regionKey, entry);
+                        removeKeyMappingForEntry(entry);
                         return true;
                     }
                 }
@@ -2073,6 +2145,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             public void close() {
                 this.isClosed = true;
             }
+        }
+    }
+
+    private static String getFileExtension(String resourceDescription) {
+        // TODO: consider introspecting resourceDescription for compound files
+        if (resourceDescription.endsWith(LuceneFilesExtensions.CFS.getExtension())) {
+            return LuceneFilesExtensions.CFS.getExtension();
+        }
+        String extension = IndexFileNames.getExtension(resourceDescription);
+        if (LuceneFilesExtensions.isLuceneExtension(extension)) {
+            return extension;
+        } else {
+            return NON_LUCENE_EXTENSION_TO_RECORD;
         }
     }
 }

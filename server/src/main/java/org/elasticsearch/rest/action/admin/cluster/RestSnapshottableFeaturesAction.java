@@ -10,7 +10,7 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.features.SnapshottableFeaturesAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportSnapshottableFeaturesAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -39,6 +39,6 @@ public class RestSnapshottableFeaturesAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final var req = new GetSnapshottableFeaturesRequest(getMasterNodeTimeout(request));
-        return restChannel -> client.execute(SnapshottableFeaturesAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
+        return restChannel -> client.execute(TransportSnapshottableFeaturesAction.TYPE, req, new RestToXContentListener<>(restChannel));
     }
 }

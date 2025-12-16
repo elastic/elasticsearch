@@ -5,8 +5,6 @@
 // they also assert the value of MV_COUNT(VALUES(...)), which is not adjusted for
 // the sampling and therefore gives the size of the sample.
 // All ranges are very loose, so that the tests should practically never fail.
-// The range checks are done in ES|QL, resulting in one boolean value (is_expected),
-// because the CSV tests don't support such assertions.
 
 row
 required_capability: sample_v3
@@ -40,14 +38,10 @@ required_capability: sample_v3
 FROM employees
   | SAMPLE 0.5
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no), sum_emp_no = SUM(emp_no)
-  | EVAL is_expected = count >= 10 AND count <= 90 AND
-                       avg_emp_no > 10010 AND avg_emp_no < 10090 AND
-                       sum_emp_no > 10*10010 AND sum_emp_no < 90*10090
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long | avg_emp_no:double | sum_emp_no:long
+10..90     | 10010.0..10090.0  | 100100..908100
 ;
 
 
@@ -58,13 +52,10 @@ FROM employees
   | SAMPLE 0.5
   | WHERE emp_no > 10050 
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 2 AND count <= 48 AND
-                       avg_emp_no > 10055 AND avg_emp_no < 10095
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long | avg_emp_no:double
+2..48      | 10055..10095
 ;
 
 
@@ -75,13 +66,10 @@ FROM employees
   | WHERE emp_no <= 10050 
   | SAMPLE 0.5
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 2 AND count <= 48 AND
-                       avg_emp_no > 10005 AND avg_emp_no < 10045
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long | avg_emp_no:double
+2..48      | 10005..10045
 ;
 
 
@@ -92,13 +80,10 @@ FROM employees
   | SAMPLE 0.5
   | SORT emp_no
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 10 AND count <= 90 AND
-                       avg_emp_no > 10010 AND avg_emp_no < 10090
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long | avg_emp_no:double
+10..90     | 10010..10090
 ;
 
 
@@ -109,13 +94,10 @@ FROM employees
   | SORT emp_no
   | SAMPLE 0.5
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 10 AND count <= 90 AND
-                       avg_emp_no > 10010 AND avg_emp_no < 10090
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long | avg_emp_no:double
+10..90     | 10010..10090
 ;
 
 
@@ -126,12 +108,10 @@ FROM employees
   | SAMPLE 0.5
   | LIMIT 10
   | STATS count = COUNT(emp_no)
-  | EVAL is_expected = count == 10
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long
+10
 ;
 
 
@@ -142,12 +122,10 @@ FROM employees
   | LIMIT 50
   | SAMPLE 0.5
   | STATS count = COUNT(emp_no)
-  | EVAL is_expected = count >= 2 AND count <= 48
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long
+2..48
 ;
 
 
@@ -160,12 +138,11 @@ ROW x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
   | MV_EXPAND y
   | STATS count = COUNT() BY x
   | STATS counts = VALUES(count)
-  | EVAL is_expected = MV_COUNT(counts) == 1 AND MV_MIN(counts) == 2
-  | KEEP is_expected
+
 ;
 
-is_expected:boolean 
-true
+counts:long
+2
 ;
 
 
@@ -177,13 +154,11 @@ ROW x = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
   | MV_EXPAND y
   | SAMPLE 0.85
   | STATS count = COUNT() BY x
-  | STATS counts = VALUES(count)
-  | EVAL is_expected = MV_COUNT(counts) == 2 AND MV_MIN(counts) == 1 AND MV_MAX(counts) == 2
-  | KEEP is_expected
+  | STATS counts = MV_SORT(VALUES(count))
 ;
 
-is_expected:boolean 
-true
+counts:long
+[1,2]
 ;
 
 
@@ -195,13 +170,10 @@ FROM employees
   | SAMPLE 0.8
   | SAMPLE 0.9
   | STATS count = COUNT(), avg_emp_no = AVG(emp_no)
-  | EVAL is_expected = count >= 10 AND count <= 90 AND
-                       avg_emp_no > 10010 AND avg_emp_no < 10090
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long | avg_emp_no:double
+10..90     | 10010..10090
 ;
 
 
@@ -213,13 +185,10 @@ FROM employees
   | STATS avg_salary = AVG(salary) BY job_positions
   | SAMPLE 0.8
   | STATS count = COUNT(), avg_avg_salary = AVG(avg_salary)
-  | EVAL is_expected = count >= 1 AND count <= 16 AND
-                       avg_avg_salary > 25000 AND avg_avg_salary < 75000
-  | KEEP is_expected
 ;
 
-is_expected:boolean
-true
+count:long | avg_avg_salary:double
+1..16      | 25000..75000
 ;
 
 
@@ -245,4 +214,15 @@ emp_no:integer
 10062
 10081
 // end::sampleForDocs-result[]
+;
+
+
+sampleStatsEval
+required_capability: fix_no_columns
+required_capability: sample_v3
+
+FROM employees | SAMPLE 0.5 | LIMIT 10 | STATS count = COUNT() | EVAL is_expected = count > 0;
+
+count:long | is_expected:boolean
+10         | true
 ;

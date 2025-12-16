@@ -38,13 +38,19 @@ $$$ignore-dynamic-beyond-limit$$$
 :   The maximum depth for a field, which is measured as the number of inner objects. For instance, if all fields are defined at the root object level, then the depth is `1`. If there is one object mapping, then the depth is `2`, etc. Default is `20`.
 
 `index.mapping.nested_fields.limit`
-:   The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting limits the number of unique `nested` types per index. Default is `50`.
+:   The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting limits the number of unique `nested` types per index. Default is `100`.
+
+`index.mapping.nested_parents.limit`
+:   The maximum number of nested fields that act as parents of other nested fields. Each nested parent requires its own in-memory parent bitset. Root-level nested fields share a parent bitset, but nested fields under other nested fields require additional bitsets. This setting limits the number of unique nested parents to prevent excessive memory usage. Default is `50`.
 
 `index.mapping.nested_objects.limit`
 :   The maximum number of nested JSON objects that a single document can contain across all `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested objects. Default is `10000`.
 
 `index.mapping.field_name_length.limit`
 :   Setting for the maximum length of a field name. This setting isn’t really something that addresses mappings explosion but might still be useful if you want to limit the field length. It usually shouldn’t be necessary to set this setting. The default is okay unless a user starts to add a huge number of fields with really long names. Default is `Long.MAX_VALUE` (no limit).
+
+`index.mapping.field_name_length.ignore_dynamic_beyond_limit` {applies_to}`stack: ga 9.3`
+:   This setting determines what happens when a the name of a dynamically mapped field would exceed the configured maximum length. When set to `false` (the default), the index request of the document that tries to add a dynamic field to the mapping will fail with the message `Field name [x] is longer than the limit of [y] characters`. When set to `true`, the index request will not fail. Instead, fields that would exceed the limit are not added to the mapping, similar to [`dynamic: false`](/reference/elasticsearch/mapping-reference/dynamic.md). The fields that were not added to the mapping will be added to the [`_ignored` field](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md). The default value is `false`.
 
 `index.mapping.dimension_fields.limit`
 :   (Dynamic, integer) Maximum number of [time series dimensions](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension) for the index. Defaults to `32768`.

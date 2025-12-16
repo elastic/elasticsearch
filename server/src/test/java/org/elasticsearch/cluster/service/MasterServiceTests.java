@@ -1760,7 +1760,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(value = "org.elasticsearch.cluster.service.MasterService:WARN", reason = "testing WARN logging")
+    @TestLogging(value = "org.elasticsearch.cluster.service.MasterService:INFO", reason = "testing INFO & WARN logging")
     public void testStarvationLogging() throws Exception {
         final long warnThresholdMillis = MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis();
         relativeTimeInMillis = randomLongBetween(0, Long.MAX_VALUE - warnThresholdMillis * 3);
@@ -1776,12 +1776,14 @@ public class MasterServiceTests extends ESTestCase {
             };
 
             final ClusterStateUpdateTask starvationCausingTask = new ClusterStateUpdateTask(Priority.HIGH) {
+                int iteration;
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     safeAwait(cyclicBarrier);
                     relativeTimeInMillis += taskDurationMillis;
                     if (keepRunning.get()) {
-                        masterService.submitUnbatchedStateUpdateTask("starvation-causing task", this);
+                        masterService.submitUnbatchedStateUpdateTask("starvation-causing task " + (iteration++), this);
                     }
                     safeAwait(cyclicBarrier);
                     return currentState;
@@ -1810,21 +1812,36 @@ public class MasterServiceTests extends ESTestCase {
             });
 
             // check that a warning is logged after 5m
-            final MockLog.EventuallySeenEventExpectation expectation1 = new MockLog.EventuallySeenEventExpectation(
-                "starvation warning",
+            final MockLog.EventuallySeenEventExpectation warnExpectation1 = new MockLog.EventuallySeenEventExpectation(
+                "5m starvation warning",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "pending task queue has been nonempty for [5m/300000ms] which is longer than the warn threshold of [300000ms];"
-                    + " there are currently [2] pending tasks, the oldest of which has age [*"
+                """
+                    pending task queue has been nonempty for [5m/300000ms] which is longer than the warn threshold of [300000ms]; \
+                    there are currently [2] pending tasks, the oldest of which has age [*"""
             );
-            mockLog.addExpectation(expectation1);
+            mockLog.addExpectation(warnExpectation1);
+
+            final MockLog.EventuallySeenEventExpectation infoExpectation1 = new MockLog.EventuallySeenEventExpectation(
+                "5m recent tasks info",
+                MasterService.class.getCanonicalName(),
+                Level.INFO,
+                """
+                    recent cluster state updates while pending task queue has been nonempty (max 200, starting with the most recent): \
+                    [HIGH]: unbatched[starvation-causing task 299], \
+                    [HIGH]: unbatched[starvation-causing task 298], \
+                    [HIGH]: unbatched[starvation-causing task 297], \
+                    *, ... (200 in total, 29 omitted)"""
+            );
+            mockLog.addExpectation(infoExpectation1);
 
             while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis) {
                 awaitNextTask.run();
                 mockLog.assertAllExpectationsMatched();
             }
 
-            expectation1.setExpectSeen();
+            warnExpectation1.setExpectSeen();
+            infoExpectation1.setExpectSeen();
             awaitNextTask.run();
             // the master service thread is somewhere between completing the previous task and starting the next one, which is when the
             // logging happens, so we must wait for another task to run too to ensure that the message was logged
@@ -1832,21 +1849,21 @@ public class MasterServiceTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
 
             // check that another warning is logged after 10m
-            final MockLog.EventuallySeenEventExpectation expectation2 = new MockLog.EventuallySeenEventExpectation(
+            final MockLog.EventuallySeenEventExpectation warnExpectation2 = new MockLog.EventuallySeenEventExpectation(
                 "starvation warning",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
                 "pending task queue has been nonempty for [10m/600000ms] which is longer than the warn threshold of [300000ms];"
                     + " there are currently [2] pending tasks, the oldest of which has age [*"
             );
-            mockLog.addExpectation(expectation2);
+            mockLog.addExpectation(warnExpectation2);
 
             while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis * 2) {
                 awaitNextTask.run();
                 mockLog.assertAllExpectationsMatched();
             }
 
-            expectation2.setExpectSeen();
+            warnExpectation2.setExpectSeen();
             awaitNextTask.run();
             // the master service thread is somewhere between completing the previous task and starting the next one, which is when the
             // logging happens, so we must wait for another task to run too to ensure that the message was logged
@@ -2182,7 +2199,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof FailedToCommitClusterStateException
+                    if ((e instanceof NotMasterException
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);
@@ -2249,7 +2266,7 @@ public class MasterServiceTests extends ESTestCase {
             ).submitTask(source, new ClusterStateTaskListener() {
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof FailedToCommitClusterStateException
+                    if (e instanceof NotMasterException
                         && e.getMessage().startsWith("could not schedule timeout handler")
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()
@@ -2361,7 +2378,7 @@ public class MasterServiceTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
-                    if ((e instanceof FailedToCommitClusterStateException
+                    if ((e instanceof NotMasterException
                         && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);

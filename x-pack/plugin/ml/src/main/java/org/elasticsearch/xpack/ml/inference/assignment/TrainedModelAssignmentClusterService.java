@@ -613,21 +613,21 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private TrainedModelAssignmentMetadata.Builder rebalanceAssignments(
         ClusterState currentState,
         Optional<CreateTrainedModelAssignmentAction.Request> createAssignmentRequest
-    ) throws Exception {
-        List<DiscoveryNode> nodes = getAssignableNodes(currentState);
-        logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
-        Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
+    ) {
+        List<DiscoveryNode> assignableNodes = getAssignableNodes(currentState);
+        logger.debug(() -> format("assignable nodes are %s", assignableNodes.stream().map(DiscoveryNode::getId).toList()));
+        Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(assignableNodes, currentState);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
 
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
             currentMetadata,
             nodeLoads,
-            nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
+            nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(assignableNodes),
             createAssignmentRequest,
             allocatedProcessorsScale
         );
 
-        Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        Set<String> shuttingDownNodeIds = nodesShuttingDown(currentState);
         /*
          * To signal that we should gracefully stop the deployments routed to a particular node we set the routing state to stopping.
          * The TrainedModelAssignmentNodeService will see that the route is in stopping for a shutting down node and gracefully shut down
@@ -643,7 +643,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             checkModelIsFullyAllocatedIfScalingIsNotPossible(
                 createAssignmentRequest.get().getTaskParams().getDeploymentId(),
                 rebalanced,
-                nodes
+                assignableNodes
             );
         }
 
@@ -968,8 +968,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         ActionListener<TrainedModelAssignmentMetadata.Builder> listener
     ) {
+        List<DiscoveryNode> assignableNodes = getAssignableNodes(clusterState);
         TrainedModelAssignment.Builder updatedAssignment = numberOfAllocations < assignment.totalTargetAllocations()
-            ? new AllocationReducer(assignment, nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(clusterState)).reduceTo(
+            ? new AllocationReducer(assignment, nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(assignableNodes)).reduceTo(
                 numberOfAllocations
             )
             : TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations);

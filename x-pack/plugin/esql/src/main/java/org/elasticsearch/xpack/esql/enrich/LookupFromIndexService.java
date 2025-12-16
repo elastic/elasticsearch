@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.elasticsearch.TransportVersions;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,7 +22,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.lookup.ExpressionQueryList;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
@@ -32,12 +33,16 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,6 +57,10 @@ import java.util.stream.Collectors;
  */
 public class LookupFromIndexService extends AbstractLookupService<LookupFromIndexService.Request, LookupFromIndexService.TransportRequest> {
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
+    private static final Logger logger = LogManager.getLogger(LookupFromIndexService.class);
+
+    private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
+    private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -88,7 +97,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             null,
             request.extractFields,
             request.matchFields,
-            request.source
+            request.source,
+            request.rightPreJoinPlan,
+            request.joinOnConditions
         );
     }
 
@@ -100,22 +111,44 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Block inputBlock,
         Warnings warnings
     ) {
-        List<QueryList> queryLists = new ArrayList<>();
-        for (int i = 0; i < request.matchFields.size(); i++) {
-            MatchConfig matchField = request.matchFields.get(i);
-            QueryList q = termQueryList(
-                context.getFieldType(matchField.fieldName().string()),
-                context,
-                aliasFilter,
-                request.inputPage.getBlock(matchField.channel()),
-                matchField.type()
-            ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
-            queryLists.add(q);
+        PhysicalPlan lookupNodePlan = localLookupNodePlanning(request.rightPreJoinPlan);
+        if (request.joinOnConditions == null) {
+            // this is a field based join
+            List<QueryList> queryLists = new ArrayList<>();
+            for (int i = 0; i < request.matchFields.size(); i++) {
+                MatchConfig matchField = request.matchFields.get(i);
+                QueryList q = termQueryList(
+                    context.getFieldType(matchField.fieldName()),
+                    context,
+                    aliasFilter,
+                    request.inputPage.getBlock(matchField.channel()),
+                    matchField.type()
+                ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
+                queryLists.add(q);
+            }
+            if (queryLists.size() == 1 && lookupNodePlan instanceof FilterExec == false) {
+                return queryLists.getFirst();
+            }
+            return ExpressionQueryList.fieldBasedJoin(queryLists, context, lookupNodePlan, clusterService, aliasFilter);
+        } else {
+            // this is an expression based join
+            return ExpressionQueryList.expressionBasedJoin(context, lookupNodePlan, clusterService, request, aliasFilter, warnings);
         }
-        if (queryLists.size() == 1) {
-            return queryLists.getFirst();
-        }
-        return new ExpressionQueryList(queryLists);
+
+    }
+
+    /**
+     * This function will perform any planning needed on the local node
+     * For now, we will just do mapping of the logical plan to physical plan
+     * In the future we can also do local physical and logical optimizations.
+     * We only support a FragmentExec node containing a logical plan or a null plan
+     * If any other plan is sent we will just return null. This can happen in cases
+     * where the coordinator is running an older version that does not support
+     * keeping the plan as Logical Plan inside FragmentExec yet
+     * In those cases, it is safe to ignore the plan sent and return null
+     */
+    private static PhysicalPlan localLookupNodePlanning(PhysicalPlan physicalPlan) {
+        return physicalPlan instanceof FragmentExec fragmentExec ? LocalMapper.INSTANCE.map(fragmentExec.fragment()) : null;
     }
 
     @Override
@@ -130,6 +163,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public static class Request extends AbstractLookupService.Request {
         private final List<MatchConfig> matchFields;
+        private final PhysicalPlan rightPreJoinPlan;
+        private final Expression joinOnConditions;
 
         Request(
             String sessionId,
@@ -138,15 +173,28 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<MatchConfig> matchFields,
             Page inputPage,
             List<NamedExpression> extractFields,
-            Source source
+            Source source,
+            PhysicalPlan rightPreJoinPlan,
+            Expression joinOnConditions
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
+            this.rightPreJoinPlan = rightPreJoinPlan;
+            this.joinOnConditions = joinOnConditions;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
+
+        private static final TransportVersion JOIN_ON_ALIASES = TransportVersion.fromName("join_on_aliases");
+        private static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = TransportVersion.fromName(
+            "esql_lookup_join_on_many_fields"
+        );
+        private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
+
         private final List<MatchConfig> matchFields;
+        private final PhysicalPlan rightPreJoinPlan;
+        private final Expression joinOnConditions;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -158,10 +206,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page toRelease,
             List<NamedExpression> extractFields,
             List<MatchConfig> matchFields,
-            Source source
+            Source source,
+            PhysicalPlan rightPreJoinPlan,
+            Expression joinOnConditions
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
+            this.rightPreJoinPlan = rightPreJoinPlan;
+            this.joinOnConditions = joinOnConditions;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -170,15 +222,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ShardId shardId = new ShardId(in);
 
             String indexPattern;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+            if (in.getTransportVersion().supports(JOIN_ON_ALIASES)) {
                 indexPattern = in.readString();
             } else {
                 indexPattern = shardId.getIndexName();
             }
 
             DataType inputDataType = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
                 inputDataType = DataType.fromTypeName(in.readString());
             }
 
@@ -189,23 +240,28 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             List<MatchConfig> matchFields = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
                 matchFields = planIn.readCollectionAsList(MatchConfig::new);
             } else {
                 String matchField = in.readString();
                 // For older versions, we only support a single match field.
                 matchFields = new ArrayList<>(1);
-                matchFields.add(new MatchConfig(new FieldAttribute.FieldName(matchField), 0, inputDataType));
+                matchFields.add(new MatchConfig(matchField, 0, inputDataType));
             }
-            var source = Source.EMPTY;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source = Source.readFrom(planIn);
-            }
+            var source = Source.readFrom(planIn);
             // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
             // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
+            }
+            PhysicalPlan rightPreJoinPlan = null;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+                rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
+            }
+            Expression joinOnConditions = null;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+                joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -215,10 +271,20 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 inputPage,
                 extractFields,
                 matchFields,
-                source
+                source,
+                rightPreJoinPlan,
+                joinOnConditions
             );
             result.setParentTask(parentTaskId);
             return result;
+        }
+
+        public Expression getJoinOnConditions() {
+            return joinOnConditions;
+        }
+
+        public List<MatchConfig> getMatchFields() {
+            return matchFields;
         }
 
         @Override
@@ -227,13 +293,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(sessionId);
             out.writeWriteable(shardId);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+            if (out.getTransportVersion().supports(JOIN_ON_ALIASES)) {
                 out.writeString(indexPattern);
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
                 throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
                 // only write this for old versions
                 // older versions only support a single match field
                 if (matchFields.size() > 1) {
@@ -244,25 +309,36 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
                 // serialize all match fields for new versions
                 planOut.writeCollection(matchFields, (o, matchConfig) -> matchConfig.writeTo(o));
             } else {
                 // older versions only support a single match field, we already checked this above when writing the datatype
                 // send the field name of the first and only match field here
-                out.writeString(matchFields.get(0).fieldName().string());
+                out.writeString(matchFields.get(0).fieldName());
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source.writeTo(planOut);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+            source.writeTo(planOut);
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
+                planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+                planOut.writeOptionalNamedWriteable(joinOnConditions);
+            } else {
+                if (joinOnConditions != null) {
+                    throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
+                }
             }
         }
 
         @Override
         protected String extraDescription() {
-            return " ,match_fields=" + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "));
+            return " ,match_fields="
+                + matchFields.stream().map(MatchConfig::fieldName).collect(Collectors.joining(", "))
+                + ", right_pre_join_plan="
+                + (rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
         }
     }
 

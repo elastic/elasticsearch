@@ -49,14 +49,13 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -65,6 +64,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -162,6 +162,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
         primary.ensureMutable(listener.delegateFailure((l, ignored) -> super.shardOperationOnPrimary(request, primary, l)), true);
+    }
+
+    @Override
+    protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request) {
+        return ShardBulkSplitHelper.splitRequests(request, projectResolver.getProjectMetadata(clusterService.state()));
+    }
+
+    @Override
+    protected Tuple<BulkShardResponse, Exception> combineSplitResponses(
+        BulkShardRequest originalRequest,
+        Map<ShardId, BulkShardRequest> splitRequests,
+        Map<ShardId, Tuple<BulkShardResponse, Exception>> responses
+    ) {
+        return ShardBulkSplitHelper.combineResponses(originalRequest, splitRequests, responses);
     }
 
     @Override
@@ -366,8 +380,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
-                var gFields = getStoredFieldsSpec(context.getPrimary());
-                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier, gFields);
+                updateResult = updateHelper.prepare(
+                    updateRequest,
+                    context.getPrimary(),
+                    nowInMillisSupplier,
+                    // Include inference fields so that partial updates can still retrieve embeddings for fields that weren't updated.
+                    FetchSourceContext.FETCH_ALL_SOURCE
+                );
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
@@ -414,8 +433,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
+                request.getDynamicTemplateParams(),
                 request.getIncludeSourceOnError(),
-                meteringParserDecorator
+                meteringParserDecorator,
+                request.tsid()
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -441,16 +462,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         onComplete(result, context, updateResult);
         return true;
-    }
-
-    private static String[] getStoredFieldsSpec(IndexShard indexShard) {
-        if (InferenceMetadataFieldsMapper.isEnabled(indexShard.mapperService().mappingLookup())) {
-            if (indexShard.mapperService().mappingLookup().inferenceFields().size() > 0) {
-                // Retrieves the inference metadata field containing the inference results for all semantic fields defined in the mapping.
-                return new String[] { RoutingFieldMapper.NAME, InferenceMetadataFieldsMapper.NAME };
-            }
-        }
-        return new String[] { RoutingFieldMapper.NAME };
     }
 
     private static boolean handleMappingUpdateRequired(
@@ -743,7 +754,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),
-                    indexRequest.routing()
+                    indexRequest.routing(),
+                    Map.of(),
+                    Map.of(),
+                    true,
+                    XContentMeteringParserDecorator.NOOP,
+                    indexRequest.tsid()
                 );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),

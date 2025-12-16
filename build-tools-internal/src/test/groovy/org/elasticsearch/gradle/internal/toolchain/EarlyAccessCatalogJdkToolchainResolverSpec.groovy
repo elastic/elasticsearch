@@ -12,8 +12,8 @@ package org.elasticsearch.gradle.internal.toolchain
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaToolchainDownload
 import org.gradle.jvm.toolchain.JavaToolchainResolver
-import org.gradle.jvm.toolchain.JvmVendorSpec
 
 import static org.gradle.platform.Architecture.AARCH64
 import static org.gradle.platform.Architecture.X86_64
@@ -29,12 +29,44 @@ class EarlyAccessCatalogJdkToolchainResolverSpec extends AbstractToolchainResolv
             }
         }
         resolver.earlyAccessJdkBuildResolver = (JavaLanguageVersion version) -> {
-            return Optional.of(
-                new EarlyAccessCatalogJdkToolchainResolver.EarlyAccessJdkBuild(version, 30)
-            )
+            new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(version, 30, 'ea')
         }
         return resolver
     }
+
+    def "resolves rc versions #os #arch #vendor jdk #langVersion"() {
+        given:
+        def resolver = new EarlyAccessCatalogJdkToolchainResolver() {
+            @Override
+            BuildServiceParameters.None getParameters() {
+                return null
+            }
+        }
+        resolver.earlyAccessJdkBuildResolver = (JavaLanguageVersion version) -> {
+            new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(version, 30, 'rc')
+        }
+        when:
+        Optional<JavaToolchainDownload> download = resolver.resolve(request(JavaLanguageVersion.of(langVersion), vendor, platform(os, arch)))
+
+        then:
+        download.get().uri == URI.create(expectedUrl)
+        where:
+
+        [langVersion, vendor, os, arch, expectedUrl] << [
+            [25, anyVendor(), LINUX, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-rc+30/openjdk-25_linux-x64_bin.tar.gz"],
+            [25, anyVendor(), LINUX, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-rc+30/openjdk-25_linux-aarch64_bin.tar.gz"],
+            [25, anyVendor(), MAC_OS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-rc+30/openjdk-25_macos-x64_bin.tar.gz"],
+            [25, anyVendor(), MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-rc+30/openjdk-25_macos-aarch64_bin.tar.gz"],
+            [25, anyVendor(), WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/25/openjdk-25-rc+30/openjdk-25_windows-x64_bin.zip"],
+
+            [26, anyVendor(), LINUX, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-rc+30/openjdk-26_linux-x64_bin.tar.gz"],
+            [26, anyVendor(), LINUX, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-rc+30/openjdk-26_linux-aarch64_bin.tar.gz"],
+            [26, anyVendor(), MAC_OS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-rc+30/openjdk-26_macos-x64_bin.tar.gz"],
+            [26, anyVendor(), MAC_OS, AARCH64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-rc+30/openjdk-26_macos-aarch64_bin.tar.gz"],
+            [26, anyVendor(), WINDOWS, X86_64, "https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-rc+30/openjdk-26_windows-x64_bin.zip"]
+        ]
+    }
+
 
     @Override
     def supportedRequests() {

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Time spans"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-time-spans.html
@@ -117,7 +120,7 @@ POST /_query
 | week | w, weeks |
 | day | d, days |
 | hour | h, hours |
-| minute | min, minutes |
+| minute | m, min, minutes |
 | second | s, sec, seconds |
 | millisecond | ms, milliseconds |
 

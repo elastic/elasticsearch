@@ -15,11 +15,11 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -301,8 +301,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
-        addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
-        addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
+        try {
+            // disable tracking of the @timestamp range for must_not and should clauses
+            context.setTrackTimeRangeFilterFrom(false);
+            addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
+            addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
+        } finally {
+            context.setTrackTimeRangeFilterFrom(true);
+        }
         addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
@@ -313,16 +319,31 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
-    private static void addBooleanClauses(
+    private void addBooleanClauses(
         SearchExecutionContext context,
         BooleanQuery.Builder booleanQueryBuilder,
         List<QueryBuilder> clauses,
         Occur occurs
     ) throws IOException {
         for (QueryBuilder query : clauses) {
-            Query luceneQuery = query.toQuery(context);
-            booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
+                autoPrefilteringScope.push(collectPrefilters(query));
+                Query luceneQuery = query.toQuery(context);
+                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            }
         }
+    }
+
+    private List<QueryBuilder> collectPrefilters(QueryBuilder excluded) {
+        List<QueryBuilder> prefilters = new ArrayList<>();
+        mustClauses.stream().filter(q -> q != excluded).forEach(prefilters::add);
+        filterClauses.stream().filter(q -> q != excluded).forEach(prefilters::add);
+        mustNotClauses.stream().filter(q -> q != excluded).map(BoolQueryBuilder::invertQuery).forEach(prefilters::add);
+        return prefilters;
+    }
+
+    private static QueryBuilder invertQuery(QueryBuilder queryBuilder) {
+        return QueryBuilders.boolQuery().mustNot(queryBuilder);
     }
 
     @Override
@@ -349,9 +370,23 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return new MatchAllQueryBuilder().boost(boost()).queryName(queryName());
         }
         changed |= rewriteClauses(queryRewriteContext, mustClauses, newBuilder::must);
-        changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
+
+        try {
+            // disable tracking of the @timestamp range for must_not clauses
+            queryRewriteContext.setTrackTimeRangeFilterFrom(false);
+            changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
+        } finally {
+            queryRewriteContext.setTrackTimeRangeFilterFrom(true);
+        }
         changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
-        changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
+        try {
+            // disable tracking of the @timestamp range for should clauses
+            queryRewriteContext.setTrackTimeRangeFilterFrom(false);
+            changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
+        } finally {
+            queryRewriteContext.setTrackTimeRangeFilterFrom(true);
+        }
+
         // early termination when must clause is empty and optional clauses is returning MatchNoneQueryBuilder
         if (mustClauses.size() == 0
             && filterClauses.size() == 0
@@ -407,7 +442,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     /**

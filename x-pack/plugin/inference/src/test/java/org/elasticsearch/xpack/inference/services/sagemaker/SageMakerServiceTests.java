@@ -19,19 +19,21 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStre
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,6 +59,7 @@ import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -68,13 +72,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class SageMakerServiceTests extends ESTestCase {
+public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private static final String QUERY = "query";
     private static final List<String> INPUT = List.of("input");
@@ -445,7 +450,7 @@ public class SageMakerServiceTests extends ESTestCase {
         var model = mockModelForChunking();
 
         SageMakerSchema schema = mock();
-        when(schema.response(any(), any(), any())).thenReturn(TextEmbeddingFloatResultsTests.createRandomResults());
+        when(schema.response(any(), any(), any())).thenReturn(DenseEmbeddingFloatResultsTests.createRandomResults());
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvoke();
 
@@ -465,6 +470,30 @@ public class SageMakerServiceTests extends ESTestCase {
             }))
         );
         verify(client, times(2)).invoke(any(), any(), any(), any());
+        verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    public void testChunkedInfer_noInputs() throws Exception {
+        var model = mockModelForChunking();
+
+        SageMakerSchema schema = mock();
+        when(schemas.schemaFor(model)).thenReturn(schema);
+        mockInvoke();
+
+        sageMakerService.chunkedInfer(
+            model,
+            QUERY,
+            List.of(),
+            null,
+            INPUT_TYPE,
+            THIRTY_SECONDS,
+            assertOnce(assertNoFailureListener(chunkedInferences -> {
+                verify(schemas, never()).schemaFor(any());
+                verify(schema, never()).request(any(), any());
+                verify(schema, never()).response(any(), any(), any());
+            }))
+        );
+        verify(client, never()).invoke(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
@@ -524,4 +553,17 @@ public class SageMakerServiceTests extends ESTestCase {
         verify(client, only()).close();
     }
 
+    @Override
+    public InferenceService createInferenceService() {
+        when(schemas.supportedTaskTypes()).thenReturn(EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.COMPLETION));
+        return sageMakerService;
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("any model"),
+            is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
+    }
 }

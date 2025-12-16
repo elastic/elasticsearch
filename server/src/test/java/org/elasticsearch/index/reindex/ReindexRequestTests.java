@@ -162,7 +162,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         );
     }
 
-    public void testReindexFromRemoteDoesNotSupportSlices() {
+    public void testReindexFromRemoteDoesNotSupportSlicesParameterGreaterThan1() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
             new RemoteInfo(
@@ -178,12 +178,107 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                 RemoteInfo.DEFAULT_CONNECT_TIMEOUT
             )
         );
+        // Enable automatic slicing with a random number of slices greater than 1 (like setting the slices URL parameter):
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
             "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
             e.getMessage()
         );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesParameterSetToAuto() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable automatic slicing with an automatically chosen number of slices (like setting the slices URL parameter to "auto"):
+        reindex.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesSourceField() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable manual slicing (like setting source.slice.max and source.slice.id in the request body):
+        int numSlices = randomIntBetween(2, Integer.MAX_VALUE);
+        int sliceId = randomIntBetween(0, numSlices - 1);
+        reindex.getSearchRequest().source().slice(new SliceBuilder(sliceId, numSlices));
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support source.slice but was ["
+                + reindex.getSearchRequest().source().slice()
+                + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteRejectsUsernameWithNoPassword() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                "user",
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: reindex from remote source included username but not password;", e.getMessage());
+    }
+
+    public void testReindexFromRemoteRejectsPasswordWithNoUsername() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                new SecureString("password".toCharArray()),
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: reindex from remote source included password but not username;", e.getMessage());
     }
 
     public void testNoSliceBuilderSetWithSlicedRequest() {
@@ -323,6 +418,45 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("https"));
         assertEquals("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [https]", exception.getMessage());
+    }
+
+    public void testBuildRemoteInfoWithApiKey() throws IOException {
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(remoteInfo.getHeaders(), Map.of("Authorization", "ApiKey l3t-m3-1n"));
+    }
+
+    public void testBuildRemoteInfoWithApiKeyAndOtherHeaders() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("X-Routing-Magic", "Abracadabra");
+        originalHeaders.put("X-Tracing-Magic", "12345");
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(
+            remoteInfo.getHeaders(),
+            Map.of("X-Routing-Magic", "Abracadabra", "X-Tracing-Magic", "12345", "Authorization", "ApiKey l3t-m3-1n")
+        );
+    }
+
+    public void testBuildRemoteInfoWithConflictingApiKeyAndAuthorizationHeader() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("aUtHoRiZaTiOn", "op3n-s3s4m3"); // non-standard capitalization, but HTTP headers are not case-sensitive
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        assertThrows(IllegalArgumentException.class, () -> ReindexRequest.buildRemoteInfo(source));
     }
 
     public void testReindexFromRemoteRequestParsing() throws IOException {

@@ -1,0 +1,133 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.compute.aggregation.TDigestStates;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.getCastEvaluator;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.getSuppliersForNumericType;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
+
+public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
+
+    public HistogramPercentileTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+
+        List<TestCaseSupplier.TypedDataSupplier> validPercentileSuppliers = Stream.of(
+            DataType.DOUBLE,
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.UNSIGNED_LONG
+        ).filter(DataType::isNumeric).flatMap(type -> getSuppliersForNumericType(type, 0.0, 100.0, true).stream()).toList();
+
+        List<Double> invalidPercentileValues = List.of(-0.01, 100.05, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+
+        List<TestCaseSupplier.TypedDataSupplier> invalidPercentileSuppliers = invalidPercentileValues.stream()
+            .map(value -> new TestCaseSupplier.TypedDataSupplier("<" + value + " double>", () -> value, DataType.DOUBLE))
+            .toList();
+
+        List<TestCaseSupplier.TypedDataSupplier> allPercentiles = Stream.concat(
+            validPercentileSuppliers.stream(),
+            invalidPercentileSuppliers.stream()
+        ).toList();
+
+        List<TestCaseSupplier.TypedDataSupplier> histogramInputs = new ArrayList<>();
+        histogramInputs.addAll(TestCaseSupplier.exponentialHistogramCases());
+        if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
+            histogramInputs.addAll(TestCaseSupplier.tdigestCases());
+        }
+
+        TestCaseSupplier.casesCrossProduct((histogramObj, percentileObj) -> {
+            Number percentile = (Number) percentileObj;
+            double percVal = percentile.doubleValue();
+            if (percVal < 0 || percVal > 100 || Double.isNaN(percVal)) {
+                return null;
+            }
+            double result = getExpectedPercentile(histogramObj, percVal);
+            return Double.isNaN(result) ? null : result;
+        },
+            histogramInputs,
+            allPercentiles,
+            HistogramPercentileTests::getEvaluatorToStringMatcher,
+            (typedHistoData, typedPercentileData) -> {
+                Object percentile = typedPercentileData.getValue();
+                if (invalidPercentileValues.contains(percentile)) {
+                    return List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.ArithmeticException: Percentile value must be in the range [0, 100], got: " + percentile
+                    );
+                } else {
+                    return List.of();
+                }
+            },
+            suppliers,
+            DataType.DOUBLE,
+            false
+        );
+
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static double getExpectedPercentile(Object histogramObj, double percVal) {
+        return switch (histogramObj) {
+            case ExponentialHistogram expHisto -> ExponentialHistogramQuantile.getQuantile(expHisto, percVal / 100.0);
+            case TDigestHolder tdigest -> {
+                try (TDigestState scratch = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION)) {
+                    tdigest.addTo(scratch);
+                    yield scratch.quantile(percVal / 100.0);
+                }
+            }
+            default -> throw new IllegalStateException("Not a histogram object [" + histogramObj + "]");
+        };
+    }
+
+    private static Matcher<String> getEvaluatorToStringMatcher(DataType histoType, DataType percentileType) {
+
+        String percentileEvaluatorName = getCastEvaluator("Attribute[channel=1]", percentileType, DataType.DOUBLE);
+        return switch (histoType) {
+            case EXPONENTIAL_HISTOGRAM -> equalTo(
+                "HistogramPercentileExponentialHistogramEvaluator[value=Attribute[channel=0], percentile=" + percentileEvaluatorName + "]"
+            );
+            case TDIGEST -> startsWith(
+                "HistogramPercentileTDigestEvaluator[value=Attribute[channel=0], percentile=" + percentileEvaluatorName + ", breaker="
+            );
+            default -> throw new IllegalStateException("Not a histogram type: " + histoType);
+        };
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new HistogramPercentile(source, args.get(0), args.get(1));
+    }
+
+}

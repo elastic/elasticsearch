@@ -18,12 +18,15 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -40,7 +43,7 @@ import static org.mockito.Mockito.when;
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static KeyedFlattenedFieldType createFieldType() {
-        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap(), false);
+        return new KeyedFlattenedFieldType("field", IndexType.terms(true, true), "key", false, Collections.emptyMap(), false);
     }
 
     public void testIndexedValueForSearch() {
@@ -67,8 +70,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType(
             "field",
-            false,
-            true,
+            IndexType.terms(false, true),
             "key",
             false,
             Collections.emptyMap(),
@@ -186,6 +188,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Map<String, Object> sourceValue = Map.of("key", "value");
 
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath("field.key")).thenReturn(Set.of("field.key"));
 

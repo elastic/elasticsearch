@@ -2,9 +2,13 @@
 
 **Supported types**
 
-| field | result |
-| --- | --- |
-| double | double |
-| integer | integer |
-| long | long |
+| field | window | result |
+| --- | --- | --- |
+| counter_double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| counter_integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
+| counter_long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| exponential_histogram | time_duration {applies_to}`stack: preview 9.3.0` | exponential_histogram |
+| integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
+| long | time_duration {applies_to}`stack: preview 9.3.0` | long |
 

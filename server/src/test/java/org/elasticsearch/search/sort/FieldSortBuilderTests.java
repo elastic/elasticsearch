@@ -22,6 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
@@ -720,6 +721,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     private void assertIntegerSortRewrite(IndexVersion version, SortField.Type expectedType) throws IOException {
         FieldSortBuilder builder = new FieldSortBuilder("custom-integer");
         SortFieldAndFormat sff = builder.build(createMockSearchExecutionContext(version));
+        if (sff.field().getType() == SortField.Type.LONG) {
+            assertThat(sff.field(), instanceOf(SortedNumericSortField.class));
+        }
         SortField sf = Lucene.rewriteMergeSortField(sff.field());
         assertThat(sf.getType(), equalTo(expectedType));
     }

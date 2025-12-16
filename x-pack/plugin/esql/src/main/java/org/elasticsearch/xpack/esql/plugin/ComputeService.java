@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -201,6 +202,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -233,7 +235,8 @@ public class ComputeService {
                 null,
                 listener,
                 null,
-                initialClusterStatuses
+                initialClusterStatuses,
+                planTimeProfile
             );
             return;
         }
@@ -281,7 +284,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute());
+                runCompute(rootTask, computeContext, mainPlan, planTimeProfile, localListener.acquireCompute());
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -310,7 +313,8 @@ public class ComputeService {
                             subPlanListener.onFailure(e);
                         }),
                         () -> exchangeSink.createExchangeSink(() -> {}),
-                        initialClusterStatuses
+                        initialClusterStatuses,
+                        configuration.profile() ? new PlanTimeProfile() : null
                     );
                 }
             }
@@ -328,7 +332,8 @@ public class ComputeService {
         String profileQualifier,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
-        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        PlanTimeProfile planTimeProfile
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
@@ -382,7 +387,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, planTimeProfile, computeListener.acquireCompute());
                 return;
             }
         } else {
@@ -463,6 +468,7 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
+                        planTimeProfile,
                         localListener.acquireCompute()
                     );
                     // starts computes on data nodes on the main cluster
@@ -631,7 +637,13 @@ public class ComputeService {
         ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
@@ -665,7 +677,8 @@ public class ComputeService {
                 new ArrayList<>(context.searchExecutionContexts().collection()),
                 context.configuration(),
                 context.foldCtx(),
-                plan
+                plan,
+                planTimeProfile
             );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
@@ -690,7 +703,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan);
+            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan, planTimeProfile);
             driverRunner.executeDrivers(
                 task,
                 drivers,
@@ -708,7 +721,8 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener,
         List<Driver> drivers,
         ComputeContext context,
-        PhysicalPlan localPlan
+        PhysicalPlan localPlan,
+        PlanTimeProfile planTimeProfile
     ) {
         /*
          * We *really* don't want to close over the localPlan because it can
@@ -717,34 +731,27 @@ public class ComputeService {
         boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
         String planString = needPlanString ? localPlan.toString() : null;
         return listener.map(ignored -> {
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug(
-                    "finished {}",
-                    DriverCompletionInfo.includingProfiles(
-                        drivers,
-                        context.description(),
-                        clusterService.getClusterName().value(),
-                        transportService.getLocalNode().getName(),
-                        planString
-                    )
-                );
-                /*
-                 * planString *might* be null if we *just* set DEBUG to *after*
-                 * we built the listener but before we got here. That's something
-                 * we can live with.
-                 */
-            }
-            if (context.configuration().profile()) {
-                return DriverCompletionInfo.includingProfiles(
+            if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
+                DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(
                     drivers,
                     context.description(),
                     clusterService.getClusterName().value(),
                     transportService.getLocalNode().getName(),
-                    planString
+                    planString,
+                    planTimeProfile
                 );
-            } else {
-                return DriverCompletionInfo.excludingProfiles(drivers);
+                LOGGER.debug("finished {}", driverCompletionInfo);
+                if (context.configuration().profile()) {
+                    /*
+                     * planString *might* be null if we *just* set DEBUG to *after*
+                     * we built the listener but before we got here. That's something
+                     * we can live with.
+                     */
+                    return driverCompletionInfo;
+                }
             }
+
+            return DriverCompletionInfo.excludingProfiles(drivers);
         });
     }
 
@@ -755,8 +762,10 @@ public class ComputeService {
         FoldContext foldCtx,
         ExchangeSinkExec originalPlan,
         boolean runNodeLevelReduction,
-        boolean reduceNodeLateMaterialization
+        boolean reduceNodeLateMaterialization,
+        PlanTimeProfile planTimeProfile
     ) {
+        long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
@@ -768,7 +777,7 @@ public class ComputeService {
             originalPlan
         );
         // The default plan is just the exchange source piped directly into the exchange sink.
-        return switch (PlannerUtils.reductionPlan(originalPlan)) {
+        ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
@@ -783,6 +792,10 @@ public class ComputeService {
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> defaultResult;
         };
+        if (planTimeProfile != null) {
+            planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
+        }
+        return reductionPlan;
     }
 
     String newChildSession(String session) {

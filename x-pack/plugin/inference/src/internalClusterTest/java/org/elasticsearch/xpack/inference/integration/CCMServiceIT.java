@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -16,10 +17,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.inference.external.request.RequestUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMModel;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
@@ -42,9 +43,12 @@ import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExe
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
 import static org.elasticsearch.xpack.inference.integration.ModelRegistryIT.buildElserModelConfig;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class CCMServiceIT extends CCMSingleNodeIT {
+    private static final String API_KEY = "secret";
     private static final AtomicReference<CCMService> ccmService = new AtomicReference<>();
 
     private static final MockWebServer webServer = new MockWebServer();
@@ -75,8 +79,6 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
     @BeforeClass
     public static void initClass() throws IOException {
-        assumeTrue("CCM is behind a feature flag and snapshot only right now", CCMFeatureFlag.FEATURE_FLAG.isEnabled());
-
         webServer.start();
         gatewayUrl = getUrl(webServer);
         chatCompletionResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse(
@@ -122,10 +124,14 @@ public class CCMServiceIT extends CCMSingleNodeIT {
     }
 
     public void testIsEnabled_ReturnsFalse_WhenNoCCMConfigurationStored() {
-        var listener = new PlainActionFuture<Boolean>();
-        ccmService.get().isEnabled(listener);
+        assertCCMDisabled();
+    }
 
-        assertFalse(listener.actionGet(TimeValue.THIRTY_SECONDS));
+    public void testIsEnabled_ReturnsFalse_WhenCCMConfigurationRemoved() {
+        assertStoreCCMConfiguration();
+        disableCCM();
+
+        assertCCMDisabled();
     }
 
     public void testIsEnabled_ReturnsTrue_WhenCCMConfigurationIsPresent() {
@@ -140,13 +146,15 @@ public class CCMServiceIT extends CCMSingleNodeIT {
     public void testCreatesEisChatCompletionEndpoint() throws Exception {
         disableCCM();
         waitForNoTask(AUTH_TASK_ACTION, admin());
+        assertCCMDisabled();
 
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints, empty());
 
+        webServer.clearRequests();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         var listener = new TestPlainActionFuture<Void>();
-        ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
+        ccmService.get().storeConfiguration(new CCMModel(new SecureString(API_KEY.toCharArray())), listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
 
         // Force a cluster state update to ensure the authorization task is created
@@ -155,7 +163,17 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         waitForTask(AUTH_TASK_ACTION, admin());
         waitForAuthorizationToComplete(authorizationTaskExecutor);
 
+        assertHasRequestWithAuth();
+
         assertChatCompletionEndpointExists(modelRegistry);
+    }
+
+    private void assertHasRequestWithAuth() throws Exception {
+        assertBusy(() -> {
+            var requests = webServer.requests();
+            assertThat(requests.size(), is(1));
+            assertThat(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION), is(RequestUtils.apiKey(API_KEY)));
+        });
     }
 
     private void forceClusterUpdate() {
@@ -165,10 +183,13 @@ public class CCMServiceIT extends CCMSingleNodeIT {
 
     public void testDisableCCM_RemovesAuthorizationTask() throws Exception {
         disableCCM();
+        assertCCMDisabled();
         waitForNoTask(AUTH_TASK_ACTION, admin());
 
+        webServer.clearRequests();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         var listener = new TestPlainActionFuture<Void>();
-        ccmService.get().storeConfiguration(new CCMModel(new SecureString("secret".toCharArray())), listener);
+        ccmService.get().storeConfiguration(new CCMModel(new SecureString(API_KEY.toCharArray())), listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
 
         // Force a cluster state update to ensure the authorization task is created
@@ -177,7 +198,17 @@ public class CCMServiceIT extends CCMSingleNodeIT {
         waitForTask(AUTH_TASK_ACTION, admin());
         waitForAuthorizationToComplete(authorizationTaskExecutor);
 
+        assertHasRequestWithAuth();
+
         disableCCM();
+        assertCCMDisabled();
         waitForNoTask(AUTH_TASK_ACTION, admin());
+    }
+
+    private void assertCCMDisabled() {
+        var listener = new PlainActionFuture<Boolean>();
+        ccmService.get().isEnabled(listener);
+
+        assertFalse(listener.actionGet(TimeValue.THIRTY_SECONDS));
     }
 }

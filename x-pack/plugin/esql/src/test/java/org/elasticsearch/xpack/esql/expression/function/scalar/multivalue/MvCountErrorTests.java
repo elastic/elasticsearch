@@ -43,8 +43,13 @@ public class MvCountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     }
 
     @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat("all signatures except dense_vector and aggregate_metric_double should be supported", checked, equalTo(2));
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
+        assertThat(
+            invalidSignatureSamples,
+            equalTo(
+                Set.of(List.of(DataType.DENSE_VECTOR), List.of(DataType.EXPONENTIAL_HISTOGRAM), List.of(DataType.AGGREGATE_METRIC_DOUBLE))
+            )
+        );
     }
 
 }

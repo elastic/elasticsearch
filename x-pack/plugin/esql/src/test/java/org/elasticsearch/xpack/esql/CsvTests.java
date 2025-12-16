@@ -404,7 +404,7 @@ public class CsvTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         var actualResults = executePlan(bigArrays);
         try {
-            var expected = loadCsvSpecValues(testCase.expectedResults);
+            ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
 
             var log = logResults() ? LOGGER : null;
             assertResults(expected, actualResults, testCase.ignoreOrder, log);

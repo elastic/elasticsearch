@@ -1,3 +1,0 @@
-grant {
-  permission java.io.FilePermission "${policy.directory}${/}src${/}test${/}resources${/}org${/}elasticsearch${/}xpack${/}esql${/}optimizer${/}golden_tests${/}-", "read,write";
-};

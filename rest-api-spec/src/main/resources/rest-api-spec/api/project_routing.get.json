@@ -1,0 +1,40 @@
+{
+  "project.routing.get": {
+    "documentation": {
+      "url": null,
+      "description": "Get named project routing expression"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_project_routing/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the project routing expression"
+            }
+          }
+        },
+        {
+          "path": "/_project_routing/",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

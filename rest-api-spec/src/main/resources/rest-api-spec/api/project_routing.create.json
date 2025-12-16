@@ -1,0 +1,44 @@
+{
+  "project.routing.create": {
+    "documentation": {
+      "url": null,
+      "description": "Create or update named project routing expression"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_project_routing/{name}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the project routing expression"
+            }
+          }
+        },
+        {
+          "path": "/_project_routing/",
+          "methods": [
+            "PUT"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "Project routing expression to save",
+      "required": true
+    }
+  }
+}

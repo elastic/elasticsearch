@@ -11,10 +11,10 @@ package org.elasticsearch.benchmark.search.aggregations;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -153,7 +153,7 @@ public class AggConstructionContentionBenchmark {
     }
 
     private class DummyAggregationContext extends AggregationContext {
-        private final Query query = new MatchAllDocsQuery();
+        private final Query query = Queries.ALL_DOCS_INSTANCE;
         private final List<Releasable> releaseMe = new ArrayList<>();
 
         private final CircuitBreaker breaker;

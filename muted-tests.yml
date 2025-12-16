@@ -194,6 +194,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/start_data_frame_analytics/Test start given dest index is not empty}
   issue: https://github.com/elastic/elasticsearch/issues/125909
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_stats/Test get transform stats with timeout}
+  issue: https://github.com/elastic/elasticsearch/issues/125975
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/125901
@@ -203,6 +206,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_reset/Test force reseting a running transform}
   issue: https://github.com/elastic/elasticsearch/issues/126240
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_stats/Test get transform stats}
+  issue: https://github.com/elastic/elasticsearch/issues/126270
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable cardinality is too low}
   issue: https://github.com/elastic/elasticsearch/issues/126299
@@ -221,6 +227,12 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/get_trained_model_stats/Test get stats given trained models}
   issue: https://github.com/elastic/elasticsearch/issues/126510
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_stats/Test get multiple transform stats}
+  issue: https://github.com/elastic/elasticsearch/issues/126567
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_stats/Test get single transform stats when it does not have a task}
+  issue: https://github.com/elastic/elasticsearch/issues/126568
 - class: org.elasticsearch.repositories.blobstore.testkit.rest.SnapshotRepoTestKitClientYamlTestSuiteIT
   method: test {p0=/10_analyze/Analysis without details}
   issue: https://github.com/elastic/elasticsearch/issues/126569
@@ -230,6 +242,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start continuous transform}
   issue: https://github.com/elastic/elasticsearch/issues/126755
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_stats/Test get multiple transform stats where one does not have a task}
+  issue: https://github.com/elastic/elasticsearch/issues/126863
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/Test delete given unused trained model}
   issue: https://github.com/elastic/elasticsearch/issues/126881

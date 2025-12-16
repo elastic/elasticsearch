@@ -57,9 +57,9 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
         List<Object[]> args = new ArrayList<>();
-        for (var hasPositions: new boolean[] { true, false }) {
-            for (var syntheticSource: new boolean[] { true, false }) {
-                for (var useBinaryDocValueArgs: new boolean[] { true, false }) {
+        for (var hasPositions : new boolean[] { true, false }) {
+            for (var syntheticSource : new boolean[] { true, false }) {
+                for (var useBinaryDocValueArgs : new boolean[] { true, false }) {
                     args.add(new Object[] { hasPositions, syntheticSource, useBinaryDocValueArgs });
                 }
             }

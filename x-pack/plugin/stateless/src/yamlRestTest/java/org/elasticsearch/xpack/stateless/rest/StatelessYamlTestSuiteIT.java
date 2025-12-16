@@ -26,10 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -45,8 +42,8 @@ public class StatelessYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .plugin("stateless")
-        .plugin("blob-cache")
+        .module("blob-cache")
+        .module("stateless")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.security.operator_privileges.enabled", "true")
@@ -54,35 +51,6 @@ public class StatelessYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .user(OPERATOR_USER, OPERATOR_PASSWORD, User.ROOT_USER_ROLE, true)
         .user(NOT_OPERATOR_USER, NOT_OPERATOR_PASSWORD, User.ROOT_USER_ROLE, false)
         .build();
-
-    private static ElasticsearchCluster createCluster() {
-        LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
-            .setting("xpack.security.enabled", "true")
-            .keystore("bootstrap.password", "x-pack-test-password")
-            .user("x_pack_rest_user", "x-pack-test-password")
-            .feature(FeatureFlag.LOGS_STREAM)
-            .systemProperty("es.queryable_built_in_roles_enabled", "false")
-            .setting("xpack.watcher.enabled", "false")
-            .setting("xpack.ml.enabled", "false")
-            .setting("xpack.security.operator_privileges.enabled", "true")
-            .setting(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, "true")
-            .user(OPERATOR_USER, OPERATOR_PASSWORD, User.ROOT_USER_ROLE, true)
-            .user(NOT_OPERATOR_USER, NOT_OPERATOR_PASSWORD, User.ROOT_USER_ROLE, false);
-        if (initTestSeed().nextBoolean()) {
-            clusterBuilder.setting("xpack.license.self_generated.type", "trial");
-        }
-        boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
-        if (setNodes) {
-            clusterBuilder.nodes(2);
-        }
-        // We need to disable ILM history based on a setting, to avoid errors in Serverless where the setting is not available.
-        boolean disableILMHistory = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.disable_ilm_history", "true"));
-        if (disableILMHistory) {
-            // disable ILM history, since it disturbs tests
-            clusterBuilder.setting("indices.lifecycle.history_index_enabled", "false");
-        }
-        return clusterBuilder.build();
-    }
 
     public StatelessYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

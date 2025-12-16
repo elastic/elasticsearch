@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 
@@ -37,9 +38,11 @@ class DefaultReindexRelocationNodePicker implements ReindexRelocationNodePicker 
             );
             return null;
         }
-        List<String> eligibleDedicatedCoordinatingNodes = nodes.getCoordinatingOnlyNodes()
-            .keySet()
+        List<String> eligibleDedicatedCoordinatingNodes = nodes.getNodes()
+            .values()
             .stream()
+            .filter(node -> node.getRoles().isEmpty())
+            .map(DiscoveryNode::getId)
             .filter(id -> id.equals(currentNodeId) == false)
             .toList();
         if (eligibleDedicatedCoordinatingNodes.isEmpty() == false) {

@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class DefaultReindexRelocationNodePickerTests extends ESTestCase {
 
-    private DefaultReindexRelocationNodePicker picker = new DefaultReindexRelocationNodePicker();
+    private final DefaultReindexRelocationNodePicker picker = new DefaultReindexRelocationNodePicker();
 
     public void testPickNode_prefersDedicatedCoordinatingNode() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -53,8 +53,8 @@ public class DefaultReindexRelocationNodePickerTests extends ESTestCase {
             .add(createNode("data5Local", DiscoveryNodeRole.DATA_ROLE))
             .add(createNode("data6", DiscoveryNodeRole.DATA_ROLE))
             .add(createNode("ingest1", DiscoveryNodeRole.INGEST_ROLE))
-            // .add(createNode("ml1", DiscoveryNodeRole.ML_ROLE))
-            // .add(createNode("voting1", DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE))
+            .add(createNode("ml1", DiscoveryNodeRole.ML_ROLE))
+            .add(createNode("voting1", DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE))
             .masterNodeId("dataMaster" + randomIntBetween(1, 3))
             .localNodeId("data5Local")
             .build();

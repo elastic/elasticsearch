@@ -11,7 +11,10 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -41,6 +44,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer analyzer;
     protected static Analyzer allTypesAnalyzer;
     protected static Analyzer tsAnalyzer;
+    protected static Analyzer metricsAnalyzer;
     protected static LogicalPlanOptimizer logicalOptimizer;
     protected static Map<String, EsField> mapping;
 
@@ -94,6 +98,36 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
+
+        EnrichResolution enrichResolution = new EnrichResolution();
+        AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
+
+        Map<String, EsField> mapping = Map.of(
+            "dimension_1",
+            new EsField("dimension_1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+            "dimension_2",
+            new EsField("dimension_2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+            "metric_1",
+            new EsField("metric_1", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC),
+            "metric_2",
+            new EsField("metric_2", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC),
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "_tsid",
+            new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        var metricsIndex = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
+        metricsAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(metricsIndex),
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
     }
 
     protected LogicalPlan plan(String query) {
@@ -107,6 +141,10 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan localPlan(String query) {
         return localPlan(plan(query), TEST_SEARCH_STATS);
+    }
+
+    protected LogicalPlan localPlan(String query, Analyzer analyzer) {
+        return localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
     }
 
     protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {

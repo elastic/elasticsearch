@@ -1,0 +1,8 @@
+Make sure we can even load histogram data
+required_capability: histogram_field_support_v0
+
+FROM histogram_standard_index ;
+
+@timestamp:date      | instance:keyword  | responseTime:histogram
+2025-01-01T00:00:00Z | hand-rolled       | "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+;

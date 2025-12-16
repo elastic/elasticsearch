@@ -463,6 +463,9 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654
+- class: org.elasticsearch.xpack.core.action.XPackUsageResponseTests
+  method: testVersionDependentSerializationWriteToOldStream
+  issue: https://github.com/elastic/elasticsearch/issues/139576
 
 # Examples:
 #

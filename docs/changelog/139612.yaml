@@ -1,5 +1,5 @@
 pr: 139612
 summary: Fix bare time series aggs server error
-area: "ES|QL, ES|QL"
+area: ES|QL
 type: bug
-issues: []
+issues: [ ]

@@ -36,4 +36,18 @@ public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery
         }
         return new DiversifyingNearestChildrenKnnCollector(k, visitedLimit, searchStrategy, parentBitSet);
     }
+
+    @Override
+    public AbstractMaxScoreKnnCollector newOptimisticCollector(
+        int visitedLimit,
+        KnnSearchStrategy searchStrategy,
+        LeafReaderContext context,
+        int k
+    ) throws IOException {
+        BitSet parentBitSet = parentsFilter.getBitSet(context);
+        if (parentBitSet == null) {
+            return null;
+        }
+        return new DiversifyingNearestChildrenKnnCollector(k, visitedLimit, searchStrategy, parentBitSet);
+    }
 }

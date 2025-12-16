@@ -321,7 +321,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (in.getTransportVersion().supports(AUTO_PREFILTERING)) {
             this.isAutoPrefilteringEnabled = in.readBoolean();
         }
-
         this.queryVectorSupplier = null;
         if (in.getTransportVersion().supports(POST_FILTERING_THRESHOLD)) {
             this.postFilteringThreshold = in.readOptionalFloat();

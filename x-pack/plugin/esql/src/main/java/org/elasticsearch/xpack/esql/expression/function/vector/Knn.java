@@ -53,6 +53,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.POST_FILTERING_THRESHOLD_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
@@ -79,7 +80,8 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
         entry(VISIT_PERCENTAGE_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
-        entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)
+        entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT),
+        entry(POST_FILTERING_THRESHOLD_FIELD.getPreferredName(), FLOAT)
     );
 
     @FunctionInfo(
@@ -155,6 +157,13 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
                     description = "Applies the specified oversampling for rescoring quantized vectors. "
                         + "See [oversampling and rescoring quantized vectors]"
                         + "(docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "post_filtering_threshold",
+                    type = "double",
+                    valueHint = { "0.7" },
+                    description = "The minimum filter coverage for any filters to be applied as post filters. "
+                        + "This could lead to increased performance at potentially a small hit in recall."
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",

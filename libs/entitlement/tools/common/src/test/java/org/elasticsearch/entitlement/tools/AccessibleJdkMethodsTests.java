@@ -9,9 +9,9 @@
 
 package org.elasticsearch.entitlement.tools;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.tools.AccessibleJdkMethods.AccessibleMethod;
 import org.elasticsearch.entitlement.tools.AccessibleJdkMethods.ModuleClass;
+import org.elasticsearch.entitlement.tools.AccessibleJdkMethods.Result;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
 
     public void testKnownJdkMethods() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
+            .collect(groupingBy(Result::moduleClass, mapping(Result::accessibleMethod, toList())));
 
         assertThat(
             "System methods should be loaded",
@@ -62,7 +62,7 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
         );
 
         Set<AccessibleMethod.Descriptor> allDescriptors = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .map(t -> t.v2().descriptor())
+            .map(t -> t.accessibleMethod().descriptor())
             .collect(toSet());
 
         for (AccessibleMethod.Descriptor excluded : excludedDescriptors) {
@@ -71,7 +71,9 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
     }
 
     public void testExcludesComSunInternal() throws IOException {
-        for (ModuleClass tuple : AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE).map(Tuple::v1).toList()) {
+        for (ModuleClass tuple : AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
+            .map(Result::moduleClass)
+            .toList()) {
             String className = tuple.clazz();
             assertFalse(
                 "com/sun/*/internal/* classes should be skipped: " + className,
@@ -81,27 +83,27 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
     }
 
     public void testModuleFiltering() throws IOException {
-        for (ModuleClass tuple : AccessibleJdkMethods.loadAccessibleMethods("java.sql"::equals).map(Tuple::v1).toList()) {
+        for (ModuleClass tuple : AccessibleJdkMethods.loadAccessibleMethods("java.sql"::equals).map(Result::moduleClass).toList()) {
             assertEquals("Only the requested module should be included", "java.sql", tuple.module());
         }
     }
 
     public void testInheritedMethods() throws IOException {
-        var readDescriptor = new AccessibleMethod.Descriptor("read", "([BII)I", true, false);
-        for (String className : List.of("java/io/InputStream", "java/io/FilterInputStream", "java/io/BufferedInputStream")) {
-            assertTrue(
-                className + " should have read(byte[],int,int)",
-                AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-                    .filter(t -> t.v1().clazz().equals(className))
-                    .map(t -> t.v2().descriptor())
-                    .anyMatch(readDescriptor::equals)
-            );
-        }
+        var readMethod = new AccessibleMethod(new AccessibleMethod.Descriptor("read", "([BII)I", true, false), false, false);
+        var expectedOutput = List.of(
+            new Result(new ModuleClass("java.base", "java/io/InputStream"), readMethod),
+            new Result(new ModuleClass("java.base", "java/io/FilterInputStream"), readMethod),
+            new Result(new ModuleClass("java.base", "java/io/BufferedInputStream"), readMethod)
+        );
+
+        List<Result> results = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE).toList();
+
+        assertTrue("Should contain inherited methods from parent classes", results.containsAll(expectedOutput));
     }
 
     public void testConstructorsNotInherited() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
+            .collect(groupingBy(Result::moduleClass, mapping(Result::accessibleMethod, toList())));
 
         Set<String> parentCtors = methodsByClass.get(new ModuleClass("java.base", "java/io/InputStream"))
             .stream()
@@ -119,7 +121,7 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
 
     public void testFinalClassExcludesProtectedMethods() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
+            .collect(groupingBy(Result::moduleClass, mapping(Result::accessibleMethod, toList())));
 
         var stringMethods = methodsByClass.get(new ModuleClass("java.base", "java/lang/String"));
         assertFalse(
@@ -130,7 +132,7 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
 
     public void testNonFinalClassIncludesProtectedMethods() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
+            .collect(groupingBy(Result::moduleClass, mapping(Result::accessibleMethod, toList())));
 
         assertTrue(
             "Non-final class Object should include protected clone() method",
@@ -143,7 +145,7 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
 
     public void testStaticMethodsNotInherited() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
+            .collect(groupingBy(Result::moduleClass, mapping(Result::accessibleMethod, toList())));
 
         var inputStreamMethods = methodsByClass.get(new ModuleClass("java.base", "java/io/InputStream"));
         var bufferedInputStreamMethods = methodsByClass.get(new ModuleClass("java.base", "java/io/BufferedInputStream"));

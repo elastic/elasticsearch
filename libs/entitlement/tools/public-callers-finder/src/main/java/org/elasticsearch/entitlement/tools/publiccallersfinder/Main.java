@@ -262,7 +262,11 @@ public class Main {
         AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
             .forEach(
                 t -> ACCESSIBLE_JDK_METHODS.add(
-                    new MethodDescriptor(t.v1().clazz(), t.v2().descriptor().method(), t.v2().descriptor().descriptor())
+                    new MethodDescriptor(
+                        t.moduleClass().clazz(),
+                        t.accessibleMethod().descriptor().method(),
+                        t.accessibleMethod().descriptor().descriptor()
+                    )
                 )
             );
 

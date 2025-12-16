@@ -211,9 +211,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
-- class: org.elasticsearch.test.rest.yaml.MDPYamlTestSuiteIT
-  method: test {yaml=mdp/10_basic/Index using shared data path}
-  issue: https://github.com/elastic/elasticsearch/issues/132223
 - class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
   method: testNullsOrderWithMissingOrderSupportQueryingNewNode
   issue: https://github.com/elastic/elasticsearch/issues/132249

@@ -80,6 +80,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -1118,7 +1119,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
 
         // Test null index
         ReshardIndexRequest request = new ReshardIndexRequest("");
-        expectThrows(IndexNotFoundException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
+        expectThrows(InvalidIndexNameException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
     }
 
     public void testReshardFailsWithWildcardIndex() {

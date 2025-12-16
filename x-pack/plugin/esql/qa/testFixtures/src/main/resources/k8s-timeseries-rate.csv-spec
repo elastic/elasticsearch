@@ -1,293 +1,337 @@
 rate_of_long_no_grouping
+required_capability: rate_with_interpolation
 required_capability: ts_command_v0
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,1minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, time_bucket
 | SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
 rate_bytes_in:double | time_bucket:datetime
-null                 | 2024-05-10T00:01:00.000Z
-28.802976190476194   | 2024-05-10T00:15:00.000Z
-25.422222222222224   | 2024-05-10T00:04:00.000Z
-24.28946078431372    | 2024-05-10T00:19:00.000Z
-24.05555555555555    | 2024-05-10T00:10:00.000Z
-22.546794871794873   | 2024-05-10T00:13:00.000Z
-21.039819662685943   | 2024-05-10T00:17:00.000Z
-20.420667304320105   | 2024-05-10T00:18:00.000Z
-19.745833333333334   | 2024-05-10T00:00:00.000Z
-19.4                 | 2024-05-10T00:14:00.000Z
+26.69853             | 2024-05-10T00:04:00.000Z
+22.148003            | 2024-05-10T00:01:00.000Z
+19.281831            | 2024-05-10T00:19:00.000Z
+18.744102            | 2024-05-10T00:11:00.000Z
+17.752681            | 2024-05-10T00:17:00.000Z
+17.386587            | 2024-05-10T00:20:00.000Z
+16.945882            | 2024-05-10T00:10:00.000Z
+16.65479             | 2024-05-10T00:07:00.000Z
+15.773894            | 2024-05-10T00:18:00.000Z
+15.515104            | 2024-05-10T00:00:00.000Z
 ;
 
 rate_of_long_grouping
+required_capability: rate_with_interpolation
 required_capability: ts_command_v0
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp,5minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
 | SORT rate_bytes_in DESC, time_bucket, cluster | LIMIT 10;
 
 rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-15.025267167998313   | qa              | 2024-05-10T00:15:00.000Z
-13.638384356589611   | qa              | 2024-05-10T00:05:00.000Z
-11.761724575728252   | prod            | 2024-05-10T00:15:00.000Z
-7.453275209904956    | qa              | 2024-05-10T00:10:00.000Z
-7.307225056633641    | staging         | 2024-05-10T00:05:00.000Z
-7.203958127639015    | prod            | 2024-05-10T00:10:00.000Z
-6.34494062999877     | staging         | 2024-05-10T00:10:00.000Z
-5.700488689624205    | prod            | 2024-05-10T00:20:00.000Z
-5.4539153439153445   | prod            | 2024-05-10T00:00:00.000Z
-5.241187469367376    | staging         | 2024-05-10T00:00:00.000Z
-
+15.4274              | qa              | 2024-05-10T00:15:00.000Z
+13.765487            | qa              | 2024-05-10T00:05:00.000Z
+12.73738             | prod            | 2024-05-10T00:15:00.000Z
+8.152119             | qa              | 2024-05-10T00:20:00.000Z
+7.822212             | qa              | 2024-05-10T00:10:00.000Z
+7.535957             | prod            | 2024-05-10T00:10:00.000Z
+7.169543             | staging         | 2024-05-10T00:05:00.000Z
+6.830557             | staging         | 2024-05-10T00:10:00.000Z
+6.498649             | prod            | 2024-05-10T00:20:00.000Z
+6.021526             | staging         | 2024-05-10T00:15:00.000Z
 ;
 
 rate_with_window
 required_capability: ts_command_v0
-required_capability: time_series_window_v0
+required_capability: rate_with_interpolation
+required_capability: time_series_window_v1
+
 // tag::rate_with_window[]
 TS k8s
 | WHERE TRANGE("2024-05-10T00:05:00.000Z", "2024-05-10T00:10:00.000Z")
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in, 5minute)) BY cluster, time_bucket = bucket(@timestamp,1minute)
 // end::rate_with_window[]
-| SORT time_bucket, cluster | LIMIT 20;
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
+| SORT time_bucket, cluster | LIMIT 30;
 // tag::rate_with_window-result[]
 rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-4.6385399587454375   | prod            | 2024-05-10T00:05:00.000Z
-13.638384356589611   | qa              | 2024-05-10T00:05:00.000Z
-5.025874999999999    | prod            | 2024-05-10T00:06:00.000Z
-12.1780146563676     | qa              | 2024-05-10T00:06:00.000Z
-8.963922302737519    | staging         | 2024-05-10T00:06:00.000Z
-10.485661064982633   | qa              | 2024-05-10T00:07:00.000Z
-2.1985625418700354   | prod            | 2024-05-10T00:08:00.000Z
-5.243666666666666    | qa              | 2024-05-10T00:08:00.000Z
-5.098564814814814    | staging         | 2024-05-10T00:08:00.000Z
-2.4409081196581193   | prod            | 2024-05-10T00:09:00.000Z
-5.502833333333333    | qa              | 2024-05-10T00:09:00.000Z
-3.8278               | staging         | 2024-05-10T00:09:00.000Z
+3.399375             | prod            | 2024-05-10T00:05:00.000Z
+13.638384            | qa              | 2024-05-10T00:05:00.000Z
+7.307225             | staging         | 2024-05-10T00:05:00.000Z
+2.323347             | prod            | 2024-05-10T00:06:00.000Z
+12.178015            | qa              | 2024-05-10T00:06:00.000Z
+7.366226             | staging         | 2024-05-10T00:06:00.000Z
 // end::rate_with_window-result[]
+2.307778             | prod            | 2024-05-10T00:07:00.000Z
+10.485661            | qa              | 2024-05-10T00:07:00.000Z
+5.233056             | staging         | 2024-05-10T00:07:00.000Z
+2.198563             | prod            | 2024-05-10T00:08:00.000Z
+5.589111             | qa              | 2024-05-10T00:08:00.000Z
+5.098565             | staging         | 2024-05-10T00:08:00.000Z
+2.440908             | prod            | 2024-05-10T00:09:00.000Z
+5.502833             | qa              | 2024-05-10T00:09:00.000Z
+3.8278               | staging         | 2024-05-10T00:09:00.000Z
+
 ;
 
 rate_of_double_no_grouping
+required_capability: rate_with_interpolation
 required_capability: ts_command_v0
+
 TS k8s
 | STATS rate_cost=sum(rate(network.total_cost)) BY time_bucket = bucket(@timestamp,1minute)
+| EVAL rate_cost=ROUND(rate_cost, 6) | KEEP rate_cost, time_bucket
 | SORT rate_cost DESC, time_bucket | LIMIT 10;
 
-rate_cost:double   | time_bucket:datetime
-null               | 2024-05-10T00:01:00.000Z
-1.7945690883190881 | 2024-05-10T00:09:00.000Z
-1.0657479136112855 | 2024-05-10T00:17:00.000Z
-0.7229258685181391 | 2024-05-10T00:18:00.000Z
-0.696875           | 2024-05-10T00:13:00.000Z
-0.6763888888888887 | 2024-05-10T00:08:00.000Z
-0.6425595238095237 | 2024-05-10T00:06:00.000Z
-0.5818946678321678 | 2024-05-10T00:20:00.000Z
-0.5125             | 2024-05-10T00:11:00.000Z
-0.500297619047619  | 2024-05-10T00:15:00.000Z
-
+rate_cost:double | time_bucket:datetime
+1.986939         | 2024-05-10T00:09:00.000Z
+1.428214         | 2024-05-10T00:17:00.000Z
+1.41077          | 2024-05-10T00:08:00.000Z
+1.011984         | 2024-05-10T00:14:00.000Z
+1.010113         | 2024-05-10T00:18:00.000Z
+0.999404         | 2024-05-10T00:15:00.000Z
+0.954623         | 2024-05-10T00:12:00.000Z
+0.92926          | 2024-05-10T00:05:00.000Z
+0.921813         | 2024-05-10T00:06:00.000Z
+0.913178         | 2024-05-10T00:11:00.000Z
 ;
 
 rate_with_filtering
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s | WHERE pod == "one"
 | STATS rate_bytes_in = sum(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
 | SORT time_bucket, cluster | LIMIT 10;
 
 rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-4.0314581958195825   | prod            | 2024-05-10T00:00:00.000Z
-9.955833333333333    | qa              | 2024-05-10T00:00:00.000Z
-4.242445473251029    | staging         | 2024-05-10T00:00:00.000Z
-11.188380281690138   | prod            | 2024-05-10T00:10:00.000Z
-12.222592592592592   | qa              | 2024-05-10T00:10:00.000Z
-3.050371490280777    | staging         | 2024-05-10T00:10:00.000Z
-2.210158359293873    | prod            | 2024-05-10T00:20:00.000Z
-0.8955555555555565   | qa              | 2024-05-10T00:20:00.000Z
-0.595                | staging         | 2024-05-10T00:20:00.000Z
+4.089167             | prod            | 2024-05-10T00:00:00.000Z
+9.714783             | qa              | 2024-05-10T00:00:00.000Z
+4.319067             | staging         | 2024-05-10T00:00:00.000Z
+11.699031            | prod            | 2024-05-10T00:10:00.000Z
+12.156773            | qa              | 2024-05-10T00:10:00.000Z
+4.20566              | staging         | 2024-05-10T00:10:00.000Z
+2.686247             | prod            | 2024-05-10T00:20:00.000Z
+1.589971             | qa              | 2024-05-10T00:20:00.000Z
+1.122634             | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 rate_with_inline_filtering
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s 
 | STATS rate_bytes_in = sum(rate(network.total_bytes_in)) WHERE pod == "one" BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
 | SORT time_bucket, cluster | LIMIT 10;
 
 rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-4.0314581958195825   | prod            | 2024-05-10T00:00:00.000Z
-9.955833333333333    | qa              | 2024-05-10T00:00:00.000Z
-4.242445473251029    | staging         | 2024-05-10T00:00:00.000Z
-11.188380281690138   | prod            | 2024-05-10T00:10:00.000Z
-12.222592592592592   | qa              | 2024-05-10T00:10:00.000Z
-3.050371490280777    | staging         | 2024-05-10T00:10:00.000Z
-2.210158359293873    | prod            | 2024-05-10T00:20:00.000Z
-0.8955555555555565   | qa              | 2024-05-10T00:20:00.000Z
-0.595                | staging         | 2024-05-10T00:20:00.000Z
+4.089167             | prod            | 2024-05-10T00:00:00.000Z
+9.714783             | qa              | 2024-05-10T00:00:00.000Z
+4.319067             | staging         | 2024-05-10T00:00:00.000Z
+11.699031            | prod            | 2024-05-10T00:10:00.000Z
+12.156773            | qa              | 2024-05-10T00:10:00.000Z
+4.20566              | staging         | 2024-05-10T00:10:00.000Z
+2.686247             | prod            | 2024-05-10T00:20:00.000Z
+1.589971             | qa              | 2024-05-10T00:20:00.000Z
+1.122634             | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 eval_on_rate
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s
 | STATS rate_bytes = avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
-| EVAL rate_kb = rate_bytes / 1024.0
+| EVAL rate_bytes=ROUND(rate_bytes, 6), rate_kb = rate_bytes / 1024.0
+| KEEP rate_bytes, cluster, time_bucket, rate_kb
 | LIMIT 10 | SORT time_bucket, cluster ;
 
-rate_bytes:double  | cluster:keyword | time_bucket:datetime     | rate_kb:double
-4.489054151267086  | prod            | 2024-05-10T00:00:00.000Z | 0.004383841944596764
-9.933630806480615  | qa              | 2024-05-10T00:00:00.000Z | 0.009700811334453725
-6.2165285757677635 | staging         | 2024-05-10T00:00:00.000Z | 0.0060708286872732066
-9.435761829894686  | prod            | 2024-05-10T00:10:00.000Z | 0.009214611162006529
-11.21976172297114  | qa              | 2024-05-10T00:10:00.000Z | 0.010956798557589005
-5.861581261551023  | staging         | 2024-05-10T00:10:00.000Z | 0.005724200450733421
-2.8502443448121024 | prod            | 2024-05-10T00:20:00.000Z | 0.0027834417429805688
-1.4602777777777782 | qa              | 2024-05-10T00:20:00.000Z | 0.0014260525173611116
-1.1196474788041055 | staging         | 2024-05-10T00:20:00.000Z | 0.0010934057410196343
-
+rate_bytes:double | cluster:keyword | time_bucket:datetime     | rate_kb:double
+4.559615          | prod            | 2024-05-10T00:00:00.000Z | 0.0044527490234375
+9.829065          | qa              | 2024-05-10T00:00:00.000Z | 0.0095986962890625
+6.144123          | staging         | 2024-05-10T00:00:00.000Z | 0.0060001201171875
+10.136668         | prod            | 2024-05-10T00:10:00.000Z | 0.00989908984375
+11.624806         | qa              | 2024-05-10T00:10:00.000Z | 0.011352349609375
+6.426041          | staging         | 2024-05-10T00:10:00.000Z | 0.0062754306640625
+3.249325          | prod            | 2024-05-10T00:20:00.000Z | 0.0031731689453125
+6.947129          | qa              | 2024-05-10T00:20:00.000Z | 0.0067843056640625
+1.315453          | staging         | 2024-05-10T00:20:00.000Z | 0.0012846220703125
 
 ;
 
 rate_of_aggregate_metric
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s-downsampled
 | STATS sum_bytes = sum(rate(network.total_bytes_in)),
         max_bytes = max(rate(network.total_bytes_in)), 
         min_bytes = min(rate(network.total_bytes_in)),
         avg_bytes = avg(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp, 30minute)
+| EVAL sum_bytes=ROUND(sum_bytes, 6), max_bytes=ROUND(max_bytes, 6), min_bytes=ROUND(min_bytes, 6), avg_bytes=ROUND(avg_bytes, 6)
+| KEEP sum_bytes, max_bytes, min_bytes, avg_bytes, time_bucket
 | SORT time_bucket | LIMIT 10;
 
-sum_bytes:double  | max_bytes:double    | min_bytes:double     | avg_bytes:double    | time_bucket:datetime
-0.7751851851851852 | 0.17694444444444443 | 0.025925925925925936 | 0.08613168724279835 | 2024-05-09T23:30:00.000Z
-
+sum_bytes:double | max_bytes:double | min_bytes:double | avg_bytes:double | time_bucket:datetime
+0.775185         | 0.176944         | 0.025926         | 0.086132         | 2024-05-09T23:30:00.000Z
 ;
 
 rate_of_expression
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in) + 10) BY time_bucket = bucket(@timestamp,1minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, time_bucket
 | SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
 rate_bytes_in:double | time_bucket:datetime
-null                 | 2024-05-10T00:01:00.000Z
-38.802976190476194   | 2024-05-10T00:15:00.000Z
-35.422222222222224   | 2024-05-10T00:04:00.000Z
-34.28946078431372    | 2024-05-10T00:19:00.000Z
-34.05555555555555    | 2024-05-10T00:10:00.000Z
-32.54679487179487    | 2024-05-10T00:13:00.000Z
-31.039819662685943   | 2024-05-10T00:17:00.000Z
-30.4206673043201     | 2024-05-10T00:18:00.000Z
-29.745833333333334   | 2024-05-10T00:00:00.000Z
-29.4                 | 2024-05-10T00:14:00.000Z
+36.69853             | 2024-05-10T00:04:00.000Z
+32.148003            | 2024-05-10T00:01:00.000Z
+29.281831            | 2024-05-10T00:19:00.000Z
+28.744102            | 2024-05-10T00:11:00.000Z
+27.752681            | 2024-05-10T00:17:00.000Z
+27.386587            | 2024-05-10T00:20:00.000Z
+26.945882            | 2024-05-10T00:10:00.000Z
+26.65479             | 2024-05-10T00:07:00.000Z
+25.773894            | 2024-05-10T00:18:00.000Z
+25.515104            | 2024-05-10T00:00:00.000Z
 ;
 
 rate_combined_avg
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s
 | STATS avg_rate_bytes = avg(rate(network.total_bytes_in)), avg_rate_cost = avg(rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
-| EVAL ratio = avg_rate_bytes / avg_rate_cost
+| EVAL avg_rate_bytes=ROUND(avg_rate_bytes, 6), avg_rate_cost=ROUND(avg_rate_cost, 6), ratio = avg_rate_bytes / avg_rate_cost
+| KEEP avg_rate_bytes, avg_rate_cost, cluster, time_bucket, ratio
 | SORT time_bucket, cluster | LIMIT 10;
 
 avg_rate_bytes:double | avg_rate_cost:double | cluster:keyword | time_bucket:datetime     | ratio:double
-4.489054151267086     | 0.08727848310006986  | prod            | 2024-05-10T00:00:00.000Z | 51.43368665241494
-9.933630806480615     | 0.1480786773651426   | qa              | 2024-05-10T00:00:00.000Z | 67.08346524453067
-6.2165285757677635    | 0.08125606293033183  | staging         | 2024-05-10T00:00:00.000Z | 76.50541204657867
-9.435761829894686     | 0.09789990135274192  | prod            | 2024-05-10T00:10:00.000Z | 96.38172970059296
-11.21976172297114     | 0.13555566451825743  | qa              | 2024-05-10T00:10:00.000Z | 82.76866749054221
-5.861581261551023     | 0.06909345577029162  | staging         | 2024-05-10T00:10:00.000Z | 84.8355491298403
-2.8502443448121024    | 0.03328125           | prod            | 2024-05-10T00:20:00.000Z | 85.6411446328519
-1.4602777777777782    | 0.03146701388888888  | qa              | 2024-05-10T00:20:00.000Z | 46.4066206896552
-1.1196474788041055    | 0.026953703703703702 | staging         | 2024-05-10T00:20:00.000Z | 41.53965225381086
+4.559615              | 0.087142             | prod            | 2024-05-10T00:00:00.000Z | 52.32396548162769
+9.829065              | 0.147035             | qa              | 2024-05-10T00:00:00.000Z | 66.84847145237528
+6.144123              | 0.08109              | staging         | 2024-05-10T00:00:00.000Z | 75.7691823899371
+10.136668             | 0.101357             | prod            | 2024-05-10T00:10:00.000Z | 100.00955040105765
+11.624806             | 0.140924             | qa              | 2024-05-10T00:10:00.000Z | 82.48989526269479
+6.426041              | 0.077014             | staging         | 2024-05-10T00:10:00.000Z | 83.43990702989066
+3.249325              | 0.030693             | prod            | 2024-05-10T00:20:00.000Z | 105.86534388948618
+6.947129              | 0.079398             | qa              | 2024-05-10T00:20:00.000Z | 87.49753142396534
+1.315453              | 0.026226             | staging         | 2024-05-10T00:20:00.000Z | 50.15835430488828
 ;
 
 rate_combined_sum
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s
 | STATS sum_rate_bytes = sum(rate(network.total_bytes_in)), sum_rate_cost = sum(rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
-| EVAL ratio = sum_rate_bytes / sum_rate_cost
+| EVAL sum_rate_bytes=ROUND(sum_rate_bytes, 6), sum_rate_cost=ROUND(sum_rate_cost, 6), ratio = sum_rate_bytes / sum_rate_cost
+| KEEP sum_rate_bytes, sum_rate_cost, cluster, time_bucket, ratio
 | SORT time_bucket, cluster | LIMIT 10;
 
 sum_rate_bytes:double | sum_rate_cost:double | cluster:keyword | time_bucket:datetime     | ratio:double
-13.46716245380126     | 0.2618354493002096   | prod            | 2024-05-10T00:00:00.000Z | 51.43368665241495
-29.800892419441844    | 0.44423603209542784  | qa              | 2024-05-10T00:00:00.000Z | 67.08346524453067
-18.64958572730329     | 0.2437681887909955   | staging         | 2024-05-10T00:00:00.000Z | 76.50541204657867
-28.307285489684055    | 0.29369970405822576  | prod            | 2024-05-10T00:10:00.000Z | 96.38172970059294
-33.65928516891342     | 0.4066669935547723   | qa              | 2024-05-10T00:10:00.000Z | 82.76866749054221
-17.584743784653067    | 0.20728036731087485  | staging         | 2024-05-10T00:10:00.000Z | 84.8355491298403
-5.700488689624205     | 0.0665625            | prod            | 2024-05-10T00:20:00.000Z | 85.6411446328519
-2.9205555555555565    | 0.06293402777777776  | qa              | 2024-05-10T00:20:00.000Z | 46.4066206896552
-3.358942436412317     | 0.0808611111111111   | staging         | 2024-05-10T00:20:00.000Z | 41.53965225381086
+13.678845             | 0.261427             | prod            | 2024-05-10T00:00:00.000Z | 52.323765334108565
+29.487194             | 0.441105             | qa              | 2024-05-10T00:00:00.000Z | 66.84846918534136
+18.43237              | 0.24327              | staging         | 2024-05-10T00:00:00.000Z | 75.76918650059605
+30.410005             | 0.304072             | prod            | 2024-05-10T00:10:00.000Z | 100.0092247888658
+34.874418             | 0.422772             | qa              | 2024-05-10T00:10:00.000Z | 82.48989526269479
+19.278123             | 0.231043             | staging         | 2024-05-10T00:10:00.000Z | 83.43954588539796
+6.498649              | 0.061387             | prod            | 2024-05-10T00:20:00.000Z | 105.86360304298957
+20.841386             | 0.238194             | qa              | 2024-05-10T00:20:00.000Z | 87.49752722570678
+3.94636               | 0.078679             | staging         | 2024-05-10T00:20:00.000Z | 50.157729508509256
 ;
 
 rate_of_ratio
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s
 | STATS rate_of_ratio = sum(rate(network.total_cost) / rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL rate_of_ratio=ROUND(rate_of_ratio, 6) | KEEP rate_of_ratio, cluster, time_bucket
 | SORT time_bucket, cluster | LIMIT 10;
 
 rate_of_ratio:double | cluster:keyword | time_bucket:datetime
-0.05729672905133547  | prod            | 2024-05-10T00:00:00.000Z
-0.04435305398953446  | qa              | 2024-05-10T00:00:00.000Z
-0.041268397742417876 | staging         | 2024-05-10T00:00:00.000Z
-0.030827104158756384 | prod            | 2024-05-10T00:10:00.000Z
-0.03694112891727294  | qa              | 2024-05-10T00:10:00.000Z
-0.03371556294613671  | staging         | 2024-05-10T00:10:00.000Z
-0.02425073340627254  | prod            | 2024-05-10T00:20:00.000Z
-0.05616345770915657  | qa              | 2024-05-10T00:20:00.000Z
-0.06756155922294359  | staging         | 2024-05-10T00:20:00.000Z
+0.055845             | prod            | 2024-05-10T00:00:00.000Z
+0.044556             | qa              | 2024-05-10T00:00:00.000Z
+0.041646             | staging         | 2024-05-10T00:00:00.000Z
+0.0299               | prod            | 2024-05-10T00:10:00.000Z
+0.03694              | qa              | 2024-05-10T00:10:00.000Z
+0.033258             | staging         | 2024-05-10T00:10:00.000Z
+0.019047             | prod            | 2024-05-10T00:20:00.000Z
+0.045766             | qa              | 2024-05-10T00:20:00.000Z
+0.055652             | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 rate_of_long_grouping_1min_nulls
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp,2minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
 | SORT rate_bytes_in NULLS FIRST, time_bucket, cluster | LIMIT 10;
 
-    rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-    null                 | qa              | 2024-05-10T00:00:00.000Z
-    null                 | staging         | 2024-05-10T00:00:00.000Z
-    null                 | prod            | 2024-05-10T00:06:00.000Z
-    null                 | prod            | 2024-05-10T00:10:00.000Z
-    null                 | staging         | 2024-05-10T00:10:00.000Z
-    null                 | qa              | 2024-05-10T00:22:00.000Z
-    0.0371323529411787   | staging         | 2024-05-10T00:22:00.000Z
-    0.42291666666666666  | qa              | 2024-05-10T00:12:00.000Z
-    2.27097222222222     | qa              | 2024-05-10T00:20:00.000Z
-    4.084868421052632    | staging         | 2024-05-10T00:14:00.000Z
-
+rate_bytes_in:double | cluster:keyword | time_bucket:datetime
+1.517381             | staging         | 2024-05-10T00:22:00.000Z
+2.023391             | prod            | 2024-05-10T00:06:00.000Z
+3.460329             | staging         | 2024-05-10T00:00:00.000Z
+3.836973             | prod            | 2024-05-10T00:04:00.000Z
+4.428024             | qa              | 2024-05-10T00:22:00.000Z
+5.093634             | qa              | 2024-05-10T00:02:00.000Z
+5.205085             | staging         | 2024-05-10T00:20:00.000Z
+5.283367             | prod            | 2024-05-10T00:08:00.000Z
+5.684349             | qa              | 2024-05-10T00:12:00.000Z
+5.834895             | prod            | 2024-05-10T00:10:00.000Z
 ;
 
 sum_rate_per_region
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
 required_capability: pack_dimensions_in_ts
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, region, time_bucket = bucket(@timestamp,5minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, region, time_bucket
 | SORT rate_bytes_in DESC, time_bucket, cluster | LIMIT 10;
 
 rate_bytes_in:double | cluster:keyword | region:keyword | time_bucket:datetime
-15.025267167998313   | qa              | null           | 2024-05-10T00:15:00.000Z
-13.638384356589611   | qa              | null           | 2024-05-10T00:05:00.000Z
-11.761724575728252   | prod            | [eu, us]       | 2024-05-10T00:15:00.000Z
-7.453275209904956    | qa              | null           | 2024-05-10T00:10:00.000Z
-7.307225056633641    | staging         | us             | 2024-05-10T00:05:00.000Z
-7.203958127639015    | prod            | [eu, us]       | 2024-05-10T00:10:00.000Z
-6.34494062999877     | staging         | us             | 2024-05-10T00:10:00.000Z
-5.700488689624205    | prod            | [eu, us]       | 2024-05-10T00:20:00.000Z
-5.4539153439153445   | prod            | [eu, us]       | 2024-05-10T00:00:00.000Z
-5.241187469367376    | staging         | us             | 2024-05-10T00:00:00.000Z
+15.4274              | qa              | null           | 2024-05-10T00:15:00.000Z
+13.765487            | qa              | null           | 2024-05-10T00:05:00.000Z
+12.73738             | prod            | [eu, us]       | 2024-05-10T00:15:00.000Z
+8.152119             | qa              | null           | 2024-05-10T00:20:00.000Z
+7.822212             | qa              | null           | 2024-05-10T00:10:00.000Z
+7.535957             | prod            | [eu, us]       | 2024-05-10T00:10:00.000Z
+7.169543             | staging         | us             | 2024-05-10T00:05:00.000Z
+6.830557             | staging         | us             | 2024-05-10T00:10:00.000Z
+6.498649             | prod            | [eu, us]       | 2024-05-10T00:20:00.000Z
+6.021526             | staging         | us             | 2024-05-10T00:15:00.000Z
 ;
 
 trange_absolute_with_rate
 required_capability: ts_command_v0
+required_capability: rate_with_interpolation
 required_capability: fn_trange
 
 TS k8s
 | WHERE TRANGE("2024-05-10T00:15:00.000Z", "2024-05-10T00:25:00.000Z") 
 | STATS rate_bytes_in=AVG(RATE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(2minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
 | SORT rate_bytes_in NULLS FIRST, time_bucket, cluster
 | LIMIT 10;
 
 rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-null                 | prod            | 2024-05-10T00:14:00.000Z
-null                 | staging         | 2024-05-10T00:14:00.000Z
-null                 | qa              | 2024-05-10T00:22:00.000Z
-0.0371323529411787   | staging         | 2024-05-10T00:22:00.000Z
-2.27097222222222     | qa              | 2024-05-10T00:20:00.000Z
-5.374305555555554    | staging         | 2024-05-10T00:16:00.000Z
-7.513221153846155    | staging         | 2024-05-10T00:20:00.000Z
-9.45                 | prod            | 2024-05-10T00:20:00.000Z
-9.83125              | prod            | 2024-05-10T00:22:00.000Z
-10.525               | staging         | 2024-05-10T00:18:00.000Z
+1.517381             | staging         | 2024-05-10T00:22:00.000Z
+4.428024             | qa              | 2024-05-10T00:22:00.000Z
+5.205085             | staging         | 2024-05-10T00:20:00.000Z
+5.422222             | staging         | 2024-05-10T00:14:00.000Z
+7.347831             | staging         | 2024-05-10T00:16:00.000Z
+7.8322               | staging         | 2024-05-10T00:18:00.000Z
+8.001423             | prod            | 2024-05-10T00:22:00.000Z
+8.155203             | prod            | 2024-05-10T00:14:00.000Z
+8.939832             | qa              | 2024-05-10T00:14:00.000Z
+9.2257               | prod            | 2024-05-10T00:20:00.000Z
 ;

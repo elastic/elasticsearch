@@ -38,6 +38,8 @@ import java.util.function.Function;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
+    private static final MatchNoDocsQuery NEITHER_TRUE_NOR_FALSE_QUERY = new MatchNoDocsQuery("neither true nor false allowed");
+
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
 
     private static class Builder extends AbstractScriptFieldType.Builder<BooleanFieldScript.Factory> {
@@ -281,7 +283,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             applyScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
         }
-        return new MatchNoDocsQuery("neither true nor false allowed");
+        return NEITHER_TRUE_NOR_FALSE_QUERY;
     }
 
     private static boolean toBoolean(Object value) {

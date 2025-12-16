@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.querylog;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SlowLogFieldProvider;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -106,7 +109,10 @@ public class EsqlQueryLogTests extends ESTestCase {
 
         for (int i = 0; i < actualTook.length; i++) {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i], actualPlanningTook[i]);
-            queryLog.onQueryPhase(new Result(List.of(), List.of(), DriverCompletionInfo.EMPTY, warnQuery), query);
+            queryLog.onQueryPhase(
+                new Versioned<>(new Result(List.of(), List.of(), DriverCompletionInfo.EMPTY, warnQuery), TransportVersion.current()),
+                query
+            );
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
                 var msg = (ESLogMessage) appender.lastMessage();
@@ -191,7 +197,7 @@ public class EsqlQueryLogTests extends ESTestCase {
     }
 
     private static EsqlExecutionInfo getEsqlExecutionInfo(long tookNanos, long planningTookNanos) {
-        EsqlExecutionInfo info = new EsqlExecutionInfo(false) {
+        return new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY) {
             @Override
             public TimeValue overallTook() {
                 return new TimeValue(tookNanos, TimeUnit.NANOSECONDS);
@@ -202,6 +208,5 @@ public class EsqlQueryLogTests extends ESTestCase {
                 return new TimeValue(planningTookNanos, TimeUnit.NANOSECONDS);
             }
         };
-        return info;
     }
 }

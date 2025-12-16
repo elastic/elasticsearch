@@ -17,7 +17,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
@@ -34,15 +37,19 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.BroadcastMessageAction;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -68,15 +75,30 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private final AuthorizationPoller.Parameters pollerParameters;
     private final AtomicReference<AuthorizationPoller> currentTask = new AtomicReference<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final FeatureService featureService;
+    private final CCMEnablementService ccmEnablementService;
+    private final CCMFeature ccmFeature;
+    private Instant nextCreateTaskAttemptTime;
+    private final Clock clock;
 
-    public static AuthorizationTaskExecutor create(ClusterService clusterService, AuthorizationPoller.Parameters parameters) {
+    public static AuthorizationTaskExecutor create(
+        ClusterService clusterService,
+        FeatureService featureService,
+        CCMEnablementService ccmEnablementService,
+        CCMFeature ccmFeature,
+        AuthorizationPoller.Parameters parameters
+    ) {
         Objects.requireNonNull(clusterService);
         Objects.requireNonNull(parameters);
 
         return new AuthorizationTaskExecutor(
             clusterService,
             new PersistentTasksService(clusterService, parameters.serviceComponents().threadPool(), parameters.client()),
-            parameters
+            featureService,
+            ccmEnablementService,
+            ccmFeature,
+            parameters,
+            Clock.systemUTC()
         );
     }
 
@@ -84,12 +106,21 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     AuthorizationTaskExecutor(
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
-        AuthorizationPoller.Parameters pollerParameters
+        FeatureService featureService,
+        CCMEnablementService ccmEnablementService,
+        CCMFeature ccmFeature,
+        AuthorizationPoller.Parameters pollerParameters,
+        Clock clock
     ) {
         super(TASK_NAME, pollerParameters.serviceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.featureService = Objects.requireNonNull(featureService);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
+        this.ccmEnablementService = Objects.requireNonNull(ccmEnablementService);
+        this.ccmFeature = Objects.requireNonNull(ccmFeature);
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
+        this.clock = Objects.requireNonNull(clock);
+        this.nextCreateTaskAttemptTime = Instant.MIN;
     }
 
     /**
@@ -98,21 +129,13 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
      * we can't start the persistent task until after the plugin has finished initializing. Otherwise, we'll
      * get an error indicating that it isn't aware of whether the task is a cluster scoped task.
      */
-    public synchronized void startAndLazyCreateTask() {
-        startInternal(false);
+    public synchronized void startAndLazilyCreateTask() {
+        if (pollerParameters.elasticInferenceServiceSettings().isAuthorizationEnabled()) {
+            startInternal();
+        }
     }
 
-    /**
-     * Starts the authorization task executor and creates the persistent task if it doesn't already exist. This should only be called from
-     * a context where the cluster state is already initialized. Don't call this from the plugin
-     * {@link org.elasticsearch.xpack.inference.InferencePlugin#createComponents(Plugin.PluginServices)}. Use
-     * {@link #startAndLazyCreateTask()} instead.
-     */
-    public synchronized void startAndImmediatelyCreateTask() {
-        startInternal(true);
-    }
-
-    private void startInternal(boolean createPersistentTask) {
+    private void startInternal() {
         var eisUrl = pollerParameters.elasticInferenceServiceSettings().getElasticInferenceServiceUrl();
 
         logger.info("Authorization task executor EIS URL: [{}]", eisUrl);
@@ -121,24 +144,26 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         if (Strings.isNullOrEmpty(eisUrl) == false && running.compareAndSet(false, true)) {
             logger.info("Starting authorization task executor");
 
-            if (createPersistentTask) {
-                sendStartRequest(clusterService.state());
-            }
-
             clusterService.addListener(this);
         }
     }
 
+    // Default for testing
+    void sendStartRequestWithCurrentClusterState() {
+        sendStartRequest(clusterService.state());
+    }
+
     private void sendStartRequest(@Nullable ClusterState state) {
-        if (running.get() == false || authorizationTaskExists(state)) {
+        if (shouldSkipCreatingTask(state)) {
             return;
         }
 
-        logger.info("Creating authorization poller task");
+        updateNextCreateTaskAttemptTime();
+
         persistentTasksService.sendClusterStartRequest(
             TASK_NAME,
             TASK_NAME,
-            new AuthorizationTaskParams(),
+            AuthorizationTaskParams.INSTANCE,
             TimeValue.THIRTY_SECONDS,
             ActionListener.wrap(
                 persistentTask -> logger.info("Finished creating authorization poller task, id {}", persistentTask.getId()),
@@ -152,6 +177,30 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         );
     }
 
+    private boolean shouldSkipCreatingTask(@Nullable ClusterState state) {
+        if (state == null) {
+            return true;
+        }
+
+        return clusterCanSupportFeature(state) == false
+            || running.get() == false
+            || authorizationTaskExists(state)
+            || ccmSupportedButNotYetConfigured()
+            || hasAttemptedToCreateTaskRecently();
+    }
+
+    private boolean ccmSupportedButNotYetConfigured() {
+        return ccmFeature.isCcmSupportedEnvironment() && ccmEnablementService.isEnabled(ProjectId.DEFAULT) == false;
+    }
+
+    private boolean clusterCanSupportFeature(@Nullable ClusterState state) {
+        if (state == null) {
+            return false;
+        }
+
+        return state.clusterRecovered() && featureService.clusterHasFeature(state, InferenceFeatures.INFERENCE_AUTH_POLLER_PERSISTENT_TASK);
+    }
+
     private static boolean authorizationTaskExists(@Nullable ClusterState state) {
         if (state == null) {
             return false;
@@ -160,13 +209,23 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
     }
 
-    public synchronized void stop() {
-        if (running.compareAndSet(true, false)) {
-            logger.info("Shutting down authorization task executor");
-            clusterService.removeListener(this);
+    private boolean hasAttemptedToCreateTaskRecently() {
+        return Instant.now(clock).isBefore(nextCreateTaskAttemptTime);
+    }
 
-            sendStopRequest();
-        }
+    private void updateNextCreateTaskAttemptTime() {
+        var random = Randomness.get();
+        var jitter = (long) (pollerParameters.elasticInferenceServiceSettings().getMaxAuthorizationRequestJitter().millis() * random
+            .nextDouble());
+        var waitTimeMillis = pollerParameters.elasticInferenceServiceSettings().getAuthRequestInterval().millis() + jitter;
+
+        nextCreateTaskAttemptTime = Instant.now(clock).plusMillis(waitTimeMillis);
+        logger.debug(
+            "Create task rate limit info interval: [{}] ms, jitter: [{}] ms",
+            pollerParameters.elasticInferenceServiceSettings().getAuthRequestInterval().millis(),
+            jitter
+        );
+        logger.debug("Next create task attempt time [{}]", nextCreateTaskAttemptTime);
     }
 
     private void sendStopRequest() {
@@ -270,9 +329,9 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         @Override
         protected void receiveMessage(Message message) {
             if (message.enable()) {
-                authorizationTaskExecutor.startAndImmediatelyCreateTask();
+                authorizationTaskExecutor.sendStartRequestWithCurrentClusterState();
             } else {
-                authorizationTaskExecutor.stop();
+                authorizationTaskExecutor.sendStopRequest();
             }
         }
     }

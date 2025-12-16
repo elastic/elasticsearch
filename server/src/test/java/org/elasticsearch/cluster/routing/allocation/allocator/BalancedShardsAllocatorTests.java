@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -1027,7 +1026,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 RoutingNode node,
                 RoutingAllocation allocation
             ) {
-                return new Decision.Single(Decision.Type.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
+                return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
             }
         })), clusterState.getRoutingNodes().mutableCopy(), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
 
@@ -1039,7 +1038,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 "moved a NOT_PREFERRED allocation",
                 notPreferredLoggerName,
                 Level.DEBUG,
-                "Moving shard [*] to [*] from a NOT_PREFERRED allocation, explanation is [Always NOT_PREFERRED]"
+                "Moving shard [*] to [*] from a NOT_PREFERRED allocation: [NOT_PREFERRED(Always NOT_PREFERRED)]"
             )
         );
     }
@@ -1165,44 +1164,54 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final var allocationService = new MockAllocationService(
-            new AllocationDeciders(List.of(notPreferredDecider)),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER, new NodeNameDrivenBalancingWeightsFactory()),
-            () -> ClusterInfo.EMPTY,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
-        );
+        final var allocationDeciders = new AllocationDeciders(List.of(notPreferredDecider));
+        final var balancingWeightsFactory = new NodeNameDrivenBalancingWeightsFactory();
 
         // No allocation when NO
-        assertUnassigned(allocationService, shuffledList("no"));
+        assertUnassigned(allocationDeciders, balancingWeightsFactory, shuffledList("no"));
         // No allocation when THROTTLE
-        assertUnassigned(allocationService, shuffledList("throttle"));
+        assertUnassigned(allocationDeciders, balancingWeightsFactory, shuffledList("throttle"));
         // NOT_PREFERRED when no other choice
-        assertAssignedTo(allocationService, "not-preferred", shuffledList("not-preferred"));
+        assertAssignedTo(allocationDeciders, balancingWeightsFactory, "not-preferred", shuffledList("not-preferred"));
         // NOT_PREFERRED over NO
-        assertAssignedTo(allocationService, "not-preferred", shuffledList("not-preferred", "no"));
+        assertAssignedTo(allocationDeciders, balancingWeightsFactory, "not-preferred", shuffledList("not-preferred", "no"));
         // THROTTLE (No allocation) over NOT_PREFERRED/NO
-        assertUnassigned(allocationService, shuffledList("throttle", "not-preferred", "no"));
+        assertUnassigned(allocationDeciders, balancingWeightsFactory, shuffledList("throttle", "not-preferred", "no"));
         // THROTTLE (No allocation) over NOT_PREFERRED
-        assertUnassigned(allocationService, shuffledList("throttle", "not-preferred"));
+        assertUnassigned(allocationDeciders, balancingWeightsFactory, shuffledList("throttle", "not-preferred"));
         // YES over THROTTLE/NO/NOT_PREFERRED
-        assertAssignedTo(allocationService, "yes", shuffledList("not-preferred", "yes", "throttle", "no"));
+        assertAssignedTo(allocationDeciders, balancingWeightsFactory, "yes", shuffledList("not-preferred", "yes", "throttle", "no"));
+        assertAssignedTo(allocationDeciders, balancingWeightsFactory, "yes-high", shuffledList("not-preferred-low", "yes-high"));
         // prioritize YES/THROTTLE by weight
-        assertUnassigned(allocationService, shuffledList("throttle-low", "yes-high", "yes"));
-        assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "throttle", "throttle-high"));
+        assertUnassigned(allocationDeciders, balancingWeightsFactory, shuffledList("throttle-low", "yes-high", "yes"));
+        assertAssignedTo(allocationDeciders, balancingWeightsFactory, "yes-low", shuffledList("yes-low", "throttle", "throttle-high"));
         // prioritize YES over THROTTLE when weights equal
-        assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "throttle-low"));
+        assertAssignedTo(allocationDeciders, balancingWeightsFactory, "yes-low", shuffledList("yes-low", "throttle-low"));
         // prioritize YES by weight
-        assertAssignedTo(allocationService, "yes-low", shuffledList("yes-low", "yes", "yes-high"));
+        assertAssignedTo(allocationDeciders, balancingWeightsFactory, "yes-low", shuffledList("yes-low", "yes", "yes-high"));
         // prioritize NOT_PREFERRED by weight
-        assertAssignedTo(allocationService, "not-preferred-low", shuffledList("not-preferred-low", "not-preferred", "not-preferred-high"));
+        assertAssignedTo(
+            allocationDeciders,
+            balancingWeightsFactory,
+            "not-preferred-low",
+            shuffledList("not-preferred-low", "not-preferred", "not-preferred-high")
+        );
     }
 
-    private void assertUnassigned(AllocationService allocationService, List<String> allNodeIds) {
-        assertAssignedTo(allocationService, null, allNodeIds);
+    private void assertUnassigned(
+        AllocationDeciders allocationDeciders,
+        BalancingWeightsFactory balancingWeightsFactory,
+        List<String> allNodeIds
+    ) {
+        assertAssignedTo(allocationDeciders, balancingWeightsFactory, null, allNodeIds);
     }
 
-    private void assertAssignedTo(AllocationService allocationService, @Nullable String expectedNodeId, List<String> allNodeIds) {
+    private void assertAssignedTo(
+        AllocationDeciders allocationDeciders,
+        BalancingWeightsFactory balancingWeightsFactory,
+        @Nullable String expectedNodeId,
+        List<String> allNodeIds
+    ) {
         final var discoveryNodesBuilder = DiscoveryNodes.builder();
         for (String nodeName : allNodeIds) {
             discoveryNodesBuilder.add(newNode(nodeName));
@@ -1220,11 +1229,39 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
             .build();
 
-        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        clusterState = runAssignment(allocationDeciders, balancingWeightsFactory, clusterState);
 
         final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
         final ShardRouting primaryShard = routingTable.shardRoutingTable(indexMetadata.getIndex().getName(), 0).primaryShard();
         assertThat(primaryShard.currentNodeId(), equalTo(expectedNodeId));
+    }
+
+    private ClusterState runAssignment(
+        AllocationDeciders allocationDeciders,
+        BalancingWeightsFactory balancingWeightsFactory,
+        ClusterState clusterState
+    ) {
+        final var routingAllocation = new RoutingAllocation(
+            allocationDeciders,
+            clusterState.getRoutingNodes().mutableCopy(),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
+        // Debug mode should not change the outcome
+        routingAllocation.setDebugMode(randomFrom(RoutingAllocation.DebugMode.values()));
+
+        final var balancedShardsAllocator = new BalancedShardsAllocator(
+            BalancerSettings.DEFAULT,
+            TEST_WRITE_LOAD_FORECASTER,
+            balancingWeightsFactory
+        );
+        balancedShardsAllocator.allocate(routingAllocation);
+        return ClusterState.builder(clusterState)
+            .routingTable(clusterState.globalRoutingTable().rebuild(routingAllocation.routingNodes(), clusterState.metadata()))
+            .build();
     }
 
     /**
@@ -1240,7 +1277,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            float calculateNodeWeightWithIndex(
+            public float calculateNodeWeightWithIndex(
                 BalancedShardsAllocator.Balancer balancer,
                 BalancedShardsAllocator.ModelNode node,
                 BalancedShardsAllocator.ProjectIndex index

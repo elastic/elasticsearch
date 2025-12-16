@@ -16,9 +16,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -73,7 +75,7 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                     && aggFunction.filter() instanceof Literal literal
                     && Boolean.FALSE.equals(literal.value())) {
 
-                    Object value = aggFunction instanceof Count || aggFunction instanceof CountDistinct ? 0L : null;
+                    Object value = mapNullToValue(aggFunction);
                     Alias newAlias = alias.replaceChild(Literal.of(aggFunction, value));
                     newEvals.add(newAlias);
                     newProjections.add(newAlias.toAttribute());
@@ -115,6 +117,16 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
             }
         }
         return plan;
+    }
+
+    private static Object mapNullToValue(AggregateFunction aggFunction) {
+        return switch (aggFunction) {
+            case Count ignored -> 0L;
+            case CountDistinct ignored -> 0L;
+            case Absent ignored -> true;
+            case Present ignored -> false;
+            default -> null;
+        };
     }
 
     private static LogicalPlan updateAggregate(

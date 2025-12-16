@@ -24,6 +24,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -280,14 +281,36 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         }
 
         /**
-         * Scan all documents to find the first document that has a _tsid equal or greater than the provided _tsid ordinal, returning its
-         * document ID. If no document is found, the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
+         * Use a doc values skipper to find a starting document ID for the provided _tsid ordinal. The returned document ID might have the
+         * exact _tsid ordinal provided, or a lower one.
          *
-         * Warning: This method is very slow because it potentially scans all documents in the segment.
+         * @param tsIdOrd the _tsid ordinal
+         * @return a docID to start scanning documents from in order to find the first document ID matching the provided _tsid
+         * @throws IOException if any I/O exception occurs
          */
-        private int slowScanToFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
+        private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+            var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
+            assert skipper != null;
+            if (skipper.minValue() > tsIdOrd || tsIdOrd > skipper.maxValue()) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            skipper.advance(tsIdOrd, Long.MAX_VALUE);
+            return skipper.minDocID(0);
+        }
+
+        /**
+         * Find the first document that has a _tsid equal or greater than the provided _tsid ordinal, returning its document ID. If no
+         * document is found, the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
+         *
+         * Warning: This method can be slow because it potentially scans many documents in the segment.
+         */
+        private int findFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
+            final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
+            if (startDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                return startDocId;
+            }
             // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
-            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd)) {
+            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd) || tsIdDocValues.docID() > startDocId) {
                 tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
                 cachedTsIdOrd = -1;
                 cachedTsId = null;
@@ -295,7 +318,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             assert 0 <= tsIdOrd : tsIdOrd;
             assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
-            for (int docID = 0; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
+            for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
                 boolean found = tsIdDocValues.advanceExact(docID);
                 assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
                 var ord = tsIdDocValues.ordValue();
@@ -313,14 +336,17 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         }
 
         /**
-         * Scan all documents to find the first document that has a _tsid equal to the provided _tsid ordinal, returning its
-         * document ID. If no document is found, the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
+         * Find the first document that has a _tsid equal to the provided _tsid ordinal, returning its document ID. If no document is found,
+         * the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
          *
-         * Warning: This method is very slow because it potentially scans all documents in the segment.
+         * Warning: This method can be slow because it potentially scans many documents in the segment.
          */
-        private int slowScanToFirstDocWithTsIdOrdinalEqualTo(int tsIdOrd) throws IOException {
+        private int findFirstDocWithTsIdOrdinalEqualTo(int tsIdOrd) throws IOException {
+            final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
+            assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
+
             // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
-            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd)) {
+            if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd) || tsIdDocValues.docID() > startDocId) {
                 tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
                 cachedTsIdOrd = -1;
                 cachedTsId = null;
@@ -328,7 +354,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             assert 0 <= tsIdOrd : tsIdOrd;
             assert tsIdOrd < tsIdDocValues.getValueCount() : tsIdOrd;
 
-            for (int docID = 0; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
+            for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
                 boolean found = tsIdDocValues.advanceExact(docID);
                 assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
                 var ord = tsIdDocValues.ordValue();
@@ -348,6 +374,25 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
 
+        /**
+         * Skip as many documents as possible after a given document ID to find the first document ID matching the timestamp.
+         *
+         * @param timestamp the timestamp to match
+         * @param minDocID the min. document ID
+         * @return a docID to start scanning documents from in order to find the first document ID matching the provided timestamp
+         * @throws IOException if any I/O exception occurs
+         */
+        private int skipDocIDForTimestamp(long timestamp, int minDocID) throws IOException {
+            var skipper = docValuesProducer.getSkipper(timestampFieldInfo);
+            assert skipper != null;
+            if (skipper.minValue() > timestamp || timestamp > skipper.maxValue()) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            skipper.advance(minDocID);
+            skipper.advance(timestamp, Long.MAX_VALUE);
+            return Math.max(minDocID, skipper.minDocID(0));
+        }
+
         private int getTsIdValueCount() throws IOException {
             if (tsIdDocValues == null) {
                 tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
@@ -355,24 +400,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             return tsIdDocValues.getValueCount();
         }
     }
-
-    /**
-     * Represents the synthetic term the {@link TermsEnum} or {@link PostingsEnum} is positioned on. It points to a given docID and its
-     * corresponding _tsid, @timestamp and _ts_routing_hash values. The {@link #term()} method returns the synthetic _id of the document.
-     */
-    private record SyntheticTerm(int docID, int tsIdOrd, BytesRef tsId, long timestamp, BytesRef routingHash) {
-        private BytesRef term() {
-            assert docID >= 0 : docID;
-            assert tsIdOrd >= 0 : tsIdOrd;
-            return syntheticId(tsId, timestamp, routingHash);
-        }
-    }
-
-    /**
-     * When returned by next(), seekCeil(), nextDoc() and docID() it means there are no more synthetic terms in the {@link TermsEnum}
-     * or {@link PostingsEnum}.
-     */
-    private static final SyntheticTerm NO_MORE_DOCS = new SyntheticTerm(DocIdSetIterator.NO_MORE_DOCS, -1, null, -1L, null);
 
     /**
      * {@link TermsEnum} to iterate over documents synthetic _ids.
@@ -385,42 +412,58 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         private final DocValuesHolder docValues;
 
         /**
-         * Current synthetic term the enum is positioned on. It points to 1 document.
+         * Current document ID the enum is positioned on. The value is -1 if the terms enum has not been seek ({@link #seekCeil(BytesRef)},
+         * {@link #seekExact(BytesRef)}) or step through ({@link #next}). Once the enumeration is exhausted the docID is equal to
+         * {@link DocIdSetIterator#NO_MORE_DOCS}.
          */
-        private SyntheticTerm current;
+        private int docID;
+
+        /**
+         * Hold the _tsid ordinal and timestamp associated with the current document ID. We keep them around if we needed to fetch them
+         * for seeking so that we won't have to fetch them again to build the term.
+         */
+        private @Nullable Integer docTsIdOrd;
+        private @Nullable Long docTimestamp;
 
         private SyntheticIdTermsEnum() {
             this.docValues = new DocValuesHolder(fieldInfos, docValuesProducer);
-            this.current = null;
+            resetDocID(-1);
+        }
+
+        private void resetDocID(int docID) {
+            this.docID = docID;
+            this.docTsIdOrd = null;
+            this.docTimestamp = null;
         }
 
         private void ensurePositioned() {
-            if (current == null || current == NO_MORE_DOCS) {
+            if (docID == -1 || docID == DocIdSetIterator.NO_MORE_DOCS) {
                 assert false;
                 throw new IllegalStateException("Method should not be called when unpositioned");
             }
         }
 
+        private boolean assertNoMoreDocs() {
+            assert docID == DocIdSetIterator.NO_MORE_DOCS : docID;
+            assert docTsIdOrd == null : docTsIdOrd;
+            assert docTimestamp == null : docTimestamp;
+            return true;
+        }
+
         @Override
         public BytesRef next() throws IOException {
-            if (current == NO_MORE_DOCS) {
+            if (docID == DocIdSetIterator.NO_MORE_DOCS) {
+                assert assertNoMoreDocs();
                 return null;
             }
 
-            int docID = (current != null) ? current.docID + 1 : 0;
-            if (maxDocs <= docID) {
-                current = NO_MORE_DOCS;
+            int nextDocID = docID + 1;
+            if (maxDocs <= nextDocID) {
+                resetDocID(DocIdSetIterator.NO_MORE_DOCS);
                 return null;
             }
-            int tsIdOrdinal = docValues.docTsIdOrdinal(docID);
-            current = new SyntheticTerm(
-                docID,
-                tsIdOrdinal,
-                docValues.lookupTsIdOrd(tsIdOrdinal),
-                docValues.docTimestamp(docID),
-                docValues.docRoutingHash(docID)
-            );
-            return current.term();
+            resetDocID(nextDocID);
+            return term();
         }
 
         @Override
@@ -441,65 +484,80 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 tsIdOrd = -tsIdOrd - 1;
                 // set the terms enum on the first non-matching document
                 if (tsIdOrd < docValues.getTsIdValueCount()) {
-                    int docID = docValues.slowScanToFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
-                    if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-                        current = new SyntheticTerm(
-                            docID,
-                            tsIdOrd,
-                            docValues.lookupTsIdOrd(tsIdOrd),
-                            docValues.docTimestamp(docID),
-                            docValues.docRoutingHash(docID)
-                        );
+                    int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
+                    if (firstDocID != DocIdSetIterator.NO_MORE_DOCS) {
+                        docID = firstDocID;
+                        docTsIdOrd = tsIdOrd;
+                        docTimestamp = null;
                         return SeekStatus.NOT_FOUND;
                     }
                 }
                 // no docs/terms to iterate on
-                current = NO_MORE_DOCS;
+                resetDocID(DocIdSetIterator.NO_MORE_DOCS);
                 return SeekStatus.END;
             }
 
-            // _tsid found, extract the timestamp
-            final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
+            // Find the first document ID matching the _tsid
+            int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
+            assert firstDocID >= 0 : firstDocID;
 
-            // Slow scan to the first document matching the _tsid
-            final int startDocID = docValues.slowScanToFirstDocWithTsIdOrdinalEqualTo(tsIdOrd);
-            assert startDocID >= 0 : startDocID;
+            if (firstDocID != DocIdSetIterator.NO_MORE_DOCS) {
+                // _tsid found, extract the timestamp
+                final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
 
-            int docID = startDocID;
-            int docTsIdOrd = tsIdOrd;
-            long docTimestamp;
+                firstDocID = docValues.skipDocIDForTimestamp(timestamp, firstDocID);
+                if (firstDocID != DocIdSetIterator.NO_MORE_DOCS) {
+                    int nextDocID = firstDocID;
+                    int nextDocTsIdOrd = tsIdOrd;
+                    long nextDocTimestamp;
 
-            // Iterate over documents to find the first one matching the timestamp
-            for (; docID < maxDocs; docID++) {
-                docTimestamp = docValues.docTimestamp(docID);
-                if (startDocID < docID) {
-                    // After the first doc, we need to check again if _tsid matches
-                    docTsIdOrd = docValues.docTsIdOrdinal(docID);
-                }
-                if (docTsIdOrd == tsIdOrd && docTimestamp == timestamp) {
-                    // It's a match!
-                    current = new SyntheticTerm(docID, tsIdOrd, tsId, docTimestamp, docValues.docRoutingHash(docID));
-                    return SeekStatus.FOUND;
-                }
-                // Remaining docs don't match, stop here
-                if (tsIdOrd < docTsIdOrd || docTimestamp < timestamp) {
-                    break;
+                    // Iterate over documents to find the first one matching the timestamp
+                    for (; nextDocID < maxDocs; nextDocID++) {
+                        nextDocTimestamp = docValues.docTimestamp(nextDocID);
+                        if (firstDocID < nextDocID) {
+                            // After the first doc, we need to check again if _tsid matches
+                            nextDocTsIdOrd = docValues.docTsIdOrdinal(nextDocID);
+                        }
+                        if (nextDocTsIdOrd == tsIdOrd && nextDocTimestamp == timestamp) {
+                            // Document is found
+                            docID = nextDocID;
+                            docTsIdOrd = nextDocTsIdOrd;
+                            docTimestamp = nextDocTimestamp;
+                            return SeekStatus.FOUND;
+                        }
+                        // Remaining docs don't match, stop here
+                        if (tsIdOrd < nextDocTsIdOrd || nextDocTimestamp < timestamp) {
+                            break;
+                        }
+                    }
                 }
             }
-            current = NO_MORE_DOCS;
+            resetDocID(DocIdSetIterator.NO_MORE_DOCS);
             return SeekStatus.END;
         }
 
         @Override
-        public BytesRef term() {
+        public BytesRef term() throws IOException {
             ensurePositioned();
-            return current.term();
+            if (docTsIdOrd == null) {
+                docTsIdOrd = docValues.docTsIdOrdinal(docID);
+            }
+            if (docTimestamp == null) {
+                docTimestamp = docValues.docTimestamp(docID);
+            }
+            return syntheticId(docValues.lookupTsIdOrd(docTsIdOrd), docTimestamp, docValues.docRoutingHash(docID));
         }
 
         @Override
-        public PostingsEnum postings(PostingsEnum reuse, int flags) {
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
             ensurePositioned();
-            return new SyntheticIdPostingsEnum(current);
+            if (docTsIdOrd == null) {
+                docTsIdOrd = docValues.docTsIdOrdinal(docID);
+            }
+            if (docTimestamp == null) {
+                docTimestamp = docValues.docTimestamp(docID);
+            }
+            return new SyntheticIdPostingsEnum(docID, docTsIdOrd, docTimestamp);
         }
 
         /**
@@ -521,17 +579,17 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         }
 
         @Override
-        public int docFreq() throws IOException {
+        public int docFreq() {
             return 0;
         }
 
         @Override
-        public long totalTermFreq() throws IOException {
+        public long totalTermFreq() {
             return 0;
         }
 
         @Override
-        public ImpactsEnum impacts(int flags) throws IOException {
+        public ImpactsEnum impacts(int flags) {
             return null;
         }
     }
@@ -541,14 +599,26 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         private final DocValuesHolder docValues;
 
         /**
-         * Current synthetic term the postings is pinned on.
+         * Current synthetic term the postings is pinned on. Only documents matching those _tsid and timestamp values are returned.
          */
-        private final SyntheticTerm term;
+        private final int termTsIdOrd;
+        private final long termTimestamp;
+
+        /**
+         * Document ID of the first document matching the synthetic term.
+         */
+        private final int startDocId;
+
+        /**
+         * Current document ID.
+         */
         private int docID = -1;
 
-        private SyntheticIdPostingsEnum(SyntheticTerm term) {
+        private SyntheticIdPostingsEnum(int docID, int termTsIdOrd, long termTimestamp) {
             this.docValues = new DocValuesHolder(fieldInfos, docValuesProducer);
-            this.term = Objects.requireNonNull(term);
+            this.termTsIdOrd = termTsIdOrd;
+            this.termTimestamp = termTimestamp;
+            this.startDocId = docID;
         }
 
         @Override
@@ -561,14 +631,16 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             if (docID == DocIdSetIterator.NO_MORE_DOCS) {
                 return docID;
             }
-            int nextDocID = (docID == -1) ? term.docID() : docID + 1;
+            int nextDocID = (docID == -1) ? startDocId : docID + 1;
             if (nextDocID < maxDocs) {
                 int tsIdOrd = docValues.docTsIdOrdinal(nextDocID);
-                if (tsIdOrd == term.tsIdOrd()) {
+                if (tsIdOrd == termTsIdOrd) {
                     long timestamp = docValues.docTimestamp(nextDocID);
-                    if (timestamp == term.timestamp()) {
-                        assert Objects.equals(docValues.docRoutingHash(nextDocID), term.routingHash());
-                        assert Objects.equals(docValues.lookupTsIdOrd(tsIdOrd), term.tsId());
+                    if (timestamp == termTimestamp) {
+                        assert Objects.equals(
+                            docValues.docRoutingHash(nextDocID),
+                            docValues.docRoutingHash((docID == -1) ? startDocId : docID)
+                        );
                         docID = nextDocID;
                         return docID;
                     }

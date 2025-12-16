@@ -10,7 +10,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
@@ -76,11 +75,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
 
-        if (serializationVersion.onOrAfter(TransportVersions.V_8_11_X)) {
-            assertEquals(outRequest.clusterStateVersion(), inRequest.clusterStateVersion());
-        } else {
-            assertEquals(0L, inRequest.clusterStateVersion());
-        }
+        assertEquals(outRequest.clusterStateVersion(), inRequest.clusterStateVersion());
     }
 
     public void testDescription() {

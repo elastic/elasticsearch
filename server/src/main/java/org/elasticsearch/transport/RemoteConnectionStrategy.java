@@ -78,6 +78,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         reconnect
     }
 
+    private static final String metricLabelPrefix = "es_linked_project";
+    static final String linkedProjectIdLabel = metricLabelPrefix + "_id";
+    static final String linkedProjectAliasLabel = metricLabelPrefix + "_alias";
+    static final String connectionAtemptLabel = metricLabelPrefix + "_attempt";
+
     private final int maxPendingConnectionListeners;
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -240,14 +245,12 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 connectionAttemptFailures.incrementBy(
                     1,
                     Map.of(
-                        "linked_project_id",
+                        linkedProjectIdLabel,
                         linkedProjectId.toString(),
-                        "linked_project_alias",
+                        linkedProjectAliasLabel,
                         clusterAlias,
-                        "attempt",
-                        (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString(),
-                        "strategy",
-                        strategyType().toString()
+                        connectionAtemptLabel,
+                        (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString()
                     )
                 );
             }

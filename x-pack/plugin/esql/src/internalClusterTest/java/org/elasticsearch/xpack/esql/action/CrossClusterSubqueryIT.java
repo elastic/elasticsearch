@@ -259,26 +259,21 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
 
         // If there is no subquery with matching index pattern, Analyzer's verifier fails on the query.
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [cluster-a:missing,cluster-a:remote]"),
-            () -> runQuery("""
+        expectThrows(VerificationException.class, containsString("Unknown index [cluster-a:missing,cluster-a:remote]"), () -> runQuery("""
             FROM (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
             | STATS c = count(*) by _index
             | SORT _index
-            """, randomBoolean())
-        );
-
-        expectThrows(VerificationException.class,
-            allOf(
-                containsString("Unknown index [missing]"),
-                containsString("Unknown index [cluster-a:missing,cluster-a:remote]")
-            ),
-            () -> runQuery("""
-            FROM missing, (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
-            | STATS c = count(*) by _index
-            | SORT _index
             """, randomBoolean()));
+
+        expectThrows(
+            VerificationException.class,
+            allOf(containsString("Unknown index [missing]"), containsString("Unknown index [cluster-a:missing,cluster-a:remote]")),
+            () -> runQuery("""
+                FROM missing, (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
+                | STATS c = count(*) by _index
+                | SORT _index
+                """, randomBoolean())
+        );
     }
 
     /*

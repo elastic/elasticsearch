@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -121,7 +122,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         float approximateDocsPerCentroid = approximateCost / numCentroids;
-        if (approximateDocsPerCentroid <= 1.25) {
+        final boolean postFilter = acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
+        if (false == postFilter && approximateDocsPerCentroid <= 1.25) {
             // TODO: we need to make this call to build the iterator, otherwise accept docs breaks all together
             approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
         }
@@ -129,7 +131,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
-        if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
+        if (postFilter || approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
             // only apply centroid filtering when we expect some / many centroids will not have
             // any matching document.
             acceptCentroids = null;

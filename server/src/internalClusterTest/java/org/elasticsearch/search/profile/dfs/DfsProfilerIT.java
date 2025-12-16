@@ -74,6 +74,7 @@ public class DfsProfilerIT extends ESIntegTestCase {
                 50,
                 10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
+                randomBoolean() ? null : randomFloat(),
                 randomBoolean() ? null : randomFloat()
             );
             if (randomBoolean()) {

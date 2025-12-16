@@ -60,6 +60,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
 
     public static final TransportVersion AUTO_PREFILTERING = TransportVersion.fromName("knn_vector_query_auto_prefiltering");
+    public static final TransportVersion POST_FILTERING_THRESHOLD = TransportVersion.fromName("post_filtering_threshold");
 
     public static final String NAME = "knn";
     private static final int NUM_CANDS_LIMIT = 10_000;
@@ -74,6 +75,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public static final ParseField FILTER_FIELD = new ParseField("filter");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
+    public static final ParseField POST_FILTERING_THRESHOLD_FIELD = new ParseField("post_filtering_threshold");
 
     public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "knn",
@@ -86,7 +88,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             (Integer) args[3],
             (Float) args[4],
             (RescoreVectorBuilder) args[7],
-            (Float) args[5]
+            (Float) args[5],
+            (Float) args[8]
         )
     );
 
@@ -126,6 +129,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );
+        PARSER.declareFloat(optionalConstructorArg(), POST_FILTERING_THRESHOLD_FIELD);
         declareStandardFields(PARSER);
     }
 
@@ -145,6 +149,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> queryVectorSupplier;
     private final RescoreVectorBuilder rescoreVectorBuilder;
+    private final Float postFilteringThreshold;
 
     /**
      * True if auto pre-filtering should be applied.
@@ -158,7 +163,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float vectorSimilarity
+        Float vectorSimilarity,
+        Float postFilteringThreshold
     ) {
         this(
             fieldName,
@@ -169,7 +175,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             numCands,
             visitPercentage,
             rescoreVectorBuilder,
-            vectorSimilarity
+            vectorSimilarity,
+            postFilteringThreshold
         );
     }
 
@@ -179,9 +186,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer k,
         Integer numCands,
         Float visitPercentage,
-        Float vectorSimilarity
+        Float vectorSimilarity,
+        Float postFilteringThreshold
     ) {
-        this(fieldName, null, queryVectorBuilder, null, k, numCands, visitPercentage, null, vectorSimilarity);
+        this(fieldName, null, queryVectorBuilder, null, k, numCands, visitPercentage, null, vectorSimilarity, postFilteringThreshold);
     }
 
     public KnnVectorQueryBuilder(
@@ -191,7 +199,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float vectorSimilarity
+        Float vectorSimilarity,
+        Float postFilteringThreshold
     ) {
         this(
             fieldName,
@@ -202,7 +211,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             numCands,
             visitPercentage,
             rescoreVectorBuilder,
-            vectorSimilarity
+            vectorSimilarity,
+            postFilteringThreshold
         );
     }
 
@@ -213,9 +223,21 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float vectorSimilarity
+        Float vectorSimilarity,
+        Float postFilteringThreshold
     ) {
-        this(fieldName, queryVector, null, null, k, numCands, visitPercentage, rescoreVectorBuilder, vectorSimilarity);
+        this(
+            fieldName,
+            queryVector,
+            null,
+            null,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            vectorSimilarity,
+            postFilteringThreshold
+        );
     }
 
     private KnnVectorQueryBuilder(
@@ -227,7 +249,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float vectorSimilarity
+        Float vectorSimilarity,
+        Float postFilteringThreshold
     ) {
         if (k != null && k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
@@ -260,6 +283,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 )
             );
         }
+        if (postFilteringThreshold != null && (postFilteringThreshold < 0.0f || postFilteringThreshold > 1.0f)) {
+            throw new IllegalArgumentException(
+                "["
+                    + POST_FILTERING_THRESHOLD_FIELD.getPreferredName()
+                    + "] must be between 0.0 and 1.0, but got: "
+                    + postFilteringThreshold
+            );
+        }
         this.fieldName = fieldName;
         this.queryVector = queryVector;
         this.k = k;
@@ -269,6 +300,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.queryVectorBuilder = queryVectorBuilder;
         this.queryVectorSupplier = queryVectorSupplier;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
+        this.postFilteringThreshold = postFilteringThreshold;
     }
 
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
@@ -291,6 +323,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
 
         this.queryVectorSupplier = null;
+        if (in.getTransportVersion().supports(POST_FILTERING_THRESHOLD)) {
+            this.postFilteringThreshold = in.readOptionalFloat();
+        } else {
+            this.postFilteringThreshold = null;
+        }
     }
 
     public String getFieldName() {
@@ -330,6 +367,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     public RescoreVectorBuilder rescoreVectorBuilder() {
         return rescoreVectorBuilder;
+    }
+
+    public Float getPostFilteringThreshold() {
+        return postFilteringThreshold;
     }
 
     public KnnVectorQueryBuilder addFilterQuery(QueryBuilder filterQuery) {
@@ -374,6 +415,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().supports(AUTO_PREFILTERING)) {
             out.writeBoolean(isAutoPrefilteringEnabled);
         }
+        if (out.getTransportVersion().supports(POST_FILTERING_THRESHOLD)) {
+            out.writeOptionalFloat(postFilteringThreshold);
+        }
     }
 
     @Override
@@ -413,6 +457,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (rescoreVectorBuilder != null) {
             builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
         }
+        if (postFilteringThreshold != null) {
+            builder.field(POST_FILTERING_THRESHOLD_FIELD.getPreferredName(), postFilteringThreshold);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -435,7 +482,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                postFilteringThreshold
             ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (queryVectorBuilder != null) {
@@ -465,7 +513,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                postFilteringThreshold
             ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         boolean changed = false;
@@ -490,7 +539,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                postFilteringThreshold
             ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
@@ -597,7 +647,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             vectorSimilarity,
             parentBitSet,
             heuristic,
-            hnswEarlyTermination
+            hnswEarlyTermination,
+            postFilteringThreshold
         );
     }
 
@@ -653,7 +704,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             vectorSimilarity,
             queryVectorBuilder,
             rescoreVectorBuilder,
-            isAutoPrefilteringEnabled
+            isAutoPrefilteringEnabled,
+            postFilteringThreshold
         );
     }
 
@@ -668,7 +720,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
             && Objects.equals(queryVectorBuilder, other.queryVectorBuilder)
             && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder)
-            && isAutoPrefilteringEnabled == other.isAutoPrefilteringEnabled;
+            && isAutoPrefilteringEnabled == other.isAutoPrefilteringEnabled
+            && Objects.equals(postFilteringThreshold, other.postFilteringThreshold);
     }
 
     @Override

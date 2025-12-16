@@ -77,7 +77,7 @@ public class VectorIT extends ESIntegTestCase {
         float[] vector = new float[16];
         randomVector(vector, 25);
         int upperLimit = 35;
-        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null).addFilterQuery(
+        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null, null).addFilterQuery(
             QueryBuilders.rangeQuery(NUM_ID_FIELD).lte(35)
         );
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), acornResponse -> {
@@ -138,7 +138,7 @@ public class VectorIT extends ESIntegTestCase {
         float[] vector = new float[16];
         randomVector(vector, 25);
         int upperLimit = 35;
-        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null);
+        var query = new KnnSearchBuilder(VECTOR_FIELD, vector, 1, 1, 10f, null, null, null);
         assertResponse(client().prepareSearch(INDEX_NAME).setKnnSearch(List.of(query)).setSize(1).setProfile(true), response -> {
             assertNotEquals(0, response.getHits().getHits().length);
             var profileResults = response.getProfileResults();

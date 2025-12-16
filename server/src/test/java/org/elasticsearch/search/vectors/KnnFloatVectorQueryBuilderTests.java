@@ -24,13 +24,23 @@ public class KnnFloatVectorQueryBuilderTests extends AbstractKnnVectorQueryBuild
         int numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float similarity
+        Float similarity,
+        Float postFilteringThreshold
     ) {
         float[] vector = new float[vectorDimensions];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();
         }
-        return new KnnVectorQueryBuilder(fieldName, vector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
+        return new KnnVectorQueryBuilder(
+            fieldName,
+            vector,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            similarity,
+            postFilteringThreshold
+        );
     }
 
     @Override

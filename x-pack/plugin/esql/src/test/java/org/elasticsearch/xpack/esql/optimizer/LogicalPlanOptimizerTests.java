@@ -10302,12 +10302,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * <pre>{@code
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[],[COUNT($$to_lower(langua>$COUNT$0{r$}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#12, COUNT($$language_name$t
-     * emp_name$23{r}#24,true[BOOLEAN],PT0S[TIME_DURATION]) AS b#15]]
-     *   \_Eval[[TOLOWER($$language_name$temp_name$23{r}#24) AS $$to_lower(langua>$COUNT$0#22]]
+     * \_Aggregate[[],[COUNT($$TO_LOWER(langua>$COUNT$0{r$}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#12, COUNT($$language_name$t
+     * emp_name$23{r}#25,true[BOOLEAN],PT0S[TIME_DURATION]) AS b#15]]
+     *   \_Eval[[TOLOWER($$language_name$temp_name$23{r}#25) AS $$TO_LOWER(langua>$COUNT$0#22]]
      *     \_Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,{"match":{"indices":[],"match_field":"id","enrich_fields":["langua
-     * ge_code","language_name"]}},{=languages_idx},[language_code{r}#20, language_name{r}#21 AS $$language_name$temp_n
-     * ame$23#24]]
+     * ge_code","language_name"]}},{=languages_idx},[language_code{r}#20, language_name{r}#24 AS $$language_name$temp_n
+     * ame$23#25]]
      *       \_Join[LEFT,[language_code{r}#4],[language_code{f}#16],null]
      *         |_LocalRelation[[language_code{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
      *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
@@ -10336,7 +10336,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(agg1.name(), is("a"));
         var count1 = as(agg1.child(), Count.class);
         var field1 = as(count1.field(), ReferenceAttribute.class);
-        assertThat(field1.name(), is("$$to_lower(langua>$COUNT$0"));
+        assertThat(field1.name(), is("$$TO_LOWER(langua>$COUNT$0"));
 
         var agg2 = as(aggregate.aggregates().get(1), Alias.class);
         assertThat(agg2.name(), is("b"));
@@ -10344,15 +10344,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var field2 = as(count2.field(), ReferenceAttribute.class);
         assertThat(field2.name(), startsWith("$$language_name$temp_name$"));
 
-        // Eval[[TOLOWER($$language_name$temp_name$23{r}#24) AS $$to_lower(langua>$COUNT$0#22]]
+        // Eval[[TOLOWER($$language_name$temp_name$23{r}#25) AS $$TO_LOWER(langua>$COUNT$0#22]]
         var eval = as(aggregate.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         var evalFieldAlias = as(eval.fields().get(0), Alias.class);
         var evalField = as(evalFieldAlias.child(), ToLower.class);
 
-        assertThat(evalFieldAlias.name(), is("$$to_lower(langua>$COUNT$0"));
+        assertThat(evalFieldAlias.name(), is("$$TO_LOWER(langua>$COUNT$0"));
         assertThat(count1.field(), is(evalFieldAlias.toAttribute()));
-        assertThat(evalField.source().text(), is("to_lower(language_name)"));
+        assertThat(evalField.source().text(), is("TO_LOWER(language_name)"));
 
         // Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,...]
         var enrich = as(eval.child(), Enrich.class);

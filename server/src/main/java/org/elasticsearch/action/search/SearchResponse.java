@@ -507,7 +507,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final transient Boolean ccsMinimizeRoundtrips;
 
         /**
-         * For use with cross-cluster searches.
+         * For use with cross-cluster searches in stateful. Serverless (cross-project search) based code should
+         * not use this constructor, since it defaults the originClusterLabel "(local)".
+         *
          * When minimizing roundtrips, the number of successful, skipped, running, partial and failed clusters
          * is not known until the end of the search and it the information in SearchResponse.Cluster object
          * will be updated as each cluster returns.
@@ -525,6 +527,37 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             boolean ccsMinimizeRoundtrips,
             Predicate<String> skipOnFailurePredicate
         ) {
+            this(
+                localIndices,
+                remoteClusterIndices,
+                ccsMinimizeRoundtrips,
+                skipOnFailurePredicate,
+                SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
+            );
+        }
+
+        /**
+         * For use with cross-cluster or cross-project searches.
+         * When minimizing roundtrips, the number of successful, skipped, running, partial and failed clusters
+         * is not known until the end of the search and it the information in SearchResponse.Cluster object
+         * will be updated as each cluster returns.
+         * @param localIndices The localIndices to be searched - null if no local indices are to be searched
+         * @param remoteClusterIndices mapping of clusterAlias -> OriginalIndices for each remote cluster
+         * @param ccsMinimizeRoundtrips whether minimizing roundtrips for the CCS
+         * @param skipOnFailurePredicate given a cluster alias, returns true if that cluster is marked as skippable
+         *                               and false otherwise. For a cluster to be considered as skippable, either
+         *                               we should be in CPS environment and allow_partial_results=true, or,
+         *                               skip_unavailable=true.
+         * @param originClusterLabel "(local)" in stateful and "_origin" in serverless. For use in the _cluster/details
+         *                           metadata of search response JSON
+         */
+        public Clusters(
+            @Nullable OriginalIndices localIndices,
+            Map<String, OriginalIndices> remoteClusterIndices,
+            boolean ccsMinimizeRoundtrips,
+            Predicate<String> skipOnFailurePredicate,
+            String originClusterLabel
+        ) {
             assert remoteClusterIndices.size() > 0 : "At least one remote cluster must be passed into this Cluster constructor";
             this.total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
             assert total >= 1 : "No local indices or remote clusters passed in";
@@ -533,9 +566,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
             if (localIndices != null) {
-                String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-                Cluster c = new Cluster(localKey, String.join(",", localIndices.indices()), false);
-                m.put(localKey, c);
+                Cluster c = new Cluster(originClusterLabel, String.join(",", localIndices.indices()), false);
+                m.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, c);
             }
             for (Map.Entry<String, OriginalIndices> remote : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remote.getKey();
@@ -547,7 +579,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * Used for searches that are either not cross-cluster.
+         * Used for searches that are not cross-cluster.
          * For CCS minimize_roundtrips=true use {@code Clusters(OriginalIndices, Map<String, OriginalIndices>, boolean)}
          * @param total total number of clusters in the search
          * @param successful number of successful clusters in the search

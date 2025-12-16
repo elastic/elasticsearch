@@ -1589,7 +1589,7 @@ public final class Authentication implements ToXContentObject {
             : "metadata must contain authentication object for cross cluster access authentication";
         final Authentication authenticationFromMetadata = (Authentication) metadata.get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         final TransportVersion effectiveSubjectVersion = authenticationFromMetadata.getEffectiveSubject().getTransportVersion();
-        if (effectiveSubjectVersion.id() > olderVersion.id()) {
+        if (olderVersion.supports(effectiveSubjectVersion) == false) {
             logger.trace(
                 () -> "Cross cluster access authentication has authentication field in metadata ["
                     + authenticationFromMetadata

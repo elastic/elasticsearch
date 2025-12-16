@@ -2556,7 +2556,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 objectPath.evaluate("nodes." + id + ".transport_version"),
                 () -> TransportVersion.minimumCompatible()
             );
-            if (minTransportVersion == null || minTransportVersion.id() > transportVersion.id()) {
+            if (minTransportVersion == null || transportVersion.supports(minTransportVersion) == false) {
                 minTransportVersion = transportVersion;
             }
         }

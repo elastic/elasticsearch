@@ -39,6 +39,8 @@ public final class EsqlQueryLog {
     public static final String ELASTICSEARCH_QUERYLOG_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".took_millis";
     public static final String ELASTICSEARCH_QUERYLOG_PLANNING_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".planning.took";
     public static final String ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".planning.took_millis";
+    public static final String ELASTICSEARCH_QUERYLOG_PARSING_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".parsing.took";
+    public static final String ELASTICSEARCH_QUERYLOG_PARSING_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".parsing.took_millis";
     public static final String ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".preanalysis.took";
     public static final String ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".preanalysis.took_millis";
     public static final String ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".analysis.took";
@@ -147,6 +149,9 @@ public final class EsqlQueryLog {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK, esqlResult.executionInfo().planningTookTime().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS, esqlResult.executionInfo().planningTookTime().millis());
+            TimeSpan parsingTimeSpan = esqlResult.executionInfo().preAnalysisTimeSpan();
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_PARSING_TOOK, parsingTimeSpan.toTimeValue().nanos());
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_PARSING_TOOK_MILLIS, parsingTimeSpan.toTimeValue().millis());
             TimeSpan preAnalysisTimeSpan = esqlResult.executionInfo().preAnalysisTimeSpan();
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK, preAnalysisTimeSpan.toTimeValue().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS, preAnalysisTimeSpan.toTimeValue().millis());

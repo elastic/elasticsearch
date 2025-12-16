@@ -196,7 +196,9 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
+        executionInfo.markBeginParsing();
         EsqlStatement statement = parse(request);
+        executionInfo.markEndParsing();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
         Configuration configuration = new Configuration(
             request.timeZone() == null

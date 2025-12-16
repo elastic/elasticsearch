@@ -90,6 +90,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // start time for the ESQL query for calculating time spans relative to the beginning of the query
     private final transient TimeSpan.Builder relativeStart;
     private transient TimeSpan overallTimeSpan;
+    private transient TimeSpan parsingTimeSpan; // time elapsed for plan analysis
+    private transient TimeSpan.Builder parsingTimeSpanBuilder; // Builder for analysisTimeSpan
     private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
     private transient TimeSpan preAnalysisTimeSpan; // time elapsed for index preanalysis, including lookup indices
     private transient TimeSpan.Builder preAnalysisTimeSpanBuilder; // Builder for preAnalysisTimeSpan
@@ -201,6 +203,30 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return planningTimeSpan != null ? planningTimeSpan.toTimeValue() : null;
     }
 
+
+    /**
+     * Call when ES|QL "parsing" phase starts - this includes preanalysis, retrieving field caps information for indices,
+     * resolve enrich policies, and resolve inference IDs.
+     * Both main indices and lookup indices will be included in this phase
+     */
+    public void markBeginParsing() {
+        assert parsingTimeSpanBuilder == null : "markBeginPreAnalysis should only be called once";
+        parsingTimeSpanBuilder = TimeSpan.start();
+    }
+
+    /**
+     * Call when ES|QL "parsing" phase ends
+     */
+    public void markEndParsing() {
+        assert parsingTimeSpanBuilder != null : "markBeginParsing should have been called";
+        assert parsingTimeSpan == null : "markEndParsing should only be called once";
+        parsingTimeSpan = parsingTimeSpanBuilder.stop();
+    }
+
+    public TimeSpan parsingTimeSpan() {
+        return parsingTimeSpan;
+    }
+
     /**
      * Call when ES|QL "preanalysis" phase starts - this includes preanalysis, retrieving field caps information for indices,
      * resolve enrich policies, and resolve inference IDs.
@@ -212,7 +238,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * Call when ES|QL "preanalysis" phase starts
+     * Call when ES|QL "preanalysis" phase ends
      */
     public void markEndPreAnalysis() {
         assert preAnalysisTimeSpanBuilder != null : "markBeginPreAnalysis should have been called";
@@ -238,8 +264,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * Call when ES|QL "analysis" phase starts - this includes retrieving field caps information for indices
-     * Both main indices and lookup indices will be included in this phase
+     * Call when ES|QL "analysis" phase ends
      */
     public void markEndAnalysis() {
         // this method may be called more than once, when we perform another preanalysis with index filtering deactivated.

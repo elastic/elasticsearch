@@ -16,12 +16,12 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongArray;
@@ -83,7 +83,7 @@ class SignificanceLookup {
             : samplingContext.buildQueryWithSampler(backgroundFilter, context);
         // Refilter to account for alias filters, if there are any.
         if (backgroundQuery == null) {
-            Query matchAllDocsQuery = new MatchAllDocsQuery();
+            Query matchAllDocsQuery = Queries.ALL_DOCS_INSTANCE;
             Query contextFiltered = context.filterQuery(matchAllDocsQuery);
             if (contextFiltered != matchAllDocsQuery) {
                 this.backgroundFilter = contextFiltered;

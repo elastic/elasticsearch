@@ -463,6 +463,9 @@ tests:
 - class: org.elasticsearch.xpack.core.action.XPackUsageResponseTests
   method: testVersionDependentSerializationWriteToOldStream
   issue: https://github.com/elastic/elasticsearch/issues/139576
+- class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/139658
 
 # Examples:
 #

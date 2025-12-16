@@ -57,6 +57,9 @@ If you are sure that GPU indexing is enabled but don't see performance improveme
 
 * Ensure supported vector index types and element type are used
 * Ensure the dataset is large enough to benefit from GPU acceleration
-* Use base64 encoded vectors as opposed to json arrays
+* Check if there are different bottlenecks affecting the indexing process: using GPU indexing accelerates the HNSW graph building, but speedups can be limited by other factors.
+   * Indexing throughput depends on how fast you can get data IN {{es}}. Check network speed and client performances. Use multiple clients if needed.
+   * JSON parsing could dominate the computation: use base64 encoded vectors as opposed to json arrays
+   * Storage speed is also very important: as a GPU is able to process lots of data, you need a storage solution that is able to pick up. Avoid using network attached storage, and prefer fast NVMe to extract the most performance
 * Consider monitoring CPU usage to demonstrate offloading to GPU
 * Consider monitoring GPU usage (e.g. with `nvidia-smi`)

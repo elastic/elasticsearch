@@ -19,8 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.T_DIGEST_FIELD_SUPPORT;
-
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -1596,14 +1594,9 @@ public class EsqlCapabilities {
         EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
 
         /**
-         * Support for the T-Digest elasticsearch field mapper.
+         * Support for the T-Digest elasticsearch field mapper and ES|QL type when they were released into tech preview.
          */
-        TDIGEST_FIELD_TYPE_SUPPORT_V4(T_DIGEST_FIELD_SUPPORT),
-
-        /**
-         * Support for the T-Digest type in ESQL in tech preview.
-         */
-        TDIGEST_ESQL_TYPE_TECH_PREVIEW,
+        TDIGEST_TECH_PREVIEW,
 
         /**
          * Development capability for the histogram field integration

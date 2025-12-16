@@ -28,6 +28,12 @@ import java.util.Map;
 
 public class ToTDigest extends AbstractConvertFunction {
 
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ToTDigest",
+        ToTDigest::new
+    );
+
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DataType.TDIGEST, (source, field) -> field),
         Map.entry(DataType.HISTOGRAM, ToTDigestFromHistogramEvaluator.Factory::new)
@@ -52,30 +58,29 @@ public class ToTDigest extends AbstractConvertFunction {
         super(in);
     }
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "ToTDigest",
-        ToTDigest::new
-    );
+    @Override
+    public DataType dataType() {
+        return DataType.TDIGEST;
+    }
 
     @Override
     protected Map<DataType, BuildFactory> factories() {
-        return Map.of();
+        return EVALUATORS;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return null;
+        return new ToTDigest(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return null;
+        return NodeInfo.create(this, ToTDigest::new, field());
     }
 
     @Override
     public String getWriteableName() {
-        return "";
+        return ENTRY.name;
     }
 
     @ConvertEvaluator(extraName = "FromHistogram", warnExceptions =  { IllegalArgumentException.class })

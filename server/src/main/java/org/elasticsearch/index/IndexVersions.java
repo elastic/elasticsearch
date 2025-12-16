@@ -210,6 +210,7 @@ public class IndexVersions {
     public static final IndexVersion STATELESS_SKIPPERS_ENABLED_FOR_TSDB = def(9_057_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX = def(9_058_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion DEFAULT_HNSW_EARLY_TERMINATION = def(9_059_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES = def(9_060_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

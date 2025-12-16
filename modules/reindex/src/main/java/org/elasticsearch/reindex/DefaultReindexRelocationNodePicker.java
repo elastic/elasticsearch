@@ -34,7 +34,7 @@ class DefaultReindexRelocationNodePicker implements ReindexRelocationNodePicker 
         if (currentNodeId == null) {
             logger.debug(
                 "Trying to pick a node to relocate a reindex task to, but the current node ID is unexpectedly unknown:"
-                    + " the relocation attempt will be aborted."
+                    + " the relocation attempt will be aborted"
             );
             return null;
         }
@@ -63,7 +63,7 @@ class DefaultReindexRelocationNodePicker implements ReindexRelocationNodePicker 
         }
         logger.debug(
             "Trying to pick a node to relocate a reindex task to, but there are no dedicated coordinating or data nodes"
-                + " (perhaps excluding the current node): the relocation attempt will be aborted."
+                + " (perhaps excluding the current node): the relocation attempt will be aborted"
         );
         return null;
     }

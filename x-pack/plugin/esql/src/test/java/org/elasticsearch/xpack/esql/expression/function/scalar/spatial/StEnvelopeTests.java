@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -36,8 +35,8 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StEnvelopeFromWKBGeoEvaluator[wkb=Attribute[channel=0]]";
-        String expectedCartesian = "StEnvelopeFromWKBEvaluator[wkb=Attribute[channel=0]]";
+        String expectedGeo = "StEnvelopeFromWKBGeoEvaluator[wkbBlock=Attribute[channel=0]]";
+        String expectedCartesian = "StEnvelopeFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(
@@ -68,9 +67,6 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
 
     private static BytesRef valueOf(BytesRef wkb, boolean geo) {
         var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        if (geometry instanceof Point) {
-            return wkb;
-        }
         var envelope = geo
             ? SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.WRAP)
             : SpatialEnvelopeVisitor.visitCartesian(geometry);
@@ -82,6 +78,6 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StEnvelope(source, args.get(0));
+        return new StEnvelope(source, args.getFirst());
     }
 }

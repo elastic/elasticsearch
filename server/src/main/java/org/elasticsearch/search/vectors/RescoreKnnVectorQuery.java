@@ -27,8 +27,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.BulkScorableVectorValues;
+import org.apache.lucene.search.VectorScorer;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -274,17 +273,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     continue;
                 }
                 var filterIterator = scorer.iterator();
-                if (knnVectorValues instanceof BulkScorableFloatVectorValues rescorableVectorValues) {
-                    rescoreBulk(leaf.docBase, rescorableVectorValues, results, filterIterator);
-                } else {
-                    rescoreIndividually(
-                        leaf.docBase,
-                        knnVectorValues,
-                        leaf.reader().getFieldInfos().fieldInfo(fieldName).getVectorSimilarityFunction(),
-                        results,
-                        filterIterator
-                    );
-                }
+                rescoreBulk(leaf.docBase, knnVectorValues, results, filterIterator);
             }
             // Remove any remaining sentinel values
             ScoreDoc[] arrayResults = results.toArray(new ScoreDoc[0]);
@@ -313,17 +302,19 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
         private void rescoreBulk(
             int docBase,
-            BulkScorableFloatVectorValues rescorableVectorValues,
+            FloatVectorValues rescorableVectorValues,
             List<ScoreDoc> queue,
             DocIdSetIterator filterIterator
         ) throws IOException {
-            BulkScorableVectorValues.BulkVectorScorer vectorReScorer = rescorableVectorValues.bulkRescorer(floatTarget);
-            var iterator = vectorReScorer.iterator();
-            BulkScorableVectorValues.BulkVectorScorer.BulkScorer bulkScorer = vectorReScorer.bulkScore(filterIterator);
+            VectorScorer vectorReScorer = rescorableVectorValues.rescorer(floatTarget);
+            var bulk = vectorReScorer.bulk(filterIterator);
             DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
-            while (iterator.docID() != DocIdSetIterator.NO_MORE_DOCS) {
-                // iterator already takes live docs into account
-                bulkScorer.nextDocsAndScores(64, null, buffer);
+            // iterator already takes live docs into account
+            for (bulk.nextDocsAndScores(DocIdSetIterator.NO_MORE_DOCS, null, buffer); buffer.size > 0; bulk.nextDocsAndScores(
+                DocIdSetIterator.NO_MORE_DOCS,
+                null,
+                buffer
+            )) {
                 for (int i = 0; i < buffer.size; i++) {
                     float score = buffer.features[i];
                     int doc = buffer.docs[i];

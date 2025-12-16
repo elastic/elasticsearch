@@ -114,7 +114,7 @@ public class StEnvelope extends SpatialDocValuesFunction {
 
     @Override
     public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
-        return new StEnvelope(source(), spatialField());
+        return new StEnvelope(source(), spatialField(), useDocValues);
     }
 
     @Override

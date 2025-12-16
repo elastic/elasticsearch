@@ -97,7 +97,7 @@ public class StNPoints extends SpatialDocValuesFunction {
 
     @Override
     public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
-        return new StNPoints(source(), spatialField());
+        return new StNPoints(source(), spatialField(), useDocValues);
     }
 
     @Override

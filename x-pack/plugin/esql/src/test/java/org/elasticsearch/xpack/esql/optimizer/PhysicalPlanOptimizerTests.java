@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGridFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -4094,6 +4095,59 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     fieldExtract = as(evalExec.child(), FieldExtractExec.class);
                     assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
                     assertThat(Expressions.names(fieldExtract.docValuesAttributes()), is(withDocValues ? List.of("location") : List.of()));
+                    assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
+                }
+            }
+        }
+    }
+
+    /**
+     * Note that all three spatial functions need to be notified that they will receive doc value points.
+     */
+    public void testSpatialGridTypesAndSortWithEnvelopeUseDocValues() {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            for (boolean keepLocation : new boolean[] { false, true }) {
+                String query = """
+                    FROM airports
+                    | EVAL envelope = ST_ENVELOPE(location)
+                    | EVAL points = ST_NPOINTS(location)
+                    | EVAL grid = ST_GRID(location, 2)
+                    | SORT abbrev
+                    """.replace("GRID", grid) + (keepLocation
+                    ? "| KEEP abbrev, location, grid, envelope, points"
+                    : "| KEEP abbrev, grid, grid, envelope, points");
+                for (boolean withDocValues : new boolean[] { false, true }) {
+                    withDocValues &= keepLocation == false; // if we keep location, we cannot use doc-values
+                    var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                    var testData = withDocValues ? airports : airportsNoDocValues;
+                    var plan = physicalPlan(query.replace("airports", testData.index.name()), testData);
+                    var optimized = optimizedPlan(plan, testData.stats);
+                    var project = as(optimized, ProjectExec.class);
+                    var topNExec = as(project.child(), TopNExec.class);
+                    var exchange = as(topNExec.child(), ExchangeExec.class);
+                    project = as(exchange.child(), ProjectExec.class);
+                    if (keepLocation) {
+                        assertThat(Expressions.names(project.projections()), hasItems("abbrev", "location", "grid", "envelope", "points"));
+                    } else {
+                        assertThat(
+                            Expressions.names(project.projections()),
+                            allOf(hasItems("abbrev", "grid", "envelope", "points"), not(hasItems("location")))
+                        );
+                    }
+                    var fieldExtract = as(project.child(), FieldExtractExec.class);
+                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), allOf(hasItems("abbrev"), not(hasItems("location"))));
+                    var evalExec = as(fieldExtract.child(), EvalExec.class);
+                    assertThat(Expressions.names(evalExec.fields()), hasItems("grid", "envelope", "points"));
+                    for (var field : evalExec.fields()) {
+                        var alias = as(field, Alias.class);
+                        var gridFunction = as(alias.child(), SpatialDocValuesFunction.class);
+                        assertThat(alias.name(), gridFunction.spatialDocValues(), is(withDocValues));
+                        var spatialField = as(gridFunction.spatialField(), FieldAttribute.class);
+                        assertThat(alias.name(), spatialField.name(), equalTo("location"));
+                        assertThat(alias.name(), spatialField.dataType(), equalTo(GEO_POINT));
+                    }
+                    fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                    assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("location")));
                     assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
                 }
             }

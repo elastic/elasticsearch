@@ -211,9 +211,7 @@ public class MultiSearchIT extends ESIntegTestCase {
             mkRequest(body, params),
             true,
             new UsageService().getSearchUsageHolder(),
-            (ignored) -> true,
-            // Disable CPS for these tests.
-            Optional.of(false)
+            (ignored) -> true
         );
     }
 }

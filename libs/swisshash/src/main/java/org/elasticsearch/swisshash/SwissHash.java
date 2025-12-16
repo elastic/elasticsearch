@@ -24,24 +24,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Superclass of table to assign {@code int} ids to various key types,
  * vending the ids in order they are added.
  */
 public abstract class SwissHash {
-
-    static {
-        SwissHash.class.getModule().addReads(lookupVectorModule());
-    }
-
-    private static Module lookupVectorModule() {
-        return Optional.ofNullable(SwissHash.class.getModule().getLayer())
-            .orElse(ModuleLayer.boot())
-            .findModule("jdk.incubator.vector")
-            .orElseThrow(() -> new AssertionError("vector module not found"));
-    }
 
     protected final PageCacheRecycler recycler;
     protected final CircuitBreaker breaker;
@@ -66,7 +54,7 @@ public abstract class SwissHash {
     /**
      * How many entries are in the {@link LongSwissHash}.
      */
-    public final int size() {
+    public final long size() {
         return size;
     }
 

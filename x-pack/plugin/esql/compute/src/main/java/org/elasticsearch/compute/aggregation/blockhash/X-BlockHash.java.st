@@ -13,11 +13,7 @@ $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-$if(LongSwissHash)$
-$elseif(BytesRefSwissHash)$
-$else$
-import org.elasticsearch.common.util.$Hash$;
-$endif$
+import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 $if(BytesRef)$
@@ -55,14 +51,6 @@ $if(BytesRef)$
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 $endif$
 import org.elasticsearch.core.ReleasableIterator;
-$if(LongSwissHash)$
-import org.elasticsearch.swisshash.LongSwissHash;
-
-$elseif(BytesRefSwissHash)$
-import org.elasticsearch.swisshash.BytesRefSwissHash;
-
-$else$
-$endif$
 
 $if(BytesRef)$
 $else$
@@ -75,13 +63,7 @@ $endif$
  */
 final class $Type$BlockHash extends BlockHash {
     private final int channel;
-$if(LongSwissHash)$
-    final LongSwissHash hash;
-$elseif(BytesRefSwissHash)$
-    final BytesRefSwissHash hash;
-$else$
-    final $Hash$ hash;
-$endif$
+    final $Hash$Table hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -95,13 +77,7 @@ $endif$
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-$if(LongSwissHash)$
-        this.hash = new LongSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker());
-$elseif(BytesRefSwissHash)$
-        this.hash = new BytesRefSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
-$else$
-        this.hash = new $Hash$(1, blockFactory.bigArrays());
-$endif$
+        this.hash = HashImplFactory.new$Hash$(blockFactory);
     }
 
     @Override

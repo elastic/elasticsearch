@@ -16,6 +16,7 @@ import com.carrotsearch.hppc.BitMixer;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -58,7 +59,7 @@ import java.util.Objects;
  * uses a {@link #keyPages} to store the actual values, and the hash table
  * slots store the {@code id} which indexes into the {@link #keyPages}.
  */
-public final class LongSwissHash extends SwissHash implements Releasable {
+public final class LongSwissHash extends SwissHash implements LongHashTable {
 
     private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
 
@@ -105,7 +106,7 @@ public final class LongSwissHash extends SwissHash implements Releasable {
     private BigCore bigCore;
     private final List<Releasable> toClose = new ArrayList<>();
 
-    public LongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
+    LongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
         super(recycler, breaker, INITIAL_CAPACITY, LongSwissHash.SmallCore.FILL_FACTOR);
         boolean success = false;
         try {
@@ -130,7 +131,8 @@ public final class LongSwissHash extends SwissHash implements Releasable {
     /**
      * Finds an {@code id} by a {@code key}.
      */
-    public int find(final long key) {
+    @Override
+    public long find(final long key) {
         final int hash = hash(key);
         if (smallCore != null) {
             return smallCore.find(key, hash);
@@ -147,7 +149,7 @@ public final class LongSwissHash extends SwissHash implements Releasable {
      *
      * <p> This method tends to be faster than {@link #add(long)}.
      */
-    public void add(long[] keys, int[] ids, int length) {
+    public void add(long[] keys, long[] ids, int length) {
         int i = 0;
         for (; i < length; i++) {
             if (bigCore != null) {
@@ -158,7 +160,7 @@ public final class LongSwissHash extends SwissHash implements Releasable {
                 return;
             }
 
-            ids[i] = add(keys[i]);
+            ids[i] = Math.toIntExact(add(keys[i]));
         }
     }
 
@@ -167,7 +169,8 @@ public final class LongSwissHash extends SwissHash implements Releasable {
      * it's previous assigned {@code id} will be returned. If it wasn't present
      * it'll be assigned a new {@code id}.
      */
-    public int add(final long key) {
+    @Override
+    public long add(final long key) {
         final int hash = hash(key);
         if (smallCore != null) {
             if (size < nextGrowSize) {
@@ -612,9 +615,10 @@ public final class LongSwissHash extends SwissHash implements Releasable {
      * @param id the id returned when the key was added
      * @return the key
      */
-    public long get(final int id) {
-        Objects.checkIndex(id, size());
-        return smallCore != null ? smallCore.key(id) : bigCore.key(id);
+    public long get(final long id) {
+        final int actualId = Math.toIntExact(id);
+        Objects.checkIndex(actualId, size());
+        return smallCore != null ? smallCore.key(actualId) : bigCore.key(actualId);
     }
 
     private int keyOffset(final int id) {

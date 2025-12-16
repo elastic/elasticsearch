@@ -29,7 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -85,40 +85,39 @@ public class LongSwissHashTests extends ESTestCase {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
-            assertThat(hash.size(), equalTo(0));
+            assertThat(hash.size(), equalTo(0L));
 
             switch (addType) {
                 case SINGLE_VALUE -> {
                     for (int i = 0; i < v.length; i++) {
-                        assertThat(hash.add(v[i]), equalTo(i));
-                        assertThat(hash.size(), equalTo(i + 1));
+                        assertThat(hash.add(v[i]), equalTo((long) i));
+                        assertThat(hash.size(), equalTo(i + 1L));
                         assertThat(hash.get(i), equalTo(v[i]));
-                        assertThat(hash.add(v[i]), equalTo(i));
-                        assertThat(hash.size(), equalTo(i + 1));
+                        assertThat(hash.add(v[i]), equalTo((long) i));
+                        assertThat(hash.size(), equalTo(i + 1L));
                     }
                     for (int i = 0; i < v.length; i++) {
-                        assertThat(hash.add(v[i]), equalTo(i));
+                        assertThat(hash.add(v[i]), equalTo((long) i));
                     }
-                    assertThat(hash.size(), equalTo(v.length));
+                    assertThat(hash.size(), equalTo((long) v.length));
                 }
                 case ARRAY -> {
-                    int[] target = new int[v.length];
+                    long[] target = new long[v.length];
                     hash.add(v, target, v.length);
-                    assertThat(target, equalTo(IntStream.range(0, count).toArray()));
-                    assertThat(hash.size(), equalTo(v.length));
-
+                    assertThat(target, equalTo(LongStream.range(0, count).toArray()));
+                    assertThat(hash.size(), equalTo((long) v.length));
                     Arrays.fill(target, 0);
                     hash.add(v, target, v.length);
-                    assertThat(target, equalTo(IntStream.range(0, count).toArray()));
-                    assertThat(hash.size(), equalTo(v.length));
+                    assertThat(target, equalTo(LongStream.range(0, count).toArray()));
+                    assertThat(hash.size(), equalTo((long) v.length));
                 }
                 default -> throw new IllegalArgumentException();
             }
             for (int i = 0; i < v.length; i++) {
-                assertThat(hash.find(v[i]), equalTo(i));
+                assertThat(hash.find(v[i]), equalTo((long) i));
             }
-            assertThat(hash.size(), equalTo(v.length));
-            assertThat(hash.find(randomValueOtherThanMany(values::contains, ESTestCase::randomLong)), equalTo(-1));
+            assertThat(hash.size(), equalTo((long) v.length));
+            assertThat(hash.find(randomValueOtherThanMany(values::contains, ESTestCase::randomLong)), equalTo(-1L));
 
             assertStatus(hash);
             assertThat("Only currently used pages are open", recycler.open, hasSize(expectedKeyPageCount + expectedIdPageCount));
@@ -154,11 +153,11 @@ public class LongSwissHashTests extends ESTestCase {
                 switch (addType) {
                     case SINGLE_VALUE -> {
                         for (int i = 0; i < v.length; i++) {
-                            assertThat(hash.add(v[i]), equalTo(i));
+                            assertThat(hash.add(v[i]), equalTo((long) i));
                         }
                     }
                     case ARRAY -> {
-                        int[] target = new int[v.length];
+                        long[] target = new long[v.length];
                         hash.add(v, target, v.length);
                     }
                     default -> throw new IllegalArgumentException();
@@ -190,9 +189,9 @@ public class LongSwissHashTests extends ESTestCase {
 
             long[] keys = makeSameBucketKeys(base, mask, count);
 
-            Map<Long, Integer> expected = new HashMap<>();
+            Map<Long, Long> expected = new HashMap<>();
             for (long k : keys) {
-                int id = hash.add(k);
+                long id = hash.add(k);
                 expected.put(k, id);
             }
 
@@ -221,9 +220,9 @@ public class LongSwissHashTests extends ESTestCase {
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             int control = randomIntBetween(1, 120); // avoid EMPTY/SENTINEL values
             long[] keys = makeSameControlDataKeys(control, count);
-            Map<Long, Integer> expected = new HashMap<>();
+            Map<Long, Long> expected = new HashMap<>();
             for (long k : keys) {
-                int id = hash.add(k);
+                long id = hash.add(k);
                 expected.put(k, id);
             }
 
@@ -247,7 +246,7 @@ public class LongSwissHashTests extends ESTestCase {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
-            assertThat(hash.size(), equalTo(0));
+            assertThat(hash.size(), equalTo(0L));
             assertFalse(hash.iterator().next());
         }
     }
@@ -278,9 +277,9 @@ public class LongSwissHashTests extends ESTestCase {
                 keys[i] = upper | mid | lower;
             }
 
-            Map<Long, Integer> expected = new HashMap<>();
+            Map<Long, Long> expected = new HashMap<>();
             for (long k : keys) {
-                int id = hash.add(k);
+                long id = hash.add(k);
                 expected.put(k, id);
             }
 

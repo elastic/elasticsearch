@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -20,7 +21,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.BitSet;
 
@@ -30,7 +30,8 @@ import java.util.BitSet;
  */
 final class IntBlockHash extends BlockHash {
     private final int channel;
-    final LongSwissHash hash;
+    final LongHashTable hash;
+
     /**
      * Have we seen any {@code null} values?
      * <p>
@@ -43,7 +44,7 @@ final class IntBlockHash extends BlockHash {
     IntBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new LongSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker());
+        this.hash = HashImplFactory.newLongHash(blockFactory);
     }
 
     @Override

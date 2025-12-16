@@ -8,12 +8,12 @@
 package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.Arrays;
 
@@ -181,7 +181,7 @@ public class MultivalueDedupeInt {
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongSwissHash hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -215,7 +215,7 @@ public class MultivalueDedupeInt {
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public IntBlock hashLookup(BlockFactory blockFactory, LongSwissHash hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, LongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -389,7 +389,7 @@ public class MultivalueDedupeInt {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashAddUniquedWork(LongSwissHash hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -404,7 +404,7 @@ public class MultivalueDedupeInt {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashAddSortedWork(LongSwissHash hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -424,7 +424,7 @@ public class MultivalueDedupeInt {
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-    private void hashLookupUniquedWork(LongSwissHash hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -483,7 +483,7 @@ public class MultivalueDedupeInt {
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashLookupSortedWork(LongSwissHash hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -581,15 +581,15 @@ public class MultivalueDedupeInt {
         work = ArrayUtil.grow(work, size);
     }
 
-    private void hashAdd(IntBlock.Builder builder, LongSwissHash hash, int v) {
+    private void hashAdd(IntBlock.Builder builder, LongHashTable hash, int v) {
         appendFound(builder, hash.add(v));
     }
 
-    private long hashLookup(LongSwissHash hash, int v) {
+    private long hashLookup(LongHashTable hash, int v) {
         return hash.find(v);
     }
 
-    private void hashLookupSingle(IntBlock.Builder builder, LongSwissHash hash, int v) {
+    private void hashLookupSingle(IntBlock.Builder builder, LongHashTable hash, int v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);

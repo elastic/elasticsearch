@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -25,7 +26,6 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.swisshash.BytesRefSwissHash;
 
 import java.util.Arrays;
 import java.util.List;
@@ -61,7 +61,7 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
-    private final BytesRefSwissHash hash;
+    private final BytesRefHashTable hash;
     private final int nullTrackingBytes;
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final List<GroupSpec> specs;
@@ -70,7 +70,7 @@ final class PackedValuesBlockHash extends BlockHash {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.hash = new BytesRefSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
+        this.hash = HashImplFactory.newBytesRefHash(blockFactory);
         this.nullTrackingBytes = (specs.size() + 7) / 8;
         bytes.grow(nullTrackingBytes);
     }
@@ -356,7 +356,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 builders[g] = elementType.newBlockBuilder(size, blockFactory);
             }
 
-            BytesRef[] values = new BytesRef[Math.min(100, hash.size())];
+            BytesRef[] values = new BytesRef[Math.min(100, Math.toIntExact(hash.size()))];
             BytesRef[] nulls = new BytesRef[values.length];
             for (int offset = 0; offset < values.length; offset++) {
                 values[offset] = new BytesRef();

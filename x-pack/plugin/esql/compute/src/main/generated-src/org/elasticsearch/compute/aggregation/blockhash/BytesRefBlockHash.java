@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -25,7 +26,6 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.swisshash.BytesRefSwissHash;
 
 /**
  * Maps a {@link BytesRefBlock} column to group ids.
@@ -33,7 +33,8 @@ import org.elasticsearch.swisshash.BytesRefSwissHash;
  */
 final class BytesRefBlockHash extends BlockHash {
     private final int channel;
-    final BytesRefSwissHash hash;
+    final BytesRefHashTable hash;
+
     /**
      * Have we seen any {@code null} values?
      * <p>
@@ -46,7 +47,7 @@ final class BytesRefBlockHash extends BlockHash {
     BytesRefBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new BytesRefSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
+        this.hash = HashImplFactory.newBytesRefHash(blockFactory);
     }
 
     @Override

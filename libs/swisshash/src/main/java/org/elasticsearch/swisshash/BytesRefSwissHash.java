@@ -20,8 +20,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.lang.invoke.MethodHandles;
@@ -60,7 +60,7 @@ import java.util.Objects;
  * uses a {@link BytesRefArray} to store the actual bytes, and the hash table
  * slots store the {@code id} which indexes into the {@link BytesRefArray}.
  */
-public final class BytesRefSwissHash extends SwissHash implements Accountable, Releasable {
+public final class BytesRefSwissHash extends SwissHash implements Accountable, BytesRefHashTable {
 
     // base size of the bytes ref hash
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefSwissHash.class)
@@ -106,7 +106,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, R
     /**
      * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
-    public BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
+    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
         this(recycler, breaker, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true);
     }
 
@@ -114,7 +114,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, R
      * Creates a new {@link BytesRefSwissHash} that uses the provided {@link BytesRefArray}.
      * This allows multiple {@link BytesRefSwissHash} to share the same key storage and ID space.
      */
-    public BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
+    BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
         this(recycler, breaker, bytesRefs, false);
     }
 
@@ -141,7 +141,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, R
     /**
      * Finds an {@code id} by a {@code key}.
      */
-    public int find(BytesRef key) {
+    @Override
+    public long find(BytesRef key) {
         final int hash = hash(key);
         if (smallCore != null) {
             return smallCore.find(key, hash);
@@ -155,7 +156,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, R
      * it's previous assigned {@code id} will be returned. If it wasn't present
      * it'll be assigned a new {@code id}.
      */
-    public int add(BytesRef key) {
+    @Override
+    public long add(BytesRef key) {
         final int hash = hash(key);
         if (smallCore != null) {
             if (size < nextGrowSize) {
@@ -164,10 +166,6 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, R
             smallCore.transitionToBigCore();
         }
         return bigCore.add(key, hash);
-    }
-
-    public BytesRefArray getBytesRefArray() {
-        return bytesRefs;
     }
 
     @Override
@@ -542,12 +540,14 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, R
      * @param id the id returned when the key was added
      * @return the key
      */
+    @Override
     public BytesRef get(long id, BytesRef dest) {
         Objects.checkIndex(id, size());
         return bytesRefs.get(id, dest);
     }
 
     /** Returns the key array. */
+    @Override
     public BytesRefArray getBytesRefs() {
         return bytesRefs;
     }

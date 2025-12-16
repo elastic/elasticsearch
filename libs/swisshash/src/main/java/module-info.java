@@ -13,6 +13,7 @@ module org.elasticsearch.swisshash {
     requires org.elasticsearch.xcontent;
     requires hppc;
     requires org.apache.lucene.core;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.swisshash;
 }

@@ -74,30 +74,30 @@ public class BytesRefSwissHashTests extends ESTestCase {
         BytesRef scratch = new BytesRef();
 
         try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
-            assertThat(hash.size(), equalTo(0));
+            assertThat(hash.size(), equalTo(0L));
 
             for (int i = 0; i < v.length; i++) {
-                assertThat(hash.add(v[i]), equalTo(i));
-                assertThat(hash.size(), equalTo(i + 1));
+                assertThat(hash.add(v[i]), equalTo((long) i));
+                assertThat(hash.size(), equalTo(i + 1L));
                 assertThat(hash.get(i, scratch), equalTo(v[i]));
-                assertThat(hash.add(v[i]), equalTo(i));
-                assertThat(hash.size(), equalTo(i + 1));
+                assertThat(hash.add(v[i]), equalTo((long) i));
+                assertThat(hash.size(), equalTo(i + 1L));
             }
             for (int i = 0; i < v.length; i++) {
-                assertThat(hash.add(v[i]), equalTo(i));
+                assertThat(hash.add(v[i]), equalTo((long) i));
             }
-            assertThat(hash.size(), equalTo(v.length));
+            assertThat(hash.size(), equalTo((long) v.length));
 
             for (int i = 0; i < v.length; i++) {
-                assertThat(hash.find(v[i]), equalTo(i));
+                assertThat(hash.find(v[i]), equalTo((long) i));
             }
-            assertThat(hash.size(), equalTo(v.length));
+            assertThat(hash.size(), equalTo((long) v.length));
 
             BytesRef other = new BytesRef("not_in_set");
             while (values.contains(other)) {
                 other = new BytesRef(other.utf8ToString() + "_");
             }
-            assertThat(hash.find(other), equalTo(-1));
+            assertThat(hash.find(other), equalTo(-1L));
 
             assertStatus(hash);
             // Note: we cannot easily assert recycler.open size because BigArrays (BytesRefArray) usage
@@ -134,25 +134,25 @@ public class BytesRefSwissHashTests extends ESTestCase {
             BytesRefSwissHash leftHash = new BytesRefSwissHash(recycler, breaker, sharedArray);
             BytesRefSwissHash rightHash = new BytesRefSwissHash(recycler, breaker, sharedArray)
         ) {
-            assertThat(leftHash.size(), equalTo(0));
-            assertThat(rightHash.size(), equalTo(0));
+            assertThat(leftHash.size(), equalTo(0L));
+            assertThat(rightHash.size(), equalTo(0L));
 
             for (int i = 0; i < count; i++) {
                 // Add to left
-                int idLeft = leftHash.add(left[i]);
+                long idLeft = leftHash.add(left[i]);
                 // Add to right
-                int idRight = rightHash.add(right[i]);
+                long idRight = rightHash.add(right[i]);
 
-                assertThat(idLeft, equalTo(2 * i));
-                assertThat(idRight, equalTo(2 * i + 1));
+                assertThat(idLeft, equalTo(2L * i));
+                assertThat(idRight, equalTo(2L * i + 1));
             }
 
-            assertThat(leftHash.size(), equalTo(count));
-            assertThat(rightHash.size(), equalTo(count));
+            assertThat(leftHash.size(), equalTo((long) count));
+            assertThat(rightHash.size(), equalTo((long) count));
 
             for (int i = 0; i < count; i++) {
-                assertThat(leftHash.find(left[i]), equalTo(2 * i));
-                assertThat(rightHash.find(right[i]), equalTo(2 * i + 1));
+                assertThat(leftHash.find(left[i]), equalTo(2L * i));
+                assertThat(rightHash.find(right[i]), equalTo(2L * i + 1));
             }
 
             assertStatus(leftHash);
@@ -195,7 +195,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
-            assertThat(hash.size(), equalTo(0));
+            assertThat(hash.size(), equalTo(0L));
             assertFalse(hash.iterator().next());
         }
     }

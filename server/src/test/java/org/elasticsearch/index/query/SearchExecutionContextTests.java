@@ -736,11 +736,6 @@ public class SearchExecutionContextTests extends ESTestCase {
                             public long ramBytesUsed() {
                                 throw new UnsupportedOperationException();
                             }
-
-                            @Override
-                            public void close() {
-                                throw new UnsupportedOperationException();
-                            }
                         };
                     }
 

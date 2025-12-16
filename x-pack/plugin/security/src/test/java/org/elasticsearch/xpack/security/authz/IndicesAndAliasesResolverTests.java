@@ -58,6 +58,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -722,7 +724,41 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         return request;
     }
 
-    public void testExclusionByItself() {
+    public void testEmptyIndexExpressionIsInvalid() {
+        final List<String[]> expressionsList = List.of(
+            new String[] { "" },
+            new String[] { "*", "" },
+            new String[] { "bar", "" },
+            new String[] { "*", "", "bar" }
+        );
+
+        for (var expressions : expressionsList) {
+            expectThrows(
+                InvalidIndexNameException.class,
+                Matchers.containsString("Invalid index name [], expression cannot be empty"),
+                () -> resolveIndices(new SearchRequest(expressions), buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
+            );
+        }
+    }
+
+    public void testExclusionPrefixByItselfIsInvalid() {
+        final List<String[]> expressionsList = List.of(
+            new String[] { "-" },
+            new String[] { "*", "-" },
+            new String[] { "bar", "-" },
+            new String[] { "*", "-", "bar" }
+        );
+
+        for (var expressions : expressionsList) {
+            expectThrows(
+                InvalidIndexNameException.class,
+                Matchers.containsString("Invalid index name [], exclusion cannot be empty"),
+                () -> resolveIndices(new SearchRequest(expressions), buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
+            );
+        }
+    }
+
+    public void testExclusionExpressionByItself() {
         {
             // By itself, resolves to empty when allow_no_indices=true
             var request = new SearchRequest(randomIndexExclusion(userAuthorizedIndices));
@@ -902,7 +938,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         if (randomBoolean()) {
             return "-" + randomFrom(authorizedIndices) + (randomBoolean() ? "*" : "");
         } else {
-            return "-" + randomAlphaOfLengthBetween(0, 5) + (randomBoolean() ? "*" : "");
+            return "-" + randomAlphaOfLengthBetween(1, 5) + (randomBoolean() ? "*" : "");
         }
     }
 

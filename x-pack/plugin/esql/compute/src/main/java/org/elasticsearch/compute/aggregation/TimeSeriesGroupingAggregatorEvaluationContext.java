@@ -42,4 +42,14 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
      * @return a list of group IDs within the window
      */
     public abstract List<Integer> groupIdsFromWindow(int startingGroupId, Duration window);
+
+    /**
+     * Returns the group ID of the group that is chronologically before the specified {@code currentGroupId}.
+     * In this case, the current and previous group ID refer to buckets in the same time series.
+     * If there is no previous group, returns -1.
+     *
+     * @param currentGroupId the current group ID
+     * @return the previous group ID, or -1 if none exists
+     */
+    public abstract int previousGroupId(int currentGroupId);
 }

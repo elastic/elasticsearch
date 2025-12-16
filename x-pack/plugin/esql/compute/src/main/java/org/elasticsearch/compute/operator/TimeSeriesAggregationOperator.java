@@ -338,6 +338,15 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 }
                 return results;
             }
+
+            @Override
+            public int previousGroupId(int currentGroupId) {
+                long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
+                long currentBucketTs = timestamps.getLong(currentGroupId);
+                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
+                long previousBucket = currentBucketTs - (nextBucketTs - currentBucketTs);
+                return Math.toIntExact(hash.getGroupId(tsid, previousBucket));
+            }
         };
     }
 

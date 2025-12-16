@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -572,8 +573,10 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selected.getPositionCount();
-        try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
-            Map<Integer, ReducedState> flushedStates = new HashMap<>(positionCount);
+        try (
+            var rates = blockFactory.newDoubleBlockBuilder(positionCount);
+            var flushedStates = new LongObjectPagedHashMap<ReducedState>(positionCount, driverContext.bigArrays())
+        ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
                 var state = flushAndCombineState(group);
@@ -695,7 +698,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
      * or extrapolating values at the time bucket boundaries.
      */
     private static double computeRate(
-        Map<Integer, ReducedState> states,
+        LongObjectPagedHashMap<ReducedState> states,
         int group,
         TimeSeriesGroupingAggregatorEvaluationContext tsContext,
         boolean isRateOverTime,

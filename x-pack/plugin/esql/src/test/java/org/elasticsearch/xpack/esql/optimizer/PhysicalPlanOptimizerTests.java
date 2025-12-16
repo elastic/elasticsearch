@@ -4010,7 +4010,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_TopNExec[[Order[abbrev{f}#9,ASC,LAST]],1000[INTEGER],null]
      *   \_ExchangeExec[[],false]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
-     * TopN[[Order[abbrev{f}#9,ASC,LAST]],1000[INTEGER],false]
+     *          TopN[[Order[abbrev{f}#9,ASC,LAST]],1000[INTEGER],false
+     *      ]
      * \_Eval[[STGEOHASH(location{f}#13,2[INTEGER]) AS grid#5]]
      *   \_EsRelation[airports][abbrev{f}#9, city{f}#15, city_location{f}#16, count..]]]
      * </code>
@@ -4163,7 +4164,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_TopNExec[[Order[abbrev{f}#13,ASC,LAST]],1000[INTEGER],null]
      *   \_ExchangeExec[[],false]
      *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
-     * TopN[[Order[abbrev{f}#13,ASC,LAST]],1000[INTEGER],false]
+     *          TopN[[Order[abbrev{f}#13,ASC,LAST]],1000[INTEGER],false
+     *     ]
      * \_Eval[[TOSTRING(STGEOHASH(location{f}#17,1[INTEGER])) AS gridString#9]]
      *   \_Filter[TOSTRING(grid{r}#5) == 8108bffffffffff[KEYWORD]]
      *     \_Eval[[STGEOHASH(location{f}#17,1[INTEGER],[1 12 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 28 40 0 0 0 0 0 0 4e 40 0 0 0 0 0
@@ -4247,7 +4249,34 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    public void testStSimplifyUsesDocValues() {
+    /**
+     * Before local optimizations:
+     * <code>
+     * ProjectExec[[airport{f}#10, simplified_city_location{r}#5]]
+     * \_TopNExec[[Order[airport{f}#10,ASC,LAST]],1000[INTEGER],null]
+     *   \_ExchangeExec[[],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     *          TopN[[Order[airport{f}#10,ASC,LAST]],1000[INTEGER],false
+     *     ]
+     * \_Eval[[STSIMPLIFY(city_location{f}#13,0.05[DOUBLE]) AS simplified_city_location#5]]
+     *   \_EsRelation[airports_city_boundaries][abbrev{f}#9, airport{f}#10, city{f}#12, city_bounda..][]]]
+     * </code>
+     *
+     * After local optimizations:
+     * <code>
+     * ProjectExec[[airport{f}#10, simplified_city_location{r}#5]]
+     * \_TopNExec[[Order[airport{f}#10,ASC,LAST]],1000[INTEGER],1045]
+     *   \_ExchangeExec[[airport{f}#10, simplified_city_location{r}#5],false]
+     *     \_ProjectExec[[airport{f}#10, simplified_city_location{r}#5]]
+     *       \_TopNExec[[Order[airport{f}#10,ASC,LAST]],1000[INTEGER],1086]
+     *         \_FieldExtractExec[airport{f}#10][]
+     *           \_EvalExec[[STSIMPLIFY(city_location{f}#13,0.05[DOUBLE]) AS simplified_city_location#5]]
+     *             \_FieldExtractExec[city_location{f}#13][[city_location{f}#13],[]]
+     *               \_EsQueryExec[airports_city_boundaries], indexMode[standard], [_doc{f}#15], limit[],
+     *                  sort[] estimatedRowSize[1070] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * </code>
+     */
+    public void testSpatialSimplifyUsesDocValues() {
         for (boolean keepLocation : new boolean[] { false, true }) {
             String query = """
                 FROM airport_city_boundaries

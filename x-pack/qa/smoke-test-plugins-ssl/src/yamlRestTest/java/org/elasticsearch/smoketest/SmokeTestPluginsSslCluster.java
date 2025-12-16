@@ -19,16 +19,14 @@ public final class SmokeTestPluginsSslCluster {
     private SmokeTestPluginsSslCluster() {}
 
     public static ElasticsearchCluster create() {
-        return ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .apply(c -> {
-                String pluginNames = System.getProperty("tests.plugin.names");
-                if (pluginNames != null && pluginNames.isEmpty() == false) {
-                    for (String plugin : pluginNames.split(",")) {
-                        c.plugin(plugin);
-                    }
+        return ElasticsearchCluster.local().distribution(DistributionType.DEFAULT).apply(c -> {
+            String pluginNames = System.getProperty("tests.plugin.names");
+            if (pluginNames != null && pluginNames.isEmpty() == false) {
+                for (String plugin : pluginNames.split(",")) {
+                    c.plugin(plugin);
                 }
-            })
+            }
+        })
             .configFile("testnode.jks", Resource.fromClasspath("testnode.jks"))
             .configFile("testnode.pem", Resource.fromClasspath("testnode.pem"))
             .configFile("testnode.crt", Resource.fromClasspath("testnode.crt"))

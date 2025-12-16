@@ -64,7 +64,10 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.saml.cloud-saml.sp.entity_id", "ec:123456:abcdefg")
         // This is a dummy one, we simulate the browser and a web app in our tests
         .setting("xpack.security.authc.realms.saml.cloud-saml.sp.acs", "https://sp1.test.es.elasticsearch.org/saml/acs")
-        .setting("xpack.security.authc.realms.saml.cloud-saml.attributes.principal", "https://idp.test.es.elasticsearch.org/attribute/principal")
+        .setting(
+            "xpack.security.authc.realms.saml.cloud-saml.attributes.principal",
+            "https://idp.test.es.elasticsearch.org/attribute/principal"
+        )
         .setting("xpack.security.authc.realms.saml.cloud-saml.attributes.name", "https://idp.test.es.elasticsearch.org/attribute/name")
         .setting("logger.org.elasticsearch.xpack.security.authc.saml", "TRACE")
         .setting("logger.org.elasticsearch.xpack.idp", "TRACE")

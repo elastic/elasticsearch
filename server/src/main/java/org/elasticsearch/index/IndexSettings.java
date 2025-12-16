@@ -770,6 +770,7 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    private static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         if (MODE.get(s) == IndexMode.TIME_SERIES) {
@@ -778,6 +779,11 @@ public final class IndexSettings {
             }
             return "false";
         } else {
+            if (DOC_VALUES_SKIPPER
+                && iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
+                && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
+                return "true";
+            }
             return "false";
         }
     }, Property.IndexScope, Property.Final);

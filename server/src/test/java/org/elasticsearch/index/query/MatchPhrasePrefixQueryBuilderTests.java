@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -124,7 +125,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     public void testPhrasePrefixZeroTermsQuery() throws IOException {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQueryOption.NONE);
-        assertEquals(new MatchNoDocsQuery(), matchQuery.doToQuery(createSearchExecutionContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, matchQuery.doToQuery(createSearchExecutionContext()));
 
         matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQueryOption.ALL);

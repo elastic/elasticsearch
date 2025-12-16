@@ -10,7 +10,6 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -121,9 +120,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
         this.taskSettings = in.readNamedWriteable(TaskSettings.class);
-        this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-            ? in.readOptionalNamedWriteable(ChunkingSettings.class)
-            : null;
+        this.chunkingSettings = in.readOptionalNamedWriteable(ChunkingSettings.class);
     }
 
     @Override
@@ -133,9 +130,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalNamedWriteable(chunkingSettings);
-        }
+        out.writeOptionalNamedWriteable(chunkingSettings);
     }
 
     public String getInferenceEntityId() {

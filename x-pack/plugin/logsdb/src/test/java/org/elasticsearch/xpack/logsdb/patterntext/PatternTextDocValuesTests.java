@@ -222,12 +222,17 @@ public class PatternTextDocValuesTests extends ESTestCase {
             return ordToValues.size();
         }
 
-        @Override
         public boolean advanceExact(int target) {
-            for (currDoc = target; currDoc < docToOrds.size(); currDoc++) {
-                if (docToOrds.get(currDoc) != null) {
-                    return currDoc == target;
-                }
+            currDoc = target;
+
+            // If there is a value for target, currDoc is set to target, and we return true because target was found.
+            if (docToOrds.get(currDoc) != null) {
+                return true;
+            }
+
+            // Otherwise, we update currDoc to first doc with a value after target and return false.
+            while (currDoc < docToOrds.size() && docToOrds.get(currDoc) == null) {
+                currDoc++;
             }
             return false;
         }
@@ -260,7 +265,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
 
         // Single value for each docId, null if no value for a docId
         SimpleBinaryDocValues(String... docIdToValue) {
-            values = Arrays.stream(docIdToValue).collect(Collectors.toList());
+            values = Arrays.asList(docIdToValue);
         }
 
         @Override
@@ -270,10 +275,16 @@ public class PatternTextDocValuesTests extends ESTestCase {
 
         @Override
         public boolean advanceExact(int target) {
-            for (currDoc = target; currDoc < values.size(); currDoc++) {
-                if (values.get(currDoc) != null) {
-                    return currDoc == target;
-                }
+            currDoc = target;
+
+            // If there is a value for target, currDoc is set to target, and we return true because target was found.
+            if (values.get(currDoc) != null) {
+                return true;
+            }
+
+            // Otherwise, we update currDoc to first doc with a value after target and return false.
+            while (currDoc < values.size() && values.get(currDoc) == null) {
+                currDoc++;
             }
             return false;
         }

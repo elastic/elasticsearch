@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -100,10 +102,14 @@ public class StEnvelope extends SpatialDocValuesFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
-            return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        if (spatialDocValues) {
+            throw new UnsupportedOperationException("StEnvelope does not support doc values");
+        } else {
+            if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
+                return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            }
+            return new StEnvelopeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         }
-        return new StEnvelopeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override
@@ -174,5 +180,40 @@ public class StEnvelope extends SpatialDocValuesFunction {
     @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinaryGeo(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         fromWellKnownBinary(results, p, wkbBlock, new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP));
+    }
+
+    private static void fromDocValues(
+        BytesRefBlock.Builder results,
+        @Position int p,
+        LongBlock encodedBlock,
+        SpatialEnvelopeVisitor.PointVisitor pointVisitor,
+        SpatialCoordinateTypes spatialCoordinateType
+    ) {
+        int firstValueIndex = encodedBlock.getFirstValueIndex(p);
+        int valueCount = encodedBlock.getValueCount(p);
+        if (valueCount == 0) {
+            results.appendNull();
+            return;
+        }
+        for (int i = 0; i < valueCount; i++) {
+            long encoded = encodedBlock.getLong(firstValueIndex + i);
+            var point = spatialCoordinateType.longAsPoint(encoded);
+            pointVisitor.visitPoint(point.getX(), point.getY());
+        }
+        if (pointVisitor.isValid()) {
+            results.appendBytesRef(UNSPECIFIED.asWkb(pointVisitor.getResult()));
+            return;
+        }
+        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    }
+
+    @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })
+    static void fromDocValues(BytesRefBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+        fromDocValues(results, p, encodedBlock, new SpatialEnvelopeVisitor.CartesianPointVisitor(), SpatialCoordinateTypes.CARTESIAN);
+    }
+
+    @Evaluator(extraName = "FromDocValuesGeo", warnExceptions = { IllegalArgumentException.class })
+    static void fromDocValuesGeo(BytesRefBlock.Builder results, @Position int p, LongBlock encodedBlock) {
+        fromDocValues(results, p, encodedBlock, new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP), SpatialCoordinateTypes.GEO);
     }
 }

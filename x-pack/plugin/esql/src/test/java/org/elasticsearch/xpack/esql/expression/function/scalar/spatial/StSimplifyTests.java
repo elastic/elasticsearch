@@ -23,7 +23,6 @@ import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -41,11 +40,38 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        var geoPoint = new TestCaseSupplier.TypedDataSupplier(
+            "geo point",
+            () -> UNSPECIFIED.wktToWkb("POINT(3.141592 -3.141592)"),
+            GEO_POINT
+        );
+        var cartesianPoint = new TestCaseSupplier.TypedDataSupplier(
+            "geo point",
+            () -> UNSPECIFIED.wktToWkb("POINT(3.141592 500)"),
+            CARTESIAN_POINT
+        );
+        var geoShape = new TestCaseSupplier.TypedDataSupplier(
+            "geo shape",
+            () -> UNSPECIFIED.wktToWkb("POLYGON ((-73.97 40.78, -73.98 40.75, -73.95 40.74, -73.93 40.76, -73.97 40.78))"),
+            GEO_SHAPE
+        );
+        var cartesianShape = new TestCaseSupplier.TypedDataSupplier(
+            "cartesian shape",
+            () -> UNSPECIFIED.wktToWkb("POLYGON ((2 3, 4 8, 7 6, 6 2, 2 3))"),
+            CARTESIAN_SHAPE
+        );
+
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, GEO_POINT, StSimplifyTests::valueOf);
-        addTestCaseSuppliers(suppliers, CARTESIAN_POINT, StSimplifyTests::valueOf);
-        addTestCaseSuppliers(suppliers, GEO_SHAPE, StSimplifyTests::valueOf);
-        addTestCaseSuppliers(suppliers, CARTESIAN_SHAPE, StSimplifyTests::valueOf);
+        // Random test case suppliers
+        addTestCaseSuppliers(suppliers, GEO_POINT, testCaseSupplier(GEO_POINT));
+        addTestCaseSuppliers(suppliers, CARTESIAN_POINT, testCaseSupplier(CARTESIAN_POINT));
+        addTestCaseSuppliers(suppliers, GEO_SHAPE, testCaseSupplier(GEO_SHAPE));
+        addTestCaseSuppliers(suppliers, CARTESIAN_SHAPE, testCaseSupplier(CARTESIAN_SHAPE));
+        // Adds hardcoded test cases so we avoid failing if the above none of the test cases were valid for a specific typed data
+        addTestCaseSuppliers(suppliers, GEO_POINT, geoPoint);
+        addTestCaseSuppliers(suppliers, CARTESIAN_POINT, cartesianPoint);
+        addTestCaseSuppliers(suppliers, GEO_SHAPE, geoShape);
+        addTestCaseSuppliers(suppliers, CARTESIAN_SHAPE, cartesianShape);
 
         var testSuppliers = anyNullIsNull(
             randomizeBytesRefsOffset(suppliers),
@@ -69,9 +95,8 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
     protected static void addTestCaseSuppliers(
         List<TestCaseSupplier> suppliers,
         DataType spatialType,
-        BiFunction<BytesRef, Double, BytesRef> expectedValue
+        TestCaseSupplier.TypedDataSupplier geometrySupplier
     ) {
-        TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType);
         String testName = spatialType.typeName() + " with tolerance.";
 
         suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, DOUBLE), () -> {
@@ -83,7 +108,7 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
             String evaluatorName = "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[geometry=Attribute[channel=0], tolerance="
                 + tolerance
                 + "]";
-            var expectedResult = expectedValue.apply(geometry, tolerance);
+            var expectedResult = valueOf(geometry, tolerance);
 
             return new TestCaseSupplier.TestCase(
                 List.of(geoTypedData, toleranceData),

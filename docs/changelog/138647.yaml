@@ -1,5 +1,5 @@
 pr: 138647
-summary: Run aggregations on `agg_metric` with default metric
+summary: Run aggregations on aggregate metric double with default metric
 area: ES|QL
 type: feature
 issues:

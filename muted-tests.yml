@@ -349,9 +349,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/95_sort_mixed_numeric_types/Simple sort}
-  issue: https://github.com/elastic/elasticsearch/issues/138297
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/138311
@@ -451,15 +448,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleDatastream
   issue: https://github.com/elastic/elasticsearch/issues/139438
-- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
-  method: testIntegerDocValuesConflict {null}
-  issue: https://github.com/elastic/elasticsearch/issues/139450
-- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
-  method: testIntegerDocValuesConflict {STORED}
-  issue: https://github.com/elastic/elasticsearch/issues/139487
-- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
-  method: testIntegerDocValuesConflict {NONE}
-  issue: https://github.com/elastic/elasticsearch/issues/139488
 - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
   method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
   issue: https://github.com/elastic/elasticsearch/issues/139490

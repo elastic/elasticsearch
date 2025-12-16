@@ -469,6 +469,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testRateGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/139645
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testDeleteBlobs
+  issue: https://github.com/elastic/elasticsearch/issues/139646
 
 # Examples:
 #

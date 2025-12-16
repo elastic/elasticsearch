@@ -803,7 +803,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return comp.swapLeftAndRight(); // Swapped orientation
                 }
             }
-            if (context.minimumVersion().onOrAfter(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION) == false) {
+            if (context.minimumVersion().supports(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION) == false) {
                 return new UnresolvedAttribute(
                     condition.source(),
                     "unsupported",

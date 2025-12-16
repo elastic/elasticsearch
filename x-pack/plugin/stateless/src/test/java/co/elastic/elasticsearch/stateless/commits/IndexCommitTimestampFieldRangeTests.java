@@ -33,10 +33,10 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.IndexMode;
@@ -347,7 +347,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
 
     private int totalDocCount(IndexReader indexReader) throws IOException {
         IndexSearcher indexSearcher = newSearcher(indexReader);
-        var topDocs = indexSearcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+        var topDocs = indexSearcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
         return (int) topDocs.totalHits.value();
     }
 

@@ -1063,8 +1063,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 break;
                             }
                         } else if (bestDecision == Type.NOT_PREFERRED) {
-                            assert remainDecision.type() != Type.NOT_PREFERRED || allocation.isSimulating() == false;
-                            // If we don't ever find a YES decision, we'll settle for NOT_PREFERRED as preferable to NO.
+                            assert remainDecision.type() != Type.NOT_PREFERRED;
+                            // If we don't ever find a YES/THROTTLE decision, we'll settle for NOT_PREFERRED as preferable to NO.
                             targetNode = target;
                         } else if (bestDecision == Type.THROTTLE) {
                             assert allocation.isSimulating() == false;

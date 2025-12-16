@@ -372,9 +372,6 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
             settings.put("index.sort.field", "my_keyword");
         }
 
-        String actualSimilarity = similarity != null ? similarity : randomSimilarity();
-        String actualType = type != null ? type : randomType();
-
         String mapping = String.format(Locale.ROOT, """
             {
               "properties": {
@@ -391,7 +388,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
                 }
               }
             }
-            """, dims, actualSimilarity, actualType);
+            """, dims, similarity, type);
         assertAcked(prepareCreate(indexName).setSettings(settings.build()).setMapping(mapping));
         ensureGreen();
     }

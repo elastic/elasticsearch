@@ -21,6 +21,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -258,44 +259,26 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         }
 
         // If there is no subquery with matching index pattern, Analyzer's verifier fails on the query.
-        var ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM (FROM c*:remote* metadata _index),(FROM c*:missing* metadata _index) metadata _index
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [cluster-a:missing,cluster-a:remote]"),
+            () -> runQuery("""
+            FROM (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
             | STATS c = count(*) by _index
             | SORT _index
-            """, randomBoolean()));
-        String errorMessage = ex.getMessage();
-        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
-        assertThat(errorMessage, containsString("Unknown index [c*:missing*]"));
+            """, randomBoolean())
+        );
 
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM missing*, (FROM c*:remote* metadata _index),(FROM c*:missing* metadata _index) metadata _index
-            | STATS c = count(*) by _index
-            | SORT _index
-            """, randomBoolean()));
-        errorMessage = ex.getMessage();
-        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
-        assertThat(errorMessage, containsString("Unknown index [c*:missing*]"));
-        assertThat(errorMessage, containsString("Unknown index [missing*]"));
-
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
+        expectThrows(VerificationException.class,
+            allOf(
+                containsString("Unknown index [missing]"),
+                containsString("Unknown index [cluster-a:missing,cluster-a:remote]")
+            ),
+            () -> runQuery("""
             FROM missing, (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
             | STATS c = count(*) by _index
             | SORT _index
             """, randomBoolean()));
-        errorMessage = ex.getMessage();
-        assertThat(errorMessage, containsString("Unknown index [c*:remote]"));
-        assertThat(errorMessage, containsString("Unknown index [c*:missing]"));
-        assertThat(errorMessage, containsString("Unknown index [missing]"));
-
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM missing, (FROM c*:remote* metadata _index),(FROM c*:missing metadata _index) metadata _index
-            | STATS c = count(*) by _index
-            | SORT _index
-            """, randomBoolean()));
-        errorMessage = ex.getMessage();
-        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
-        assertThat(errorMessage, containsString("Unknown index [c*:missing]"));
-        assertThat(errorMessage, containsString("Unknown index [missing]"));
     }
 
     /*

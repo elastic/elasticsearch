@@ -143,7 +143,7 @@ public class DiskUsageTests extends ESTestCase {
         Map<ShardId, Double> shardWriteLoads = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
-        WriteLoadDeciderShardWriteLoadType type = randomFrom(WriteLoadDeciderShardWriteLoadType.values());
+        WriteLoadDeciderShardWriteLoadType shardWriteLoadType = randomFrom(WriteLoadDeciderShardWriteLoadType.values());
         InternalClusterInfoService.buildShardLevelInfo(
             stats,
             shardWriteLoads,
@@ -151,7 +151,7 @@ public class DiskUsageTests extends ESTestCase {
             shardDataSetSizes,
             routingToPath,
             new HashMap<>(),
-            type
+            shardWriteLoadType
         );
 
         assertThat(
@@ -179,19 +179,12 @@ public class DiskUsageTests extends ESTestCase {
             equalTo(
                 Map.of(
                     test_0.shardId(),
-                    getWriteLoadType(type, commonStats0.indexing.getTotal()),
+                    shardWriteLoadType.getWriteLoad(commonStats0.indexing),
                     test_1.shardId(),
-                    Math.max(
-                        getWriteLoadType(type, commonStats1.indexing.getTotal()),
-                        getWriteLoadType(type, commonStats2.indexing.getTotal())
-                    )
+                    Math.max(shardWriteLoadType.getWriteLoad(commonStats1.indexing), shardWriteLoadType.getWriteLoad(commonStats2.indexing))
                 )
             )
         );
-    }
-
-    private double getWriteLoadType(WriteLoadDeciderShardWriteLoadType type, IndexingStats.Stats stats) {
-        return (type == WriteLoadDeciderShardWriteLoadType.PEAK) ? stats.getPeakWriteLoad() : stats.getRecentWriteLoad();
     }
 
     private IndexingStats randomIndexingStats() {

@@ -1,5 +1,0 @@
-pr: 133365
-summary: Skip iterating DISI when reading metric values
-area: Codec
-type: enhancement
-issues: []

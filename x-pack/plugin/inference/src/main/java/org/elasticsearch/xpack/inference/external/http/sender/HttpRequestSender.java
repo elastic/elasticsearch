@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -42,6 +43,7 @@ public class HttpRequestSender implements Sender {
      */
     public static class Factory {
         private final HttpRequestSender httpRequestSender;
+        private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
         public Factory(ServiceComponents serviceComponents, HttpClientManager httpClientManager, ClusterService clusterService) {
             Objects.requireNonNull(serviceComponents);
@@ -68,7 +70,8 @@ public class HttpRequestSender implements Sender {
                 httpClientManager,
                 requestSender,
                 service,
-                startCompleted
+                startCompleted,
+                START_COMPLETED_WAIT_TIME
             );
         }
 
@@ -77,45 +80,95 @@ public class HttpRequestSender implements Sender {
         }
     }
 
-    private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
+    private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
 
     private final ThreadPool threadPool;
     private final HttpClientManager manager;
-    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean startInitiated = new AtomicBoolean(false);
+    private final AtomicBoolean startCompleted = new AtomicBoolean(false);
     private final RequestSender requestSender;
     private final RequestExecutor service;
-    private final CountDownLatch startCompleted;
+    private final CountDownLatch startCompletedLatch;
+    private final TimeValue startCompletedWaitTime;
 
-    private HttpRequestSender(
+    // Visible for testing
+    protected HttpRequestSender(
         ThreadPool threadPool,
         HttpClientManager httpClientManager,
         RequestSender requestSender,
         RequestExecutor service,
-        CountDownLatch startCompleted
+        CountDownLatch startCompletedLatch,
+        TimeValue startCompletedWaitTime
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.manager = Objects.requireNonNull(httpClientManager);
         this.requestSender = Objects.requireNonNull(requestSender);
         this.service = Objects.requireNonNull(service);
-        this.startCompleted = Objects.requireNonNull(startCompleted);
+        this.startCompletedLatch = Objects.requireNonNull(startCompletedLatch);
+        this.startCompletedWaitTime = Objects.requireNonNull(startCompletedWaitTime);
     }
 
     /**
-     * Start various internal services. This is required before sending requests.
+     * Start various internal services asynchronously. This is required before sending requests.
      */
-    public void start() {
-        if (started.compareAndSet(false, true)) {
+    @Override
+    public void startAsynchronously(ActionListener<Void> listener) {
+        if (startInitiated.compareAndSet(false, true)) {
+            var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> startInternal(preservedListener));
+        } else if (startCompleted.get() == false) {
+            var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+            // wait on another thread so we don't potential block a transport thread
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> waitForStartToCompleteWithListener(preservedListener));
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    private void startInternal(ActionListener<Void> listener) {
+        try {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request
             manager.start();
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
             waitForStartToComplete();
+            startCompleted.set(true);
+            listener.onResponse(null);
+        } catch (Exception ex) {
+            listener.onFailure(ex);
         }
+    }
+
+    private void waitForStartToCompleteWithListener(ActionListener<Void> listener) {
+        try {
+            waitForStartToComplete();
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Start various internal services. This is required before sending requests.
+     *
+     * NOTE: This method blocks until the startup is complete.
+     */
+    @Override
+    public void startSynchronously() {
+        if (startInitiated.compareAndSet(false, true)) {
+            ActionListener<Void> listener = ActionListener.wrap(
+                unused -> {},
+                exception -> logger.error("Http sender failed to start", exception)
+            );
+            startInternal(listener);
+        }
+        // Handle the case where start*() was already called and this would return immediately because the started flag is already true
+        waitForStartToComplete();
     }
 
     private void waitForStartToComplete() {
         try {
-            if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
+            if (startCompletedLatch.await(startCompletedWaitTime.getMillis(), TimeUnit.MILLISECONDS) == false) {
                 throw new IllegalStateException("Http sender startup did not complete in time");
             }
         } catch (InterruptedException e) {
@@ -145,7 +198,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        assert started.get() : "call start() before sending a request";
+        assert startInitiated.get() : "call start() before sending a request";
         waitForStartToComplete();
         service.execute(requestCreator, inferenceInputs, timeout, listener);
     }
@@ -167,7 +220,7 @@ public class HttpRequestSender implements Sender {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        assert started.get() : "call start() before sending a request";
+        assert startInitiated.get() : "call start() before sending a request";
         waitForStartToComplete();
 
         var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());

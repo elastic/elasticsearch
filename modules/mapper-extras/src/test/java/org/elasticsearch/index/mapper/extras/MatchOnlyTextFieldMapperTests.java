@@ -385,4 +385,9 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             }
         }
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

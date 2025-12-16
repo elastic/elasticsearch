@@ -249,41 +249,43 @@ erat. Placerat mi litora fringilla tellus pretium aliquet ut ridiculus magnis ma
 
 min_over_time_of_keyword
 required_capability: ts_command_v0
-TS k8s | STATS pod = min(min_over_time(pod)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
+TS k8s | STATS pod = min(min_over_time(network.eth0.up)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
 
-pod:keyword | time_bucket:datetime
-three       | 2024-05-10T00:00:00.000Z
-one         | 2024-05-10T00:01:00.000Z
-three       | 2024-05-10T00:02:00.000Z
-one         | 2024-05-10T00:03:00.000Z
-one         | 2024-05-10T00:04:00.000Z
-one         | 2024-05-10T00:05:00.000Z
-one         | 2024-05-10T00:06:00.000Z
-one         | 2024-05-10T00:07:00.000Z
-one         | 2024-05-10T00:08:00.000Z
-one         | 2024-05-10T00:09:00.000Z
+pod:boolean | time_bucket:datetime
+false       | 2024-05-10T00:00:00.000Z
+false       | 2024-05-10T00:01:00.000Z
+false       | 2024-05-10T00:02:00.000Z
+false       | 2024-05-10T00:03:00.000Z
+false       | 2024-05-10T00:04:00.000Z
+false       | 2024-05-10T00:05:00.000Z
+false       | 2024-05-10T00:06:00.000Z
+false       | 2024-05-10T00:07:00.000Z
+false       | 2024-05-10T00:08:00.000Z
+false       | 2024-05-10T00:09:00.000Z
+
 ;
 
 min_over_time_of_keyword_grouping
 required_capability: ts_command_v0
-TS k8s | STATS pod = min(min_over_time(pod)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
+TS k8s | STATS pod = min(min_over_time(network.eth0.up)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
 
-pod:keyword | cluster:keyword | time_bucket:datetime
-three       | prod            | 2024-05-10T00:00:00.000Z
-three       | staging         | 2024-05-10T00:00:00.000Z
-one         | prod            | 2024-05-10T00:01:00.000Z
-one         | qa              | 2024-05-10T00:01:00.000Z
-three       | prod            | 2024-05-10T00:02:00.000Z
-three       | qa              | 2024-05-10T00:02:00.000Z
-three       | staging         | 2024-05-10T00:02:00.000Z
-one         | prod            | 2024-05-10T00:03:00.000Z
-three       | qa              | 2024-05-10T00:03:00.000Z
-one         | staging         | 2024-05-10T00:03:00.000Z
+pod:boolean | cluster:keyword | time_bucket:datetime
+false       | prod            | 2024-05-10T00:00:00.000Z
+true        | staging         | 2024-05-10T00:00:00.000Z
+false       | prod            | 2024-05-10T00:01:00.000Z
+false       | qa              | 2024-05-10T00:01:00.000Z
+false       | prod            | 2024-05-10T00:02:00.000Z
+true        | qa              | 2024-05-10T00:02:00.000Z
+false       | staging         | 2024-05-10T00:02:00.000Z
+false       | prod            | 2024-05-10T00:03:00.000Z
+true        | qa              | 2024-05-10T00:03:00.000Z
+false       | staging         | 2024-05-10T00:03:00.000Z
+
 ;
 
 min_over_time_of_aggregate_metric_double
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS tx = sum(min_over_time(network.eth0.tx)) BY time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket | LIMIT 10;
 
 tx:double | time_bucket:datetime
@@ -294,7 +296,7 @@ tx:double | time_bucket:datetime
 
 min_over_time_of_aggregate_metric_double_grouping
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS tx = sum(min_over_time(network.eth0.tx)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 tx:double | cluster:keyword | time_bucket:datetime
@@ -327,7 +329,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 
 min_over_time_older_than_10h
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS cost = avg(min_over_time(network.eth0.rx)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 5;
 
 cost:double | pod:keyword | time_bucket:datetime
@@ -373,7 +375,6 @@ events:long | pod:keyword | time_bucket:datetime
 
 min_over_time_null_values
 required_capability: ts_command_v0
-required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(min_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events NULLS FIRST, time_bucket  | LIMIT 10;
 
 events:long | pod:keyword | time_bucket:datetime
@@ -407,7 +408,7 @@ events:long | pod:keyword | time_bucket:datetime
 
 min_over_time_aggregate_metric_double_implicit_casting
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_implicit_casting_in_aggs
+required_capability: aggregate_metric_double_v0
 TS k8s* | STATS bytes = sum(min_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute) | SORT bytes, time_bucket | LIMIT 10 ;
 
 bytes:double | time_bucket:datetime
@@ -421,7 +422,7 @@ bytes:double | time_bucket:datetime
 
 min_over_time_aggregate_metric_double_implicit_casting_grouping
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double_implicit_casting_in_aggs
+required_capability: aggregate_metric_double_v0
 TS k8s* | STATS bytes = sum(min_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes, pod, time_bucket | LIMIT 10 ;
 
 bytes:double | pod:keyword | time_bucket:datetime

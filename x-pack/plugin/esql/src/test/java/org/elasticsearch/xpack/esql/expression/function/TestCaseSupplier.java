@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -22,6 +23,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -41,8 +43,10 @@ import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.DoubleFunction;
@@ -53,7 +57,10 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomDouble;
+import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -648,6 +655,33 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate positive test cases for a unary function operating on a {@link DataType#DENSE_VECTOR}.
+     */
+    @SuppressWarnings("unchecked")
+    public static void forUnaryDenseVector(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<List<Float>, Object> expectedValue,
+        float lowerBound,
+        float upperBound
+    ) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        cases.add(new TypedDataSupplier("<dense vector>", () -> randomDenseVector(lowerBound, upperBound), DataType.DENSE_VECTOR));
+
+        unary(suppliers, expectedEvaluatorToString, cases, expectedType, v -> expectedValue.apply((List<Float>) v), List.of());
+    }
+
+    private static List<Float> randomDenseVector(float lower, float upper) {
+        int dimensions = randomIntBetween(64, 128);
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimensions; i++) {
+            vector.add(randomFloatBetween(lower, upper, true));
+        }
+        return vector;
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataType#BOOLEAN}.
      */
     public static void forUnaryBoolean(
@@ -816,6 +850,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             versionCases(""),
             expectedType,
             v -> expectedValue.apply(new Version((BytesRef) v)),
+            warnings
+        );
+    }
+
+    public static void forUnaryAggregateMetricDouble(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            aggregateMetricDoubleCases(),
+            expectedType,
+            v -> expectedValue.apply((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v),
             warnings
         );
     }
@@ -1437,6 +1488,40 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#AGGREGATE_METRIC_DOUBLE}.
+     * <p>
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#aggregateMetricDoubleCases}.
+     * </p>
+     */
+    public static List<TypedDataSupplier> aggregateMetricDoubleCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<random aggregate metric double>",
+                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                    randomDouble(),
+                    randomDouble(),
+                    randomDouble(),
+                    randomNonNegativeInt()
+                ),
+                DataType.AGGREGATE_METRIC_DOUBLE
+            )
+        );
+    }
+
+    /**
+     * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<random exponential histogram>",
+                EsqlTestUtils::randomExponentialHistogram,
+                DataType.EXPONENTIAL_HISTOGRAM
+            )
+        );
+    }
+
     public static String getCastEvaluator(String original, DataType current, DataType target) {
         if (current == target) {
             return original;
@@ -1499,6 +1584,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return "CastUnsignedLongToDoubleEvaluator[v=" + original + "]";
         }
         throw new UnsupportedOperationException();
+    }
+
+    public static List<TestCaseSupplier> mapTestCases(
+        Collection<TestCaseSupplier> suppliers,
+        Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> mapper
+    ) {
+        return suppliers.stream()
+            .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
+            .toList();
     }
 
     public static final class TestCase {
@@ -1586,6 +1680,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra
         ) {
             this(
+                TEST_SOURCE,
+                ConfigurationTestUtils.randomConfiguration(TEST_SOURCE.text(), Map.of()),
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1601,6 +1697,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         TestCase(
+            Source source,
+            Configuration configuration,
             List<TypedData> data,
             Matcher<String> evaluatorToString,
             DataType expectedType,
@@ -1613,8 +1711,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra,
             boolean canBuildEvaluator
         ) {
-            this.source = TEST_SOURCE;
-            this.configuration = TEST_CONFIGURATION;
+            this.source = source;
+            this.configuration = configuration;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType == null ? null : expectedType.noText();
@@ -1711,10 +1809,49 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * Build a new {@link TestCase} with the {@link #TEST_CONFIGURATION}.
+         * <p>
+         *     The source is also set to match the configuration
+         * </p>
+         *
+         * @deprecated Use a custom configuration instead, and test the results.
+         */
+        @Deprecated
+        public TestCase withStaticConfiguration() {
+            return withConfiguration(TEST_SOURCE, TEST_CONFIGURATION);
+        }
+
+        /**
+         * Build a new {@link TestCase} with new {@link #configuration}.
+         * <p>
+         *     As the configuration query should match the source, the source is also updated here.
+         * </p>
+         */
+        public TestCase withConfiguration(Source source, Configuration configuration) {
+            return new TestCase(
+                source,
+                configuration,
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator
+            );
+        }
+
+        /**
          * Build a new {@link TestCase} with new {@link #data}.
          */
         public TestCase withData(List<TestCaseSupplier.TypedData> data) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1734,6 +1871,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withExtra(Object extra) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1750,6 +1889,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public TestCase withWarning(String warning) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1770,6 +1911,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withBuildEvaluatorWarning(String warning) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1795,6 +1938,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,
@@ -1817,6 +1962,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TestCase withoutEvaluator() {
             return new TestCase(
+                source,
+                configuration,
                 data,
                 evaluatorToString,
                 expectedType,

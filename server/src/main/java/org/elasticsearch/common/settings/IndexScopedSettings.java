@@ -89,6 +89,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID,
                 IndexMetadata.INDEX_DOWNSAMPLE_STATUS,
                 IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL,
+                IndexMetadata.INDEX_DOWNSAMPLE_METHOD,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -168,6 +169,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
+                MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING,
@@ -179,6 +181,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
                 FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
+                FsDirectoryFactory.ASYNC_PREFETCH_LIMIT,
                 EngineConfig.INDEX_CODEC_SETTING,
                 IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
                 IndexSettings.DEFAULT_PIPELINE,
@@ -195,6 +198,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.LOGSDB_SORT_ON_HOST_NAME,
+                IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,
                 IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
                 IndexSettings.PREFER_ILM_SETTING,
                 DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
@@ -203,6 +207,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
+                IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
 
                 // validate that built-in similarities don't get redefined
@@ -224,6 +229,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MODE,
                 IndexMetadata.INDEX_ROUTING_PATH,
                 IndexMetadata.INDEX_DIMENSIONS,
+                IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
@@ -241,6 +247,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
         if (IndexSettings.DOC_VALUES_SKIPPER) {
             settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
+        }
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            settings.add(IndexSettings.USE_SYNTHETIC_ID);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

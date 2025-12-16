@@ -35,6 +35,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -62,6 +63,7 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -89,7 +91,9 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -137,6 +141,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
@@ -150,6 +155,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -202,6 +208,16 @@ public class ApiKeyService implements Closeable {
         TimeValue.timeValueMinutes(15),
         Property.NodeScope
     );
+    public static final Setting<TimeValue> CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING = Setting.timeSetting(
+        "xpack.security.authc.api_key.certificate_identity_pattern_cache.ttl",
+        TimeValue.timeValueHours(48L),
+        Property.NodeScope
+    );
+    public static final Setting<Integer> CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING = Setting.intSetting(
+        "xpack.security.authc.api_key.certificate_identity_pattern_cache.max_keys",
+        100,
+        Property.NodeScope
+    );
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
 
@@ -213,10 +229,12 @@ public class ApiKeyService implements Closeable {
     private final boolean enabled;
     private final Settings settings;
     private final InactiveApiKeysRemover inactiveApiKeysRemover;
+    private final Cache<String, Pattern> certificateIdentityPatternCache;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
     private final ApiKeyDocCache apiKeyDocCache;
+    private final FeatureService featureService;
 
     private static final int API_KEY_SECRET_NUM_BYTES = 16;
     // The API key secret is a Base64 encoded string of 128 random bits.
@@ -239,7 +257,8 @@ public class ApiKeyService implements Closeable {
         ClusterService clusterService,
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
         ThreadPool threadPool,
-        MeterRegistry meterRegistry
+        MeterRegistry meterRegistry,
+        FeatureService featureService
     ) {
         this.clock = clock;
         this.client = client;
@@ -251,6 +270,8 @@ public class ApiKeyService implements Closeable {
         this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
+        this.featureService = featureService;
+
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         final int maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
@@ -259,8 +280,15 @@ public class ApiKeyService implements Closeable {
                 .setMaximumWeight(maximumWeight)
                 .removalListener(getAuthCacheRemovalListener(maximumWeight))
                 .build();
-            final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
-            this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
+            final TimeValue docTtl = DOC_CACHE_TTL_SETTING.get(settings);
+            this.apiKeyDocCache = docTtl.getNanos() == 0 ? null : new ApiKeyDocCache(docTtl, maximumWeight);
+
+            final TimeValue patternTtl = CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING.get(settings);
+            final int maximumPatternWeight = CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING.get(settings);
+            this.certificateIdentityPatternCache = patternTtl.getNanos() == 0
+                ? null
+                : CacheBuilder.<String, Pattern>builder().setExpireAfterAccess(patternTtl).setMaximumWeight(maximumPatternWeight).build();
+
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
                 public void invalidate(Collection<String> keys) {
@@ -300,6 +328,7 @@ public class ApiKeyService implements Closeable {
         } else {
             this.apiKeyAuthCache = null;
             this.apiKeyDocCache = null;
+            this.certificateIdentityPatternCache = null;
         }
 
         if (enabled) {
@@ -553,6 +582,14 @@ public class ApiKeyService implements Closeable {
             : "Invalid API key (name=[" + request.getName() + "], type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
 
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
+            final String certificateIdentity;
+            try {
+                certificateIdentity = getCertificateIdentityFromCreateRequest(request);
+            } catch (ElasticsearchException e) {
+                listener.onFailure(e);
+                return;
+            }
+
             try (
                 XContentBuilder builder = newDocument(
                     apiKeyHashChars,
@@ -564,7 +601,8 @@ public class ApiKeyService implements Closeable {
                     request.getRoleDescriptors(),
                     request.getType(),
                     ApiKey.CURRENT_API_KEY_VERSION,
-                    request.getMetadata()
+                    request.getMetadata(),
+                    certificateIdentity
                 )
             ) {
                 final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
@@ -612,6 +650,27 @@ public class ApiKeyService implements Closeable {
                 Arrays.fill(apiKeyHashChars, (char) 0);
             }
         }));
+    }
+
+    private String getCertificateIdentityFromCreateRequest(final AbstractCreateApiKeyRequest request) {
+        String certificateIdentityString = null;
+        if (request instanceof CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest) {
+            CertificateIdentity certIdentityObject = createCrossClusterApiKeyRequest.getCertificateIdentity();
+            if (certIdentityObject != null) {
+                certificateIdentityString = certIdentityObject.value();
+            }
+        }
+        return certificateIdentityString;
+    }
+
+    public void ensureCertificateIdentityFeatureIsEnabled() {
+        ClusterState clusterState = clusterService.state();
+        if (featureService.clusterHasFeature(clusterState, CERTIFICATE_IDENTITY_FIELD_FEATURE) == false) {
+            throw new ElasticsearchException(
+                "API key operation failed. The cluster is in a mixed-version state and does not yet "
+                    + "support the [certificate_identity] field. Please retry after the upgrade is complete."
+            );
+        }
     }
 
     public void updateApiKeys(
@@ -896,7 +955,8 @@ public class ApiKeyService implements Closeable {
         List<RoleDescriptor> keyRoleDescriptors,
         ApiKey.Type type,
         ApiKey.Version version,
-        @Nullable Map<String, Object> metadata
+        @Nullable Map<String, Object> metadata,
+        @Nullable String certificateIdentity
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
@@ -911,6 +971,10 @@ public class ApiKeyService implements Closeable {
         addLimitedByRoleDescriptors(builder, userRoleDescriptors);
 
         builder.field("name", name).field("version", version.version()).field("metadata_flattened", metadata);
+
+        if (certificateIdentity != null) {
+            builder.field("certificate_identity", certificateIdentity);
+        }
         addCreator(builder, authentication);
 
         return builder.endObject();
@@ -990,6 +1054,27 @@ public class ApiKeyService implements Closeable {
             );
         }
 
+        CertificateIdentity certIdentityRequest = request.getCertificateIdentity();
+
+        if (certIdentityRequest == null) {
+            // certificate_identity was omitted from request; preserve existing value
+            if (currentApiKeyDoc.certificateIdentity != null) {
+                logger.trace(() -> format("Preserving existing certificate identity for API key [%s]", apiKeyId));
+                builder.field("certificate_identity", currentApiKeyDoc.certificateIdentity);
+            }
+        } else {
+            String newValue = certIdentityRequest.value();
+            if (newValue == null) {
+                // Explicit null provided for certificate_identity in request; clear the certificate_identity
+                logger.trace(() -> format("Clearing certificate identity for API key [%s]", apiKeyId));
+                // Don't add certificate_identity field to document (effectively removes it)
+            } else {
+                // A new value was provided for certificate_identity; update to the new value.
+                logger.trace(() -> format("Updating certificate identity for API key [%s]", apiKeyId));
+                builder.field("certificate_identity", newValue);
+            }
+        }
+
         addCreator(builder, authentication);
 
         return builder.endObject();
@@ -1003,6 +1088,15 @@ public class ApiKeyService implements Closeable {
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
+
+        final CertificateIdentity newCertificateIdentity = request.getCertificateIdentity();
+        if (newCertificateIdentity != null) {
+            String newCertificateIdentityStringValue = newCertificateIdentity.value();
+            if (Objects.equals(newCertificateIdentityStringValue, apiKeyDoc.certificateIdentity) == false) {
+                return false;
+            }
+        }
+
         if (apiKeyDoc.version != targetDocVersion.version()) {
             return false;
         }
@@ -1083,6 +1177,7 @@ public class ApiKeyService implements Closeable {
             // `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`, when we update a 7.x API key.
             false
         );
+
         return (userRoleDescriptors.size() == currentLimitedByRoleDescriptors.size()
             && userRoleDescriptors.containsAll(currentLimitedByRoleDescriptors));
     }
@@ -1321,7 +1416,7 @@ public class ApiKeyService implements Closeable {
                         if (result.success) {
                             if (result.verify(credentials.getKey())) {
                                 // move on
-                                validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                                completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                             } else {
                                 listener.onResponse(
                                     AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1341,7 +1436,7 @@ public class ApiKeyService implements Closeable {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
                         if (verified) {
                             // move on
-                            validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                            completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                         } else {
                             listener.onResponse(
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1364,7 +1459,7 @@ public class ApiKeyService implements Closeable {
                 verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
                     if (verified) {
                         // move on
-                        validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                        completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                     } else {
                         listener.onResponse(
                             AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1396,7 +1491,7 @@ public class ApiKeyService implements Closeable {
     }
 
     // package-private for testing
-    static void validateApiKeyTypeAndExpiration(
+    void completeApiKeyAuthentication(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,
@@ -1414,6 +1509,34 @@ public class ApiKeyService implements Closeable {
                 )
             );
             return;
+        }
+
+        if (apiKeyDoc.certificateIdentity != null) {
+            if (credentials.getCertificateIdentity() == null) {
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        Strings.format(
+                            "API key (type:[%s], id:[%s]) requires certificate identity matching [%s], but no certificate was provided",
+                            apiKeyDoc.type.value(),
+                            credentials.getId(),
+                            apiKeyDoc.certificateIdentity
+                        )
+                    )
+                );
+                return;
+            }
+            if (validateCertificateIdentity(credentials.getCertificateIdentity(), apiKeyDoc.certificateIdentity) == false) {
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        Strings.format(
+                            "DN from provided certificate [%s] does not match API Key certificate identity pattern [%s]",
+                            credentials.getCertificateIdentity(),
+                            apiKeyDoc.certificateIdentity
+                        )
+                    )
+                );
+                return;
+            }
         }
 
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
@@ -1440,22 +1563,49 @@ public class ApiKeyService implements Closeable {
         }
     }
 
+    private boolean validateCertificateIdentity(String certificateIdentity, String certificateIdentityPattern) {
+        logger.trace("Validating certificate identity [{}] against [{}]", certificateIdentity, certificateIdentityPattern);
+        return getCertificateIdentityPattern(certificateIdentityPattern).matcher(certificateIdentity).matches();
+    }
+
+    // Visible for testing
+    Pattern getCertificateIdentityPattern(String certificateIdentityPattern) {
+        if (certificateIdentityPatternCache != null) {
+            try {
+                return certificateIdentityPatternCache.computeIfAbsent(certificateIdentityPattern, Pattern::compile);
+            } catch (ExecutionException e) {
+                logger.error(
+                    Strings.format(
+                        "Failed to validate certificate identity against pattern [%s] using cache. Falling back to regular matching",
+                        certificateIdentityPattern
+                    ),
+                    e
+                );
+            }
+        }
+        return Pattern.compile(certificateIdentityPattern);
+    }
+
     ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {
         if (false == isEnabled()) {
             return null;
         }
-        return parseApiKey(apiKeyString, ApiKey.Type.REST);
+        return parseApiKey(apiKeyString, null, ApiKey.Type.REST);
     }
 
-    static ApiKeyCredentials getCredentialsFromHeader(final String header, ApiKey.Type expectedType) {
-        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), expectedType);
+    static ApiKeyCredentials getCredentialsFromHeader(final String header, @Nullable String certificateIdentity, ApiKey.Type expectedType) {
+        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), certificateIdentity, expectedType);
     }
 
     public static String withApiKeyPrefix(final String encodedApiKey) {
         return "ApiKey " + encodedApiKey;
     }
 
-    private static ApiKeyCredentials parseApiKey(SecureString apiKeyString, ApiKey.Type expectedType) {
+    private static ApiKeyCredentials parseApiKey(
+        SecureString apiKeyString,
+        @Nullable String certificateIdentity,
+        ApiKey.Type expectedType
+    ) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;
@@ -1479,7 +1629,8 @@ public class ApiKeyService implements Closeable {
                 return new ApiKeyCredentials(
                     new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
                     new SecureString(Arrays.copyOfRange(apiKeyCredChars, secretStartPos, apiKeyCredChars.length)),
-                    expectedType
+                    expectedType,
+                    certificateIdentity
                 );
             } finally {
                 if (apiKeyCredChars != null) {
@@ -1596,11 +1747,17 @@ public class ApiKeyService implements Closeable {
         private final String id;
         private final SecureString key;
         private final ApiKey.Type expectedType;
+        private final String certificateIdentity;
 
         public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType) {
+            this(id, key, expectedType, null);
+        }
+
+        public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType, @Nullable String certificateIdentity) {
             this.id = id;
             this.key = key;
             this.expectedType = expectedType;
+            this.certificateIdentity = certificateIdentity;
         }
 
         String getId() {
@@ -1633,6 +1790,15 @@ public class ApiKeyService implements Closeable {
 
         public ApiKey.Type getExpectedType() {
             return expectedType;
+        }
+
+        /**
+         * The identity (Subject DistinguishedName) of the X.509 certificate that was provided by the client
+         * alongside the API during authenticate.
+         * <em>At the time of writing, the only place where this is used is for cross cluster request signing</em>
+         */
+        public String getCertificateIdentity() {
+            return certificateIdentity;
         }
     }
 
@@ -2324,7 +2490,8 @@ public class ApiKeyService implements Closeable {
             (String) apiKeyDoc.creator.get("realm_type"),
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            apiKeyDoc.certificateIdentity
         );
     }
 
@@ -2517,6 +2684,7 @@ public class ApiKeyService implements Closeable {
             ObjectParserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
             builder.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("creator"));
             ObjectParserHelper.declareRawObjectOrNull(builder, optionalConstructorArg(), new ParseField("metadata_flattened"));
+            builder.declareStringOrNull(optionalConstructorArg(), new ParseField("certificate_identity"));
             PARSER = builder.build();
         }
 
@@ -2535,6 +2703,8 @@ public class ApiKeyService implements Closeable {
         final Map<String, Object> creator;
         @Nullable
         final BytesReference metadataFlattened;
+        @Nullable
+        final String certificateIdentity;
 
         public ApiKeyDoc(
             String docType,
@@ -2549,7 +2719,8 @@ public class ApiKeyService implements Closeable {
             BytesReference roleDescriptorsBytes,
             BytesReference limitedByRoleDescriptorsBytes,
             Map<String, Object> creator,
-            @Nullable BytesReference metadataFlattened
+            @Nullable BytesReference metadataFlattened,
+            @Nullable String certificateIdentity
         ) {
             this.docType = docType;
             if (type == null) {
@@ -2569,6 +2740,7 @@ public class ApiKeyService implements Closeable {
             this.limitedByRoleDescriptorsBytes = limitedByRoleDescriptorsBytes;
             this.creator = creator;
             this.metadataFlattened = NULL_BYTES.equals(metadataFlattened) ? null : metadataFlattened;
+            this.certificateIdentity = certificateIdentity;
         }
 
         public CachedApiKeyDoc toCachedApiKeyDoc() {
@@ -2590,7 +2762,8 @@ public class ApiKeyService implements Closeable {
                 creator,
                 roleDescriptorsHash,
                 limitedByRoleDescriptorsHash,
-                metadataFlattened
+                metadataFlattened,
+                certificateIdentity
             );
         }
 
@@ -2618,6 +2791,8 @@ public class ApiKeyService implements Closeable {
         final String limitedByRoleDescriptorsHash;
         @Nullable
         final BytesReference metadataFlattened;
+        @Nullable
+        final String certificateIdentity;
 
         public CachedApiKeyDoc(
             ApiKey.Type type,
@@ -2631,7 +2806,8 @@ public class ApiKeyService implements Closeable {
             Map<String, Object> creator,
             String roleDescriptorsHash,
             String limitedByRoleDescriptorsHash,
-            @Nullable BytesReference metadataFlattened
+            @Nullable BytesReference metadataFlattened,
+            @Nullable String certificateIdentity
         ) {
             this.type = type;
             this.creationTime = creationTime;
@@ -2645,6 +2821,7 @@ public class ApiKeyService implements Closeable {
             this.roleDescriptorsHash = roleDescriptorsHash;
             this.limitedByRoleDescriptorsHash = limitedByRoleDescriptorsHash;
             this.metadataFlattened = metadataFlattened;
+            this.certificateIdentity = certificateIdentity;
         }
 
         public ApiKeyDoc toApiKeyDoc(BytesReference roleDescriptorsBytes, BytesReference limitedByRoleDescriptorsBytes) {
@@ -2661,7 +2838,8 @@ public class ApiKeyService implements Closeable {
                 roleDescriptorsBytes,
                 limitedByRoleDescriptorsBytes,
                 creator,
-                metadataFlattened
+                metadataFlattened,
+                certificateIdentity
             );
         }
     }

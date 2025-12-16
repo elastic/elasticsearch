@@ -69,6 +69,7 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -78,9 +79,11 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -95,18 +98,23 @@ import java.util.function.Function;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    public IndicesModule(List<MapperPlugin> mapperPlugins, RootObjectMapperNamespaceValidator namespaceValidator) {
+    public IndicesModule(
+        List<MapperPlugin> mapperPlugins,
+        List<InternalVectorFormatProviderPlugin> vectorFormatProviderPlugins,
+        RootObjectMapperNamespaceValidator namespaceValidator
+    ) {
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins),
             getFieldFilter(mapperPlugins),
+            getVectorFormatProviders(vectorFormatProviderPlugins),
             namespaceValidator
         );
     }
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this(mapperPlugins, null);
+        this(mapperPlugins, Collections.emptyList(), null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -225,6 +233,19 @@ public class IndicesModule extends AbstractModule {
             }
         }
         return Collections.unmodifiableMap(mappers);
+    }
+
+    private static List<VectorsFormatProvider> getVectorFormatProviders(
+        List<InternalVectorFormatProviderPlugin> vectorFormatProviderPlugins
+    ) {
+        List<VectorsFormatProvider> vectorsFormatProviders = new ArrayList<>();
+        for (InternalVectorFormatProviderPlugin plugin : vectorFormatProviderPlugins) {
+            VectorsFormatProvider vectorsFormatProvider = plugin.getVectorsFormatProvider();
+            if (vectorsFormatProvider != null) {
+                vectorsFormatProviders.add(vectorsFormatProvider);
+            }
+        }
+        return Collections.unmodifiableList(vectorsFormatProviders);
     }
 
     private static Map<String, RuntimeField.Parser> getRuntimeFields(List<MapperPlugin> mapperPlugins) {

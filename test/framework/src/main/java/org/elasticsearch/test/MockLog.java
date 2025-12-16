@@ -283,11 +283,11 @@ public class MockLog implements Releasable {
 
     public static class PatternSeenEventExpectation implements LoggingExpectation {
 
-        private final String name;
+        final String name;
         private final String logger;
         private final Level level;
         private final Pattern pattern;
-        private final CountDownLatch seenLatch = new CountDownLatch(1);
+        final CountDownLatch seenLatch = new CountDownLatch(1);
 
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
@@ -313,6 +313,23 @@ public class MockLog implements Releasable {
         @Override
         public void awaitMatched(long millis) throws InterruptedException {
             assertThat(name, seenLatch.await(millis, TimeUnit.MILLISECONDS), equalTo(true));
+        }
+    }
+
+    public static class PatternNotSeenEventExpectation extends PatternSeenEventExpectation {
+
+        public PatternNotSeenEventExpectation(String name, String logger, Level level, String pattern) {
+            super(name, logger, level, pattern);
+        }
+
+        @Override
+        public void assertMatched() {
+            assertThat("expected not to see " + name + " but did", seenLatch.getCount(), equalTo(1L));
+        }
+
+        @Override
+        public void awaitMatched(long millis) throws InterruptedException {
+            assertThat(name, seenLatch.await(millis, TimeUnit.MILLISECONDS), equalTo(false));
         }
     }
 

@@ -56,7 +56,8 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
             "unsigned_long",
             "counter_long",
             "counter_integer",
-            "counter_double" },
+            "counter_double",
+            "dense_vector" },
         examples = { @Example(file = "null", tag = "is-not-null") }
     )
     public IsNotNull(
@@ -75,7 +76,8 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
                 "unsigned_long",
                 "counter_long",
                 "counter_integer",
-                "counter_double" }
+                "counter_double",
+                "dense_vector", }
         ) Expression field
     ) {
         super(source, field);

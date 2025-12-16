@@ -78,27 +78,27 @@ public final class DateDiffConstantMillisNanosEvaluator implements EvalOperator.
       LongBlock endTimestampNanosBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (startTimestampMillisBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (startTimestampMillisBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (startTimestampMillisBlock.getValueCount(p) != 1) {
-          if (startTimestampMillisBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (endTimestampNanosBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (endTimestampNanosBlock.getValueCount(p) != 1) {
-          if (endTimestampNanosBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (endTimestampNanosBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         long startTimestampMillis = startTimestampMillisBlock.getLong(startTimestampMillisBlock.getFirstValueIndex(p));
         long endTimestampNanos = endTimestampNanosBlock.getLong(endTimestampNanosBlock.getFirstValueIndex(p));

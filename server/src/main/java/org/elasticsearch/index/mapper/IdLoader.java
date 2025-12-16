@@ -17,15 +17,53 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Responsible for loading the _id from stored fields or for TSDB synthesizing the _id from the routing, _tsid and @timestamp fields.
  */
 public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
+
+    /**
+     * @return returns an {@link IdLoader} instance to load the value of the _id field.
+     */
+    static IdLoader create(MapperService mapperService) {
+        var indexSettings = mapperService.getIndexSettings();
+        if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+            IndexRouting.ExtractFromSource.ForRoutingPath indexRouting = null;
+            List<String> routingPaths = null;
+            if (indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
+                indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) indexSettings.getIndexRouting();
+                routingPaths = indexSettings.getIndexMetadata().getRoutingPaths();
+                for (String routingField : routingPaths) {
+                    if (routingField.contains("*")) {
+                        // In case the routing fields include path matches, find any matches and add them as distinct fields
+                        // to the routing path.
+                        Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
+                        for (Mapper mapper : mapperService.mappingLookup().fieldMappers()) {
+                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.fullPath())) {
+                                matchingRoutingPaths.add(mapper.fullPath());
+                            }
+                        }
+                        routingPaths = new ArrayList<>(matchingRoutingPaths);
+                        break;
+                    }
+                }
+            }
+            return createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
+        } else {
+            return fromLeafStoredFieldLoader();
+        }
+    }
 
     /**
      * @return returns an {@link IdLoader} instance the loads the _id from stored field.
@@ -37,8 +75,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * @return returns an {@link IdLoader} instance that syn synthesizes _id from routing, _tsid and @timestamp fields.
      */
-    static IdLoader createTsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
-        return new TsIdLoader(indexRouting, routingPaths);
+    static IdLoader createTsIdLoader(
+        IndexRouting.ExtractFromSource.ForRoutingPath indexRouting,
+        List<String> routingPaths,
+        boolean useSyntheticId
+    ) {
+        return new TsIdLoader(indexRouting, routingPaths, useSyntheticId);
     }
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
@@ -58,19 +100,21 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     final class TsIdLoader implements IdLoader {
 
-        private final IndexRouting.ExtractFromSource indexRouting;
+        private final IndexRouting.ExtractFromSource.ForRoutingPath indexRouting;
         private final List<String> routingPaths;
+        private final boolean useSyntheticId;
 
-        TsIdLoader(IndexRouting.ExtractFromSource indexRouting, List<String> routingPaths) {
+        TsIdLoader(IndexRouting.ExtractFromSource.ForRoutingPath indexRouting, List<String> routingPaths, boolean useSyntheticId) {
             this.routingPaths = routingPaths;
             this.indexRouting = indexRouting;
+            this.useSyntheticId = useSyntheticId;
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            IndexRouting.ExtractFromSource.RoutingHashBuilder[] builders = null;
+            RoutingHashBuilder[] builders = null;
             if (indexRouting != null) {
                 // this branch is for legacy indices before IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID
-                builders = new IndexRouting.ExtractFromSource.RoutingHashBuilder[docIdsInLeaf.length];
+                builders = new RoutingHashBuilder[docIdsInLeaf.length];
                 for (int i = 0; i < builders.length; i++) {
                     builders[i] = indexRouting.builder();
                 }
@@ -118,7 +162,11 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
                         Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
                     );
-                    ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+                    if (useSyntheticId) {
+                        ids[i] = TsidExtractingIdFieldMapper.createSyntheticId(tsid, timestamp, routingHash);
+                    } else {
+                        ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+                    }
                 }
             }
             return new TsIdLeaf(docIdsInLeaf, ids);

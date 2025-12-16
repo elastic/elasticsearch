@@ -9,100 +9,44 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.INFERENCE_API_OPENAI_HEADERS;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.HEADERS;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
-
-public class OpenAiChatCompletionTaskSettings implements TaskSettings {
+public class OpenAiChatCompletionTaskSettings extends OpenAiTaskSettings<OpenAiChatCompletionTaskSettings> {
 
     public static final String NAME = "openai_completion_task_settings";
 
-    public static OpenAiChatCompletionTaskSettings fromMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
+    private static final TransportVersion INFERENCE_API_OPENAI_HEADERS = TransportVersion.fromName("inference_api_openai_headers");
 
-        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
-        var headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
-        var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new OpenAiChatCompletionTaskSettings(user, stringHeaders);
+    public OpenAiChatCompletionTaskSettings(Map<String, Object> map) {
+        super(map);
     }
 
-    private final String user;
-    @Nullable
-    private final Map<String, String> headers;
-
     public OpenAiChatCompletionTaskSettings(@Nullable String user, @Nullable Map<String, String> headers) {
-        this.user = user;
-        this.headers = headers;
+        super(user, headers);
     }
 
     public OpenAiChatCompletionTaskSettings(StreamInput in) throws IOException {
-        this.user = in.readOptionalString();
+        super(readTaskSettingsFromStream(in));
+    }
 
-        if (in.getTransportVersion().onOrAfter(INFERENCE_API_OPENAI_HEADERS)) {
+    private static Settings readTaskSettingsFromStream(StreamInput in) throws IOException {
+        var user = in.readOptionalString();
+
+        Map<String, String> headers;
+
+        if (in.getTransportVersion().supports(INFERENCE_API_OPENAI_HEADERS)) {
             headers = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString);
         } else {
             headers = null;
         }
-    }
 
-    @Override
-    public boolean isEmpty() {
-        return user == null && (headers == null || headers.isEmpty());
-    }
-
-    public static OpenAiChatCompletionTaskSettings of(
-        OpenAiChatCompletionTaskSettings originalSettings,
-        OpenAiChatCompletionRequestTaskSettings requestSettings
-    ) {
-        var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
-        var headersToUse = requestSettings.headers() == null ? originalSettings.headers : requestSettings.headers();
-        return new OpenAiChatCompletionTaskSettings(userToUse, headersToUse);
-    }
-
-    public String user() {
-        return user;
-    }
-
-    public Map<String, String> headers() {
-        return headers;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        if (user != null) {
-            builder.field(USER, user);
-        }
-
-        if (headers != null && headers.isEmpty() == false) {
-            builder.field(HEADERS, headers);
-        }
-
-        builder.endObject();
-
-        return builder;
+        return createSettings(user, headers);
     }
 
     @Override
@@ -117,30 +61,14 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(user);
-        if (out.getTransportVersion().onOrAfter(INFERENCE_API_OPENAI_HEADERS)) {
-            out.writeOptionalMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeOptionalString(user());
+        if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_HEADERS)) {
+            out.writeOptionalMap(headers(), StreamOutput::writeString, StreamOutput::writeString);
         }
     }
 
     @Override
-    public boolean equals(Object object) {
-        if (this == object) return true;
-        if (object == null || getClass() != object.getClass()) return false;
-        OpenAiChatCompletionTaskSettings that = (OpenAiChatCompletionTaskSettings) object;
-        return Objects.equals(user, that.user) && Objects.equals(headers, that.headers);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(user, headers);
-    }
-
-    @Override
-    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        OpenAiChatCompletionRequestTaskSettings updatedSettings = OpenAiChatCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
-        return of(this, updatedSettings);
+    protected OpenAiChatCompletionTaskSettings create(@Nullable String user, @Nullable Map<String, String> headers) {
+        return new OpenAiChatCompletionTaskSettings(user, headers);
     }
 }

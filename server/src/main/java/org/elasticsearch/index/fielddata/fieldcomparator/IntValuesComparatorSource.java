@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.IntComparator;
@@ -59,7 +60,7 @@ public class IntValuesComparatorSource extends LongValuesComparatorSource {
                 return new IntLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return IntValuesComparatorSource.this.getNumericDocValues(context, iMissingValue);
+                        return wrap(getLongValues(context, iMissingValue), context.reader().maxDoc());
                     }
                 };
             }
@@ -80,7 +81,7 @@ public class IntValuesComparatorSource extends LongValuesComparatorSource {
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDocValues docValues = getNumericDocValues(ctx, iMissingValue);
+                    private final LongValues docValues = getLongValues(ctx, iMissingValue);
                     private int docValue;
 
                     @Override

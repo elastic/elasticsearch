@@ -39,7 +39,7 @@ public class AddIndexBlockRollingUpgradeIT extends AbstractRollingUpgradeTestCas
         } else if (isMixedCluster()) {
             blockWrites();
             // this is used both for upgrading from 9.0.0 to current and from 8.18 to current.
-            if (minimumTransportVersion().before(TransportVersions.ADD_INDEX_BLOCK_TWO_PHASE)) {
+            if (minimumTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
                 assertNull(verifiedSettingValue());
             } else {
                 assertThat(verifiedSettingValue(), Matchers.equalTo("true"));

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,7 +26,18 @@ import java.io.IOException;
 public class L2Norm extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "L2Norm", L2Norm::new);
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = L2Norm::calculateSimilarity;
+
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
+        @Override
+        public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+            return (float) Math.sqrt(VectorUtil.squareDistance(leftVector, rightVector));
+        }
+
+        @Override
+        public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+            return (float) Math.sqrt(VectorUtil.squareDistance(leftVector, rightVector));
+        }
+    };
 
     @FunctionInfo(
         returnType = "double",
@@ -60,7 +72,7 @@ public class L2Norm extends VectorSimilarityFunction {
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+    public DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
     }
 

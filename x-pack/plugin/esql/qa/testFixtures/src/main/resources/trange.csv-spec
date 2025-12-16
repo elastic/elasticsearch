@@ -1,0 +1,116 @@
+trangeAbsoluteTimeString
+required_capability: fn_trange
+// tag::docsTRangeAbsoluteTimeString[]
+FROM k8s 
+| WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeAbsoluteTimeString[]
+;
+
+// tag::docsTRangeAbsoluteTimeString-result[]
+@timestamp:datetime
+2024-05-10T00:17:16.000Z
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeAbsoluteTimeString-result[]
+;
+
+trangeAbsoluteTimeDateTime
+required_capability: fn_trange
+// tag::docsTRangeAbsoluteTimeDateTime[]
+FROM k8s 
+| WHERE TRANGE(to_datetime("2024-05-10T00:17:14Z"), to_datetime("2024-05-10T00:18:33Z"))
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeAbsoluteTimeDateTime[]
+;
+
+// tag::docsTRangeAbsoluteTimeDateTime-result[]
+@timestamp:datetime
+2024-05-10T00:17:16.000Z
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeAbsoluteTimeDateTime-result[]
+;
+
+trangeAbsoluteTimeDateTimeNanos
+required_capability: fn_trange
+// tag::docsTRangeAbsoluteTimeDateTimeNanos[]
+FROM k8s 
+| WHERE TRANGE(to_datetime("2024-05-10T00:17:14.000Z"), to_datetime("2024-05-10T00:18:33.000Z"))
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeAbsoluteTimeDateTimeNanos[]
+;
+
+// tag::docsTRangeAbsoluteTimeDateTimeNanos-result[]
+@timestamp:datetime
+2024-05-10T00:17:16.000Z
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeAbsoluteTimeDateTimeNanos-result[]
+;
+
+trangeAbsoluteTimeEpochMillis
+required_capability: fn_trange
+// tag::docsTRangeAbsoluteTimeEpochMillis[]
+FROM k8s 
+| WHERE TRANGE(1715300236000, 1715300282000) 
+| SORT @timestamp
+| KEEP @timestamp
+| LIMIT 10
+// end::docsTRangeAbsoluteTimeEpochMillis[]
+;
+
+// tag::docsTRangeAbsoluteTimeEpochMillis-result[]
+@timestamp:datetime
+2024-05-10T00:17:20.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:30.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:39.000Z
+2024-05-10T00:17:55.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+2024-05-10T00:18:02.000Z
+// end::docsTRangeAbsoluteTimeEpochMillis-result[]
+;
+
+trangeOffsetFromNow
+required_capability: fn_trange
+// tag::docsTRangeOffsetFromNow[]
+FROM k8s
+| WHERE TRANGE(1h)
+| KEEP @timestamp
+// end::docsTRangeOffsetFromNow[]
+;
+
+// tag::docsTRangeOffsetFromNow-result[]
+@timestamp:datetime
+// tag::docsTRangeOffsetFromNow-result[]
+;

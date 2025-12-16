@@ -47,6 +47,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -55,10 +57,10 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,6 +94,9 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
+        var provider = GoogleModelGardenProvider.ANTHROPIC.name();
+        var url = "https://non-streaming.url";
+        var streamingUrl = "https://streaming.url";
         var serviceAccountJson = """
             {
                 "some json"
@@ -107,6 +112,11 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 assertThat(vertexAIModel.getServiceSettings().modelId(), is(modelId));
                 assertThat(vertexAIModel.getServiceSettings().location(), is(location));
                 assertThat(vertexAIModel.getServiceSettings().projectId(), is(projectId));
+
+                assertThat(vertexAIModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+                assertThat(vertexAIModel.getServiceSettings().uri(), is(new URI(url)));
+                assertThat(vertexAIModel.getServiceSettings().streamingUri(), is(new URI(streamingUrl)));
+
                 assertThat(vertexAIModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
                 assertThat(vertexAIModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
                 assertThat(vertexAIModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
@@ -125,7 +135,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             GoogleVertexAiServiceFields.LOCATION,
                             location,
                             GoogleVertexAiServiceFields.PROJECT_ID,
-                            projectId
+                            projectId,
+                            GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
+                            provider,
+                            GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                            url,
+                            GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
+                            streamingUrl
                         )
                     ),
                     getTaskSettingsMapEmpty(),
@@ -485,10 +501,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException, URISyntaxException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
+        var provider = GoogleModelGardenProvider.ANTHROPIC.name();
+        var url = "https://non-streaming.url";
+        var streamingUrl = "https://streaming.url";
         var autoTruncate = true;
         var serviceAccountJson = """
             {
@@ -505,7 +524,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         GoogleVertexAiServiceFields.LOCATION,
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
-                        projectId
+                        projectId,
+                        GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
+                        provider,
+                        GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                        url,
+                        GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
+                        streamingUrl
                     )
                 ),
                 getTaskSettingsMap(autoTruncate, InputType.INGEST),
@@ -529,6 +554,10 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             assertThat(chatCompletionModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
             assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
             assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().timeUnit(), equalTo(MINUTES));
+
+            assertThat(chatCompletionModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+            assertThat(chatCompletionModel.getServiceSettings().uri(), is(new URI(url)));
+            assertThat(chatCompletionModel.getServiceSettings().streamingUri(), is(new URI(streamingUrl)));
         }
     }
 
@@ -965,8 +994,6 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
     }
-
-    // testInfer tested via end-to-end notebook tests in AppEx repo
 
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {

@@ -1,0 +1,12 @@
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+dependencies {
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+}

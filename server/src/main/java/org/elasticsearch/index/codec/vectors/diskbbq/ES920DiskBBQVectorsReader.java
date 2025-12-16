@@ -9,17 +9,17 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -29,22 +29,23 @@ import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
-import static org.elasticsearch.index.codec.vectors.BQSpaceUtils.transposeHalfByte;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
+import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHeapStats {
+public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ES920DiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
-        super(state, rawVectorsReader);
+    ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
+        super(state, getFormatReader);
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
+    public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
+        throws IOException {
         return new CentroidIterator() {
             CentroidOffsetAndLength nextOffsetAndLength = centroidIterator.hasNext()
                 ? centroidIterator.nextPostingListOffsetAndLength()
@@ -81,7 +82,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHe
     }
 
     @Override
-    CentroidIterator getCentroidIterator(
+    public CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
@@ -135,6 +136,37 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHe
             );
         }
         return getPostingListPrefetchIterator(centroidIterator, postingListSlice);
+    }
+
+    @Override
+    protected FieldEntry doReadField(
+        IndexInput input,
+        String rawVectorFormat,
+        boolean useDirectIOReads,
+        VectorSimilarityFunction similarityFunction,
+        VectorEncoding vectorEncoding,
+        int numCentroids,
+        long centroidOffset,
+        long centroidLength,
+        long postingListOffset,
+        long postingListLength,
+        float[] globalCentroid,
+        float globalCentroidDp
+    ) {
+        // nothing more to read
+        return new FieldEntry(
+            rawVectorFormat,
+            useDirectIOReads,
+            similarityFunction,
+            vectorEncoding,
+            numCentroids,
+            centroidOffset,
+            centroidLength,
+            postingListOffset,
+            postingListLength,
+            globalCentroid,
+            globalCentroidDp
+        );
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(
@@ -349,10 +381,12 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHe
     }
 
     @Override
-    PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs) throws IOException {
+    public PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs)
+        throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
-        final int maxPostingListSize = indexInput.readVInt();
-        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, maxPostingListSize, acceptDocs);
+        // max postings list size, no longer utilized
+        indexInput.readVInt();
+        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, acceptDocs);
     }
 
     @Override
@@ -392,14 +426,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHe
         final float[] correctiveValues = new float[3];
         final long quantizedVectorByteSize;
 
-        MemorySegmentPostingsVisitor(
-            float[] target,
-            IndexInput indexInput,
-            FieldEntry entry,
-            FieldInfo fieldInfo,
-            int maxPostingListSize,
-            Bits acceptDocs
-        ) throws IOException {
+        MemorySegmentPostingsVisitor(float[] target, IndexInput indexInput, FieldEntry entry, FieldInfo fieldInfo, Bits acceptDocs)
+            throws IOException {
             this.target = target;
             this.indexInput = indexInput;
             this.entry = entry;
@@ -567,7 +595,9 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHe
                         qcDist
                     );
                     scoredDocs++;
-                    knnCollector.collect(doc, score);
+                    if (knnCollector.minCompetitiveSimilarity() < score) {
+                        knnCollector.collect(doc, score);
+                    }
                 } else {
                     indexInput.skipBytes(quantizedByteLength);
                 }

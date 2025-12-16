@@ -91,7 +91,7 @@ required_capability: inline_stats
 FROM employees
 | WHERE still_hired
 | KEEP emp_no, languages, salary, hire_date
-| EVAL tenure = DATE_DIFF("year", hire_date, now())
+| EVAL tenure = DATE_DIFF("year", hire_date, "2025-09-18T00:00:00")
 | DROP hire_date
 | INLINE STATS avg_salary = AVG(salary), count = count(*) BY languages, tenure
 // end::multi-agg-multi-grouping[]
@@ -345,7 +345,8 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10023          |330870342              |3.181719481E8                |null             |5                    |F
 ;
 
-three
+three-Ignore
+// temporarily forbid LIMIT before INLINE STATS
 required_capability: inline_stats
 
 FROM employees
@@ -369,6 +370,33 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10019          |342855721              |2.94833632E8                 |1                |5                    |1                     |5                     |null           
 10020          |373309605              |3.181719481E8                |null             |5                    |null                  |null                  |M              
 10023          |330870342              |3.181719481E8                |null             |5                    |3                     |5                     |F
+;
+
+threeTopNAtEnd
+required_capability: inline_stats
+// same as above but with the final INLINE STATS after before the LIMIT
+
+FROM employees
+| KEEP emp_no, languages, avg_worked_seconds, gender
+| INLINE STATS avg_avg_worked_seconds = AVG(avg_worked_seconds) BY languages
+| WHERE avg_worked_seconds > avg_avg_worked_seconds
+| INLINE STATS max_languages = MAX(languages) BY gender
+| INLINE STATS min(languages), max(languages) by gender
+| SORT emp_no ASC
+| LIMIT 10
+;
+
+emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:integer|max_languages:integer|min(languages):integer|max(languages):integer|gender:keyword
+10002          |328922887              |3.133013149047619E8          |5                |5                    |1                     |5                     |F              
+10006          |372957040              |2.978159518235294E8          |3                |5                    |1                     |5                     |F              
+10007          |393084805              |2.863684210555556E8          |4                |5                    |1                     |5                     |F              
+10010          |315236372              |2.863684210555556E8          |4                |5                    |1                     |5                     |null           
+10012          |365510850              |3.133013149047619E8          |5                |5                    |1                     |5                     |null           
+10015          |390266432              |3.133013149047619E8          |5                |5                    |1                     |5                     |null           
+10018          |309604079              |3.0318626831578946E8         |2                |5                    |1                     |5                     |null           
+10019          |342855721              |2.94833632E8                 |1                |5                    |1                     |5                     |null           
+10020          |373309605              |3.181719481E8                |null             |5                    |1                     |5                     |M              
+10023          |330870342              |3.181719481E8                |null             |5                    |1                     |5                     |F
 ;
 
 // TODO: INLINE STATS unit test needed for this one
@@ -1634,6 +1662,111 @@ ROW salary = 12300, emp_no = 5, gender = "F"
 emp_no:integer
 5
 ;
+
+inlineStatsWithShadowedOutput1
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x"
+| INLINE STATS a = MAX(c) BY b
+| EVAL a = c
+;
+
+c:keyword      |b:integer      |a:keyword
+x              |0              |x
+;
+
+inlineStatsWithShadowedOutput2
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c) by b
+| EVAL a = c, d = 2
+;
+
+c:keyword      |b:integer      |a:keyword |d:integer
+x              |0              |x         |2
+;
+
+inlineStatsWithShadowedOutput3
+required_capability: inline_stats_prune_column_fix
+
+FROM employees
+| KEEP emp_no, salary, birth_date
+| EVAL orig_emp_no = emp_no
+| INLINE STATS emp_no = MAX(birth_date) BY salary
+| EVAL emp_no = birth_date
+| SORT orig_emp_no
+| LIMIT 3
+;
+
+birth_date:date         |orig_emp_no:integer|salary:integer |emp_no:date
+1953-09-02T00:00:00.000Z|10001              |57305          |1953-09-02T00:00:00.000Z
+1964-06-02T00:00:00.000Z|10002              |56371          |1964-06-02T00:00:00.000Z
+1959-12-03T00:00:00.000Z|10003              |61805          |1959-12-03T00:00:00.000Z
+;
+
+inlineStatsWithShadowedOutput4
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b) by b
+| EVAL a = c, d = 2, e = a
+;
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword
+x              |0              |x              |2              |x
+;
+
+inlineStatsWithShadowedOutput5
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b), a = MIN(b) by b
+| EVAL a = c, d = 2, e = a
+;
+warning:Line 2:16: Field 'a' shadowed by field at line 2:52
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword
+x              |0              |x              |2              |x
+;
+
+inlineStatsWithShadowedOutput6
+required_capability: inline_stats_prune_column_fix
+
+ROW a = null, b = 0, c = "x", d = 1
+| INLINE STATS a = MAX(c), d = MIN(c), e = AVG(b), a = MIN(b), f = MAX(b) by b
+| EVAL a = c, d = 2, e = a, f = d
+;
+warning:Line 2:16: Field 'a' shadowed by field at line 2:52
+
+c:keyword      |b:integer      |a:keyword      |d:integer      |e:keyword      |f:integer
+x              |0              |x              |2              |x              |2
+;
+
+tripleInlineStatsMultipleAssignmentsGetsPrunedPartially
+required_capability: inline_stats_prune_column_fix
+
+FROM employees
+// | SORT languages DESC
+| EVAL salaryK = salary / 10000
+| INLINE STATS count = COUNT(*) BY salaryK
+| EVAL hire_date_string = hire_date::keyword
+| INLINE STATS sum = SUM(languages) BY hire_date_string
+| DISSECT hire_date_string "%{date}"
+| INLINE STATS min = MIN(MV_COUNT(languages)) BY salaryK
+| SORT emp_no
+| KEEP emp_no, salaryK, count, min
+| LIMIT 5
+;
+
+emp_no:integer |salaryK:integer|count:long     |min:integer
+10001          |5              |17             |1
+10002          |5              |17             |1
+10003          |6              |17             |1
+10004          |3              |27             |1
+10005          |6              |17             |1
+;
+
 ///////////////////////////
 // INLINE STATS with filters
 ///////////////////////////
@@ -1808,9 +1941,9 @@ from employees
 10003          |Parto          |null           |0              |null           |M              |1               |4             
 ;
 
-prunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnSecondInlinestats-Ignore
-// values doesn't end up as null
+prunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnSecondInlinestats
 required_capability: inline_stats
+required_capability: inline_stats_fix_pruning_null_filter
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false, 
@@ -1988,9 +2121,9 @@ null             |0              |[Gino, Heping]                                
 null             |[0, 0, 0, 0]   |[Berni, Chirstian, Amabile, Berni, Bojan, Chirstian, Anneke, Chirstian]|[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|10004          
 ;
 
-prunedInlinestatsFollowedByinlinestats-Ignore
-// values doesn't end up as null
+prunedInlinestatsFollowedByInlinestats
 required_capability: inline_stats
+required_capability: inline_stats_fix_pruning_null_filter
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,
@@ -2546,25 +2679,29 @@ FROM employees
 , less_than = STD_DEV(salary_change) WHERE languages <= 3
 , salary = STD_DEV(salary * 2)
 , count = COUNT(*) BY gender
+| EVAL greater_than = ROUND(greater_than, 5)
+, less_than = ROUND(less_than, 5)
+, salary = ROUND(salary, 5)
 | keep emp_no, gender, languages, *than, salary, count
 | SORT emp_no asc
 | limit 10
 ;
 
- emp_no:integer|gender:keyword |languages:integer|greater_than:double|less_than:double |  salary:double   | count:long     
-10001          |M              |2                |6.975232333891946  |6.604807075547775|26171.331109641273|57             
-10002          |F              |5                |6.4543266953142835 |7.57786788789264 |29045.770666969744|33             
-10003          |M              |4                |6.975232333891946  |6.604807075547775|26171.331109641273|57             
-10004          |M              |5                |6.975232333891946  |6.604807075547775|26171.331109641273|57             
-10005          |M              |1                |6.975232333891946  |6.604807075547775|26171.331109641273|57             
-10006          |F              |3                |6.4543266953142835 |7.57786788789264 |29045.770666969744|33             
-10007          |F              |4                |6.4543266953142835 |7.57786788789264 |29045.770666969744|33             
-10008          |M              |2                |6.975232333891946  |6.604807075547775|26171.331109641273|57             
-10009          |F              |1                |6.4543266953142835 |7.57786788789264 |29045.770666969744|33             
-10010          |null           |4                |6.949207097931448  |7.127229475750027|27921.220736207077|10             
+emp_no:integer | gender:keyword | languages:integer | greater_than:double | less_than:double | salary:double | count:long
+10001          | M              | 2                 | 6.97523             | 6.60481          | 26171.33111   | 57
+10002          | F              | 5                 | 6.45433             | 7.57787          | 29045.77067   | 33
+10003          | M              | 4                 | 6.97523             | 6.60481          | 26171.33111   | 57
+10004          | M              | 5                 | 6.97523             | 6.60481          | 26171.33111   | 57
+10005          | M              | 1                 | 6.97523             | 6.60481          | 26171.33111   | 57
+10006          | F              | 3                 | 6.45433             | 7.57787          | 29045.77067   | 33
+10007          | F              | 4                 | 6.45433             | 7.57787          | 29045.77067   | 33
+10008          | M              | 2                 | 6.97523             | 6.60481          | 26171.33111   | 57
+10009          | F              | 1                 | 6.45433             | 7.57787          | 29045.77067   | 33
+10010          | null           | 4                 | 6.94921             | 7.12723          | 27921.22074   | 10
 ;
 
-twoConsecutiveInlinestatsWithFalseFilters
+twoConsecutiveInlinestatsWithFalseFilters-Ignore
+// temporarily forbid LIMIT before INLINE STATS
 required_capability: inline_stats
 from employees
 | keep emp_no
@@ -2579,6 +2716,25 @@ from employees
 10002          |0              |0              
 10003          |0              |0              
 ;
+
+twoConsecutiveInlinestatsWithFalseFilters_LimitAfterInlineStats
+// same as above but with LIMIT after INLINE STATS
+required_capability: inline_stats
+from employees
+| keep emp_no
+| inline stats count = count(*) where false
+| inline stats cc = count_distinct(emp_no) where false
+| sort emp_no
+| limit 3
+;
+
+    emp_no:i   |     count:l   |      cc:l       
+10001          |0              |0              
+10002          |0              |0              
+10003          |0              |0              
+;
+
+
 
 ////////////////////////////////
 // Union types tests
@@ -2943,7 +3099,8 @@ mc:l           | count:l       | event_duration:l
 6              |2              |3450233
 ;
 
-multiIndexIpStringInlinestats_Inline4
+multiIndexIpStringInlinestats_Inline4-Ignore
+// temporarily forbid LIMIT before INLINE STATS 
 required_capability: inline_stats
 
 FROM sample_data, sample_data_str
@@ -2962,6 +3119,26 @@ mc:l           | count:l       | event_duration:l
 5              |2              |2764889        
 5              |2              |3450233        
 5              |2              |3450233        
+;
+
+multiIndexIpStringInlinestats_Inline4_LimitAfterInlineStats
+// same as above but with LIMIT after INLINE STATS 
+required_capability: inline_stats
+
+FROM sample_data, sample_data_str
+| INLINE STATS count=count(*) BY client_ip::ip
+| INLINE STATS mc=count(count) BY count
+| SORT mc DESC, count ASC, event_duration
+| LIMIT 5
+| KEEP mc, count, event_duration
+;
+
+mc:l           | count:l       | event_duration:l 
+8              |8              |725448         
+8              |8              |725448         
+8              |8              |1756467        
+8              |8              |1756467        
+8              |8              |5033755        
 ;
 
 multiIndexWhereIpStringInlinestats 
@@ -3495,86 +3672,121 @@ warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\]
 2023-10-23T13:53:55.832Z      |2023-10-23T13:53:55.832987654Z|1698069235832987654|19
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_By-Ignore
-required_capability: inline_stats
-// https://github.com/elastic/elasticsearch/issues/133973
-// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+InlineStatsCountUnionType
+required_capability: inline_stats_with_union_types_in_stub_relation
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date 
+| INLINE STATS c = count(emp_no::long)
+| SORT hire_date DESC
+| LIMIT 10
+;
+
+emp_no:unsupported | hire_date:date_nanos     | c:long
+null               | 1999-04-30T00:00:00.000Z | 200
+null               | 1999-04-30T00:00:00.000Z | 200
+null               | 1997-05-19T00:00:00.000Z | 200
+null               | 1997-05-19T00:00:00.000Z | 200
+null               | 1996-11-05T00:00:00.000Z | 200
+null               | 1996-11-05T00:00:00.000Z | 200
+null               | 1995-12-15T00:00:00.000Z | 200
+null               | 1995-12-15T00:00:00.000Z | 200
+null               | 1995-08-22T00:00:00.000Z | 200
+null               | 1995-08-22T00:00:00.000Z | 200
+;
+
+ImplicitCastingMultiTypedDateTruncInlinestats_By
+required_capability: inline_stats_with_union_types_in_stub_relation
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
 | INLINE STATS c = count(emp_no::long) BY yr = DATE_TRUNC(1 year, hire_date)
-| SORT yr DESC
-| LIMIT 5
+| SORT yr DESC, hire_date DESC
+| LIMIT 10
 ;
 
-c:long | yr:date_nanos
-2      | 1999-01-01T00:00:00.000Z
-2      | 1997-01-01T00:00:00.000Z
-2      | 1996-01-01T00:00:00.000Z
-10     | 1995-01-01T00:00:00.000Z
-8      | 1994-01-01T00:00:00.000Z
+emp_no:unsupported | hire_date:date_nanos   |c:long | yr:date_nanos           
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithFilter-Ignore
-required_capability: inline_stats
-// https://github.com/elastic/elasticsearch/issues/133973
-// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithFilter
+required_capability: inline_stats_with_union_types_in_stub_relation
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
 | INLINE STATS c = count(emp_no::long) where hire_date > "1996-01-01" BY yr = DATE_TRUNC(1 year, hire_date)
-| SORT yr DESC
-| LIMIT 5
+| SORT yr DESC, hire_date DESC
+| LIMIT 10
 ;
 
-c:long | yr:date_nanos
-2      | 1999-01-01T00:00:00.000Z
-2      | 1997-01-01T00:00:00.000Z
-2      | 1996-01-01T00:00:00.000Z
-0      | 1995-01-01T00:00:00.000Z
-0      | 1994-01-01T00:00:00.000Z
+emp_no:unsupported | hire_date:date_nanos   |c:long | yr:date_nanos           
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|0      |1995-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|0      |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|0      |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|0      |1995-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEval-Ignore
-required_capability: inline_stats
-// https://github.com/elastic/elasticsearch/issues/133973
-// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEval
+required_capability: inline_stats_with_union_types_in_stub_relation
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
 | EVAL yr = DATE_TRUNC(1 year, hire_date)
 | INLINE STATS c = count(emp_no::long) BY yr
-| SORT yr DESC
-| LIMIT 5
+| SORT yr DESC, hire_date DESC
+| LIMIT 10
 ;
 
-c:long | yr:date_nanos
-2      | 1999-01-01T00:00:00.000Z
-2      | 1997-01-01T00:00:00.000Z
-2      | 1996-01-01T00:00:00.000Z
-10     | 1995-01-01T00:00:00.000Z
-8      | 1994-01-01T00:00:00.000Z
+emp_no:unsupported | hire_date:date_nanos   |c:long | yr:date_nanos           
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 ;
 
-ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEvalWithFilter-Ignore
-required_capability: inline_stats
-// https://github.com/elastic/elasticsearch/issues/133973
-// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEvalWithFilter
+required_capability: inline_stats_with_union_types_in_stub_relation
 
 FROM employees, employees_incompatible
 | KEEP emp_no, hire_date 
 | EVAL yr = DATE_TRUNC(1 year, hire_date)
 | INLINE STATS c = count(emp_no::long) where hire_date > "1991-01-01" BY yr
-| SORT yr DESC
-| LIMIT 5
+| SORT yr DESC, hire_date DESC
+| LIMIT 10
 ;
 
-c:long | yr:date_nanos
-2      | 1999-01-01T00:00:00.000Z
-2      | 1997-01-01T00:00:00.000Z
-2      | 1996-01-01T00:00:00.000Z
-10     | 1995-01-01T00:00:00.000Z
-8      | 1994-01-01T00:00:00.000Z
+emp_no:unsupported | hire_date:date_nanos   |c:long | yr:date_nanos           
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1999-04-30T00:00:00.000Z|2      |1999-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1997-05-19T00:00:00.000Z|2      |1997-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1996-11-05T00:00:00.000Z|2      |1996-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-12-15T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
+null               |1995-08-22T00:00:00.000Z|10     |1995-01-01T00:00:00.000Z
 ;
 
 ImplicitCastingMultiTypedBucketDateNanosByYear
@@ -3874,3 +4086,309 @@ city:keyword|c:long
 Raleigh     |1
 ;
 
+inlinestatsOptimizedAsLocalRelation_before_EsqlSession1
+required_capability: inline_stats_fix_optimized_as_local_relation
+
+from employees 
+| keep first_name, emp_no 
+| eval my_length = length(concat(first_name, null)) 
+| inline stats count = count(my_length) where my_length > 0 
+| sort first_name 
+| limit 5
+;
+
+  first_name:s |    emp_no:i   |   my_length:i |     count:l     
+Alejandro      |10059          |null           |0              
+Amabile        |10091          |null           |0              
+Anneke         |10006          |null           |0              
+Anoosh         |10062          |null           |0              
+Arumugam       |10094          |null           |0              
+;
+
+inlinestatsOptimizedAsLocalRelation_before_EsqlSession2
+required_capability: inline_stats_fix_optimized_as_local_relation
+
+from employees 
+| eval my_length = concat(first_name, null) 
+| inline stats count = count(my_length) where my_length is not null 
+| keep emp_no, count, my_length 
+| sort emp_no 
+| limit 3
+;
+
+    emp_no:i   |     count:l   |   my_length:s   
+10001          |0              |null           
+10002          |0              |null           
+10003          |0              |null           
+;
+
+inlineStatsOnAggregateMetricDouble
+required_capability: inline_stats
+required_capability: aggregate_metric_double_v0
+required_capability: dense_vector_agg_metric_double_if_version
+FROM k8s-downsampled
+| INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx, tx_max
+| LIMIT 9
+;
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double                  | tx_max:double
+2024-05-09T23:30:00.000Z | prod            | one         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}  | 1060.0
+2024-05-09T23:30:00.000Z | prod            | three       | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}   | 824.0
+2024-05-09T23:30:00.000Z | prod            | two         | {"min":20.0,"max":190.0,"sum":370.0,"value_count":10}    | 1419.0
+2024-05-09T23:30:00.000Z | qa              | one         | {"min":346.0,"max":356.0,"sum":1765.0,"value_count":5}   | 1060.0
+2024-05-09T23:30:00.000Z | qa              | three       | {"min":605.0,"max":605.0,"sum":605.0,"value_count":1}    | 824.0
+2024-05-09T23:30:00.000Z | qa              | two         | {"min":304.0,"max":1148.0,"sum":8590.0,"value_count":10} | 1419.0
+2024-05-09T23:30:00.000Z | staging         | one         | {"min":263.0,"max":740.0,"sum":5390.0,"value_count":10}  | 1060.0
+2024-05-09T23:30:00.000Z | staging         | three       | {"min":341.0,"max":592.0,"sum":1956.0,"value_count":5}   | 824.0
+2024-05-09T23:30:00.000Z | staging         | two         | {"min":442.0,"max":1011.0,"sum":3850.0,"value_count":7}  | 1419.0
+;
+
+selfShadowing
+required_capability: inline_stats
+required_capability: fix_join_output_merging
+
+FROM languages_lookup_non_unique_key
+| EVAL country = MV_SORT(country)
+| KEEP country, language_name
+| EVAL language_code = null::integer
+| INLINE STATS MAX(language_code) BY language_code
+| SORT country
+| LIMIT 5
+;
+
+country:keyword   |language_name:keyword |MAX(language_code):integer |language_code:integer
+Atlantis          |null                  |null                       |null
+[Austria, Germany]|German                |null                       |null
+Canada            |English               |null                       |null
+Mv-Land           |Mv-Lang               |null                       |null
+Mv-Land2          |Mv-Lang2              |null                       |null
+;
+
+// PruneColumns
+inlineStatsAfterPruningAggregate
+required_capability: inline_stats_double_release_fix
+
+row a = 1
+| stats b = max(a)
+| inline stats c = count(*)
+| drop b
+;
+
+c:long
+1
+;
+
+// PropagateEmptyRelation
+inlineStatsAfterPruningAggregate2
+required_capability: inline_stats_double_release_fix
+
+row a = 12
+| where false
+| stats b = max(a)
+| inline stats c = count(b)
+;
+
+b:integer | c:long
+null      | 0
+;
+
+
+// ReplaceStatsFilteredAggWithEval
+inlineStatsAfterPruningAggregate3
+required_capability: inline_stats_double_release_fix
+
+row a= 12
+| stats b = sum(a) where false
+| inline stats c = max(b)
+;
+
+b:long | c:long
+null   | null
+;
+
+
+inlineStatsAfterPruningAggregate4
+required_capability: inline_stats_double_release_fix
+
+from k8s
+| stats PRezTcny = median(network.cost), `network.cost` = count(network.cost) 
+| drop network.cost 
+| inline stats QaoRGYyf = count(*) 
+| drop `PRezTcny`
+;
+
+QaoRGYyf:long    
+1              
+;
+
+
+inlineStatsAfterPruningAggregate5
+// https://github.com/elastic/elasticsearch/issues/135679
+required_capability: inline_stats_double_release_fix
+required_capability: join_lookup_v12
+
+from colors,airports_web,boo*
+| rename scalerank as language_code
+| lookup join languages_lookup on language_code
+| keep `ratings`, `rgb_vector`
+| mv_expand ratings
+| keep `ratings`, `rgb_vector`
+| inline stats  rycaPYFzpAId = absent(ratings), WkdxfjwuR = count(ratings) + avg(ratings)
+| rename ratings AS `WkdxfjwuR`
+| inline stats  WkdxfjwuR = sum(WkdxfjwuR) + median(WkdxfjwuR), sjivSBvV = count(*)
+| sort sjivSBvV NULLS FIRST
+| where false OR  NOT true OR false OR  NOT false
+| where false OR false AND false AND  NOT true AND false
+| stats  rycaPYFzpAId = median(sjivSBvV) + count(sjivSBvV) + sum(sjivSBvV), NUiLBJXQoMXd = present(sjivSBvV)
+| mv_expand `NUiLBJXQoMXd`
+| inline stats  NUiLBJXQoMXd = count(rycaPYFzpAId)
+;
+
+rycaPYFzpAId:double  | NUiLBJXQoMXd:long  
+null                 | 0              
+;
+
+
+inlineStatsAfterPruningAggregate6
+// https://github.com/elastic/elasticsearch/issues/135679
+required_capability: inline_stats_double_release_fix
+required_capability: join_lookup_v12
+
+from d*,*
+| rename scalerank as other2
+| rename author.keyword as name_str
+| rename intersects as is_active_bool
+| rename year as id_int
+| rename status as other1 
+| lookup join multi_column_joinable_lookup on other2, name_str, is_active_bool, id_int, other1 
+| rename street AS `huZQQIKVli`, `network.eth0.currently_connected_clients` AS is_rehired 
+| eval  GhMzAVXivNI = message.raw, VDJKNsopeKQq = substring(threat_level, 1, 3), xeUVJNra = length(huZQQIKVli), kOQjzWgZNhwI = false 
+| where false AND  NOT false AND true AND  NOT false 
+| CHANGE_POINT salary_change.int ON birth_date AS UpYfyPcYFkes, EwnNgKIrDEKS 
+| sort owner.name DESC NULLS LAST, message.raw, country.keyword DESC NULLS LAST, UpYfyPcYFkes ASC NULLS FIRST, name_str ASC NULLS FIRST, num, event_duration DESC NULLS LAST, extra2 DESC, languages.byte ASC NULLS FIRST, client.ip NULLS LAST, ip1, collection NULLS FIRST, city.country.name DESC, destination.IP DESC NULLS LAST, host.version DESC, hex_code ASC NULLS LAST, language.code ASC NULLS LAST, language.name ASC, details DESC, language_name DESC NULLS FIRST, event ASC, salary_change.keyword DESC NULLS FIRST, lk ASC 
+| stats  CLnBmEGor = sum(height.double) + sum(height.double) + avg(height.double), JLSxMYld = count(extra2) + max(extra2) + avg(extra2), `network.total_bytes_out` = min(language_code_integer), `version` = values(env), contains = min(languages.short) + min(languages.short) 
+| mv_expand `CLnBmEGor` 
+| dissect version "%{JLSxMYld} %{LTMJrburyt}" 
+| enrich languages_policy on LTMJrburyt 
+| inline stats  QyCBayGHtAF = count(CLnBmEGor), yUMkeLezSN = present(contains + network.total_bytes_out), `JLSxMYld` = max(contains), GYbfUvbf = count(*)
+;
+
+CLnBmEGor:double | network.total_bytes_out:integer | version:keyword | contains:integer | LTMJrburyt:keyword | language_name:keyword | QyCBayGHtAF:long | yUMkeLezSN:boolean | JLSxMYld:integer | GYbfUvbf:long
+null             | null                            | null            | null             | null               | null                  | 0                | false              | null             | 1
+;
+
+
+inlineStatsAfterPruningAggregate7-Ignore
+// temporarily forbid LIMIT before INLINE STATS
+// https://github.com/elastic/elasticsearch/issues/135679
+required_capability: inline_stats_double_release_fix
+required_capability: join_lookup_v12
+required_capability: fork_v9
+
+from app_log* 
+| FORK  (where false OR  NOT true) (where true) (where true) (where false OR true) (where false) (where true | mv_expand @timestamp) 
+| WHERE _fork == "fork2" 
+| DROP _fork
+| rename service_id as name_str 
+| lookup join multi_column_joinable_lookup on name_str 
+| inline stats  `is_active_bool` = count(id_int) + max(id_int), siofAMlpoHvh = max(id_int) + max(id_int) + max(id_int), `message` = present(other1), `id_int` = max(id_int) 
+| stats  `message` = count(is_active_bool), id_int2 = median(is_active_bool), `siofAMlpoHvh` = count(*), `id_int` = max(id_int) 
+| eval  NUtENNcs = message, message = "zaYFcCTy", id_int2 = null, VizcTbjMnBlQ = siofAMlpoHvh, siofAMlpoHvh = siofAMlpoHvh + siofAMlpoHvh + siofAMlpoHvh, gPzLgKdLfZ = null, `message` = 1099438720, sdsrveQOoi = -2373351299779434224, hpxNweCm = false, PwyOmHforRKI = -2230544247357512169 
+| stats  VizcTbjMnBlQ = count(*), siofAMlpoHvh2 = median(sdsrveQOoi) + max(sdsrveQOoi), DUuKdsGgU = avg(PwyOmHforRKI) + count(PwyOmHforRKI), `gPzLgKdLfZ` = present(sdsrveQOoi + VizcTbjMnBlQ + PwyOmHforRKI), `siofAMlpoHvh` = count(sdsrveQOoi) + max(sdsrveQOoi) 
+| limit 61 
+| inline stats  gPzLgKdLfZ = sum(VizcTbjMnBlQ), `siofAMlpoHvh2` = count(*), zvgqSiVGqli = max(VizcTbjMnBlQ), WFjgBzYRXwa = median(VizcTbjMnBlQ) + count(VizcTbjMnBlQ) + avg(VizcTbjMnBlQ) 
+| keep `VizcTbjMnBlQ` 
+| inline stats  wXPJguff = median(VizcTbjMnBlQ) + avg(VizcTbjMnBlQ) + max(VizcTbjMnBlQ)
+;
+
+VizcTbjMnBlQ:long | wXPJguff:double
+1                 | 3.0       
+;
+
+
+inlineStatsAfterPruningAggregate8-Ignore
+// https://github.com/elastic/elasticsearch/issues/135679
+// temporarily forbid LIMIT before INLINE STATS
+required_capability: inline_stats_double_release_fix
+
+from dense_vector,airport_city_boundaries
+| eval  kMvNZVQSH = -4048759096317256968, GzAYNHaHuIS = 4262770411405329967, EwPpQFmOPoB = "lkdgnbTrBT", `abbrev` = "LiXI" 
+| keep `city`, `kMvNZVQSH`, GzAYNHaHuIS, city_boundary, EwPpQFmOPoB, `city_boundary`, `id`, kMvNZVQSH, id, airport 
+| limit 6888 
+| keep `kMvNZVQSH`, EwPpQFmOPoB, city, `id`, kMvNZVQSH 
+| stats  `EwPpQFmOPoB2` = min(id), `EwPpQFmOPoB3` = count(*), kZiJPhNZ = count(id), ErGhdKhdv = count_distinct(city), EwPpQFmOPoB = min(id) 
+| eval  ErGhdKhdv = null, fHSyxniFCS = -710891486, ErGhdKhdv = -1104488048, zdxdQdVIyFh = -1579062572, `kZiJPhNZ` = null, SzmOySyUh = null, eWVVRiwP = 1092261898855405071, nUxVhGhcpkiV = true, RvqGioBAAzYs = 169356242 
+| eval  `kZiJPhNZ` = "gWJHDTcDMjRVSnlzSX", lxLgaagX = 4700531997851493340, `kZiJPhNZ` = false 
+| keep `zdxdQdVIyFh` 
+| inline stats  `zdxdQdVIyFh` = count(*), WbWVJnYJ = count(*), zdxdQdVIyFh2 = max(zdxdQdVIyFh), uKjfeKTfaH = max(zdxdQdVIyFh), QpovVxjMWSjh = min(zdxdQdVIyFh)
+;
+
+zdxdQdVIyFh:long | WbWVJnYJ:long | zdxdQdVIyFh2:integer | uKjfeKTfaH:integer | QpovVxjMWSjh:integer
+1                | 1             | -1579062572          | -1579062572        | -1579062572
+;
+
+inlineStatsAfterPruningAggregate8_NoLimit
+// https://github.com/elastic/elasticsearch/issues/135679
+// same as above but without LIMIT before INLINE STATS
+required_capability: inline_stats_double_release_fix
+
+from dense_vector,airport_city_boundaries
+| eval  kMvNZVQSH = -4048759096317256968, GzAYNHaHuIS = 4262770411405329967, EwPpQFmOPoB = "lkdgnbTrBT", `abbrev` = "LiXI" 
+| keep `city`, `kMvNZVQSH`, GzAYNHaHuIS, city_boundary, EwPpQFmOPoB, `city_boundary`, `id`, kMvNZVQSH, id, airport 
+| keep `kMvNZVQSH`, EwPpQFmOPoB, city, `id`, kMvNZVQSH 
+| stats  `EwPpQFmOPoB2` = min(id), `EwPpQFmOPoB3` = count(*), kZiJPhNZ = count(id), ErGhdKhdv = count_distinct(city), EwPpQFmOPoB = min(id) 
+| eval  ErGhdKhdv = null, fHSyxniFCS = -710891486, ErGhdKhdv = -1104488048, zdxdQdVIyFh = -1579062572, `kZiJPhNZ` = null, SzmOySyUh = null, eWVVRiwP = 1092261898855405071, nUxVhGhcpkiV = true, RvqGioBAAzYs = 169356242 
+| eval  `kZiJPhNZ` = "gWJHDTcDMjRVSnlzSX", lxLgaagX = 4700531997851493340, `kZiJPhNZ` = false 
+| keep `zdxdQdVIyFh` 
+| inline stats  `zdxdQdVIyFh` = count(*), WbWVJnYJ = count(*), zdxdQdVIyFh2 = max(zdxdQdVIyFh), uKjfeKTfaH = max(zdxdQdVIyFh), QpovVxjMWSjh = min(zdxdQdVIyFh)
+;
+
+zdxdQdVIyFh:long | WbWVJnYJ:long | zdxdQdVIyFh2:integer | uKjfeKTfaH:integer | QpovVxjMWSjh:integer
+1                | 1             | -1579062572          | -1579062572        | -1579062572
+;
+
+
+inlineStatsAfterPruningAggregate9
+required_capability: inline_stats_double_release_fix
+
+from employees
+| stats m = count(emp_no) 
+| eval c = 0
+| keep c 
+| inline stats c = count(*)
+;
+
+c:long
+1
+;
+
+
+inlineStatsKeepDropCountStar
+required_capability: inline_stats_with_no_columns
+
+from employees
+| keep emp_no
+| drop emp_no
+| inline stats c = count(*)
+| limit 3
+;
+
+c:long
+100
+100
+100
+;
+
+rowInlineStatsKeepDropCountStar
+required_capability: inline_stats_with_no_columns
+
+row a = 1
+| drop a
+| inline stats c = count(*)
+;
+
+c:long
+1
+;

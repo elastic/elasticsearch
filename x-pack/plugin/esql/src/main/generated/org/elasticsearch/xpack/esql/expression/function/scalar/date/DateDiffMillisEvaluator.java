@@ -89,38 +89,38 @@ public final class DateDiffMillisEvaluator implements EvalOperator.ExpressionEva
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (unitBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (unitBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (unitBlock.getValueCount(p) != 1) {
-          if (unitBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (startTimestampBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (startTimestampBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (startTimestampBlock.getValueCount(p) != 1) {
-          if (startTimestampBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (endTimestampBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (endTimestampBlock.getValueCount(p) != 1) {
-          if (endTimestampBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (endTimestampBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef unit = unitBlock.getBytesRef(unitBlock.getFirstValueIndex(p), unitScratch);
         long startTimestamp = startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p));

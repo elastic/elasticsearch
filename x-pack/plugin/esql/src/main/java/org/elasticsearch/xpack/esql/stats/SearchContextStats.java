@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -17,6 +18,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -111,7 +113,7 @@ public class SearchContextStats implements SearchStats {
                     mixedFieldType = true;
                 }
                 exists |= true;
-                indexed &= type.isIndexed();
+                indexed &= type.indexType().hasDenseIndex();
                 hasDocValues &= type.hasDocValues();
                 hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {
@@ -201,20 +203,28 @@ public class SearchContextStats implements SearchStats {
         var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         // Consolidate min for indexed date fields only, skip the others and mixed-typed fields.
         MappedFieldType fieldType = stat.config.fieldType;
-        if (fieldType == null || stat.config.indexed == false || fieldType instanceof DateFieldType == false) {
+        boolean hasDocValueSkipper = fieldType instanceof DateFieldType dft && dft.hasDocValuesSkipper();
+        if (fieldType == null
+            || (hasDocValueSkipper == false && stat.config.indexed == false)
+            || fieldType instanceof DateFieldType == false) {
             return null;
         }
         if (stat.min == null) {
             var min = new long[] { Long.MAX_VALUE };
             Holder<Boolean> foundMinValue = new Holder<>(false);
             doWithContexts(r -> {
-                byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
-                if (minPackedValue != null && minPackedValue.length == 8) {
-                    long minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
-                    if (minValue <= min[0]) {
-                        min[0] = minValue;
-                        foundMinValue.set(true);
+                long minValue = Long.MAX_VALUE;
+                if (hasDocValueSkipper) {
+                    minValue = DocValuesSkipper.globalMinValue(new IndexSearcher(r), field.string());
+                } else {
+                    byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
+                    if (minPackedValue != null && minPackedValue.length == 8) {
+                        minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
                     }
+                }
+                if (minValue <= min[0]) {
+                    min[0] = minValue;
+                    foundMinValue.set(true);
                 }
                 return true;
             }, true);
@@ -228,20 +238,28 @@ public class SearchContextStats implements SearchStats {
         var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         // Consolidate max for indexed date fields only, skip the others and mixed-typed fields.
         MappedFieldType fieldType = stat.config.fieldType;
-        if (fieldType == null || stat.config.indexed == false || fieldType instanceof DateFieldType == false) {
+        boolean hasDocValueSkipper = fieldType instanceof DateFieldType dft && dft.hasDocValuesSkipper();
+        if (fieldType == null
+            || (hasDocValueSkipper == false && stat.config.indexed == false)
+            || fieldType instanceof DateFieldType == false) {
             return null;
         }
         if (stat.max == null) {
             var max = new long[] { Long.MIN_VALUE };
             Holder<Boolean> foundMaxValue = new Holder<>(false);
             doWithContexts(r -> {
-                byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
-                if (maxPackedValue != null && maxPackedValue.length == 8) {
-                    long maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
-                    if (maxValue >= max[0]) {
-                        max[0] = maxValue;
-                        foundMaxValue.set(true);
+                long maxValue = Long.MIN_VALUE;
+                if (hasDocValueSkipper) {
+                    maxValue = DocValuesSkipper.globalMaxValue(new IndexSearcher(r), field.string());
+                } else {
+                    byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
+                    if (maxPackedValue != null && maxPackedValue.length == 8) {
+                        maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
                     }
+                }
+                if (maxValue >= max[0]) {
+                    max[0] = maxValue;
+                    foundMaxValue.set(true);
                 }
                 return true;
             }, true);

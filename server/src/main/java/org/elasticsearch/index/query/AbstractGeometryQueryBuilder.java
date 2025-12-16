@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
@@ -29,7 +28,6 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -152,10 +150,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         } else {
             shape = null;
             indexedShapeId = in.readOptionalString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                String type = in.readOptionalString();
-                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc], got [" + type + "]";
-            }
             indexedShapeIndex = in.readOptionalString();
             indexedShapePath = in.readOptionalString();
             indexedShapeRouting = in.readOptionalString();
@@ -177,9 +171,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             GeometryIO.writeGeometry(out, shape);
         } else {
             out.writeOptionalString(indexedShapeId);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-            }
             out.writeOptionalString(indexedShapeIndex);
             out.writeOptionalString(indexedShapePath);
             out.writeOptionalString(indexedShapeRouting);
@@ -288,9 +279,17 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
      * the field is unmapped.
      */
-    public AbstractGeometryQueryBuilder<QB> ignoreUnmapped(boolean ignoreUnmapped) {
+    @SuppressWarnings("unchecked")
+    public QB ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
-        return this;
+        return (QB) this;
+    }
+
+    /**
+     * @return whether the query builder should ignore unmapped fields
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
     }
 
     /** builds the appropriate lucene shape query */
@@ -371,7 +370,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                             }
                         }
                     }
-                    throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
+                    throw new IllegalArgumentException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
                 }
             } catch (Exception e) {
                 l.onFailure(e);
@@ -447,7 +446,9 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (supplier != null) {
-            return supplier.get() == null ? this : newShapeQueryBuilder(this.fieldName, supplier.get()).relation(relation);
+            return supplier.get() == null
+                ? this
+                : newShapeQueryBuilder(this.fieldName, supplier.get()).relation(relation).ignoreUnmapped(ignoreUnmapped);
         } else if (this.shape == null) {
             SetOnce<Geometry> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> {
@@ -458,7 +459,8 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                     listener.onResponse(null);
                 }));
             });
-            return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation);
+            return newShapeQueryBuilder(this.fieldName, supplier::get, this.indexedShapeId).relation(relation)
+                .ignoreUnmapped(ignoreUnmapped);
         }
         return this;
     }

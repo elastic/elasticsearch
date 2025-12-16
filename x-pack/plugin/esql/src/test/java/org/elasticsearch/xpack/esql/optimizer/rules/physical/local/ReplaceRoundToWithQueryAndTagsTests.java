@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -53,9 +53,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
-import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
+import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -67,10 +68,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimizerTests {
+public class ReplaceRoundToWithQueryAndTagsTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
     public ReplaceRoundToWithQueryAndTagsTests(String name, Configuration config) {
         super(name, config);
@@ -379,16 +381,9 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
 
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
-            assertThat(agg.getMode(), is(FINAL));
+            assertThat(agg.getMode(), is(SINGLE));
             List<? extends Expression> groupings = agg.groupings();
             NamedExpression grouping = as(groupings.get(0), NamedExpression.class);
-            assertEquals("x", grouping.name());
-            assertEquals(DataType.DATETIME, grouping.dataType());
-            assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
-            agg = as(agg.child(), AggregateExec.class);
-            assertThat(agg.getMode(), is(INITIAL));
-            groupings = agg.groupings();
-            grouping = as(groupings.get(0), NamedExpression.class);
             assertEquals("x", grouping.name());
             assertEquals(DataType.DATETIME, grouping.dataType());
             assertEquals(List.of("count(*)", "x"), Expressions.names(agg.aggregates()));
@@ -541,6 +536,74 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
                     assertNull(esQueryExec.query());
                 }
             }
+        }
+    }
+
+    static String pointArray(int numPoints) {
+        return IntStream.range(0, numPoints).mapToObj(Integer::toString).collect(Collectors.joining(","));
+    }
+
+    static int queryAndTags(PhysicalPlan plan) {
+        EsQueryExec esQuery = (EsQueryExec) plan.collectFirstChildren(EsQueryExec.class::isInstance).getFirst();
+        return esQuery.queryBuilderAndTags().size();
+    }
+
+    public void testAdjustThresholdForQueries() {
+        {
+            int points = between(2, 127);
+            String q = String.format(Locale.ROOT, """
+                from test
+                | stats count(*) by x = round_to(integer, %s)
+                """, pointArray(points));
+            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            int queryAndTags = queryAndTags(plan);
+            assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
+        }
+        {
+            int points = between(2, 64);
+            String q = String.format(Locale.ROOT, """
+                from test
+                | where date >= "2023-10-19"
+                | stats count(*) by x = round_to(integer, %s)
+                """, pointArray(points));
+            var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            int queryAndTags = queryAndTags(plan);
+            assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
+        }
+        {
+            int points = between(65, 128);
+            String q = String.format(Locale.ROOT, """
+                from test
+                | where date >= "2023-10-19"
+                | stats count(*) by x = round_to(integer, %s)
+                """, pointArray(points));
+            var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            int queryAndTags = queryAndTags(plan);
+            assertThat(queryAndTags, equalTo(1)); // no rewrite
+        }
+        {
+            int points = between(2, 19);
+            String q = String.format(Locale.ROOT, """
+                from test
+                | where date >= "2023-10-19"
+                | where keyword LIKE "w*"
+                | stats count(*) by x = round_to(integer, %s)
+                """, pointArray(points));
+            var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            int queryAndTags = queryAndTags(plan);
+            assertThat("points=" + points, queryAndTags, equalTo(points + 1)); // include null bucket
+        }
+        {
+            int points = between(20, 128);
+            String q = String.format(Locale.ROOT, """
+                from test
+                | where date >= "2023-10-19"
+                | where keyword LIKE "*w*"
+                | stats count(*) by x = round_to(integer, %s)
+                """, pointArray(points));
+            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+            int queryAndTags = queryAndTags(plan);
+            assertThat("points=" + points, queryAndTags, equalTo(1)); // no rewrite
         }
     }
 

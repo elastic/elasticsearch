@@ -1,9 +1,12 @@
 irate_of_long_no_grouping
 required_capability: ts_command_v0
+// tag::irate[]
 TS k8s
 | STATS irate_bytes_in=avg(irate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,1minute)
+// end::irate[]
 | SORT irate_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
+// tag::irate-result[]
 irate_bytes_in:double | time_bucket:datetime
 null                  | 2024-05-10T00:01:00.000Z
 140.58333333333331    | 2024-05-10T00:02:00.000Z
@@ -11,6 +14,7 @@ null                  | 2024-05-10T00:01:00.000Z
 116.41911764705883    | 2024-05-10T00:22:00.000Z
 112.83333333333333    | 2024-05-10T00:00:00.000Z
 93.43529411764706     | 2024-05-10T00:14:00.000Z
+// end::irate-result[]
 88.6875               | 2024-05-10T00:11:00.000Z
 78.83333333333333     | 2024-05-10T00:13:00.000Z
 71.04464285714286     | 2024-05-10T00:15:00.000Z
@@ -47,7 +51,7 @@ TS k8s
 
 irate_cost:double  | time_bucket:datetime
 null               | 2024-05-10T00:01:00.000Z
-7.836832264957264  | 2024-05-10T00:09:00.000Z
+7.836832264957265  | 2024-05-10T00:09:00.000Z
 3.590324074074074  | 2024-05-10T00:17:00.000Z
 2.6708333333333334 | 2024-05-10T00:02:00.000Z
 2.2916666666666665 | 2024-05-10T00:08:00.000Z
@@ -61,16 +65,20 @@ null               | 2024-05-10T00:01:00.000Z
 
 irate_with_filtering
 required_capability: ts_command_v0
+// tag::irate[]
 TS k8s | WHERE pod == "one"
-| STATS irate_bytes_in = sum(irate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| STATS irate_bytes_in = SUM(IRATE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)
+// end::irate[]
 | SORT time_bucket, cluster | LIMIT 10;
 
+// tag::irate-result[]
 irate_bytes_in:double | cluster:keyword | time_bucket:datetime
 0.07692307692307693   | prod            | 2024-05-10T00:00:00.000Z
 830.0                 | qa              | 2024-05-10T00:00:00.000Z
 31.375                | staging         | 2024-05-10T00:00:00.000Z
 9.854545454545454     | prod            | 2024-05-10T00:10:00.000Z
 18.700000000000003    | qa              | 2024-05-10T00:10:00.000Z
+// end::irate-result[]
 0.023952095808383235  | staging         | 2024-05-10T00:10:00.000Z
 232.75                | prod            | 2024-05-10T00:20:00.000Z
 3.2698412698412698    | qa              | 2024-05-10T00:20:00.000Z

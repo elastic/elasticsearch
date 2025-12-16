@@ -334,7 +334,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name(),
                         TransportPutMappingAction.TYPE.name(),
                         RolloverAction.NAME,
-                        "indices:admin/data_stream/lifecycle/put"
+                        "indices:admin/data_stream/lifecycle/put",
+                        "indices:admin/forcemerge*"
                     )
                     .build(),
                 // Endpoint specific action responses. Kibana reads and writes (for third party
@@ -549,11 +550,21 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, and SentinelOne Application Dataset specific actions. Kibana reads, writes and manages this
-                // index
+                // For ExtraHop, QualysGAV, SentinelOne, Island Browser and Cyera specific actions.
+                // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*", "logs-sentinel_one.application-*")
+                    .indices(
+                        "logs-extrahop.investigation-*",
+                        "logs-qualys_gav.asset-*",
+                        "logs-sentinel_one.application-*",
+                        "logs-sentinel_one.threat_event-*",
+                        "logs-island_browser.user-*",
+                        "logs-island_browser.device-*",
+                        "logs-cyera.classification-*",
+                        "logs-cyera.issue-*",
+                        "logs-cyera.datastore-*"
+                    )
                     .privileges(
                         "manage",
                         "create_index",

@@ -339,7 +339,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final boolean enabled;
 
         private SourceFieldType(boolean enabled) {
-            super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.NONE, enabled, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -557,6 +557,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return mode == Mode.SYNTHETIC;
     }
 
+    /**
+     * Caution: this function is not aware of the legacy "mappings._source.mode" parameter that some legacy indices might use. You should
+     * prefer to get information about synthetic source from {@link MapperBuilderContext}.
+     */
     public static boolean isSynthetic(IndexSettings indexSettings) {
         return IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC;
     }

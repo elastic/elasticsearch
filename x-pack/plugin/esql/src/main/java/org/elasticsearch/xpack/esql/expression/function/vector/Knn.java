@@ -14,7 +14,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,11 +35,9 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
 
@@ -51,40 +47,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
+import java.util.Set;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
-public class Knn extends FullTextFunction
-    implements
-        OptionalArgument,
-        VectorFunction,
-        PostAnalysisPlanVerificationAware,
-        PostOptimizationVerificationAware {
-
-    private static final String[] ACCEPTED_FIELD_TYPES = { "dense_vector", "semantic_text" };
+public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
-    private final Expression field;
     // k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
     private final transient Integer k;
-    private final Expression options;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
 
@@ -103,7 +84,7 @@ public class Knn extends FullTextFunction
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
             + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
         examples = { @Example(file = "knn-function", tag = "knn-function") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
     )
     public Knn(
         Source source,
@@ -153,7 +134,7 @@ public class Knn extends FullTextFunction
                         + "(docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
-                + " See <<query-dsl-knn-query,knn query>> for more information.",
+                + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",
             optional = true
         ) Expression options
     ) {
@@ -169,10 +150,8 @@ public class Knn extends FullTextFunction
         QueryBuilder queryBuilder,
         List<Expression> filterExpressions
     ) {
-        super(source, query, expressionList(field, query, options), queryBuilder);
-        this.field = field;
+        super(source, field, query, options, expressionList(field, query, options), queryBuilder);
         this.k = k;
-        this.options = options;
         this.filterExpressions = filterExpressions;
     }
 
@@ -186,52 +165,12 @@ public class Knn extends FullTextFunction
         return result;
     }
 
-    public Expression field() {
-        return field;
-    }
-
     public Integer k() {
         return k;
     }
 
-    public Expression options() {
-        return options;
-    }
-
     public List<Expression> filterExpressions() {
         return filterExpressions;
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataType.BOOLEAN;
-    }
-
-    @Override
-    protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(Options.resolve(options(), source(), THIRD, ALLOWED_OPTIONS));
-    }
-
-    private TypeResolution resolveField() {
-        return isNotNull(field(), sourceText(), FIRST).and(
-            // It really should be semantic_text instead of text, but field_caps retrieves semantic_text fields as text
-            isType(field(), dt -> dt == TEXT, sourceText(), FIRST, ACCEPTED_FIELD_TYPES).or(
-                isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, ACCEPTED_FIELD_TYPES)
-            )
-        );
-    }
-
-    private TypeResolution resolveQuery() {
-        TypeResolution result = isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector")
-            .and(isNotNull(query(), sourceText(), SECOND));
-        if (result.unresolved()) {
-            return result;
-        }
-        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
-        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
-            return result;
-        }
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     public Knn replaceK(Integer k) {
@@ -269,7 +208,7 @@ public class Knn extends FullTextFunction
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         assert k() != null : "Knn function must have a k value set before translation";
-        var fieldAttribute = Match.fieldAsFieldAttribute(field());
+        var fieldAttribute = fieldAsFieldAttribute(field());
 
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
@@ -314,20 +253,12 @@ public class Knn extends FullTextFunction
     protected QueryBuilder evaluatorQueryBuilder() {
         // Either we couldn't push down due to non-pushable filters, or because it's part of a disjuncion.
         // Uses a nearest neighbors exact query instead of an approximate one
-        var fieldAttribute = Match.fieldAsFieldAttribute(field());
+        var fieldAttribute = fieldAsFieldAttribute(field());
         Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
         Map<String, Object> opts = queryOptions();
 
         return new ExactKnnQueryBuilder(VectorData.fromFloats(queryAsFloats()), fieldName, (Float) opts.get(VECTOR_SIMILARITY_FIELD));
-    }
-
-    @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return (plan, failures) -> {
-            super.postAnalysisPlanVerification().accept(plan, failures);
-            fieldVerifier(plan, this, field, failures);
-        };
     }
 
     @Override
@@ -382,16 +313,28 @@ public class Knn extends FullTextFunction
     }
 
     @Override
+    protected Set<DataType> getFieldDataTypes() {
+        // Knn accepts DENSE_VECTOR or TEXT (for semantic_text), plus NULL for missing fields
+        return Set.of(DENSE_VECTOR, TEXT, NULL);
+    }
+
+    @Override
+    protected Set<DataType> getQueryDataTypes() {
+        return Set.of(DENSE_VECTOR);
+    }
+
+    @Override
+    protected Map<String, DataType> getAllowedOptions() {
+        return ALLOWED_OPTIONS;
+    }
+
+    @Override
     public boolean equals(Object o) {
         // Knn does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
         // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
-        return Objects.equals(field(), knn.field())
-            && Objects.equals(query(), knn.query())
-            && Objects.equals(queryBuilder(), knn.queryBuilder())
-            && Objects.equals(k(), knn.k())
-            && Objects.equals(filterExpressions(), knn.filterExpressions());
+        return super.equals(knn) && Objects.equals(k(), knn.k()) && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override

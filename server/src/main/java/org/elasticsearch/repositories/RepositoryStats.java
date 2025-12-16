@@ -32,7 +32,7 @@ public class RepositoryStats implements Writeable {
     }
 
     public RepositoryStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.actionStats = in.readMap(BlobStoreActionStats::new);
         } else {
             this.actionStats = in.readMap(si -> {
@@ -52,7 +52,7 @@ public class RepositoryStats implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeMap(actionStats, (so, v) -> v.writeTo(so));
         } else {
             out.writeMap(actionStats, (so, v) -> so.writeLong(v.requests()));

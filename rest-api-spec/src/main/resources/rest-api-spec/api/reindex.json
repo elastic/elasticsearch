@@ -27,6 +27,7 @@
     "params": {
       "refresh": {
         "type": "boolean",
+        "default": false,
         "description": "Should the affected indexes be refreshed?"
       },
       "timeout": {
@@ -36,6 +37,7 @@
       },
       "wait_for_active_shards": {
         "type": "string",
+        "default": "1",
         "description": "Sets the number of shard copies that must be active before proceeding with the reindex operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
       },
       "wait_for_completion": {
@@ -45,7 +47,7 @@
       },
       "requests_per_second": {
         "type": "number",
-        "default": 0,
+        "default": -1,
         "description": "The throttle to set on this request in sub-requests per second. -1 means no throttle."
       },
       "scroll": {
@@ -59,7 +61,7 @@
         "description": "The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
       },
       "max_docs": {
-        "type": "number",
+        "type": "int",
         "description": "Maximum number of documents to process (default: all documents)"
       },
       "require_alias": {

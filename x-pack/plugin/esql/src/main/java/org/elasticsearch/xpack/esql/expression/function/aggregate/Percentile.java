@@ -77,11 +77,11 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {
-        this(source, field, Literal.TRUE, percentile);
+        this(source, field, Literal.TRUE, NO_WINDOW, percentile);
     }
 
-    public Percentile(Source source, Expression field, Expression filter, Expression percentile) {
-        super(source, field, filter, singletonList(percentile));
+    public Percentile(Source source, Expression field, Expression filter, Expression window, Expression percentile) {
+        super(source, field, filter, window, singletonList(percentile));
         this.percentile = percentile;
     }
 
@@ -90,7 +90,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class).get(0)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -101,17 +102,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected NodeInfo<Percentile> info() {
-        return NodeInfo.create(this, Percentile::new, field(), filter(), percentile);
+        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile);
     }
 
     @Override
     public Percentile replaceChildren(List<Expression> newChildren) {
-        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Percentile(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Percentile withFilter(Expression filter) {
-        return new Percentile(source(), field(), filter, percentile);
+        return new Percentile(source(), field(), filter, window(), percentile);
     }
 
     public Expression percentile() {

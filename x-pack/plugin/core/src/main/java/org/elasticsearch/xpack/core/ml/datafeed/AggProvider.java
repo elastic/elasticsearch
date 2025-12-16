@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -117,7 +116,7 @@ class AggProvider implements Writeable, ToXContentObject {
             in.readGenericMap(),
             in.readOptionalWriteable(AggregatorFactories.Builder::new),
             in.readException(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false
+            in.readBoolean()
         );
     }
 
@@ -140,9 +139,7 @@ class AggProvider implements Writeable, ToXContentObject {
         out.writeGenericMap(aggs);
         out.writeOptionalWriteable(parsedAggs);
         out.writeException(parsingException);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(rewroteAggs);
-        }
+        out.writeBoolean(rewroteAggs);
     }
 
     public Exception getParsingException() {

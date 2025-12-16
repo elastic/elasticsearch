@@ -34,11 +34,15 @@ public class AttributeMapTests extends ESTestCase {
         return new UnresolvedAttribute(Source.EMPTY, name);
     }
 
+    private static Attribute ONE = a("one");
+    private static Attribute TWO = a("two");
+    private static Attribute THREE = a("three");
+
     private static AttributeMap<String> threeMap() {
         AttributeMap.Builder<String> builder = AttributeMap.builder();
-        builder.put(a("one"), "one");
-        builder.put(a("two"), "two");
-        builder.put(a("three"), "three");
+        builder.put(ONE, "one");
+        builder.put(TWO, "two");
+        builder.put(THREE, "three");
 
         return builder.build();
     }
@@ -46,12 +50,12 @@ public class AttributeMapTests extends ESTestCase {
     public void testAttributeMapWithSameAliasesCanResolveAttributes() {
         Alias param1 = createIntParameterAlias(1, 100);
         Alias param2 = createIntParameterAlias(2, 100);
-        assertTrue(param1.equals(param2));
-        assertTrue(param1.semanticEquals(param2));
+        assertFalse(param1.equals(param2));
+        assertFalse(param1.semanticEquals(param2));
         // equality on literals
         assertTrue(param1.child().equals(param2.child()));
         assertTrue(param1.child().semanticEquals(param2.child()));
-        assertTrue(param1.toAttribute().equals(param2.toAttribute()));
+        assertFalse(param1.toAttribute().equals(param2.toAttribute()));
         assertFalse(param1.toAttribute().semanticEquals(param2.toAttribute()));
 
         AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
@@ -205,18 +209,14 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testKeySet() {
-        Attribute one = a("one");
-        Attribute two = a("two");
-        Attribute three = a("three");
-
         Set<Attribute> keySet = threeMap().keySet();
-        assertThat(keySet, contains(one, two, three));
+        assertThat(keySet, contains(ONE, TWO, THREE));
 
         // toObject
         Object[] array = keySet.toArray();
 
         assertThat(array, arrayWithSize(3));
-        assertThat(array, arrayContaining(one, two, three));
+        assertThat(array, arrayContaining(ONE, TWO, THREE));
     }
 
     public void testValues() {
@@ -343,5 +343,19 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(it.next(), is("three"));
         it.remove();
         assertThat(it.hasNext(), is(false));
+    }
+
+    public void testMappAll() {
+        var one = a("one");
+        var two = a("two");
+        var three = a("three");
+
+        Collection<Attribute> collection = asList(one, two, three);
+        var map = AttributeMap.mapAll(collection, NamedExpression::toAttribute);
+
+        var builder = AttributeMap.builder();
+        collection.forEach(e -> builder.put(e, e.toAttribute()));
+
+        assertThat(map, is(builder.build()));
     }
 }

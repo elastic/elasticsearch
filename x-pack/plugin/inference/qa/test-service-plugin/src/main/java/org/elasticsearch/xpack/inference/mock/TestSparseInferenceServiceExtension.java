@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -43,12 +42,13 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class TestSparseInferenceServiceExtension implements InferenceServiceExtension {
 
     @Override
     public List<Factory> getInferenceServiceFactories() {
-        return List.of(TestInferenceService::new);
+        return List.of(TestInferenceService::new, TestAlternateSparseInferenceService::new);
     }
 
     public static class TestSparseModel extends Model {
@@ -60,16 +60,40 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
     }
 
-    public static class TestInferenceService extends AbstractTestInferenceService {
+    public static class TestInferenceService extends AbstractSparseTestInferenceService {
         public static final String NAME = "test_service";
+
+        public TestInferenceService(InferenceServiceFactoryContext inferenceServiceFactoryContext) {}
+
+        @Override
+        protected String testServiceName() {
+            return NAME;
+        }
+    }
+
+    /**
+     * A second sparse service allows testing updates from one service to another.
+     */
+    public static class TestAlternateSparseInferenceService extends AbstractSparseTestInferenceService {
+        public static final String NAME = "alternate_sparse_embedding_test_service";
+
+        public TestAlternateSparseInferenceService(InferenceServiceFactoryContext inferenceServiceFactoryContext) {}
+
+        @Override
+        protected String testServiceName() {
+            return NAME;
+        }
+    }
+
+    abstract static class AbstractSparseTestInferenceService extends AbstractTestInferenceService {
 
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
-        public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
+        protected abstract String testServiceName();
 
         @Override
         public String name() {
-            return NAME;
+            return testServiceName();
         }
 
         @Override
@@ -92,7 +116,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         @Override
         public InferenceServiceConfiguration getConfiguration() {
-            return Configuration.get();
+            return new Configuration(testServiceName()).get();
         }
 
         @Override
@@ -191,45 +215,49 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         private static float generateEmbedding(String input, int position) {
             // Ensure non-negative and non-zero values for features
-            return Math.abs(input.hashCode()) + 1 + position;
+            int hash = input.hashCode();
+            int absHash = (hash == Integer.MIN_VALUE) ? Integer.MAX_VALUE : Math.abs(hash);
+            return absHash + 1.0f + position;
         }
 
         public static class Configuration {
-            public static InferenceServiceConfiguration get() {
-                return configuration.getOrCompute();
+
+            private final String serviceName;
+
+            Configuration(String serviceName) {
+                this.serviceName = Objects.requireNonNull(serviceName);
             }
 
-            private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
-                () -> {
-                    var configurationMap = new HashMap<String, SettingsConfiguration>();
+            InferenceServiceConfiguration get() {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-                    configurationMap.put(
-                        "model",
-                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
-                            .setLabel("Model")
-                            .setRequired(true)
-                            .setSensitive(false)
-                            .setType(SettingsConfigurationFieldType.STRING)
-                            .build()
-                    );
+                configurationMap.put(
+                    "model",
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
+                        .setLabel("Model")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
 
-                    configurationMap.put(
-                        "hidden_field",
-                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
-                            .setLabel("Hidden Field")
-                            .setRequired(true)
-                            .setSensitive(false)
-                            .setType(SettingsConfigurationFieldType.STRING)
-                            .build()
-                    );
+                configurationMap.put(
+                    "hidden_field",
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
+                        .setLabel("Hidden Field")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
 
-                    return new InferenceServiceConfiguration.Builder().setService(NAME)
-                        .setName(NAME)
-                        .setTaskTypes(supportedTaskTypes)
-                        .setConfigurations(configurationMap)
-                        .build();
-                }
-            );
+                return new InferenceServiceConfiguration.Builder().setService(serviceName)
+                    .setName(serviceName)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
+            }
+
         }
     }
 
@@ -240,10 +268,13 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String model = (String) map.remove("model");
+            String model = (String) map.remove("model_id");
 
             if (model == null) {
-                validationException.addValidationError("missing model");
+                model = (String) map.remove("model");
+                if (model == null) {
+                    validationException.addValidationError("missing model");
+                }
             }
 
             String hiddenField = (String) map.remove("hidden_field");

@@ -27,7 +27,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -85,9 +84,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
             performSearch(
-                new SearchSourceBuilder().retriever(
-                    new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
-                )
+                new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, 10f, null, null))
             );
         }
 
@@ -102,9 +99,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             performSearch(
                 new SearchSourceBuilder().retriever(
-                    new StandardRetrieverBuilder(
-                        new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
-                    )
+                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, 10f, null, null))
                 )
             );
         }
@@ -119,9 +114,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         // his will record 1 entry for "knn" in `sections`
         {
             performSearch(
-                new SearchSourceBuilder().knnSearch(
-                    List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, IVF_FORMAT.isEnabled() ? 10f : null, null, null))
-                )
+                new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, 10f, null, null)))
             );
         }
 

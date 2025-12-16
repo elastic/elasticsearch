@@ -9,16 +9,15 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -28,10 +27,10 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ScaledFloatDocValuesField;
@@ -219,11 +220,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
+            IndexType indexType = IndexType.points(indexed.get(), hasDocValues.get());
             ScaledFloatFieldType type = new ScaledFloatFieldType(
                 context.buildFullName(leafName()),
-                indexed.getValue(),
+                indexType,
                 stored.getValue(),
-                hasDocValues.getValue(),
                 meta.getValue(),
                 scalingFactor.getValue(),
                 nullValue.getValue(),
@@ -273,9 +274,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         public ScaledFloatFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             Map<String, String> meta,
             double scalingFactor,
             Double nullValue,
@@ -284,7 +284,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             boolean coerce,
             boolean isSyntheticSource
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexType, stored, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
             this.metricType = metricType;
@@ -298,7 +298,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor, boolean indexed) {
-            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null, null, false, false);
+            this(name, IndexType.points(indexed, true), false, Collections.emptyMap(), scalingFactor, null, null, null, false, false);
         }
 
         public double getScalingFactor() {
@@ -317,20 +317,25 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasPoints() || hasDocValues();
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, indexType().hasPoints());
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 List<Long> scaledValues = new ArrayList<>(values.size());
                 for (Object value : values) {
                     long scaledValue = Math.round(scale(value));
@@ -367,7 +372,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, indexType.hasPoints());
         }
 
         @Override
@@ -377,7 +382,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
-                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l / scalingFactor);
+                return new DoublesBlockLoader(name(), l -> l / scalingFactor);
             }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
@@ -392,10 +397,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     }
                 };
             }
-
-            ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || isIndexed())
-                // We only write the field names field if there aren't doc values or norms
+            var valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings());
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
+                // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup);
@@ -472,7 +476,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
                         },
-                        isIndexed()
+                        indexType
                     ).build(cache, breakerService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
                 };
@@ -485,7 +489,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                     searchLookup,
                     ScaledFloatDocValuesField::new
                 );
@@ -499,11 +503,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;
@@ -779,8 +786,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean isIndexed() {
-            return false; // We don't know how to take advantage of the index with half floats anyway
+        protected IndexType indexType() {
+            return IndexType.NONE; // We don't know how to take advantage of the index with half floats anyway
         }
 
         @Override
@@ -826,8 +833,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
-            final SortedNumericDocValues values = scaledFieldData.getLongValues();
-            final NumericDocValues singleValues = DocValues.unwrapSingleton(values);
+            final SortedNumericLongValues values = scaledFieldData.getLongValues();
+            final LongValues singleValues = SortedNumericLongValues.unwrapSingleton(values);
             if (singleValues != null) {
                 return FieldData.singleton(new NumericDoubleValues() {
                     @Override

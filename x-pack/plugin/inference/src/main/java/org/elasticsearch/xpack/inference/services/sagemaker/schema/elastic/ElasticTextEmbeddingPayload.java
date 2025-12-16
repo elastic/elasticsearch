@@ -11,7 +11,6 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,10 +24,10 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
@@ -61,6 +60,8 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     private static final EnumSet<TaskType> SUPPORTED_TASKS = EnumSet.of(TaskType.TEXT_EMBEDDING);
     private static final ParseField EMBEDDING = new ParseField("embedding");
 
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = TransportVersion.fromName("ml_inference_sagemaker_elastic");
+
     @Override
     public EnumSet<TaskType> supportedTasks() {
         return SUPPORTED_TASKS;
@@ -91,18 +92,19 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
     }
 
     @Override
-    public TextEmbeddingResults<?> responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
+    public DenseEmbeddingResults<?> responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
         try (var p = jsonXContent.createParser(XContentParserConfiguration.EMPTY, response.body().asInputStream())) {
             return switch (model.apiServiceSettings().elementType()) {
                 case BIT -> TextEmbeddingBinary.PARSER.apply(p, null);
                 case BYTE -> TextEmbeddingBytes.PARSER.apply(p, null);
                 case FLOAT -> TextEmbeddingFloat.PARSER.apply(p, null);
+                case BFLOAT16 -> throw new UnsupportedOperationException("Bfloat16 not supported");
             };
         }
     }
 
     /**
-     * Reads binary format (it says bytes, but the lengths are different)
+     * Reads binary format
      * {
      *     "text_embedding_bits": [
      *         {
@@ -119,12 +121,12 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
      * }
      */
     private static class TextEmbeddingBinary {
-        private static final ParseField TEXT_EMBEDDING_BITS = new ParseField(TextEmbeddingBitResults.TEXT_EMBEDDING_BITS);
+        private static final ParseField TEXT_EMBEDDING_BITS = new ParseField(DenseEmbeddingBitResults.TEXT_EMBEDDING_BITS);
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TextEmbeddingBitResults, Void> PARSER = new ConstructingObjectParser<>(
-            TextEmbeddingBitResults.class.getSimpleName(),
+        private static final ConstructingObjectParser<DenseEmbeddingBitResults, Void> PARSER = new ConstructingObjectParser<>(
+            DenseEmbeddingBitResults.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new TextEmbeddingBitResults((List<TextEmbeddingByteResults.Embedding>) args[0])
+            args -> new DenseEmbeddingBitResults((List<DenseEmbeddingByteResults.Embedding>) args[0])
         );
 
         static {
@@ -150,20 +152,20 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
      * }
      */
     private static class TextEmbeddingBytes {
-        private static final ParseField TEXT_EMBEDDING_BYTES = new ParseField("text_embedding_bytes");
+        private static final ParseField TEXT_EMBEDDING_BYTES = new ParseField(DenseEmbeddingByteResults.TEXT_EMBEDDING_BYTES);
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TextEmbeddingByteResults, Void> PARSER = new ConstructingObjectParser<>(
-            TextEmbeddingByteResults.class.getSimpleName(),
+        private static final ConstructingObjectParser<DenseEmbeddingByteResults, Void> PARSER = new ConstructingObjectParser<>(
+            DenseEmbeddingByteResults.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new TextEmbeddingByteResults((List<TextEmbeddingByteResults.Embedding>) args[0])
+            args -> new DenseEmbeddingByteResults((List<DenseEmbeddingByteResults.Embedding>) args[0])
         );
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TextEmbeddingByteResults.Embedding, Void> BYTE_PARSER =
+        private static final ConstructingObjectParser<DenseEmbeddingByteResults.Embedding, Void> BYTE_PARSER =
             new ConstructingObjectParser<>(
-                TextEmbeddingByteResults.Embedding.class.getSimpleName(),
+                DenseEmbeddingByteResults.Embedding.class.getSimpleName(),
                 IGNORE_UNKNOWN_FIELDS,
-                args -> TextEmbeddingByteResults.Embedding.of((List<Byte>) args[0])
+                args -> DenseEmbeddingByteResults.Embedding.of((List<Byte>) args[0])
             );
 
         static {
@@ -196,20 +198,20 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
      * }
      */
     private static class TextEmbeddingFloat {
-        private static final ParseField TEXT_EMBEDDING_FLOAT = new ParseField("text_embedding");
+        private static final ParseField TEXT_EMBEDDING_FLOAT = new ParseField(DenseEmbeddingFloatResults.TEXT_EMBEDDING);
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TextEmbeddingFloatResults, Void> PARSER = new ConstructingObjectParser<>(
-            TextEmbeddingByteResults.class.getSimpleName(),
+        private static final ConstructingObjectParser<DenseEmbeddingFloatResults, Void> PARSER = new ConstructingObjectParser<>(
+            DenseEmbeddingFloatResults.class.getSimpleName(),
             IGNORE_UNKNOWN_FIELDS,
-            args -> new TextEmbeddingFloatResults((List<TextEmbeddingFloatResults.Embedding>) args[0])
+            args -> new DenseEmbeddingFloatResults((List<DenseEmbeddingFloatResults.Embedding>) args[0])
         );
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TextEmbeddingFloatResults.Embedding, Void> FLOAT_PARSER =
+        private static final ConstructingObjectParser<DenseEmbeddingFloatResults.Embedding, Void> FLOAT_PARSER =
             new ConstructingObjectParser<>(
-                TextEmbeddingFloatResults.Embedding.class.getSimpleName(),
+                DenseEmbeddingFloatResults.Embedding.class.getSimpleName(),
                 IGNORE_UNKNOWN_FIELDS,
-                args -> TextEmbeddingFloatResults.Embedding.of((List<Float>) args[0])
+                args -> DenseEmbeddingFloatResults.Embedding.of((List<Float>) args[0])
             );
 
         static {
@@ -251,13 +253,12 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             assert false : "should never be called when supportsVersion is used";
-            return TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC;
+            return ML_INFERENCE_SAGEMAKER_ELASTIC;
         }
 
         @Override
         public boolean supportsVersion(TransportVersion version) {
-            return version.onOrAfter(TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC)
-                || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC_8_19);
+            return version.supports(ML_INFERENCE_SAGEMAKER_ELASTIC);
         }
 
         @Override

@@ -108,4 +108,65 @@ public interface SearchStats {
             return false;
         }
     }
+
+    /**
+     * A default implementat that throws {@link UnsupportedOperationException} on all methods. Implemetors can override only the methods
+     * they <i>know</i> would be called.
+     */
+    abstract class UnsupportedSearchStats implements SearchStats {
+        @Override
+        public boolean exists(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isIndexed(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasDocValues(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasExactSubfield(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldName field, BytesRef value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object min(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object max(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isSingleValue(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
+            throw new UnsupportedOperationException();
+        }
+    }
 }

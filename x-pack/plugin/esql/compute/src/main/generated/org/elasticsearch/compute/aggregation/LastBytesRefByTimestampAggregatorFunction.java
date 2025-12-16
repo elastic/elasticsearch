@@ -153,18 +153,20 @@ public final class LastBytesRefByTimestampAggregatorFunction implements Aggregat
   private void addRawBlock(BytesRefBlock valueBlock, LongBlock timestampBlock) {
     BytesRef valueScratch = new BytesRef();
     for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path
@@ -185,18 +187,20 @@ public final class LastBytesRefByTimestampAggregatorFunction implements Aggregat
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (valueBlock.isNull(p)) {
+      int valueValueCount = valueBlock.getValueCount(p);
+      if (valueValueCount == 0) {
         continue;
       }
-      if (timestampBlock.isNull(p)) {
+      int timestampValueCount = timestampBlock.getValueCount(p);
+      if (timestampValueCount == 0) {
         continue;
       }
       int valueStart = valueBlock.getFirstValueIndex(p);
-      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      int valueEnd = valueStart + valueValueCount;
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
         BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
         int timestampStart = timestampBlock.getFirstValueIndex(p);
-        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        int timestampEnd = timestampStart + timestampValueCount;
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
           // Check seen in every iteration to save on complexity in the Block path
@@ -233,8 +237,8 @@ public final class LastBytesRefByTimestampAggregatorFunction implements Aggregat
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    LastBytesRefByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef valuesScratch = new BytesRef();
+    LastBytesRefByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getBytesRef(0, valuesScratch), seen.getBoolean(0));
   }
 
   @Override

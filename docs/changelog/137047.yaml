@@ -1,0 +1,5 @@
+pr: 137047
+summary: Reject invalid `reverse_nested` aggs
+area: Aggregations
+type: bug
+issues: []

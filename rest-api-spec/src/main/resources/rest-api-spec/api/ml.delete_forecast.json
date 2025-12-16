@@ -46,10 +46,12 @@
     "params": {
       "allow_no_forecasts": {
         "type": "boolean",
+        "default": true,
         "description": "Whether to ignore if `_all` matches no forecasts"
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Controls the time to wait until the forecast(s) are deleted. Default to 30 seconds"
       }
     }

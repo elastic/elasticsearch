@@ -50,7 +50,11 @@ public class TransformTests extends ESTestCase {
             transformPlugin.prepareForIndicesMigration(emptyProject(), client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
-            verify(client).execute(same(SetTransformUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeActionRequest(true)), any());
+            verify(client).execute(
+                same(SetTransformUpgradeModeAction.INSTANCE),
+                eq(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true)),
+                any()
+            );
 
             transformPlugin.indicesMigrationComplete(
                 response.get(),
@@ -58,7 +62,11 @@ public class TransformTests extends ESTestCase {
                 ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );
 
-            verify(client).execute(same(SetTransformUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeActionRequest(false)), any());
+            verify(client).execute(
+                same(SetTransformUpgradeModeAction.INSTANCE),
+                eq(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false)),
+                any()
+            );
         } finally {
             terminate(threadPool);
         }

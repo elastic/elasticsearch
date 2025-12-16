@@ -421,20 +421,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            final XContentType xContentType = request.getXContentType();
-            // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsBulkContent()
-                && XContentType.JSON != xContentType.canonical()
-                && XContentType.SMILE != xContentType.canonical()) {
-                channel.sendResponse(
-                    RestResponse.createSimpleErrorResponse(
-                        channel,
-                        RestStatus.NOT_ACCEPTABLE,
-                        "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"
-                    )
-                );
-                return;
-            }
         }
         RestChannel responseChannel = channel;
         if (apiProtections.isEnabled()) {

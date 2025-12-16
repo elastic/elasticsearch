@@ -1024,6 +1024,12 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void packDibit(int[] vector, byte[] packed) {
+        // TODO
+        DefaultESVectorUtilSupport.packDibitImpl(vector, packed);
+    }
+
+    @Override
     public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
         // 128 / 32 == 4
         if (q.length >= 8 && HAS_FAST_INTEGER_VECTORS) {

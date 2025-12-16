@@ -25,6 +25,8 @@ import java.util.OptionalLong;
 
 /**
  * Provides quantile estimation for {@link ExponentialHistogram} instances.
+ * All algorithms assume that the values of each histogram bucket have exactly the same value,
+ * which is defined by {@link ExponentialScaleUtils#getPointOfLeastRelativeError(long, int)}.
  */
 public class ExponentialHistogramQuantile {
 
@@ -34,6 +36,7 @@ public class ExponentialHistogramQuantile {
      * It returns the value of the element at rank {@code max(0, min(n - 1, (quantile * (n + 1)) - 1))}, where n is the total number of
      * values and rank starts at 0. If the rank is fractional, the result is linearly interpolated from the values of the two
      * neighboring ranks.
+     * The result is clamped to the histogram's minimum and maximum values.
      *
      * @param histo    the histogram representing the distribution
      * @param quantile the quantile to query, in the range [0, 1]
@@ -60,6 +63,8 @@ public class ExponentialHistogramQuantile {
         double upperFactor = exactRank - lowerRank;
 
         ValueAndPreviousValue values = getElementAtRank(histo, upperRank);
+        // Ensure we don't return values outside the histogram's range
+        values = values.clampTo(histo.min(), histo.max());
 
         double result;
         if (lowerRank == upperRank) {
@@ -68,6 +73,51 @@ public class ExponentialHistogramQuantile {
             result = values.valueAtPreviousRank() * (1 - upperFactor) + values.valueAtRank() * upperFactor;
         }
         return removeNegativeZero(result);
+    }
+
+    /**
+     * Estimates the rank of a given value in the distribution represented by the histogram.
+     * In other words, returns the number of values which are less than (or less-or-equal, if {@code inclusive} is true)
+     * the provided value.
+     *
+     * @param histo the histogram to query
+     * @param value the value to estimate the rank for
+     * @param inclusive if true, counts values equal to the given value as well
+     * @return the number of elements less than (or less-or-equal, if {@code inclusive} is true) the given value
+     */
+    public static long estimateRank(ExponentialHistogram histo, double value, boolean inclusive) {
+        if (Double.isNaN(histo.min()) || value < histo.min()) {
+            return 0;
+        }
+        if (value > histo.max()) {
+            return histo.valueCount();
+        }
+        if (value >= 0) {
+            long rank = histo.negativeBuckets().valueCount();
+            if (value > 0 || inclusive) {
+                rank += histo.zeroBucket().count();
+            }
+            rank += estimateRank(histo.positiveBuckets().iterator(), value, inclusive, histo.max());
+            return rank;
+        } else {
+            long numValuesGreater = estimateRank(histo.negativeBuckets().iterator(), -value, inclusive == false, -histo.min());
+            return histo.negativeBuckets().valueCount() - numValuesGreater;
+        }
+    }
+
+    private static long estimateRank(BucketIterator buckets, double value, boolean inclusive, double maxValue) {
+        long rank = 0;
+        while (buckets.hasNext()) {
+            double bucketMidpoint = ExponentialScaleUtils.getPointOfLeastRelativeError(buckets.peekIndex(), buckets.scale());
+            bucketMidpoint = Math.min(bucketMidpoint, maxValue);
+            if (bucketMidpoint < value || (inclusive && bucketMidpoint == value)) {
+                rank += buckets.peekCount();
+                buckets.advance();
+            } else {
+                break;
+            }
+        }
+        return rank;
     }
 
     private static double removeNegativeZero(double result) {
@@ -158,8 +208,13 @@ public class ExponentialHistogramQuantile {
      * @param valueAtRank         the value at the desired rank
      */
     private record ValueAndPreviousValue(double valueAtPreviousRank, double valueAtRank) {
+
         ValueAndPreviousValue negateAndSwap() {
             return new ValueAndPreviousValue(-valueAtRank, -valueAtPreviousRank);
+        }
+
+        ValueAndPreviousValue clampTo(double min, double max) {
+            return new ValueAndPreviousValue(Math.clamp(valueAtPreviousRank, min, max), Math.clamp(valueAtRank, min, max));
         }
     }
 }

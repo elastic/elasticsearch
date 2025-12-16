@@ -11,7 +11,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -90,15 +89,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlTestCase.class);
 
+    private static final String MAPPING_FIELD;
     private static final String MAPPING_ALL_TYPES;
-
     private static final String MAPPING_ALL_TYPES_LOOKUP;
 
     static {
         String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
-        MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
-        String settings = "{\"settings\" : {\"mode\" : \"lookup\"}";
-        MAPPING_ALL_TYPES_LOOKUP = settings + ", " + "\"mappings\": " + properties + "}";
+        MAPPING_FIELD = "\"mappings\": " + properties;
+        MAPPING_ALL_TYPES = "{" + MAPPING_FIELD + "}";
+        String settings = "\"settings\" : {\"mode\" : \"lookup\"}";
+        MAPPING_ALL_TYPES_LOOKUP = "{" + settings + ", " + MAPPING_FIELD + "}";
     }
 
     private static final String DOCUMENT_TEMPLATE = """
@@ -405,10 +405,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         options.addHeader("Accept", "text/csv; header=absent");
         request.setOptions(options);
         Response response = performRequest(request);
-        assertWarnings(response, new AssertWarnings.NoWarnings());
         HttpEntity entity = response.getEntity();
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
+        assertWarnings(response, new AssertWarnings.NoWarnings(), actual);
     }
 
     public void testOutOfRangeComparisons() throws IOException {
@@ -666,7 +666,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error,
             containsString(
                 "Invalid interval value in [?n2::time_duration], expected integer followed by one of "
-                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, HOUR, HOURS, H] but got [3 days]"
+                    + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 days]"
             )
         );
 
@@ -1155,6 +1155,24 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testPruneLeftJoinOnNullMatchingFieldAndShadowingAttributes() throws IOException {
+        var standardIndexName = "standard";
+        createIndex(standardIndexName, false, MAPPING_FIELD);
+        createIndex(testIndexName(), true);
+
+        var query = format(
+            null,
+            "FROM {}* | EVAL keyword = null::KEYWORD | LOOKUP JOIN {} ON keyword | KEEP keyword, integer, alias_integer | SORT keyword",
+            standardIndexName,
+            testIndexName()
+        );
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+        var values = as(result.get("values"), List.class);
+        assertThat(values.size(), is(0));
+
+        assertThat(deleteIndex(standardIndexName).isAcknowledged(), is(true));
+    }
+
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
         List<String> dateMathOverflowExpressions = List.of(
             "2147483647 day + 1 day",
@@ -1221,7 +1239,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      * </p>
      */
     public void testInlineStatsNow() throws IOException {
-        assumeTrue("INLINE STATS only available on snapshots", Build.current().isSnapshot());
+        assumeTrue("INLINE STATS only available on snapshots", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(
@@ -1318,6 +1336,89 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
+
+        RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("integer").field("gte", "5").endObject();
+            }
+            b.endObject();
+        }).query(query);
+
+        Map<String, Object> result = runEsql(builder);
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(8)));
+    }
+
+    public void testNestedSubqueries() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                        testIndexName(),
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("Nested subqueries are not supported"));
+    }
+
+    public void testSubqueryWithFork() throws IOException {
+        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        bulkLoadTestData(10);
+
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {} | where integer > 1) | fork (where long > 2) (where ip == \"127.0.0.1\") | stats count(*)",
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("FORK after subquery is not supported"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {}, (from {} | where integer > 1 | fork (where long > 2) ( where ip == \"127.0.0.1\")) | stats count(*)",
+                        testIndexName(),
+                        testIndexName()
+                    )
+                )
+            )
+        );
+        error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("VerificationException"));
+        assertThat(error, containsString("FORK inside subquery is not supported"));
+    }
+
     private static String queryWithComplexFieldNames(int field) {
         StringBuilder query = new StringBuilder();
         query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);
@@ -1411,7 +1512,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             profileLogger.extractProfile(json, profileEnabled);
         }
 
-        assertWarnings(response, assertWarnings);
+        var supportsAsyncHeadersFix = hasCapabilities(adminClient(), List.of("async_query_status_headers_fix"));
+        if (supportsAsyncHeadersFix) {
+            assertNoAsyncHeaders(response);
+        }
+        assertWarnings(response, assertWarnings, json);
 
         return json;
     }
@@ -1448,21 +1553,22 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         checkKeepOnCompletion(requestObject, json, keepOnCompletion);
         String id = (String) json.get("id");
 
-        var supportsAsyncHeaders = hasCapabilities(adminClient(), List.of("async_query_status_headers"));
+        var supportsAsyncHeaders = hasCapabilities(adminClient(), List.of("async_query_status_headers_fix"));
         var supportsSuggestedCast = hasCapabilities(adminClient(), List.of("suggested_cast"));
+
+        // Check headers on initial query call
+        if (supportsAsyncHeaders) {
+            assertAsyncHeaders(response, id, (boolean) json.get("is_running"));
+        }
 
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
             assertThat(requestObject.keepOnCompletion(), either(nullValue()).or(is(false)));
             assertThat((boolean) json.get("is_running"), is(false));
-            if (supportsAsyncHeaders) {
-                assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
-                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
-            }
             if (profileLogger != null) {
                 profileLogger.extractProfile(json, profileEnabled);
             }
-            assertWarnings(response, assertWarnings);
+            assertWarnings(response, assertWarnings, json);
             json.remove("is_running"); // remove this to not mess up later map assertions
             return Collections.unmodifiableMap(json);
         } else {
@@ -1475,7 +1581,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 if (profileLogger != null) {
                     profileLogger.extractProfile(json, profileEnabled);
                 }
-                assertWarnings(response, assertWarnings);
+                assertWarnings(response, assertWarnings, json);
                 // we already have the results, but let's remember them so that we can compare to async get
                 initialColumns = json.get("columns");
                 initialValues = json.get("values");
@@ -1483,11 +1589,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 // did not return results immediately, so we will need an async get
                 assertThat(json.get("columns"), is(equalTo(List.<Map<String, String>>of()))); // no partial results
                 assertThat(json.get("pages"), nullValue());
-            }
-
-            if (supportsAsyncHeaders) {
-                assertThat(response.getHeader("X-Elasticsearch-Async-Id"), is(id));
-                assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is(isRunning ? "?1" : "?0"));
             }
 
             // issue a second request to "async get" the results
@@ -1498,6 +1599,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         var result = entityToMap(entity, requestObject.contentType());
+
+        // Check headers on get call
+        if (supportsAsyncHeaders) {
+            assertAsyncHeaders(response, id, (boolean) result.get("is_running"));
+        }
 
         // assert initial contents, if any, are the same as async get contents
         if (initialColumns != null) {
@@ -1515,7 +1621,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (profileLogger != null) {
             profileLogger.extractProfile(result, profileEnabled);
         }
-        assertWarnings(response, assertWarnings);
+        assertWarnings(response, assertWarnings, result);
         assertDeletable(id);
         return removeAsyncProperties(result);
     }
@@ -1679,6 +1785,73 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(answer.get("values"), equalTo(List.of(List.of("#"), List.of("foo#bar"))));
     }
 
+    public void testMatchFunctionAcrossMultipleIndicesWithMissingField() throws IOException {
+        int numberOfIndicesWithField = randomIntBetween(11, 20);
+        int numberOfIndicesWithoutField = randomIntBetween(1, 10);
+        int totalIndices = numberOfIndicesWithField + numberOfIndicesWithoutField;
+
+        int indexNum = 0;
+        for (int i = 0; i < numberOfIndicesWithField; i++) {
+            String indexName = testIndexName() + indexNum++;
+            // Create index with the text field
+            createIndex(indexName, Settings.EMPTY, """
+                {
+                    "properties": {
+                        "message": {
+                            "type": "text"
+                        }
+                    }
+                }
+                """);
+            Request doc = new Request("POST", indexName + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "message": "elasticsearch"
+                }
+                """);
+            client().performRequest(doc);
+        }
+        for (int i = 0; i < numberOfIndicesWithoutField; i++) {
+            String indexName = testIndexName() + indexNum++;
+            // Create index without the text field
+            createIndex(indexName, Settings.EMPTY, """
+                {
+                    "properties": {
+                        "other_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+                """);
+
+            // Index a document in each index
+            Request doc = new Request("POST", indexName + "/_doc?refresh=true");
+            doc.setJsonEntity("""
+                {
+                    "other_field": "elasticsearch"
+                }
+                """);
+            client().performRequest(doc);
+        }
+
+        // Query using MATCH function across all indices
+        String query = "FROM " + testIndexName() + "* | WHERE MATCH(message, \"elasticsearch\")";
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+
+        // Verify the number of results equals the number of indices that have the field
+        var values = as(result.get("values"), ArrayList.class);
+        assertEquals(
+            "Expected " + numberOfIndicesWithField + " results from indices with the 'message' field",
+            numberOfIndicesWithField,
+            values.size()
+        );
+
+        // Clean up - delete all created indices
+        for (int i = 0; i < totalIndices; i++) {
+            assertTrue(deleteIndex(testIndexName() + i).isAcknowledged());
+        }
+    }
+
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
         requestObject.build();
         Request request = prepareRequest(mode);
@@ -1778,12 +1951,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         Response response = performRequest(request);
-        assertWarnings(response, new AssertWarnings.NoWarnings());
         HttpEntity entity = response.getEntity();
 
         // get the content, it could be empty because the request might have not completed
         String initialValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         String id = response.getHeader("X-Elasticsearch-Async-Id");
+        assertWarnings(response, new AssertWarnings.NoWarnings(), initialValue);
 
         if (mode == SYNC) {
             assertThat(id, is(emptyOrNullString()));
@@ -1832,10 +2005,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             // if `addParam` is false, `options` will already have an `Accept` header
             getRequest.setOptions(options);
             response = performRequest(getRequest);
-            assertWarnings(response, new AssertWarnings.NoWarnings());
             entity = response.getEntity();
         }
         String newValue = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
+        assertWarnings(response, new AssertWarnings.NoWarnings(), newValue);
 
         // assert initial contents, if any, are the same as async get contents
         if (initialValue != null && initialValue.isEmpty() == false) {
@@ -1888,13 +2061,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(reason, answer.get("is_partial"), anyOf(nullValue(), is(false)));
     }
 
-    private static void assertWarnings(Response response, AssertWarnings assertWarnings) {
+    private static void assertWarnings(Response response, AssertWarnings assertWarnings, Object context) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
         if (shouldLog()) {
             LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         }
-        assertWarnings.assertWarnings(warnings);
+        assertWarnings.assertWarnings(warnings, context);
     }
 
     private static Set<String> mutedWarnings() {
@@ -2003,6 +2176,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String settings = "\"settings\" : {\"mode\" : \"lookup\"}, ";
         request.setJsonEntity("{" + (lookupMode ? settings : "") + mapping + "}");
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
+
+    private static void assertAsyncHeaders(Response response, @Nullable String asyncId, boolean isRunning) {
+        assertThat(response.getHeader("X-Elasticsearch-Async-Id"), asyncId == null ? nullValue() : equalTo(asyncId));
+        assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), isRunning ? is("?1") : is("?0"));
+    }
+
+    private static void assertNoAsyncHeaders(Response response) {
+        assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
+        assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), nullValue());
     }
 
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {

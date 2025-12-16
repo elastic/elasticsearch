@@ -42,7 +42,7 @@ public class TDigestState implements Releasable, Accountable {
     private final TDigest tdigest;
 
     // Supported tdigest types.
-    protected enum Type {
+    public enum Type {
         HYBRID,
         AVL_TREE,
         MERGING,

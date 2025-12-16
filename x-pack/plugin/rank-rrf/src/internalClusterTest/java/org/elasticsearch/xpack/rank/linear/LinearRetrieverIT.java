@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;
@@ -864,9 +863,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             }
         };
         var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null, null);
-        var standard = new StandardRetrieverBuilder(
-            new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, IVF_FORMAT.isEnabled() ? 10f : null, null)
-        );
+        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null));
         var rrf = new LinearRetrieverBuilder(
             List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
             10

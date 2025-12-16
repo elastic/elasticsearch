@@ -42,6 +42,7 @@ Create the `cooking_blog` index to get started:
 ```console
 PUT /cooking_blog
 ```
+% TESTSETUP
 
 Next, define the mappings for the index:
 
@@ -101,6 +102,7 @@ PUT /cooking_blog/_mapping
   }
 }
 ```
+% TEST
 
 1. `analyzer`: Used for text analysis. If you don't specify it, the `standard` analyzer is used by default for `text` fields. It's included here for demonstration purposes. To know more about analyzers, refer [Anatomy of an analyzer](https://docs-v3-preview.elastic.dev/elastic/docs-content/tree/main/manage-data/data-store/text-analysis/anatomy-of-an-analyzer).
 2. `ignore_above`: Prevents indexing values longer than 256 characters in the `keyword` field. This is the default value and it's included here for demonstration purposes. It helps to save disk space and avoid potential issues with Lucene's term byte-length limit. For more information, refer to [ignore_above parameter](/reference/elasticsearch/mapping-reference/ignore-above.md).
@@ -130,6 +132,7 @@ POST /cooking_blog/_bulk?refresh=wait_for
 {"index":{"_id":"5"}}
 {"title":"Crispy Oven-Fried Chicken","description":"Get that perfect crunch without the deep fryer! This oven-fried chicken recipe delivers crispy, juicy results every time. A healthier take on the classic comfort food.","author":"Maria Rodriguez","date":"2023-05-20","category":"Main Course","tags":["chicken","oven-fried","healthy"],"rating":4.9}
 ```
+% TEST[continued]
 
 ## Perform basic full-text searches [full-text-filter-tutorial-match-query]
 
@@ -153,6 +156,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 1. By default, the `match` query uses `OR` logic between the resulting tokens. This means it will match documents that contain either "fluffy" or "pancakes", or both, in the description field.
 
@@ -198,9 +202,15 @@ At search time, {{es}} defaults to the analyzer defined in the field mapping. Th
   }
 }
 ```
+% TESTRESPONSE[s/"took": 0/"took": "$body.took"/]
+% TESTRESPONSE[s/"total": 1/"total": $body._shards.total/]
+% TESTRESPONSE[s/"successful": 1/"successful": $body._shards.successful/]
+% TESTRESPONSE[s/"value": 1/"value": $body.hits.total.value/]
+% TESTRESPONSE[s/"max_score": 1.8378843/"max_score": $body.hits.max_score/]
+% TESTRESPONSE[s/"_score": 1.8378843/"_score": $body.hits.hits.0._score/]
 
 1. `hits`: Contains the total number of matching documents and their relation to the total.
-2. `max_score`: The highest relevance score among all matching documents. In this example, there is only have one matching document.
+2. `max_score`: The highest relevance score among all matching documents. In this example, there is only one matching document.
 3. `_score`: The relevance score for a specific document, indicating how well it matches the query. Higher scores indicate better matches. In this example the `max_score` is the same as the `_score`, as there is only one matching document.
 4. The title contains both "Fluffy" and "Pancakes", matching the search terms exactly.
 5. The description includes "fluffiest" and "pancakes", further contributing to the document's relevance due to the analysis process.
@@ -225,6 +235,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 ::::{dropdown} Example response
 ```console-result
@@ -247,7 +258,7 @@ GET /cooking_blog/_search
   }
 }
 ```
-
+% TESTRESPONSE[s/"took": 0/"took": "$body.took"/]
 ::::
 
 
@@ -271,6 +282,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 ## Search across multiple fields [full-text-filter-tutorial-multi-match]
 
@@ -290,6 +302,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 This query searches for "vegetarian curry" across the title, description, and tags fields. Each field is treated with equal importance.
 
@@ -307,6 +320,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 1. The `^` syntax applies a boost to specific fields:
 
@@ -359,6 +373,9 @@ Learn more about fields and per-field boosting in the [`multi_match` query](/ref
   }
 }
 ```
+% TESTRESPONSE[s/"took": 0/"took": "$body.took"/]
+% TESTRESPONSE[s/"_score": 7.546015/"_score": $body.hits.hits.0._score/]
+% TESTRESPONSE[s/"max_score": 7.546015/"max_score": $body.hits.max_score/]
 
 1. The title contains "Vegetarian" and "Curry", which matches the search terms. The title field has the highest boost (^3), contributing significantly to this document's relevance score.
 2. The description contains "curry" and related terms like "vegetables", further increasing the document's relevance.
@@ -391,6 +408,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Note the use of `category.keyword` here. This refers to the [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) multi-field of the `category` field, ensuring an exact, case-sensitive match.
 
@@ -420,6 +438,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 1. `gte`: Greater than or equal to May 1, 2023.
 2. `lte`: Less than or equal to May 31, 2023.
@@ -440,6 +459,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 1. The `term` query has zero flexibility. For example, if the `author.keyword` contains words `maria` or `maria rodriguez`, the query will have zero hits due to case sensitivity.
 
@@ -477,7 +497,7 @@ GET /cooking_blog/_search
       "should": [
         {
           "term": {
-            "category": "Main Course"
+            "category.keyword": "Main Course"
           }
         },
         {
@@ -508,6 +528,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TEST[continued]
 
 1. `must_not`: Excludes documents that match the specified criteria. This is a powerful tool for filtering out unwanted results.
 
@@ -552,6 +573,7 @@ GET /cooking_blog/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took": 1/"took": "$body.took"/]
 
 1. The title contains "Spicy" and "Curry", matching the should condition. With the default [best_fields](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md#type-best-fields) behavior, this field contributes most to the relevance score.
 2. While the description also contains matching terms, only the best matching field's score is used by default.

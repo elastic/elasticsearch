@@ -13,11 +13,11 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.RefCounted;
@@ -37,11 +37,11 @@ import java.util.function.Function;
  */
 public class LuceneCountOperator extends LuceneOperator {
     public static class Factory extends LuceneOperator.Factory {
-        private final List<? extends RefCounted> shardRefCounters;
+        private final IndexedByShardId<? extends RefCounted> shardRefCounters;
         private final List<ElementType> tagTypes;
 
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
@@ -64,7 +64,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(shardRefCounters, driverContext.blockFactory(), sliceQueue, tagTypes, limit);
+            return new LuceneCountOperator(shardRefCounters, driverContext, sliceQueue, tagTypes, limit);
         }
 
         @Override
@@ -76,17 +76,19 @@ public class LuceneCountOperator extends LuceneOperator {
     private final List<ElementType> tagTypes;
     private final Map<List<Object>, PerTagsState> tagsToState = new HashMap<>();
     private int remainingDocs;
+    private final DriverContext driverContext;
 
     public LuceneCountOperator(
-        List<? extends RefCounted> shardRefCounters,
-        BlockFactory blockFactory,
+        IndexedByShardId<? extends RefCounted> shardRefCounters,
+        DriverContext driverContext,
         LuceneSliceQueue sliceQueue,
         List<ElementType> tagTypes,
         int limit
     ) {
-        super(shardRefCounters, blockFactory, Integer.MAX_VALUE, sliceQueue);
+        super(shardRefCounters, driverContext.blockFactory(), Integer.MAX_VALUE, sliceQueue);
         this.tagTypes = tagTypes;
         this.remainingDocs = limit;
+        this.driverContext = driverContext;
     }
 
     @Override
@@ -107,17 +109,27 @@ public class LuceneCountOperator extends LuceneOperator {
         }
         long start = System.nanoTime();
         try {
-            final LuceneScorer scorer = getCurrentOrLoadNextScorer();
-            if (scorer == null) {
-                remainingDocs = 0;
-            } else {
-                count(scorer);
+            while (remainingDocs > 0) {
+                final LuceneScorer scorer = getCurrentOrLoadNextScorer();
+                if (scorer == null) {
+                    remainingDocs = 0;
+                } else {
+                    count(scorer);
+                }
+
+                // Check if the query has been cancelled.
+                driverContext.checkForEarlyTermination();
+                // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
+                if (System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
+                    break;
+                }
             }
 
             if (remainingDocs <= 0) {
                 return buildResult();
+            } else {
+                return null;
             }
-            return null;
         } finally {
             processingNanos += System.nanoTime() - start;
         }

@@ -66,7 +66,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -131,7 +131,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
 
-        CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
+        CombinedBits bitSet = new CombinedBits(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {
             Scorable scorer;
 
@@ -148,7 +148,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -157,7 +157,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -166,7 +166,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -715,7 +715,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 return roleQueryBits;
             } else {
                 // apply deletes when needed:
-                return new CombinedBitSet(roleQueryBits, actualLiveDocs);
+                return new CombinedBits(roleQueryBits, actualLiveDocs);
             }
         }
 

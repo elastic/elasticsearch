@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
@@ -40,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -63,6 +65,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -312,6 +315,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
             MapperRegistry mapperRegistry = new IndicesModule(
                 plugins.stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList()),
+                plugins.stream()
+                    .filter(p -> p instanceof InternalVectorFormatProviderPlugin)
+                    .map(p -> (InternalVectorFormatProviderPlugin) p)
+                    .collect(toList()),
                 namespaceValidator
             ).getMapperRegistry();
 
@@ -390,9 +397,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
+        IndexSortConfig sortConfig = new IndexSortConfig(mapperService.getIndexSettings());
+        Sort indexSort = sortConfig.buildIndexSort(
+            mapperService::fieldType,
+            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("")).build(null, null)
+        );
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
             new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
         );
+        if (indexSort != null) {
+            iwc.setIndexSort(indexSort);
+        }
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
             try (DirectoryReader reader = iw.getReader()) {

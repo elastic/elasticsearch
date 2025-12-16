@@ -11,7 +11,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
@@ -38,8 +37,8 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.List;
 
@@ -53,8 +52,13 @@ import java.util.List;
  */
 public class Mapper {
 
-    public PhysicalPlan map(LogicalPlan p) {
+    public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        // We ignore the version for now, but it's fine to use later for plans that work
+        // differently from some version and up.
+        return mapInner(versionedPlan.inner());
+    }
 
+    private PhysicalPlan mapInner(LogicalPlan p) {
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
         }
@@ -83,55 +87,7 @@ public class Mapper {
     }
 
     private PhysicalPlan mapUnary(UnaryPlan unary) {
-        PhysicalPlan mappedChild = map(unary.child());
-
-        //
-        // TODO - this is hard to follow, causes bugs and needs reworking
-        // https://github.com/elastic/elasticsearch/issues/115897
-        //
-        if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-            // When we have remote enrich, we want to put it under FragmentExec, so it would be executed remotely.
-            // We're only going to do it on the coordinator node.
-            // The way we're going to do it is as follows:
-            // 1. Locate FragmentExec in the tree. If we have no FragmentExec, we won't do anything.
-            // 2. Put this Enrich under it, removing everything that was below it previously.
-            // 3. Above FragmentExec, we should deal with pipeline breakers, since pipeline ops already are supposed to go under
-            // FragmentExec.
-            // 4. Aggregates can't appear here since the plan should have errored out if we have aggregate inside remote Enrich.
-            // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
-            Holder<Boolean> hasFragment = new Holder<>(false);
-
-            // Remove most plan nodes between this remote ENRICH and the data node's fragment so they're not executed twice;
-            // include the plan up until this ENRICH in the fragment.
-            var childTransformed = mappedChild.transformUp(f -> {
-                // Once we reached FragmentExec, we stuff our Enrich under it
-                if (f instanceof FragmentExec) {
-                    hasFragment.set(true);
-                    return new FragmentExec(enrich);
-                }
-                if (f instanceof EnrichExec enrichExec) {
-                    // It can only be ANY because COORDINATOR would have errored out earlier, and REMOTE should be under FragmentExec
-                    assert enrichExec.mode() == Enrich.Mode.ANY : "enrich must be in ANY mode here";
-                    return enrichExec.child();
-                }
-                if (f instanceof UnaryExec unaryExec) {
-                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
-                        return f;
-                    } else {
-                        return unaryExec.child();
-                    }
-                }
-                // Here we have the following possibilities:
-                // 1. LeafExec - should resolve to FragmentExec or we can ignore it
-                // 2. Join - must be remote, and thus will go inside FragmentExec
-                // 3. Fork/MergeExec - not currently allowed with remote enrich
-                return f;
-            });
-
-            if (hasFragment.get()) {
-                return childTransformed;
-            }
-        }
+        PhysicalPlan mappedChild = mapInner(unary.child());
 
         if (mappedChild instanceof FragmentExec) {
             // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
@@ -140,7 +96,9 @@ public class Mapper {
                 return MapperUtils.mapUnary(unary, mappedChild);
             }
             // in case of a fragment, push to it any current streaming operator
-            if (unary instanceof PipelineBreaker == false) {
+            if (unary instanceof PipelineBreaker == false
+                || (unary instanceof Limit limit && limit.local())
+                || (unary instanceof TopN topN && topN.local())) {
                 return new FragmentExec(unary);
             }
         }
@@ -160,12 +118,16 @@ public class Mapper {
             if (mappedChild instanceof ExchangeExec exchange) {
                 mappedChild = new ExchangeExec(mappedChild.source(), intermediate, true, exchange.child());
             }
-            // if no exchange was added (aggregation happening on the coordinator), create the initial agg
-            else {
-                mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
-            }
+            // if no exchange was added (aggregation happening on the coordinator), try to only create a single-pass agg
+            else if (aggregate.groupings()
+                .stream()
+                .noneMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction))) {
+                    return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.SINGLE, intermediate);
+                } else {
+                    mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+                }
 
-            // always add the final/reduction agg
+            // The final/reduction agg
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
 
@@ -212,14 +174,14 @@ public class Mapper {
                 return new FragmentExec(bp);
             }
 
-            PhysicalPlan left = map(bp.left());
+            PhysicalPlan left = mapInner(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec) {
                 return new FragmentExec(bp);
             }
 
-            PhysicalPlan right = map(bp.right());
+            PhysicalPlan right = mapInner(bp.right());
             // if the right is data we can use a hash join directly
             if (right instanceof LocalSourceExec localData) {
                 return new HashJoinExec(
@@ -262,7 +224,7 @@ public class Mapper {
     }
 
     private PhysicalPlan mapFork(Fork fork) {
-        return new MergeExec(fork.source(), fork.children().stream().map(child -> map(child)).toList(), fork.output());
+        return new MergeExec(fork.source(), fork.children().stream().map(this::mapInner).toList(), fork.output());
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

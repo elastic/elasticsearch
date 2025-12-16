@@ -49,10 +49,12 @@
     "params": {
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       },
       "dry_run": {
         "type": "boolean",
+        "default": false,
         "description": "If set to true the rollover action will only be validated but not actually performed even if a condition matches. The default is false"
       },
       "master_timeout": {
@@ -62,16 +64,18 @@
       },
       "wait_for_active_shards": {
         "type": "string",
+        "default": "1",
         "description": "Set the number of active shards to wait for on the newly created rollover index before the operation returns."
       },
       "lazy": {
         "type": "boolean",
-        "default": "false",
+        "default": false,
         "description": "If set to true, the rollover action will only mark a data stream to signal that it needs to be rolled over at the next write. Only allowed on data streams."
       }
     },
     "body": {
-      "description": "The conditions that needs to be met for executing rollover"
+      "description": "The conditions that needs to be met for executing rollover",
+      "required": false
     }
   }
 }

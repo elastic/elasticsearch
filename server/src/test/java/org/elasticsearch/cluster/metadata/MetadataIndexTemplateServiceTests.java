@@ -30,7 +30,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
@@ -61,7 +60,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.innerRemoveComponentTemplate;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
@@ -1061,406 +1059,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testResolveConflictingMappings() throws Exception {
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-
-        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
-            {
-                  "properties": {
-                    "field2": {
-                      "type": "keyword"
-                    }
-                  }
-                }"""), null), null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
-            {
-                  "properties": {
-                    "field2": {
-                      "type": "text"
-                    }
-                  }
-                }"""), null), null, null);
-        project = service.addComponentTemplate(project, true, "ct_high", ct1);
-        project = service.addComponentTemplate(project, true, "ct_low", ct2);
-        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("i*"))
-            .template(new Template(null, new CompressedXContent("""
-                {
-                    "properties": {
-                      "field": {
-                        "type": "keyword"
-                      }
-                    }
-                  }"""), null))
-            .componentTemplates(List.of("ct_low", "ct_high"))
-            .priority(0L)
-            .version(1L)
-            .build();
-        project = service.addIndexTemplateV2(project, true, "my-template", it);
-
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "my-template", "my-index");
-
-        assertNotNull(mappings);
-        assertThat(mappings.size(), equalTo(3));
-        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
-            try {
-                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-            } catch (Exception e) {
-                logger.error(e);
-                fail("failed to parse mappings: " + m.string());
-                return null;
-            }
-        }).toList();
-
-        // The order of mappings should be:
-        // - ct_low
-        // - ct_high
-        // - index template
-        // Because the first elements when merging mappings have the lowest precedence
-        assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
-        assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "keyword"))))));
-        assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "keyword"))))));
-    }
-
-    public void testResolveMappings() throws Exception {
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-
-        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
-            {
-                  "properties": {
-                    "field1": {
-                      "type": "keyword"
-                    }
-                  }
-                }"""), null), null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
-            {
-                  "properties": {
-                    "field2": {
-                      "type": "text"
-                    }
-                  }
-                }"""), null), null, null);
-        project = service.addComponentTemplate(project, true, "ct_high", ct1);
-        project = service.addComponentTemplate(project, true, "ct_low", ct2);
-        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("i*"))
-            .template(new Template(null, new CompressedXContent("""
-                {
-                    "properties": {
-                      "field3": {
-                        "type": "integer"
-                      }
-                    }
-                  }"""), null))
-            .componentTemplates(List.of("ct_low", "ct_high"))
-            .priority(0L)
-            .version(1L)
-            .build();
-        project = service.addIndexTemplateV2(project, true, "my-template", it);
-
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "my-template", "my-index");
-
-        assertNotNull(mappings);
-        assertThat(mappings.size(), equalTo(3));
-        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
-            try {
-                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-            } catch (Exception e) {
-                logger.error(e);
-                fail("failed to parse mappings: " + m.string());
-                return null;
-            }
-        }).toList();
-        assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
-        assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
-        assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field3", Map.of("type", "integer"))))));
-    }
-
-    public void testDefinedTimestampMappingIsAddedForDataStreamTemplates() throws Exception {
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-
-        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
-            {
-                  "properties": {
-                    "field1": {
-                      "type": "keyword"
-                    }
-                  }
-                }"""), null), null, null);
-
-        project = service.addComponentTemplate(project, true, "ct1", ct1);
-
-        {
-            ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of("logs*"))
-                .template(new Template(null, new CompressedXContent("""
-                    {
-                        "properties": {
-                          "field2": {
-                            "type": "integer"
-                          }
-                        }
-                      }"""), null))
-                .componentTemplates(List.of("ct1"))
-                .priority(0L)
-                .version(1L)
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .build();
-            project = service.addIndexTemplateV2(project, true, "logs-data-stream-template", it);
-
-            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-                project,
-                "logs-data-stream-template",
-                DataStream.getDefaultBackingIndexName("logs", 1L)
-            );
-
-            assertNotNull(mappings);
-            assertThat(mappings.size(), equalTo(4));
-            List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
-                try {
-                    return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-                } catch (Exception e) {
-                    logger.error(e);
-                    fail("failed to parse mappings: " + m.string());
-                    return null;
-                }
-            }).toList();
-
-            assertThat(
-                parsedMappings.get(0),
-                equalTo(
-                    Map.of(
-                        "_doc",
-                        Map.of(
-                            "properties",
-                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
-                            "_routing",
-                            Map.of("required", false)
-                        )
-                    )
-                )
-            );
-            assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
-            assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
-        }
-
-        {
-            // indices matched by templates without the data stream field defined don't get the default @timestamp mapping
-            ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of("timeseries*"))
-                .template(new Template(null, new CompressedXContent("""
-                    {
-                        "properties": {
-                          "field2": {
-                            "type": "integer"
-                          }
-                        }
-                      }"""), null))
-                .componentTemplates(List.of("ct1"))
-                .priority(0L)
-                .version(1L)
-                .build();
-            project = service.addIndexTemplateV2(project, true, "timeseries-template", it);
-
-            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "timeseries-template", "timeseries");
-
-            assertNotNull(mappings);
-            assertThat(mappings.size(), equalTo(2));
-            List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
-                try {
-                    return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-                } catch (Exception e) {
-                    logger.error(e);
-                    fail("failed to parse mappings: " + m.string());
-                    return null;
-                }
-            }).toList();
-
-            assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
-            assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
-
-            // a default @timestamp mapping will not be added if the matching template doesn't have the data stream field configured, even
-            // if the index name matches that of a data stream backing index
-            mappings = MetadataIndexTemplateService.collectMappings(
-                project,
-                "timeseries-template",
-                DataStream.getDefaultBackingIndexName("timeseries", 1L)
-            );
-
-            assertNotNull(mappings);
-            assertThat(mappings.size(), equalTo(2));
-            parsedMappings = mappings.stream().map(m -> {
-                try {
-                    return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-                } catch (Exception e) {
-                    logger.error(e);
-                    fail("failed to parse mappings: " + m.string());
-                    return null;
-                }
-            }).toList();
-
-            assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
-            assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
-        }
-    }
-
-    public void testUserDefinedMappingTakesPrecedenceOverDefault() throws Exception {
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-
-        {
-            // user defines a @timestamp mapping as part of a component template
-            ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
-                {
-                      "properties": {
-                        "@timestamp": {
-                          "type": "date_nanos"
-                        }
-                      }
-                    }"""), null), null, null);
-
-            project = service.addComponentTemplate(project, true, "ct1", ct1);
-            ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of("logs*"))
-                .componentTemplates(List.of("ct1"))
-                .priority(0L)
-                .version(1L)
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .build();
-            project = service.addIndexTemplateV2(project, true, "logs-template", it);
-
-            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-                project,
-                "logs-template",
-                DataStream.getDefaultBackingIndexName("logs", 1L)
-            );
-
-            assertNotNull(mappings);
-            assertThat(mappings.size(), equalTo(3));
-            List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
-                try {
-                    return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-                } catch (Exception e) {
-                    logger.error(e);
-                    fail("failed to parse mappings: " + m.string());
-                    return null;
-                }
-            }).toList();
-            assertThat(
-                parsedMappings.get(0),
-                equalTo(
-                    Map.of(
-                        "_doc",
-                        Map.of(
-                            "properties",
-                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
-                            "_routing",
-                            Map.of("required", false)
-                        )
-                    )
-                )
-            );
-            assertThat(
-                parsedMappings.get(1),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date_nanos")))))
-            );
-        }
-
-        {
-            // user defines a @timestamp mapping as part of a composable index template
-            Template template = new Template(null, new CompressedXContent("""
-                {
-                      "properties": {
-                        "@timestamp": {
-                          "type": "date_nanos"
-                        }
-                      }
-                    }"""), null);
-            ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of("timeseries*"))
-                .template(template)
-                .priority(0L)
-                .version(1L)
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .build();
-            project = service.addIndexTemplateV2(project, true, "timeseries-template", it);
-
-            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
-                project,
-                "timeseries-template",
-                DataStream.getDefaultBackingIndexName("timeseries-template", 1L)
-            );
-
-            assertNotNull(mappings);
-            assertThat(mappings.size(), equalTo(3));
-            List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
-                try {
-                    return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-                } catch (Exception e) {
-                    logger.error(e);
-                    fail("failed to parse mappings: " + m.string());
-                    return null;
-                }
-            }).toList();
-            assertThat(
-                parsedMappings.get(0),
-                equalTo(
-                    Map.of(
-                        "_doc",
-                        Map.of(
-                            "properties",
-                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
-                            "_routing",
-                            Map.of("required", false)
-                        )
-                    )
-                )
-            );
-            assertThat(
-                parsedMappings.get(1),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date_nanos")))))
-            );
-        }
-    }
-
-    public void testResolveSettings() throws Exception {
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-
-        ComponentTemplate ct1 = new ComponentTemplate(
-            new Template(Settings.builder().put("number_of_replicas", 2).put("index.blocks.write", true).build(), null, null),
-            null,
-            null
-        );
-        ComponentTemplate ct2 = new ComponentTemplate(
-            new Template(Settings.builder().put("index.number_of_replicas", 1).put("index.blocks.read", true).build(), null, null),
-            null,
-            null
-        );
-        project = service.addComponentTemplate(project, true, "ct_high", ct1);
-        project = service.addComponentTemplate(project, true, "ct_low", ct2);
-        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("i*"))
-            .template(
-                new Template(Settings.builder().put("index.blocks.write", false).put("index.number_of_shards", 3).build(), null, null)
-            )
-            .componentTemplates(List.of("ct_low", "ct_high"))
-            .priority(0L)
-            .version(1L)
-            .build();
-        project = service.addIndexTemplateV2(project, true, "my-template", it);
-
-        Settings settings = MetadataIndexTemplateService.resolveSettings(project, "my-template");
-        assertThat(settings.get("index.number_of_replicas"), equalTo("2"));
-        assertThat(settings.get("index.blocks.write"), equalTo("false"));
-        assertThat(settings.get("index.blocks.read"), equalTo("true"));
-        assertThat(settings.get("index.number_of_shards"), equalTo("3"));
-    }
-
     public void testResolveAliases() throws Exception {
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
@@ -1506,25 +1104,39 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         DataStreamLifecycle.Template lifecycle45d = DataStreamLifecycle.dataLifecycleBuilder()
             .dataRetention(TimeValue.timeValueDays(45))
-            .downsampling(
-                List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueDays(30),
-                        new DownsampleConfig(new DateHistogramInterval("3h"))
-                    )
-                )
+            .downsamplingRounds(
+                List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(30), new DateHistogramInterval("3h")))
             )
             .buildTemplate();
         String ct45d = "ct_45d";
         project = addComponentTemplate(service, project, ct45d, lifecycle45d);
+        DataStreamLifecycle.Template lifecycle60d = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(60))
+            .downsamplingRounds(
+                List.of(new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueDays(7), new DateHistogramInterval("3h")))
+            )
+            .downsamplingMethod(DownsampleConfig.SamplingMethod.LAST_VALUE)
+            .buildTemplate();
+        String ct60d = "ct_60d";
+        project = addComponentTemplate(service, project, ct60d, lifecycle60d);
 
         DataStreamLifecycle.Template lifecycleNullRetention = DataStreamLifecycle.createDataLifecycleTemplate(
             true,
             ResettableValue.reset(),
+            ResettableValue.undefined(),
             ResettableValue.undefined()
         );
         String ctNullRetention = "ct_null_retention";
         project = addComponentTemplate(service, project, ctNullRetention, lifecycleNullRetention);
+
+        DataStreamLifecycle.Template lifecycleNullDownsampling = DataStreamLifecycle.createDataLifecycleTemplate(
+            true,
+            ResettableValue.undefined(),
+            ResettableValue.reset(),
+            ResettableValue.reset()
+        );
+        String ctNullDownsampling = "ct_null_downsampling";
+        project = addComponentTemplate(service, project, ctNullDownsampling, lifecycleNullDownsampling);
 
         String ctEmptyLifecycle = "ct_empty_lifecycle";
         project = addComponentTemplate(service, project, ctEmptyLifecycle, emptyLifecycle);
@@ -1569,7 +1181,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             lifecycle30d,
             DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(lifecycle30d.dataRetention())
-                .downsampling(lifecycle45d.downsampling())
+                .downsamplingRounds(lifecycle45d.downsamplingRounds())
                 .buildTemplate()
         );
 
@@ -1591,7 +1203,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             project,
             List.of(ctEmptyLifecycle, ct45d),
             lifecycleNullRetention,
-            DataStreamLifecycle.dataLifecycleBuilder().downsampling(lifecycle45d.downsampling()).buildTemplate()
+            DataStreamLifecycle.dataLifecycleBuilder().downsamplingRounds(lifecycle45d.downsamplingRounds()).buildTemplate()
         );
 
         // Component A: "lifecycle": {"retention": "30d"}
@@ -1605,7 +1217,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle.dataLifecycleBuilder().enabled(false).buildTemplate(),
             DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(lifecycle45d.dataRetention())
-                .downsampling(lifecycle45d.downsampling())
+                .downsamplingRounds(lifecycle45d.downsamplingRounds())
                 .enabled(false)
                 .buildTemplate()
         );
@@ -1627,6 +1239,72 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Result: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         assertLifecycleResolution(service, project, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
+
+        // Component A: "lifecycle": {
+        // "retention": "60d",
+        // "downsampling_method": "last_value",
+        // "downsampling": [{"after": "3d", "fixed_interval": "3h"}]
+        // }
+        // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Result: "lifecycle": {
+        // "retention": "45d",
+        // "downsampling": [{"after": "30d", "fixed_interval": "3h"}],
+        // "downsampling_method": "last_value"
+        // }
+        assertLifecycleResolution(
+            service,
+            project,
+            List.of(ct60d),
+            lifecycle45d,
+            DataStreamLifecycle.dataLifecycleBuilder()
+                .dataRetention(lifecycle45d.dataRetention())
+                .downsamplingMethod(lifecycle60d.downsamplingMethod())
+                .downsamplingRounds(lifecycle45d.downsamplingRounds())
+                .buildTemplate()
+        );
+
+        // Component A: "lifecycle": {
+        // "retention": "60d",
+        // "downsampling_method": "last_value",
+        // "downsampling": [{"after": "3d", "fixed_interval": "3h"}]
+        // }
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"downsampling": null, "downsampling_method": null}
+        // Result: "lifecycle": {"retention": "45d"}
+        assertLifecycleResolution(
+            service,
+            project,
+            List.of(ct60d, ct45d),
+            lifecycleNullDownsampling,
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(lifecycle45d.dataRetention()).buildTemplate()
+        );
+
+        // Component A: "lifecycle": {
+        // "retention": "60d",
+        // "downsampling_method": "last_value",
+        // "downsampling": [{"after": "3d", "fixed_interval": "3h"}]
+        // }
+        // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Result: "lifecycle": {
+        // "retention": "45d",
+        // "downsampling": [{"after": "30d", "fixed_interval": "3h"}],
+        // "downsampling_method": "last_value"
+        // }
+        assertLifecycleResolution(
+            service,
+            project,
+            List.of(ct60d),
+            DataStreamLifecycle.createDataLifecycleTemplate(
+                true,
+                ResettableValue.undefined(),
+                ResettableValue.undefined(),
+                ResettableValue.reset()
+            ),
+            DataStreamLifecycle.dataLifecycleBuilder()
+                .dataRetention(lifecycle60d.dataRetention())
+                .downsamplingRounds(lifecycle60d.downsamplingRounds())
+                .buildTemplate()
+        );
     }
 
     public void testResolveFailureStore() throws Exception {
@@ -2668,111 +2346,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertThat(e.name(), equalTo("template"));
         assertThat(e.getMessage(), containsString("missing component templates [fail] that does not exist"));
-    }
-
-    public void testComposableTemplateWithSubobjectsFalse() throws Exception {
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-
-        ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
-            {
-              "subobjects": false
-            }
-            """), null), null, null);
-
-        ComponentTemplate fieldMapping = new ComponentTemplate(new Template(null, new CompressedXContent("""
-            {
-              "properties": {
-                "parent.subfield": {
-                  "type": "keyword"
-                }
-              }
-            }
-            """), null), null, null);
-
-        project = service.addComponentTemplate(project, true, "subobjects", subobjects);
-        project = service.addComponentTemplate(project, true, "field_mapping", fieldMapping);
-        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("test-*"))
-            .template(new Template(null, null, null))
-            .componentTemplates(List.of("subobjects", "field_mapping"))
-            .priority(0L)
-            .version(1L)
-            .build();
-        project = service.addIndexTemplateV2(project, true, "composable-template", it);
-
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "composable-template", "test-index");
-
-        assertNotNull(mappings);
-        assertThat(mappings.size(), equalTo(2));
-        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
-            try {
-                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-            } catch (Exception e) {
-                logger.error(e);
-                fail("failed to parse mappings: " + m.string());
-                return null;
-            }
-        }).toList();
-
-        assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("subobjects", false))));
-        assertThat(
-            parsedMappings.get(1),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("parent.subfield", Map.of("type", "keyword")))))
-        );
-    }
-
-    public void testComposableTemplateWithSubobjectsFalseObjectAndSubfield() throws Exception {
-        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-
-        ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
-            {
-              "properties": {
-                "foo": {
-                   "type": "object",
-                   "subobjects": false
-                 },
-                 "foo.bar": {
-                   "type": "keyword"
-                 }
-              }
-            }
-            """), null), null, null);
-
-        project = service.addComponentTemplate(project, true, "subobjects", subobjects);
-        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
-            .indexPatterns(List.of("test-*"))
-            .template(new Template(null, null, null))
-            .componentTemplates(List.of("subobjects", "field_mapping"))
-            .priority(0L)
-            .version(1L)
-            .build();
-        project = service.addIndexTemplateV2(project, true, "composable-template", it);
-
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "composable-template", "test-index");
-
-        assertNotNull(mappings);
-        assertThat(mappings.size(), equalTo(1));
-        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
-            try {
-                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
-            } catch (Exception e) {
-                logger.error(e);
-                fail("failed to parse mappings: " + m.string());
-                return null;
-            }
-        }).toList();
-
-        assertThat(
-            parsedMappings.get(0),
-            equalTo(
-                Map.of(
-                    "_doc",
-                    Map.of("properties", Map.of("foo.bar", Map.of("type", "keyword"), "foo", Map.of("type", "object", "subobjects", false)))
-                )
-            )
-        );
     }
 
     public void testAddIndexTemplateWithDeprecatedComponentTemplate() throws Exception {

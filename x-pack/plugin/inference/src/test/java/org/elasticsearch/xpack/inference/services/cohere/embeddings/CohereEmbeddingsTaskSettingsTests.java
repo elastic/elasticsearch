@@ -166,7 +166,16 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected CohereEmbeddingsTaskSettings mutateInstance(CohereEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CohereEmbeddingsTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            InputType inputType = randomValueOtherThan(instance.getInputType(), () -> randomFrom(randomWithoutUnspecified(), null));
+            return new CohereEmbeddingsTaskSettings(inputType, instance.getTruncation());
+        } else {
+            CohereTruncation truncation = randomValueOtherThan(
+                instance.getTruncation(),
+                () -> randomFrom(randomFrom(CohereTruncation.values()), null)
+            );
+            return new CohereEmbeddingsTaskSettings(instance.getInputType(), truncation);
+        }
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

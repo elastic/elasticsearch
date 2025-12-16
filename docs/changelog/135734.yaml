@@ -1,0 +1,5 @@
+pr: 135734
+summary: Fill in topn values if competitive
+area: ES|QL
+type: enhancement
+issues: []

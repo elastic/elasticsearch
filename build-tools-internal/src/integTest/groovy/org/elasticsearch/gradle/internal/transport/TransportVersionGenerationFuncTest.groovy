@@ -420,7 +420,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
     def "upper bounds files must exist for backport branches"() {
         when:
-        def result = runGenerateTask("--backport-branches=9.1,8.13,7.17,6.0").buildAndFail()
+        def result = runGenerateTask("--name", "new_tv", "--backport-branches=9.1,8.13,7.17,6.0").buildAndFail()
 
         then:
         assertGenerateFailure(result, "Missing upper bounds files for branches [6.0, 7.17, 8.13], known branches are [8.19, 9.0, 9.1, 9.2]")
@@ -495,5 +495,37 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertGenerateAndValidateSuccess(result)
         assertUpperBound("9.2", "new_tv,8124000")
         assertReferableDefinition("new_tv", "8124000")
+    }
+
+    def "generation is idempotent on upstream changes"() {
+        given:
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("new_tv", "8124000")
+        transportVersionUpperBound("9.2", "new_tv", "8124000")
+        execute("git add .")
+        execute("git commit -m update")
+        execute("git checkout test")
+
+        when:
+        def result = runGenerateAndValidateTask().build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "existing_92,8123000")
+    }
+
+    def "generation cannot run on release branch"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersion') {
+                currentUpperBoundName = '9.1'
+            }
+        """
+
+        when:
+        def result = runGenerateTask().buildAndFail()
+
+        then:
+        assertGenerateFailure(result, "Transport version generation cannot run on release branches")
     }
 }

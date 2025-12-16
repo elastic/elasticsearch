@@ -8,10 +8,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.util.IntArray;
@@ -21,6 +19,7 @@ import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -90,12 +89,12 @@ public final class NumericTermsAggregator extends TermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        final SortedNumericDocValues values = resultStrategy.getValues(aggCtx.getLeafReaderContext());
-        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        final SortedNumericLongValues values = resultStrategy.getValues(aggCtx.getLeafReaderContext());
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         return resultStrategy.wrapCollector(singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub));
     }
 
-    private LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(SortedNumericLongValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -113,7 +112,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         };
     }
 
-    private LeafBucketCollector getLeafCollector(NumericDocValues values, LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(LongValues values, LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -235,7 +234,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         /**
          * Resolve the doc values to collect results of this type.
          */
-        abstract SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException;
+        abstract SortedNumericLongValues getValues(LeafReaderContext ctx) throws IOException;
 
         /**
          * Wrap the "standard" numeric terms collector to collect any more
@@ -335,7 +334,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
             }
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
-                SortedNumericDocValues values = getValues(ctx);
+                SortedNumericLongValues values = getValues(ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
                     if (excludeDeletedDocs && ctx.reader().getLiveDocs() != null && ctx.reader().getLiveDocs().get(docId) == false) {
                         continue;
@@ -368,7 +367,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+        SortedNumericLongValues getValues(LeafReaderContext ctx) throws IOException {
             return valuesSource.longValues(ctx);
         }
 
@@ -451,7 +450,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+        SortedNumericLongValues getValues(LeafReaderContext ctx) throws IOException {
             return FieldData.toSortableLongBits(valuesSource.doubleValues(ctx));
         }
 
@@ -548,7 +547,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException {
+        SortedNumericLongValues getValues(LeafReaderContext ctx) throws IOException {
             return valuesSource.longValues(ctx);
         }
 

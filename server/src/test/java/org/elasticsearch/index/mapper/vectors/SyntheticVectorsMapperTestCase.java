@@ -25,10 +25,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
+
+    protected abstract Object getSampleValueForDocument(boolean binaryFormat);
+
     public void testSyntheticVectorsMinimalValidDocument() throws IOException {
         for (XContentType type : XContentType.values()) {
             BytesReference source = generateRandomDoc(type, true, true, false, false, false);
@@ -161,7 +165,7 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
             }
 
             if (includeVector) {
-                builder.field("emb", getSampleValueForDocument());
+                builder.field("emb", getSampleValueForDocument(false));
                 // builder.array("emb", new float[] { 1, 2, 3 });
             }
 
@@ -186,13 +190,13 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
                 if (includeDoubleNested) {
                     builder.startObject();
                     // builder.array("emb", new float[] { 1, 2, 3 });
-                    builder.field("emb", getSampleValueForDocument());
+                    builder.field("emb", getSampleValueForDocument(false));
                     builder.field("field", "nested_val");
                     builder.startArray("double_nested");
                     for (int i = 0; i < 2; i++) {
                         builder.startObject();
                         // builder.array("emb", new float[] { 1, 2, 3 });
-                        builder.field("emb", getSampleValueForDocument());
+                        builder.field("emb", getSampleValueForDocument(false));
                         builder.field("field", "dn_field");
                         builder.endObject();
                     }
@@ -215,20 +219,20 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
 
             // Root-level fields
             builder.field("field", randomAlphaOfLengthBetween(1, 2));
-            builder.field("emb", getSampleValueForDocument());
+            builder.field("emb", getSampleValueForDocument(false));
             builder.field("another_field", randomAlphaOfLengthBetween(3, 5));
 
             // Simulated flattened "obj.nested"
             builder.startObject("obj.nested");
 
             builder.field("field", randomAlphaOfLengthBetween(4, 8));
-            builder.field("emb", getSampleValueForDocument());
+            builder.field("emb", getSampleValueForDocument(false));
 
             builder.startArray("double_nested");
             for (int i = 0; i < randomIntBetween(1, 2); i++) {
                 builder.startObject();
                 builder.field("field", randomAlphaOfLengthBetween(4, 8));
-                builder.field("emb", getSampleValueForDocument());
+                builder.field("emb", getSampleValueForDocument(false));
                 builder.endObject();
             }
             builder.endArray();
@@ -261,5 +265,10 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
                 assertToXContentEquivalent(source, searchSource.internalSourceRef(), xContentType);
             }
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

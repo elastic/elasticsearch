@@ -11,11 +11,13 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DropAllGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
@@ -62,15 +64,19 @@ public class EsqlQueryGenerator {
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
         DropGenerator.INSTANCE,
+        DropAllGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
         EvalGenerator.INSTANCE,
         ForkGenerator.INSTANCE,
         GrokGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
+        InlineStatsGenerator.INSTANCE,
         LimitGenerator.INSTANCE,
         LookupJoinGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
         RenameGenerator.INSTANCE,
+        // awaits fix for https://github.com/elastic/elasticsearch/issues/135336
+        // SampleGenerator.INSTANCE,
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         WhereGenerator.INSTANCE
@@ -127,28 +133,24 @@ public class EsqlQueryGenerator {
             if (executor.currentSchema().isEmpty()) {
                 break;
             }
-            boolean commandAllowed = false;
-            while (commandAllowed == false) {
-                commandGenerator = isTimeSeries && canGenerateTimeSeries
-                    ? randomMetricsPipeCommandGenerator()
-                    : randomPipeCommandGenerator();
-                if (isTimeSeries == false) {
-                    commandAllowed = true;
-                } else {
-                    if (commandGenerator.equals(TimeSeriesStatsGenerator.INSTANCE) || commandGenerator.equals(StatsGenerator.INSTANCE)) {
-                        if (canGenerateTimeSeries) {
-                            canGenerateTimeSeries = false;
-                            commandAllowed = true;
-                        }
-                    } else if (commandGenerator.equals(RenameGenerator.INSTANCE)) {
-                        // https://github.com/elastic/elasticsearch/issues/134994
-                        canGenerateTimeSeries = false;
-                        commandAllowed = true;
-                    } else {
-                        commandAllowed = true;
+            commandGenerator = isTimeSeries && canGenerateTimeSeries ? randomMetricsPipeCommandGenerator() : randomPipeCommandGenerator();
+            if (isTimeSeries) {
+                if (commandGenerator.equals(ForkGenerator.INSTANCE)) {
+                    // don't fork with TS command until this is resolved: https://github.com/elastic/elasticsearch/issues/136927
+                    continue;
+                }
+                if (commandGenerator.equals(TimeSeriesStatsGenerator.INSTANCE) || commandGenerator.equals(StatsGenerator.INSTANCE)) {
+                    if (canGenerateTimeSeries == false) {
+                        // Don't generate multiple stats commands in a single query for TS
+                        continue;
                     }
+                    canGenerateTimeSeries = false;
+                } else if (commandGenerator.equals(RenameGenerator.INSTANCE)) {
+                    // don't allow stats after a rename until this is resolved: https://github.com/elastic/elasticsearch/issues/134994
+                    canGenerateTimeSeries = false;
                 }
             }
+
             desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;
@@ -293,12 +295,15 @@ public class EsqlQueryGenerator {
                 if (counterField == null) {
                     yield null;
                 }
-                yield "rate(" + counterField + ")";
+                yield switch ((randomIntBetween(0, 2))) {
+                    case 0 -> "rate(" + counterField + ")";
+                    case 1 -> "first_over_time(" + counterField + ")";
+                    default -> "last_over_time(" + counterField + ")";
+                };
             }
             case 2 -> {
                 // numerics except aggregate_metric_double
                 // TODO: add to case 0 when support for aggregate_metric_double is added to these functions
-                // TODO: add to case 1 when support for counters is added
                 String numericFieldName = randomNumericField(previousOutput);
                 if (numericFieldName == null) {
                     yield null;
@@ -336,23 +341,43 @@ public class EsqlQueryGenerator {
     }
 
     public static String agg(List<Column> previousOutput) {
-        String name = randomNumericOrDateField(previousOutput);
+        String name = randomNumericField(previousOutput);
+        // complex with numerics
         if (name != null && randomBoolean()) {
-            // numerics only
-            return switch (randomIntBetween(0, 1)) {
-                case 0 -> "max(" + name + ")";
-                default -> "min(" + name + ")";
-                // TODO more numerics
-            };
+            int ops = randomIntBetween(1, 3);
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < ops; i++) {
+                if (i > 0) {
+                    result.append(" + ");
+                }
+                String agg = switch (randomIntBetween(0, 5)) {
+                    case 0 -> "max(" + name + ")";
+                    case 1 -> "min(" + name + ")";
+                    case 2 -> "avg(" + name + ")";
+                    case 3 -> "median(" + name + ")";
+                    case 4 -> "sum(" + name + ")";
+                    default -> "count(" + name + ")";
+                    // TODO more numerics
+                };
+                result.append(agg);
+            }
+            return result.toString();
         }
         // all types
         name = randomBoolean() ? randomStringField(previousOutput) : randomNumericOrDateField(previousOutput);
         if (name == null) {
             return "count(*)";
         }
-        return switch (randomIntBetween(0, 2)) {
+        if (randomBoolean()) {
+            String exp = expression(previousOutput, false);
+            name = exp == null ? name : exp;
+        }
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> "count(*)";
             case 1 -> "count(" + name + ")";
+            case 2 -> "absent(" + name + ")";
+            case 3 -> "present(" + name + ")";
+            case 4 -> "values(" + name + ")";
             default -> "count_distinct(" + name + ")";
         };
     }
@@ -409,9 +434,50 @@ public class EsqlQueryGenerator {
         return items.get(randomIntBetween(0, items.size() - 1));
     }
 
-    public static String expression(List<Column> previousOutput) {
-        // TODO improve!!!
-        return constantExpression();
+    /**
+     * @param previousOutput columns that can be used in the expression
+     * @param allowConstants if set to true, this will never return a constant expression.
+     *                       If no expression can be generated, it will return null
+     * @return an expression or null
+     */
+    public static String expression(List<Column> previousOutput, boolean allowConstants) {
+        if (randomBoolean() && allowConstants) {
+            return constantExpression();
+        }
+        if (randomBoolean()) {
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < randomIntBetween(1, 3); i++) {
+                String field = randomNumericField(previousOutput);
+                if (field == null) {
+                    return allowConstants ? constantExpression() : null;
+                }
+                if (i > 0) {
+                    result.append(" + ");
+                }
+                result.append(field);
+            }
+            return result.toString();
+        }
+        if (randomBoolean()) {
+            String field = randomKeywordField(previousOutput);
+            if (field == null) {
+                return allowConstants ? constantExpression() : null;
+            }
+            return switch (randomIntBetween(0, 3)) {
+                case 0 -> "substring(" + field + ", 1, 3)";
+                case 1 -> "to_lower(" + field + ")";
+                case 2 -> "to_upper(" + field + ")";
+                default -> "length(" + field + ")";
+            };
+        }
+        if (randomBoolean() || allowConstants == false) {
+            String field = randomStringField(previousOutput);
+            if (field == null || randomBoolean()) {
+                field = randomNumericOrDateField(previousOutput);
+            }
+            return field;
+        }
+        return allowConstants ? constantExpression() : null;
     }
 
     public static String indexPattern(String indexName) {

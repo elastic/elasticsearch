@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -60,6 +59,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
     private static final Logger logger = LogManager.getLogger(LookupFromIndexService.class);
 
+    private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
 
     public LookupFromIndexService(
@@ -190,6 +190,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
 
+        private static final TransportVersion JOIN_ON_ALIASES = TransportVersion.fromName("join_on_aliases");
         private static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = TransportVersion.fromName(
             "esql_lookup_join_on_many_fields"
         );
@@ -225,8 +226,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ShardId shardId = new ShardId(in);
 
             String indexPattern;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+            if (in.getTransportVersion().supports(JOIN_ON_ALIASES)) {
                 indexPattern = in.readString();
             } else {
                 indexPattern = shardId.getIndexName();
@@ -255,7 +255,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             var source = Source.readFrom(planIn);
             // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
             // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
@@ -297,8 +297,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(sessionId);
             out.writeWriteable(shardId);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_ON_ALIASES)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.JOIN_ON_ALIASES_8_19)) {
+            if (out.getTransportVersion().supports(JOIN_ON_ALIASES)) {
                 out.writeString(indexPattern);
             } else if (indexPattern.equals(shardId.getIndexName()) == false) {
                 throw new EsqlIllegalArgumentException("Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", indexPattern);
@@ -323,7 +322,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 out.writeString(matchFields.get(0).fieldName());
             }
             source.writeTo(planOut);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }
             if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {

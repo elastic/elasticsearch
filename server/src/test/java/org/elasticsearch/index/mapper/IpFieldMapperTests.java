@@ -438,4 +438,13 @@ public class IpFieldMapperTests extends MapperTestCase {
     protected String randomSyntheticSourceKeep() {
         return "all";
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO - shortcuts are disabled here, can we enable them?
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false),
+            new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
+    }
 }

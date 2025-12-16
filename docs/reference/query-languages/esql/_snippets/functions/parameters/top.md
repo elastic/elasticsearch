@@ -9,5 +9,5 @@
 :   The maximum number of values to collect.
 
 `order`
-:   The order to calculate the top values. Either `asc` or `desc`.
+:   The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.
 

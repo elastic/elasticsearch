@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "Conditional functions and expressions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-conditional-functions-and-expressions

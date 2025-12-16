@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,14 +19,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,13 +47,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
-
     @Override
     protected Writeable.Reader<DataNodeRequest> instanceReader() {
-        return DataNodeRequest::new;
+        return in -> new DataNodeRequest(in, new SerializationTestUtils.TestNameIdMapper());
     }
 
     @Override
@@ -95,6 +96,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             physicalPlan,
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
+            randomBoolean(),
             randomBoolean()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
@@ -114,7 +116,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -129,7 +132,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -145,7 +149,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -173,7 +178,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     mapAndMaybeOptimize(parse(newQuery)),
                     in.indices(),
                     in.indicesOptions(),
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -194,7 +200,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -209,7 +216,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(
                     randomValueOtherThan(request.getParentTask().getNodeId(), () -> randomAlphaOfLength(10)),
@@ -228,13 +236,14 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
             }
             case 7 -> {
-                var indices = randomValueOtherThan(in.indices(), () -> generateRandomStringArray(10, 10, false, false));
+                var indices = randomArrayOtherThan(in.indices(), () -> generateRandomStringArray(10, 10, false, false));
                 var request = new DataNodeRequest(
                     in.sessionId(),
                     in.configuration(),
@@ -244,7 +253,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     indices,
                     in.indicesOptions(),
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -263,7 +273,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     indicesOptions,
-                    in.runNodeLevelReduction()
+                    in.runNodeLevelReduction(),
+                    in.reductionLateMaterialization()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -278,7 +289,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.plan(),
                     in.indices(),
                     in.indicesOptions(),
-                    in.runNodeLevelReduction() == false
+                    in.runNodeLevelReduction() == false,
+                    in.reductionLateMaterialization() == false
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -287,26 +299,26 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         };
     }
 
-    static LogicalPlan parse(String query) {
+    static Versioned<LogicalPlan> parse(String query) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small()));
         var analyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
+            testAnalyzerContext(
+                TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query, EsqlTestUtils.TEST_CFG)));
+        TransportVersion minimumVersion = analyzer.context().minimumVersion();
+        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
+        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query))), minimumVersion);
     }
 
-    static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(TEST_CFG));
+    static PhysicalPlan mapAndMaybeOptimize(Versioned<LogicalPlan> logicalPlan) {
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(TEST_CFG, logicalPlan.minimumVersion()));
         var mapper = new Mapper();
         var physical = mapper.map(logicalPlan);
         if (randomBoolean()) {

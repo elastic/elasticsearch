@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +43,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -464,7 +466,7 @@ public class IndexRoutingTests extends ESTestCase {
      */
     private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
         return switch (between(0, 3)) {
-            case 0 -> indexRouting.indexShard(id, routing, null, null, null);
+            case 0 -> indexRouting.indexShard(new IndexRequest().id(id).routing(routing));
             case 1 -> indexRouting.updateShard(id, routing);
             case 2 -> indexRouting.deleteShard(id, routing);
             case 3 -> indexRouting.getShard(id, routing);
@@ -497,7 +499,7 @@ public class IndexRoutingTests extends ESTestCase {
         IndexRouting routing = indexRoutingForPath(between(1, 5), randomAlphaOfLength(5));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> routing.indexShard(randomAlphaOfLength(5), null, null, XContentType.JSON, source(Map.of()))
+            () -> routing.indexShard(new IndexRequest().id(randomAlphaOfLength(5)).source(Map.of()))
         );
         assertThat(e.getMessage(), stringContainsInOrder("Error extracting", "source didn't contain any"));
     }
@@ -506,7 +508,7 @@ public class IndexRoutingTests extends ESTestCase {
         IndexRouting routing = indexRoutingForPath(between(1, 5), "foo");
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> routing.indexShard(randomAlphaOfLength(5), null, null, XContentType.JSON, source(Map.of("bar", "dog")))
+            () -> routing.indexShard(new IndexRequest().id(randomAlphaOfLength(5)).source(Map.of("bar", "dog")))
         );
         assertThat(e.getMessage(), stringContainsInOrder("Error extracting", "source didn't contain any"));
     }
@@ -527,7 +529,9 @@ public class IndexRoutingTests extends ESTestCase {
         String docRouting = randomAlphaOfLength(5);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> indexRouting.indexShard(randomAlphaOfLength(5), docRouting, null, XContentType.JSON, source)
+            () -> indexRouting.indexShard(
+                new IndexRequest().id(randomAlphaOfLength(5)).routing(docRouting).source(source, XContentType.JSON)
+            )
         );
         assertThat(
             e.getMessage(),
@@ -620,7 +624,7 @@ public class IndexRoutingTests extends ESTestCase {
         BytesReference source = source(Map.of("a", List.of("foo", Map.of("foo", "bar"))));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> routing.indexShard(randomAlphaOfLength(5), null, null, XContentType.JSON, source)
+            () -> routing.indexShard(new IndexRequest().id(randomAlphaOfLength(5)).source(source, XContentType.JSON))
         );
         assertThat(
             e.getMessage(),
@@ -704,12 +708,124 @@ public class IndexRoutingTests extends ESTestCase {
 
         // Verify that routing uses the field name and value in the routing path.
         int expectedShard = expectedShard(routing, List.of("foo", "A"), shards);
-        BytesReference sourceBytes = source(Map.of("foo", "A", "bar", "B"));
-        assertEquals(expectedShard, routing.indexShard(null, null, null, XContentType.JSON, sourceBytes));
+        req.source(Map.of("foo", "A", "bar", "B"));
+        assertEquals(expectedShard, routing.indexShard(req));
 
         // Verify that the request id gets updated to contain the routing hash.
         routing.postProcess(req);
         assertEquals(expectedShard, routing.getShard(req.id(), null));
+    }
+
+    public void testRerouteToTargetLogsdb() throws IOException {
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+                    .build()
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
+            // Verify that routing uses the field name and value in the routing path.
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("foo", value), shards);
+            req.source(Map.of("foo", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    public void testRerouteToTargetTsid() throws IOException {
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "top")
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
+            // Verify that routing uses the field name and value in the routing path.
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("top", value), shards);
+            req.source(Map.of("top", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    public void testRerouteToTargetTsidBeforeWrittenToRouting() throws IOException {
+        int shards = between(2, 500);
+        IndexMetadata startingMetadata = IndexMetadata.builder("test")
+            .settings(
+                settings(IndexVersion.fromId(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID.id() - 1)).put(
+                    IndexMetadata.INDEX_ROUTING_PATH.getKey(),
+                    "top"
+                ).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            )
+            .numberOfShards(shards)
+            .numberOfReplicas(0)
+            .setRoutingNumShards(shards)
+            .build();
+        IndexRouting routing = IndexRouting.fromIndexMetadata(startingMetadata);
+        IndexRouting splitRouting = getSplitRouting(startingMetadata);
+
+        int iters = randomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            IndexRequest req = new IndexRequest();
+            routing.preProcess(req);
+            assertNull(req.id());
+
+            // Verify that routing uses the field name and value in the routing path.
+            String value = randomAlphaOfLength(20);
+            int expectedShard = expectedShard(routing, List.of("top", value), shards);
+            req.source(Map.of("top", value, "bar", "B"));
+            assertEquals(expectedShard, routing.indexShard(req));
+
+            validateReroute(routing, req, expectedShard, splitRouting, shards);
+        }
+    }
+
+    private static void validateReroute(IndexRouting routing, IndexRequest req, int expectedShard, IndexRouting splitRouting, int shards) {
+        routing.postProcess(req);
+        assertEquals(expectedShard, routing.rerouteToTarget(req));
+        assertThat(splitRouting.rerouteToTarget(req), either(equalTo(expectedShard)).or(equalTo(expectedShard + shards)));
+    }
+
+    private static IndexRouting getSplitRouting(IndexMetadata startingMetadata) {
+        IndexReshardingMetadata reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(startingMetadata.getNumberOfShards(), 2);
+        return IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder(startingMetadata)
+                .reshardingMetadata(reshardingMetadata)
+                .reshardAddShards(reshardingMetadata.shardCountAfter())
+                .setRoutingNumShards(reshardingMetadata.shardCountAfter())
+                .settingsVersion(startingMetadata.getSettingsVersion() + 1)
+                .build()
+        );
     }
 
     public void testCollectSearchShardsUnpartitionedWithResharding() throws IOException {
@@ -726,7 +842,7 @@ public class IndexRoutingTests extends ESTestCase {
         var shardToRouting = new HashMap<Integer, String>();
         do {
             var routing = randomAlphaOfLength(5);
-            var shard = initialRouting.indexShard("dummy", routing, null, null, null);
+            var shard = initialRouting.indexShard(new IndexRequest().id("dummy").routing(routing));
             if (shardToRouting.containsKey(shard) == false) {
                 shardToRouting.put(shard, routing);
             }
@@ -806,7 +922,7 @@ public class IndexRoutingTests extends ESTestCase {
         var shardToRouting = new TreeMap<Integer, String>();
         do {
             var routing = randomAlphaOfLength(5);
-            var shard = initialRouting.indexShard("dummy", routing, null, null, null);
+            var shard = initialRouting.indexShard(new IndexRequest().id("dummy").routing(routing));
             if (shardToRouting.containsKey(shard) == false) {
                 shardToRouting.put(shard, routing);
             }
@@ -943,28 +1059,31 @@ public class IndexRoutingTests extends ESTestCase {
     private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard) throws IOException {
         byte[] suffix = randomSuffix();
         BytesReference sourceBytes = source(source);
-        assertThat(routing.indexShard(randomAlphaOfLength(5), null, null, XContentType.JSON, sourceBytes), equalTo(expectedShard));
+        IndexRequest indexRequest = new IndexRequest();
+        indexRequest.source(sourceBytes, XContentType.JSON);
+        indexRequest.id(randomAlphaOfLength(5));
+        routing.preProcess(indexRequest);
+        assertThat(routing.indexShard(indexRequest), equalTo(expectedShard));
         IndexRouting.ExtractFromSource r = (IndexRouting.ExtractFromSource) routing;
-        if (r.isCreateTsidDuringRouting()) {
+        if (r instanceof IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath) {
             // The rest of the assertions are only relevant when only the routing hash is created
-            return;
-        }
-        String idFromSource = r.createId(XContentType.JSON, sourceBytes, suffix);
-        assertThat(shardIdForReadFromSourceExtracting(routing, idFromSource), equalTo(expectedShard));
-        Map<String, Object> flattened = flatten(source);
-        String idFromFlattened = r.createId(XContentType.JSON, sourceBytes, suffix);
-        assertThat(idFromFlattened, equalTo(idFromSource));
+            String idFromSource = forRoutingPath.createId(XContentType.JSON, sourceBytes, suffix);
+            assertThat(shardIdForReadFromSourceExtracting(routing, idFromSource), equalTo(expectedShard));
+            Map<String, Object> flattened = flatten(source);
+            String idFromFlattened = forRoutingPath.createId(XContentType.JSON, sourceBytes, suffix);
+            assertThat(idFromFlattened, equalTo(idFromSource));
 
-        IndexRouting.ExtractFromSource.RoutingHashBuilder b = r.builder();
-        for (Map.Entry<String, Object> e : flattened.entrySet()) {
-            if (e.getValue() instanceof List<?> listValue) {
-                listValue.forEach(v -> b.addMatching(e.getKey(), new BytesRef(v.toString())));
-            } else {
-                b.addMatching(e.getKey(), new BytesRef(e.getValue().toString()));
+            RoutingHashBuilder b = forRoutingPath.builder();
+            for (Map.Entry<String, Object> e : flattened.entrySet()) {
+                if (e.getValue() instanceof List<?> listValue) {
+                    listValue.forEach(v -> b.addMatching(e.getKey(), new BytesRef(v.toString())));
+                } else {
+                    b.addMatching(e.getKey(), new BytesRef(e.getValue().toString()));
+                }
             }
+            String idFromBuilder = b.createId(suffix, () -> { throw new AssertionError(); });
+            assertThat(idFromBuilder, equalTo(idFromSource));
         }
-        String idFromBuilder = b.createId(suffix, () -> { throw new AssertionError(); });
-        assertThat(idFromBuilder, equalTo(idFromSource));
     }
 
     private byte[] randomSuffix() {
@@ -1014,7 +1133,7 @@ public class IndexRoutingTests extends ESTestCase {
      * Build the hash we expect from the extracter.
      */
     private int hash(IndexRouting routing, List<Object> keysAndValues) {
-        if (routing instanceof IndexRouting.ExtractFromSource extractFromSource && extractFromSource.isCreateTsidDuringRouting()) {
+        if (routing instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
             return tsidBasedRoutingHash(keysAndValues);
         }
         return legacyRoutingHash(keysAndValues);

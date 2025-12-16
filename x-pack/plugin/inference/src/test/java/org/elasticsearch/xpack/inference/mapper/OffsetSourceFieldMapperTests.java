@@ -214,4 +214,9 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
         })));
         assertThat(exc.getCause().getCause().getCause().getMessage(), containsString("Illegal offsets"));
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

@@ -426,4 +426,9 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         assumeFalse("DocValuesFetcher doesn't work", true);
         return null;
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

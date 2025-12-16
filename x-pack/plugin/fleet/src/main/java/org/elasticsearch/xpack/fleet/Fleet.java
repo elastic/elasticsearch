@@ -79,7 +79,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 4;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 5;
     private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 3;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
     private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
@@ -316,6 +316,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client client,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateStatus> listener
     ) {
         Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
@@ -335,11 +336,23 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                     DeleteDataStreamAction.INSTANCE,
                     request,
                     ActionListener.wrap(
-                        response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener),
+                        response -> SystemIndexPlugin.super.cleanUpFeature(
+                            clusterService,
+                            projectResolver,
+                            client,
+                            masterNodeTimeout,
+                            listener
+                        ),
                         e -> {
                             Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                             if (unwrapped instanceof ResourceNotFoundException) {
-                                SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                                SystemIndexPlugin.super.cleanUpFeature(
+                                    clusterService,
+                                    projectResolver,
+                                    client,
+                                    masterNodeTimeout,
+                                    listener
+                                );
                             } else {
                                 listener.onFailure(e);
                             }
@@ -349,13 +362,13 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             } catch (Exception e) {
                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                 if (unwrapped instanceof ResourceNotFoundException) {
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
                 } else {
                     listener.onFailure(e);
                 }
             }
         } else {
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
         }
     }
 

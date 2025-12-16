@@ -53,6 +53,7 @@ public interface IndicesRequest {
          * Record the results of index resolution. See {@link ResolvedIndexExpressions} for details.
          * Note: this method does not replace {@link #indices(String...)}. {@link #indices(String...)} must still be called to update
          * the actual list of indices the request relates to.
+         * Note: the field is transient and not serialized.
          */
         default void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {}
 
@@ -78,6 +79,20 @@ public interface IndicesRequest {
          */
         default boolean allowsRemoteIndices() {
             return false;
+        }
+
+        /**
+         * Determines whether the request type allows cross-project processing. Cross-project processing entails cross-project search
+         * index resolution and error handling. Note: this method only determines in the request _supports_ cross-project.
+         * Whether cross-project processing is actually performed is determined by {@link IndicesOptions}.
+         */
+        default boolean allowsCrossProject() {
+            return false;
+        }
+
+        @Nullable // if no routing is specified
+        default String getProjectRouting() {
+            return null;
         }
     }
 

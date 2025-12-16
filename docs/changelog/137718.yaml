@@ -1,0 +1,5 @@
+pr: 137718
+summary: "OTLP: return correct response type for partial successes"
+area: TSDB
+type: bug
+issues: []

@@ -616,7 +616,8 @@ public abstract class FieldMapper extends Mapper {
                 mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
+                        && (kwd.hasDocValues() || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
                 }
@@ -1658,6 +1659,30 @@ public abstract class FieldMapper extends Mapper {
         protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
             return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
         }
+    }
+
+    /**
+     * Creates mappers for fields that require additional context for supporting synthetic source.
+     */
+    public abstract static class TextFamilyBuilder extends Builder {
+
+        private final IndexVersion indexCreatedVersion;
+        private final boolean isWithinMultiField;
+
+        protected TextFamilyBuilder(String name, IndexVersion indexCreatedVersion, boolean isWithinMultiField) {
+            super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.isWithinMultiField = isWithinMultiField;
+        }
+
+        public IndexVersion indexCreatedVersion() {
+            return indexCreatedVersion;
+        }
+
+        public boolean isWithinMultiField() {
+            return isWithinMultiField;
+        }
+
     }
 
     public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {

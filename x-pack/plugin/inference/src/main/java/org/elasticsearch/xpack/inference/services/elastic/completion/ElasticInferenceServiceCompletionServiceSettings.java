@@ -93,7 +93,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION;
+        return TransportVersions.V_8_18_0;
     }
 
     @Override

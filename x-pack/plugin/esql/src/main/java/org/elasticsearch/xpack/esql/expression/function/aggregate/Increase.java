@@ -16,16 +16,17 @@ import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
  * it calculates the total increase over the time window.
  */
-public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::new);
 
     private final Expression timestamp;
@@ -49,32 +50,21 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The absolute increase of a counter field in a time window.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds"
+        description = "Calculates the absolute increase of a counter field in a time window.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries-increase", tag = "increase") }
     )
-    public Increase(
-        Source source,
-        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field
-    ) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
-
     public Increase(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
     }
 
-    // compatibility constructor used when reading from the stream
-    private Increase(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private Increase(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    private Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -83,7 +73,8 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -99,16 +90,12 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     public Increase replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Increase withFilter(Expression filter) {
-        return new Increase(source(), field(), filter, timestamp);
+        return new Increase(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -142,7 +129,8 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         return "increase(" + field() + ")";
     }
 
-    Expression timestamp() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 

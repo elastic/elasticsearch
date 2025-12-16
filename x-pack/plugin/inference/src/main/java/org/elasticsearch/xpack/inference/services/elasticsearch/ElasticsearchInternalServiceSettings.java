@@ -112,10 +112,10 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(
-        Integer numAllocations,
+        @Nullable Integer numAllocations,
         int numThreads,
         String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+        @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         @Nullable String deploymentId
     ) {
         this.numAllocations = numAllocations;
@@ -147,17 +147,11 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.numAllocations = in.readOptionalVInt();
-        } else {
-            this.numAllocations = in.readVInt();
-        }
+        this.numAllocations = in.readOptionalVInt();
         this.numThreads = in.readVInt();
         this.modelId = in.readString();
-        this.adaptiveAllocationsSettings = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-            ? in.readOptionalWriteable(AdaptiveAllocationsSettings::new)
-            : null;
-        this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalString() : null;
+        this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+        this.deploymentId = in.readOptionalString();
     }
 
     public void setAllocations(Integer numAllocations, @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
@@ -167,17 +161,11 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalVInt(getNumAllocations());
-        } else {
-            out.writeVInt(getNumAllocations());
-        }
+        out.writeOptionalVInt(getNumAllocations());
         out.writeVInt(getNumThreads());
         out.writeString(modelId());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
-            out.writeOptionalString(deploymentId);
-        }
+        out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
+        out.writeOptionalString(deploymentId);
     }
 
     @Override

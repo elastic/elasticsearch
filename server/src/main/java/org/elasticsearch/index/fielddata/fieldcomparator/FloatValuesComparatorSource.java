@@ -73,7 +73,8 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FloatComparator(numHits, null, null, reversed, Pruning.NONE) {
+        // TODO we can re-enable pruning here if we allow NumericDoubleValues to expose an iterator
+        return new FloatComparator(numHits, fieldname, null, reversed, Pruning.NONE) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new FloatLeafComparator(context) {

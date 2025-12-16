@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,7 +52,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
         float[] vector = randomVector(dim);
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
-        Float visitPercentage = IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         Float similarity = randomBoolean() ? null : randomFloat();
         RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
             ? null

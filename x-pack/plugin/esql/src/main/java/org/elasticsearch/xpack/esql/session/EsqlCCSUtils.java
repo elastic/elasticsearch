@@ -23,7 +23,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -75,7 +75,7 @@ public class EsqlCCSUtils {
      * Any Exception sent to onFailure stops processing, but not all are fatal (return a 4xx or 5xx), so
      * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
      */
-    abstract static class CssPartialErrorsActionListener implements ActionListener<LogicalPlan> {
+    abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
         private final EsqlExecutionInfo executionInfo;
         private final ActionListener<Result> listener;
 
@@ -156,30 +156,6 @@ public class EsqlCCSUtils {
         }
     }
 
-    static String createIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo) {
-        StringBuilder sb = new StringBuilder();
-        for (String clusterAlias : executionInfo.clusterAliases()) {
-            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            // Exclude clusters which are either skipped or have no indices matching wildcard, or filtered out.
-            if (cluster.getStatus() != Cluster.Status.SKIPPED && cluster.getStatus() != Cluster.Status.SUCCESSFUL) {
-                if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
-                } else {
-                    String indexExpression = executionInfo.getCluster(clusterAlias).getIndexExpression();
-                    for (String index : indexExpression.split(",")) {
-                        sb.append(clusterAlias).append(':').append(index).append(',');
-                    }
-                }
-            }
-        }
-
-        if (sb.length() > 0) {
-            return sb.substring(0, sb.length() - 1);
-        } else {
-            return "";
-        }
-    }
-
     static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
         if (executionInfo.getClusters().isEmpty()) {
             return localPattern;
@@ -211,14 +187,19 @@ public class EsqlCCSUtils {
 
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
-        IndexResolution indexResolution,
+        Collection<IndexResolution> indexResolutions,
         boolean usedFilter
     ) {
+        if (executionInfo.clusterInfo.isEmpty()) {
+            return;
+        }
         // Get the clusters which are still running, and we will check whether they have any matching indices.
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
-        for (String indexName : indexResolution.resolvedIndices()) {
-            clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
+        for (IndexResolution indexResolution : indexResolutions) {
+            for (String indexName : indexResolution.resolvedIndices()) {
+                clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
+            }
         }
         /*
          * Rules enforced at planning time around non-matching indices
@@ -256,20 +237,22 @@ public class EsqlCCSUtils {
                 }
             } else {
                 // We check for the valid resolution because if we have empty resolution it's still an error.
-                if (indexResolution.isValid()) {
-                    List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
-                    // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
-                    if (failures.isEmpty()) {
-                        markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
-                    } else {
-                        // skip reporting index_not_found exceptions to avoid spamming users with such errors
-                        // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
-                        Exception nonIndexNotFound = failures.stream()
-                            .map(FieldCapabilitiesFailure::getException)
-                            .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
-                            .findAny()
-                            .orElse(null);
-                        markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
+                for (IndexResolution indexResolution : indexResolutions) {
+                    if (indexResolution.isValid()) {
+                        List<FieldCapabilitiesFailure> failures = indexResolution.failures().getOrDefault(c, List.of());
+                        // No matching indices, no concrete index requested, and no error in field-caps; just mark as done.
+                        if (failures.isEmpty()) {
+                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
+                        } else {
+                            // skip reporting index_not_found exceptions to avoid spamming users with such errors
+                            // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
+                            Exception nonIndexNotFound = failures.stream()
+                                .map(FieldCapabilitiesFailure::getException)
+                                .filter(ex -> ExceptionsHelper.unwrap(ex, IndexNotFoundException.class) == null)
+                                .findAny()
+                                .orElse(null);
+                            markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SKIPPED, nonIndexNotFound);
+                        }
                     }
                 }
             }
@@ -280,8 +263,11 @@ public class EsqlCCSUtils {
     }
 
     // Filter-less version, mainly for testing where we don't need filter support
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
-        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution, false);
+    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
+        EsqlExecutionInfo executionInfo,
+        Set<IndexResolution> indexResolutions
+    ) {
+        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolutions, false);
     }
 
     // visible for testing
@@ -326,48 +312,46 @@ public class EsqlCCSUtils {
     /**
      * Checks the index expression for the presence of remote clusters.
      * If found, it will ensure that the caller has a valid Enterprise (or Trial) license on the querying cluster
-     * as well as initialize corresponding cluster state in execution info.
+     * as well as initialize the corresponding cluster state in execution info.
      * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
     public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
-        IndexPattern indexPattern,
+        Set<IndexPattern> indexPatterns,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (indexPattern == null) {
+        if (indexPatterns.isEmpty()) {
             return;
         }
         try {
-            var groupedIndices = indicesGrouper.groupIndices(
-                // indicesGrouper.getConfiguredClusters() might return mutable set that changes as clusters connect or disconnect.
-                // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
-                Set.copyOf(indicesGrouper.getConfiguredClusters()),
-                IndicesOptions.DEFAULT,
-                indexPattern.indexPattern()
-            );
+            for (IndexPattern indexPattern : indexPatterns) {
+                var groupedIndices = indicesGrouper.groupIndices(
+                    IndicesOptions.DEFAULT,
+                    Strings.splitStringByCommaToArray(indexPattern.indexPattern()),
+                    false
+                );
 
-            executionInfo.clusterInfoInitializing(true);
-            // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
-            // so that the CCS telemetry handler can recognize that this error is CCS-related
-            try {
-                for (var entry : groupedIndices.entrySet()) {
-                    final String clusterAlias = entry.getKey();
-                    final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                        assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
+                executionInfo.clusterInfoInitializing(true);
+                // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
+                // so that the CCS telemetry handler can recognize that this error is CCS-related
+                try {
+                    groupedIndices.forEach((clusterAlias, indices) -> {
+                        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                            var indexExpr = Strings.arrayToCommaDelimitedString(indices.indices());
+                            if (v != null) {
+                                indexExpr = v.getIndexExpression() + "," + indexExpr;
+                            }
+                            return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
+                        });
                     });
+                } finally {
+                    executionInfo.clusterInfoInitializing(false);
                 }
-            } finally {
-                executionInfo.clusterInfoInitializing(false);
             }
 
-            // check if it is a cross-cluster query
-            if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
-                    throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-                }
+            if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
             }
         } catch (NoSuchRemoteClusterException e) {
             if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {

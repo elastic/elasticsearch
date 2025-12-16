@@ -38,14 +38,14 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
             assert name.equals(fieldProducer.name()) : "producer has a different name";
             if (fieldProducer.isEmpty() == false) {
                 if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
-                    if (metricFieldProducer instanceof MetricFieldProducer.GaugeMetricFieldProducer gaugeProducer) {
+                    if (metricFieldProducer instanceof MetricFieldProducer.AggregateScalarMetricFieldProducer gaugeProducer) {
                         builder.field("max", gaugeProducer.max);
                         builder.field("min", gaugeProducer.min);
                         builder.field("sum", gaugeProducer.sum.value());
                         builder.field("value_count", gaugeProducer.count);
-                    } else if (metricFieldProducer instanceof MetricFieldProducer.CounterMetricFieldProducer counterProducer) {
-                        builder.field("last_value", counterProducer.lastValue);
-                    } else if (metricFieldProducer instanceof MetricFieldProducer.AggregatedGaugeMetricFieldProducer producer) {
+                    } else if (metricFieldProducer instanceof MetricFieldProducer.LastValueScalarMetricFieldProducer lastValueProducer) {
+                        builder.field(lastValueProducer.sampleLabel(), lastValueProducer.lastValue);
+                    } else if (metricFieldProducer instanceof MetricFieldProducer.AggregatePreAggregatedMetricFieldProducer producer) {
                         switch (producer.metric) {
                             case max -> builder.field("max", producer.max);
                             case min -> builder.field("min", producer.min);

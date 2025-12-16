@@ -17,7 +17,6 @@ import javax.lang.model.element.Modifier;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
@@ -34,6 +33,11 @@ public record StandardArgument(TypeName type, String name) implements Argument {
             return isBlockType() ? type : blockType(type);
         }
         return vectorType(type);
+    }
+
+    @Override
+    public boolean supportsVectorReadAccess() {
+        return dataType(false) != null;
     }
 
     @Override
@@ -80,15 +84,21 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
         builder.addStatement("$T $LVector = $LBlock.asVector()", vectorType(type), name, name);
-        builder.beginControlFlow("if ($LVector == null)", name).addStatement(invokeBlockEval).endControlFlow();
+        builder.beginControlFlow("if ($LVector == null)", name);
+
+        for (String statement : invokeBlockEval) {
+            builder.addStatement(statement);
+        }
+
+        builder.endControlFlow();
     }
 
     @Override
     public void createScratch(MethodSpec.Builder builder) {
-        if (type.equals(BYTES_REF)) {
-            builder.addStatement("$T $LScratch = new $T()", BYTES_REF, name, BYTES_REF);
+        if (scratchType() != null) {
+            builder.addStatement("$T $LScratch = new $T()", scratchType(), name, scratchType());
         }
     }
 
@@ -117,10 +127,9 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     @Override
     public void read(MethodSpec.Builder builder, boolean blockStyle) {
         String params = blockStyle ? paramName(true) + ".getFirstValueIndex(p)" : "p";
-        if (type.equals(BYTES_REF)) {
-            params += ", " + name + "Scratch";
+        if (scratchType() != null) {
+            params += ", " + scratchName();
         }
-
         builder.addStatement("$T $L = $L.$L($L)", type, name, paramName(blockStyle), getMethod(type), params);
     }
 
@@ -148,25 +157,23 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     static void skipNull(MethodSpec.Builder builder, String value) {
-        builder.beginControlFlow("if ($N.isNull(p))", value);
+        builder.beginControlFlow("switch ($N.getValueCount(p))", value);
         {
-            builder.addStatement("result.appendNull()");
-            builder.addStatement("continue position");
-        }
-        builder.endControlFlow();
-        builder.beginControlFlow("if ($N.getValueCount(p) != 1)", value);
-        {
-            builder.beginControlFlow("if ($N.getValueCount(p) > 1)", value);
-            {
-                builder.addStatement(
-                    // TODO: reflection on SingleValueQuery.MULTI_VALUE_WARNING?
-                    "warnings().registerException(new $T(\"single-value function encountered multi-value\"))",
-                    IllegalArgumentException.class
-                );
-            }
-            builder.endControlFlow();
-            builder.addStatement("result.appendNull()");
-            builder.addStatement("continue position");
+            builder.addCode("case 0:\n");
+            builder.addStatement("    result.appendNull()");
+            builder.addStatement("    continue position");
+
+            builder.addCode("case 1:\n");
+            builder.addStatement("    break");
+
+            builder.addCode("default:\n");
+            builder.addStatement(
+                // TODO: try to use SingleValueQuery.MULTI_VALUE_WARNING?
+                "    warnings().registerException(new $T(\"single-value function encountered multi-value\"))",
+                IllegalArgumentException.class
+            );
+            builder.addStatement("    result.appendNull()");
+            builder.addStatement("    continue position");
         }
         builder.endControlFlow();
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -107,9 +108,8 @@ public class TokenCountFieldMapper extends FieldMapper {
             super(
                 name,
                 NumberFieldMapper.NumberType.INTEGER,
-                isSearchable,
+                IndexType.points(isSearchable, hasDocValues),
                 isStored,
-                hasDocValues,
                 false,
                 nullValue,
                 meta,

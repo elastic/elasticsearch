@@ -24,8 +24,7 @@ import Expression,
        Join;
 
 statements
-    : {this.isDevVersion()}? setCommand+ singleStatement EOF
-    | singleStatement EOF
+    : setCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -65,11 +64,11 @@ processingCommand
     | sampleCommand
     | forkCommand
     | rerankCommand
+    | inlineStatsCommand
+    | fuseCommand
     // in development
-    | {this.isDevVersion()}? inlineStatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? fuseCommand
     ;
 
 whereCommand
@@ -108,8 +107,17 @@ timeSeriesCommand
     : TS indexPatternAndMetadataFields
     ;
 
-indexPatternAndMetadataFields:
-    indexPattern (COMMA indexPattern)* metadata?
+indexPatternAndMetadataFields
+    : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
+    ;
+
+indexPatternOrSubquery
+    : indexPattern
+    | {this.isDevVersion()}? subquery
+    ;
+
+subquery
+    : LP fromCommand (PIPE processingCommand)* RP
     ;
 
 indexPattern
@@ -251,7 +259,7 @@ commandNamedParameters
     ;
 
 grokCommand
-    : GROK primaryExpression string
+    : GROK primaryExpression string (COMMA string)*
     ;
 
 mvExpandCommand
@@ -320,25 +328,14 @@ completionCommand
     : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression commandNamedParameters
     ;
 
-//
-// In development
-//
-lookupCommand
-    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
-    ;
-
 inlineStatsCommand
-    : DEV_INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
+    : INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
     // TODO: drop after next minor release
-    | DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
-    ;
-
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
+    | INLINESTATS stats=aggFields (BY grouping=fields)?
     ;
 
 fuseCommand
-    : DEV_FUSE (fuseType=identifier)? (fuseConfiguration)*
+    : FUSE (fuseType=identifier)? (fuseConfiguration)*
     ;
 
 fuseConfiguration
@@ -346,6 +343,17 @@ fuseConfiguration
     | KEY BY key=fields
     | GROUP BY group=qualifiedName
     | WITH options=mapExpression
+    ;
+
+//
+// In development
+//
+lookupCommand
+    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+insistCommand
+    : DEV_INSIST qualifiedNamePatterns
     ;
 
 setCommand

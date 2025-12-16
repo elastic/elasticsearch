@@ -33,7 +33,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -84,7 +83,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 .queryVectorBuilder(createTestInstance())
                 .k(5)
                 .numCandidates(10)
-                .visitPercentage(IVF_FORMAT.isEnabled() ? 10f : null)
+                .visitPercentage(10f)
                 .similarity(randomBoolean() ? null : randomFloat())
                 .build(DEFAULT_SIZE),
             getToXContentParams(),
@@ -100,7 +99,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 createTestInstance(),
                 5,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
@@ -125,7 +124,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 queryVectorBuilder,
                 5,
                 10,
-                IVF_FORMAT.isEnabled() ? 10f : null,
+                10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                 randomBoolean() ? null : randomFloat()
             );
@@ -173,7 +172,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
      */
     protected abstract ActionResponse createResponse(float[] array, T builder);
 
-    protected static float[] randomVector(int dim) {
+    public static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();

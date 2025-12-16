@@ -37,6 +37,7 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
+        "default": false,
         "description": "Whether to ignore if a wildcard expression matches no configs. (This includes `_all` string or when no configs have been specified)"
       },
       "bytes": {
@@ -58,6 +59,7 @@
       },
       "h": {
         "type": "list",
+        "default": "create_time,id,state,type",
         "description": "Comma-separated list of column names to display"
       },
       "help": {

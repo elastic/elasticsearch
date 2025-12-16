@@ -91,6 +91,8 @@ public record UnassignedInfo(
         Property.IndexScope
     );
 
+    private static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = TransportVersion.fromName("unassignedinfo_reshard_added");
+
     /**
      * Reason why the shard is in unassigned state.
      * <p>
@@ -328,14 +330,13 @@ public record UnassignedInfo(
     public void writeTo(StreamOutput out) throws IOException {
         if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
             out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
-        } else if (reason.equals(Reason.RESHARD_ADDED)
-            && out.getTransportVersion().before(TransportVersions.UNASSIGENEDINFO_RESHARD_ADDED)) {
-                // We should have protection to ensure we do not reshard in mixed clusters
-                assert false;
-                out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
-            } else {
-                out.writeByte((byte) reason.ordinal());
-            }
+        } else if (reason.equals(Reason.RESHARD_ADDED) && out.getTransportVersion().supports(UNASSIGENEDINFO_RESHARD_ADDED) == false) {
+            // We should have protection to ensure we do not reshard in mixed clusters
+            assert false;
+            out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
+        } else {
+            out.writeByte((byte) reason.ordinal());
+        }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);

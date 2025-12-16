@@ -11,6 +11,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -28,6 +31,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -445,7 +449,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         setSkipUnavailable(REMOTE_CLUSTER_1, randomBoolean());
 
         Exception ex;
-        for (String index : List.of("values_lookup", "values_lookup_map", "values_lookup_map_lookup")) {
+        for (String index : List.of("values_lookup", "values_lookup_map_lookup")) {
             ex = expectThrows(
                 VerificationException.class,
                 () -> runQuery("FROM logs-* | LOOKUP JOIN " + index + " ON v | KEEP v", randomBoolean())
@@ -457,6 +461,18 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             );
             assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
         }
+
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-* | LOOKUP JOIN values_lookup_map ON v | KEEP v", randomBoolean())
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Lookup Join requires a single lookup mode index; "
+                    + "[values_lookup_map] resolves to [values_lookup_map] in [standard] mode"
+            )
+        );
     }
 
     public void testLookupJoinIndexMode() throws IOException {
@@ -543,6 +559,57 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 assertNull(row.get(lookupKeyIndex));
             }
         }
+    }
+
+    public void testAlwaysAppliesTheFilter() throws IOException {
+        setupClusters(3);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(LOCAL_CLUSTER, "data", defaultSettings, Map.of("key", 1, "f1", 1));
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 2, "f2", 2));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 3, "f3", 3));
+
+        try (var r = runQuery(syncEsqlQueryRequest().query("FROM data,*:data | WHERE f1 == 1").filter(new TermQueryBuilder("f2", 2)))) {
+            assertThat(getValuesList(r), hasSize(0));
+        }
+    }
+
+    public void testLookupJoinRetryAnalysis() throws IOException {
+        setupClusters(3);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(LOCAL_CLUSTER, "data", defaultSettings, Map.of("key", 1, "f1", 1));
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 2, "f2", 2));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 3, "f3", 3));
+
+        var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        createIndexWithDocument(LOCAL_CLUSTER, "lookup", lookupSettings, Map.of("key", 1, "location", "local"));
+        createIndexWithDocument(REMOTE_CLUSTER_1, "lookup", lookupSettings, Map.of("key", 2, "location", "remote-1"));
+        // lookup is intentionally absent on REMOTE_CLUSTER_2
+
+        // The following query uses filter f2=2 that narrows down execution only to REMOTE_CLUSTER_1 index however,
+        // later it uses `WHERE f1 == 1` esql condition that to an attribute present only on the local cluster index.
+        // This causes analysis to fail and retry the entire query without a filter.
+        // The second analysis executes against all cluster indices and should discover that lookup is absent on REMOTE_CLUSTER_2.
+        expectThrows(
+            VerificationException.class,
+            containsString("lookup index [lookup] is not available in remote cluster [remote-b]"),
+            () -> runQuery(
+                syncEsqlQueryRequest().query("FROM data,*:data | LOOKUP JOIN lookup ON key | WHERE f1 == 1")
+                    .filter(new TermQueryBuilder("f2", 2))
+            )
+        );
+    }
+
+    private void createIndexWithDocument(String clusterAlias, String indexName, Settings.Builder settings, Map<String, Object> source) {
+        var client = client(clusterAlias);
+        client.admin().indices().prepareCreate(indexName).setSettings(settings).get();
+        client.prepareIndex(indexName).setSource(source).get();
+        client.admin().indices().prepareRefresh(indexName).get();
     }
 
     protected Map<String, Object> setupClustersAndLookups() throws IOException {

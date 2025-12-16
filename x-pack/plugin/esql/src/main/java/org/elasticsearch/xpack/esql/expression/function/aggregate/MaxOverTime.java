@@ -38,10 +38,10 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
-        description = "The maximum over time value of a field.",
+        description = "Calculates the maximum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "max_over_time") }
     )
     public MaxOverTime(
@@ -63,11 +63,11 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
                 "version" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public MaxOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public MaxOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private MaxOverTime(StreamInput in) throws IOException {
@@ -81,17 +81,17 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public MaxOverTime withFilter(Expression filter) {
-        return new MaxOverTime(source(), field(), filter);
+        return new MaxOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<MaxOverTime> info() {
-        return NodeInfo.create(this, MaxOverTime::new, field(), filter());
+        return NodeInfo.create(this, MaxOverTime::new, field(), filter(), window());
     }
 
     @Override
     public MaxOverTime replaceChildren(List<Expression> newChildren) {
-        return new MaxOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new MaxOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -106,6 +106,6 @@ public class MaxOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public Max perTimeSeriesAggregation() {
-        return new Max(source(), field(), filter());
+        return new Max(source(), field(), filter(), window());
     }
 }

@@ -154,7 +154,12 @@ public class CommonStats implements Writeable, ToXContentFragment {
     /**
      * Filters the given flags for {@link CommonStatsFlags#SHARD_LEVEL} flags and calculates the corresponding statistics.
      */
-    public static CommonStats getShardLevelStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+    public static CommonStats getShardLevelStats(
+        IndicesQueryCache indicesQueryCache,
+        IndexShard indexShard,
+        CommonStatsFlags flags,
+        long precomputedSharedRam
+    ) {
         // Filter shard level flags
         CommonStatsFlags filteredFlags = flags.clone();
         for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
@@ -174,7 +179,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Refresh -> stats.refresh = indexShard.refreshStats();
                     case Flush -> stats.flush = indexShard.flushStats();
                     case Warmer -> stats.warmer = indexShard.warmerStats();
-                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId());
+                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId(), precomputedSharedRam);
                     case FieldData -> stats.fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
                     case Completion -> stats.completion = indexShard.completionStats(flags.completionDataFields());
                     case Segments -> stats.segments = indexShard.segmentStats(
@@ -217,9 +222,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            bulk = in.readOptionalWriteable(BulkStats::new);
-        }
+        bulk = in.readOptionalWriteable(BulkStats::new);
         shards = in.readOptionalWriteable(ShardCountStats::new);
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
@@ -250,9 +253,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeOptionalWriteable(bulk);
-        }
+        out.writeOptionalWriteable(bulk);
         out.writeOptionalWriteable(shards);
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
             out.writeOptionalWriteable(nodeMappings);

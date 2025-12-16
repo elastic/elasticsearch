@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +21,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 public class IndexingPressureStats implements Writeable, ToXContentFragment {
+
+    private static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = TransportVersion.fromName(
+        "max_operation_size_rejections_added"
+    );
 
     private final long totalCombinedCoordinatingAndPrimaryBytes;
     private final long totalCoordinatingBytes;
@@ -90,7 +95,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             totalCoordinatingRequests = -1L;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             lowWaterMarkSplits = in.readVLong();
             highWaterMarkSplits = in.readVLong();
         } else {
@@ -98,7 +103,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             highWaterMarkSplits = -1L;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MAX_OPERATION_SIZE_REJECTIONS_ADDED)) {
+        if (in.getTransportVersion().supports(MAX_OPERATION_SIZE_REJECTIONS_ADDED)) {
             largeOpsRejections = in.readVLong();
             totalLargeRejectedOpsBytes = in.readVLong();
         } else {
@@ -188,12 +193,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             out.writeVLong(totalCoordinatingRequests);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeVLong(lowWaterMarkSplits);
             out.writeVLong(highWaterMarkSplits);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MAX_OPERATION_SIZE_REJECTIONS_ADDED)) {
+        if (out.getTransportVersion().supports(MAX_OPERATION_SIZE_REJECTIONS_ADDED)) {
             out.writeVLong(largeOpsRejections);
             out.writeVLong(totalLargeRejectedOpsBytes);
         }

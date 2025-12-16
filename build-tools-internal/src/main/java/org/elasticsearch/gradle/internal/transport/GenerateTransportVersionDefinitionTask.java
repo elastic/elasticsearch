@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.internal.transport.TransportVersionResourcesService.IdAndDefinition;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -94,29 +96,46 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @TaskAction
     public void run() throws IOException {
         TransportVersionResourcesService resources = getResourceService().get();
+        List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromGitBase();
+        boolean onReleaseBranch = resources.checkIfDefinitelyOnReleaseBranch(upstreamUpperBounds, getCurrentUpperBoundName().get());
+        if (onReleaseBranch) {
+            throw new IllegalArgumentException("Transport version generation cannot run on release branches");
+        }
+
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
-        List<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
+        Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
         String targetDefinitionName = getTargetDefinitionName(resources, referencedNames, changedDefinitionNames);
 
-        List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromUpstream();
-        Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
+        // First check for any unused definitions. This later generation to not get confused by a definition that can't be used.
+        removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitionNames);
 
-        getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
+        Map<Integer, List<IdAndDefinition>> idsByBase = resources.getIdsByBase();
         if (targetDefinitionName.isEmpty()) {
-            resetAllUpperBounds(resources);
+            getLogger().lifecycle("No transport version name detected, resetting upper bounds");
+            resetAllUpperBounds(resources, idsByBase);
         } else {
-            List<TransportVersionId> ids = updateUpperBounds(resources, upstreamUpperBounds, targetUpperBoundNames, targetDefinitionName);
+            getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
+
+            Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
+
+            List<TransportVersionId> ids = updateUpperBounds(
+                resources,
+                upstreamUpperBounds,
+                targetUpperBoundNames,
+                idsByBase,
+                targetDefinitionName
+            );
             // (Re)write the definition file.
             resources.writeDefinition(new TransportVersionDefinition(targetDefinitionName, ids, true));
         }
 
-        removeUnusedNamedDefinitions(resources, referencedNames, changedDefinitionNames);
     }
 
     private List<TransportVersionId> updateUpperBounds(
         TransportVersionResourcesService resources,
         List<TransportVersionUpperBound> existingUpperBounds,
         Set<String> targetUpperBoundNames,
+        Map<Integer, List<IdAndDefinition>> idsByBase,
         String definitionName
     ) throws IOException {
         String currentUpperBoundName = getCurrentUpperBoundName().get();
@@ -130,7 +149,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         List<TransportVersionId> ids = new ArrayList<>();
         boolean stageInGit = getResolveConflict().getOrElse(false);
 
-        TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromUpstream(definitionName);
+        TransportVersionDefinition existingDefinition = resources.getReferableDefinitionFromGitBase(definitionName);
         for (TransportVersionUpperBound existingUpperBound : existingUpperBounds) {
             String upperBoundName = existingUpperBound.name();
 
@@ -145,9 +164,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
                     resources.writeUpperBound(newUpperBound, stageInGit);
                 }
                 ids.add(targetId);
-            } else {
+            } else if (resources.getChangedUpperBoundNames().contains(upperBoundName)) {
                 // Default case: we're not targeting this branch so reset it
-                resources.writeUpperBound(existingUpperBound, false);
+                resetUpperBound(resources, existingUpperBound, idsByBase, definitionName);
             }
         }
 
@@ -158,7 +177,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     private String getTargetDefinitionName(
         TransportVersionResourcesService resources,
         Set<String> referencedNames,
-        List<String> changedDefinitions
+        Set<String> changedDefinitions
     ) {
         if (getDefinitionName().isPresent()) {
             // an explicit name was passed in, so use it
@@ -179,7 +198,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         if (changedDefinitions.isEmpty()) {
             return "";
         } else {
-            String changedDefinitionName = changedDefinitions.getFirst();
+            String changedDefinitionName = changedDefinitions.iterator().next();
             if (referencedNames.contains(changedDefinitionName)) {
                 return changedDefinitionName;
             } else {
@@ -247,16 +266,38 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return upperBoundNames;
     }
 
-    private void resetAllUpperBounds(TransportVersionResourcesService resources) throws IOException {
-        for (TransportVersionUpperBound upperBound : resources.getUpperBoundsFromUpstream()) {
-            resources.writeUpperBound(upperBound, false);
+    private void resetAllUpperBounds(TransportVersionResourcesService resources, Map<Integer, List<IdAndDefinition>> idsByBase)
+        throws IOException {
+        for (String upperBoundName : resources.getChangedUpperBoundNames()) {
+            TransportVersionUpperBound upstreamUpperBound = resources.getUpperBoundFromGitBase(upperBoundName);
+            resetUpperBound(resources, upstreamUpperBound, idsByBase, null);
         }
+    }
+
+    private void resetUpperBound(
+        TransportVersionResourcesService resources,
+        TransportVersionUpperBound upperBound,
+        Map<Integer, List<IdAndDefinition>> idsByBase,
+        String ignoreDefinitionName
+    ) throws IOException {
+        List<IdAndDefinition> idsForUpperBound = idsByBase.get(upperBound.definitionId().base());
+        if (idsForUpperBound == null) {
+            throw new RuntimeException("Could not find base id: " + upperBound.definitionId().base());
+        }
+        IdAndDefinition resetValue = idsForUpperBound.getLast();
+        if (resetValue.definition().name().equals(ignoreDefinitionName)) {
+            // there must be another definition in this base since the ignored definition is new
+            assert idsForUpperBound.size() >= 2;
+            resetValue = idsForUpperBound.get(idsForUpperBound.size() - 2);
+        }
+        var resetUpperBound = new TransportVersionUpperBound(upperBound.name(), resetValue.definition().name(), resetValue.id());
+        resources.writeUpperBound(resetUpperBound, false);
     }
 
     private void removeUnusedNamedDefinitions(
         TransportVersionResourcesService resources,
         Set<String> referencedNames,
-        List<String> changedDefinitions
+        Set<String> changedDefinitions
     ) throws IOException {
         for (String definitionName : changedDefinitions) {
             if (referencedNames.contains(definitionName) == false) {

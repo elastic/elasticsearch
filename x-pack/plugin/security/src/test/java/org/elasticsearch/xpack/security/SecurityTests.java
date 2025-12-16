@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivilegesViolation;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
+import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -240,7 +241,7 @@ public class SecurityTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
-        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null));
+        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null, new CrossClusterAccessSecurityExtension.Provider()));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -278,6 +279,12 @@ public class SecurityTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         constructNewSecurityObject(settings, extensions);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return List.of();
+            }
+        });
         return createComponentsUtil(settings);
     }
 

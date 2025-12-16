@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -26,7 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,7 +71,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                     null,
                     randomInt(10),
                     randomIntBetween(10, 100),
-                    IVF_FORMAT.isEnabled() == false ? null : randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
+                    randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
                     randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                     randomFloat()
                 );
@@ -125,6 +125,9 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             }
         }
         assertNull(source.postFilter());
+
+        // the default `from` is -1, when `extractToSearchSourceBuilder` is run, it should modify this to the default
+        assertEquals(SearchService.DEFAULT_FROM, source.from());
     }
 
     public void testTopDocsQuery() throws IOException {

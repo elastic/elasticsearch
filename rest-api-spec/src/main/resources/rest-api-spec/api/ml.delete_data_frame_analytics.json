@@ -35,6 +35,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "1m",
         "description": "Controls the time to wait until a job is deleted. Defaults to 1 minute"
       }
     }

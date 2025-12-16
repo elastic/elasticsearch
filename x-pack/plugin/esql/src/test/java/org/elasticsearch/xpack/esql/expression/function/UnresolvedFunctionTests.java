@@ -17,8 +17,8 @@ import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests.randomUnresolvedAttribute;
 import static org.elasticsearch.xpack.esql.core.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests.randomUnresolvedAttribute;
 
 public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunction, Expression> {
 

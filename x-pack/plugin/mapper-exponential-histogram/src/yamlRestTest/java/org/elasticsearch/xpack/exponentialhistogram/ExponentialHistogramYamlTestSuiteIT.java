@@ -35,7 +35,12 @@ public class ExponentialHistogramYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("exponential-histogram").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("x-pack-aggregate-metric")
+        .module("x-pack-analytics")
+        .module("exponential-histogram")
+        .module("data-streams")
+        .build();
 
     @Override
     protected String getTestRestCluster() {

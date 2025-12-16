@@ -276,7 +276,7 @@ override sort order settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.order:[asc, asc], size mismatch" }
+  - match: { error.reason: "setting [index.sort.order] requires [index.sort.field] to be configured" }
 
 ---
 override sort missing settings:
@@ -312,7 +312,7 @@ override sort missing settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.missing:[_last, _first], size mismatch" }
+  - match: { error.reason: "setting [index.sort.missing] requires [index.sort.field] to be configured" }
 
 ---
 override sort mode settings:
@@ -348,7 +348,7 @@ override sort mode settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.mode:[MAX, MAX], size mismatch" }
+  - match: { error.reason: "setting [index.sort.mode] requires [index.sort.field] to be configured" }
 
 ---
 override sort field using nested field type in sorting:

@@ -21,7 +21,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -42,57 +44,57 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         private final String name;
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
-        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
-        private final boolean indexed;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+        private final IndexType indexType;
 
         public Builder(
             String name,
             NumericType numericType,
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
-            boolean indexed
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+            IndexType indexType
         ) {
-            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexed);
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexType);
         }
 
         public Builder(
             String name,
             NumericType numericType,
             ValuesSourceType valuesSourceType,
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
-            boolean indexed
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+            IndexType indexType
         ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
-            this.indexed = indexed;
+            this.indexType = indexType;
         }
 
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexed);
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
         }
     }
 
     private final NumericType numericType;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
-    protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
-    protected final boolean indexed;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+    protected final IndexType indexType;
 
     public SortedNumericIndexFieldData(
         String fieldName,
         NumericType numericType,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
-        boolean indexed
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+        IndexType indexType
     ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
-        this.indexed = indexed;
+        this.indexType = indexType;
     }
 
     @Override
@@ -111,8 +113,8 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     }
 
     @Override
-    public boolean isIndexed() {
-        return indexed;
+    public IndexType indexType() {
+        return indexType;
     }
 
     @Override
@@ -177,9 +179,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
         private final LeafReader reader;
         private final String fieldName;
-        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
 
-        NanoSecondFieldData(LeafReader reader, String fieldName, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
+        NanoSecondFieldData(LeafReader reader, String fieldName, ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory) {
             super(0L);
             this.reader = reader;
             this.fieldName = fieldName;
@@ -187,13 +189,13 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public SortedNumericDocValues getLongValues() {
+        public SortedNumericLongValues getLongValues() {
             return convertNumeric(getLongValuesAsNanos(), DateUtils::toMilliSeconds);
         }
 
-        public SortedNumericDocValues getLongValuesAsNanos() {
+        public SortedNumericLongValues getLongValuesAsNanos() {
             try {
-                return DocValues.getSortedNumeric(reader, fieldName);
+                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, fieldName));
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
@@ -225,9 +227,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     static final class SortedNumericLongFieldData extends LeafLongFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
 
-        SortedNumericLongFieldData(LeafReader reader, String field, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
+        SortedNumericLongFieldData(LeafReader reader, String field, ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory) {
             super(0L);
             this.reader = reader;
             this.field = field;
@@ -235,9 +237,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public SortedNumericDocValues getLongValues() {
+        public SortedNumericLongValues getLongValues() {
             try {
-                return DocValues.getSortedNumeric(reader, field);
+                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, field));
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }

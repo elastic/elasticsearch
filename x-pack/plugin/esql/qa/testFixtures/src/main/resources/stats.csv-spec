@@ -2299,34 +2299,6 @@ M
 null
 ;
 
-docsStatsMvGroup
-// tag::mv-group[]
-ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC
-// end::mv-group[]
-;
-
-// tag::mv-group-result[]
-MIN(i):integer | a:keyword
-             1 | a
-             1 | b
-// end::mv-group-result[]
-;
-
-docsStatsMultiMvGroup
-// tag::multi-mv-group[]
-ROW i=1, a=["a", "b"], b=[2, 3] | STATS MIN(i) BY a, b | SORT a ASC, b ASC
-// end::multi-mv-group[]
-;
-
-// tag::multi-mv-group-result[]
-MIN(i):integer | a:keyword | b:integer
-             1 | a         | 2
-             1 | a         | 3
-             1 | b         | 2
-             1 | b         | 3
-// end::multi-mv-group-result[]
-;
-
 statsByConstant#[skip:-8.14.1,reason:implemented in 8.14]
 from employees
 | stats m = max(salary), a = round(avg(salary)) by 0
@@ -2988,13 +2960,29 @@ required_capability: std_dev
 FROM employees
 | STATS std_dev_height = STD_DEV(height)
 // end::stdev[]
-| EVAL std_dev_height = ROUND(std_dev_height, 10)
+| EVAL std_dev_height = ROUND(std_dev_height, 7)
 ;
 
 // tag::stdev-result[]
 std_dev_height:double
-0.2063704436
+0.2063704
 // end::stdev-result[]
+;
+
+varianceSimple
+required_capability: variance_stddev_over_time
+
+// tag::variance[]
+FROM employees
+| STATS var_height = VARIANCE(height)
+// end::variance[]
+| EVAL var_height = ROUND(var_height, 7)
+;
+
+// tag::variance-result[]
+var_height:double
+0.0425888
+// end::variance-result[]
 ;
 
 stdDeviationNested
@@ -3003,36 +2991,74 @@ required_capability: std_dev
 FROM employees
 | STATS stddev_salary_change = STD_DEV(MV_MAX(salary_change))
 // end::docsStatsStdDevNestedExpression[]
-| EVAL stddev_salary_change = ROUND(stddev_salary_change, 10)
+| EVAL stddev_salary_change = ROUND(stddev_salary_change, 5)
 ;
 
 // tag::docsStatsStdDevNestedExpression-result[]
 stddev_salary_change:double
-6.8758295929
+6.87583
 // end::docsStatsStdDevNestedExpression-result[]
 ;
 
+
+varianceNested
+required_capability: variance_stddev_over_time
+
+# tag::variance[]
+FROM employees
+| STATS var_salary_change = VARIANCE(MV_MAX(salary_change))
+# end::variance[]
+| EVAL var_salary_change = ROUND(var_salary_change, 5)
+;
+
+# tag::variance-result[]
+var_salary_change:double
+47.27703
+# end::variance-result[]
+;
 
 stdDeviationWithLongs
 required_capability: std_dev
 FROM employees
 | STATS std_dev = STD_DEV(avg_worked_seconds)
-| EVAL std_dev = ROUND(std_dev, 10)
+| EVAL std_dev = ROUND(std_dev, 0)
 ;
 
 std_dev:double
-5.76010425971634E7
+5.7601043E7
+;
+
+varianceWithLongs
+required_capability: variance_stddev_over_time
+FROM employees
+| STATS var = variance(avg_worked_seconds)
+| EVAL var = ROUND(var, 7)
+;
+
+var:double
+3.317880108280233E15
 ;
 
 stdDeviationWithInts
 required_capability: std_dev
 FROM employees
 | STATS std_dev = STD_DEV(salary)
-| EVAL std_dev = ROUND(std_dev, 9)
+| EVAL std_dev = ROUND(std_dev, 5)
 ;
 
 std_dev:double
-13765.125502788
+13765.1255
+;
+
+varianceWithInts
+required_capability: variance_stddev_over_time
+FROM employees
+| STATS var = STD_VAR(salary)
+| EVAL var = ROUND(var, 5)
+;
+
+var:double
+1.894786801075E8
 ;
 
 stdDeviationConstantValue
@@ -3050,18 +3076,18 @@ stdDeviationGroupedDoublesOnly
 required_capability: std_dev
 FROM employees
 | STATS std_dev = STD_DEV(height) BY languages
-| EVAL std_dev = ROUND(std_dev, 10)
+| EVAL std_dev = ROUND(std_dev, 5)
 | SORT languages asc
 | KEEP std_dev, languages
 ;
 
 std_dev:double | languages:integer
-0.2210640933   | 1
-0.2279719087   | 2
-0.1889307008   | 3
-0.14656141     | 4
-0.1773386015   | 5
-0.2486543786   | null
+0.22106        | 1
+0.22797        | 2
+0.18893        | 3
+0.14656        | 4
+0.17734        | 5
+0.24865        | null
 ;
 
 stdDeviationGroupedAllTypes
@@ -3073,24 +3099,24 @@ FROM employees
     int_std_dev = STD_DEV(salary),
     long_std_dev = STD_DEV(avg_worked_seconds)
   BY languages
-| EVAL double_std_dev = ROUND(double_std_dev, 10), int_std_dev = ROUND(int_std_dev, 10), long_std_dev = ROUND(long_std_dev, 10)
+| EVAL double_std_dev = ROUND(double_std_dev, 5), int_std_dev = ROUND(int_std_dev, 5), long_std_dev = ROUND(long_std_dev, 5)
 | SORT languages asc
 | KEEP double_std_dev, int_std_dev, long_std_dev, languages
 ;
 
-double_std_dev:double | int_std_dev:double | long_std_dev:double  | languages:integer
-0.2210640933          | 15166.2441787309   | 5.1998715922156096E7 | 1
-0.2279719087          | 12139.6109937812   | 5.309085506583288E7  | 2
+double_std_dev:double | int_std_dev:double | long_std_dev:double | languages:integer
+0.22106               | 15166.24418        | 5.199871592216E7    | 1
+0.22797               | 12139.61099        | 5.309085506583E7    | 2
 ;
 
 stdDeviationNoRows
 required_capability: std_dev
 FROM employees
 | WHERE languages IS null
-| STATS STD_DEV(languages)
+| STATS sd=STD_DEV(languages)
 ;
 
-STD_DEV(languages):double
+sd:double
 null
 ;
 
@@ -3098,11 +3124,11 @@ stdDevMultiValue
 required_capability: std_dev
 FROM employees
 | STATS std_dev = STD_DEV(salary_change)
-| EVAL std_dev = ROUND(std_dev, 10)
+| EVAL std_dev = ROUND(std_dev, 5)
 ;
 
 std_dev:double
-7.0622267887
+7.06223
 ;
 
 stdDevFilter
@@ -3112,28 +3138,28 @@ FROM employees
 , less_than = STD_DEV(salary_change) WHERE languages <= 3
 , salary = STD_DEV(salary * 2)
 , count = COUNT(*) BY gender
-| EVAL greater_than = ROUND(greater_than, 10)
-, less_than = ROUND(less_than, 10)
-, salary = ROUND(salary, 10)
+| EVAL greater_than = ROUND(greater_than, 5)
+, less_than = ROUND(less_than, 5)
+, salary = ROUND(salary, 5)
 | SORT gender asc
 | KEEP greater_than, less_than, salary, count, gender
 ;
 
-greater_than:double | less_than:double | salary:double    | count:long | gender:keyword
-6.4543266953        | 7.5778678879     | 29045.7706669697 | 33         | F
-6.9752323339        | 6.6048070755     | 26171.3311096413 | 57         | M
-6.9492070979        | 7.1272294758     | 27921.2207362071 | 10         | null
+greater_than:double | less_than:double | salary:double | count:long | gender:keyword
+6.45433             | 7.57787          | 29045.77067   | 33         | F
+6.97523             | 6.60481          | 26171.33111   | 57         | M
+6.94921             | 7.12723          | 27921.22074   | 10         | null
 ;
 
 stdDevRow
 required_capability: std_dev
 ROW a = [1,2,3], b = 5
 | STATS std_dev_a = STD_DEV(a), std_dev_b = STD_DEV(b)
-| EVAL std_dev_a = ROUND(std_dev_a, 10), std_dev_b = ROUND(std_dev_b, 10)
+| EVAL std_dev_a = ROUND(std_dev_a, 5), std_dev_b = ROUND(std_dev_b, 5)
 ;
 
 std_dev_a:double | std_dev_b:double
-0.8164965809     | 0.0
+0.8165           | 0.0
 ;
 
 resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
@@ -3162,7 +3188,7 @@ m:datetime               | x:integer | d:boolean
 
 sumWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 FROM employees
 | EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(1)
@@ -3197,7 +3223,7 @@ w_avg1:double | w_avg2:double | w_avg3:double | w_avg4:double | w_avg5:double | 
 
 maxWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 ROW x = [1, 2, 3, 4, 5]
 | MV_EXPAND x
@@ -3214,7 +3240,7 @@ max1:double | max2:double | max3:integer | max4:integer
 
 minWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 ROW x = [1, 2, 3, 4, 5]
 | MV_EXPAND x
@@ -3231,7 +3257,7 @@ min1:double | min2:double | min3:integer | min4:integer
 
 countWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 ROW x = [1, 2, 3, 4, 5]
 | MV_EXPAND x
@@ -3267,7 +3293,7 @@ count1:long | count2:long | count3:long | count4:long
 
 avgWithConditions
 required_capability: stats_with_filtered_surrogate_fixed
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 
 ROW x = [1, 2, 3, 4, 5]
 | MV_EXPAND x
@@ -3338,3 +3364,102 @@ FROM employees
 min1:integer | min2:integer   | max1:integer | max2:integer
 10011        | [10011, 10012] | 10079        | [10079, 10078]
 ;
+
+sumRowMany
+// tag::mv-group[]
+ROW price = 10, color = ["blue", "pink", "yellow"]
+| STATS SUM(price) BY color
+// end::mv-group[]
+| SORT color ASC
+;
+
+// tag::mv-group-result[]
+SUM(price):long | color:keyword
+             10 | blue
+             10 | pink
+             10 | yellow
+// end::mv-group-result[]
+;
+
+sumRowManyTwo
+// tag::multi-mv-group[]
+ROW price = 10, color = ["blue", "pink", "yellow"], size = ["s", "m", "l"]
+| STATS SUM(price) BY color, size
+// end::multi-mv-group[]
+| SORT color ASC, size ASC
+;
+
+// tag::multi-mv-group-result[]
+SUM(price):long | color:keyword | size:keyword
+             10 | blue          | l
+             10 | blue          | m
+             10 | blue          | s
+             10 | pink          | l
+             10 | pink          | m
+             10 | pink          | s
+             10 | yellow        | l
+             10 | yellow        | m
+             10 | yellow        | s
+// end::multi-mv-group-result[]
+;
+
+valuesRowMany
+// tag::mv-group-values[]
+ROW color = ["blue", "pink", "yellow"]
+| STATS VALUES(color) BY color
+// end::mv-group-values[]
+| SORT color ASC
+;
+
+// tag::mv-group-values-result[]
+VALUES(color):keyword | color:keyword
+ [blue, pink, yellow] | blue
+ [blue, pink, yellow] | pink
+ [blue, pink, yellow] | yellow
+// end::mv-group-values-result[]
+;
+
+valuesRowManyExpand
+// tag::mv-group-values-expand[]
+ROW color = ["blue", "pink", "yellow"]
+| MV_EXPAND color
+| STATS VALUES(color) BY color
+// end::mv-group-values-expand[]
+| SORT color ASC
+;
+
+// tag::mv-group-values-expand-result[]
+VALUES(color):keyword | color:keyword
+                 blue | blue
+                 pink | pink
+               yellow | yellow
+// end::mv-group-values-expand-result[]
+;
+
+filterOrdinalValues
+required_capability: fix_filter_ordinals
+from employees 
+| MV_EXPAND job_positions
+| WHERE job_positions != "Purchase Manager"
+| STATS employees=count(*) BY job_positions
+| SORT job_positions
+| LIMIT 1000
+;
+
+employees:long | job_positions:keyword
+18             | Accountant
+13             | Architect
+11             | Business Analyst
+13             | Data Scientist
+10             | Head Human Resources
+15             | Internship
+14             | Junior Developer
+20             | Principal Support Engineer
+13             | Python Developer
+15             | Reporting Analyst
+20             | Senior Python Developer
+15             | Senior Team Lead
+11             | Support Engineer
+15             | Tech Lead    
+;
+

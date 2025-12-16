@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "instance": {
+      "type": "keyword"
+    },
+    "responseTime": {
+      "type": "exponential_histogram"
+    }
+  }
+}

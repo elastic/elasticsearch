@@ -388,13 +388,88 @@ setup:
       indices.get:
         index: test
 
-  # Assert rollup index has been force merged
+---
+"Downsample index sample last values":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsample.sampling_mode.last_value" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Last value sampling method was added in 9.3
   - do:
-      indices.segments:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body:  >
+          {
+            "fixed_interval": "1h",
+            "sampling_method": "last_value"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+  - match:  { hits.hits.0._source._doc_count: 2 }
+  - match:  { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match:  { hits.hits.0._source.metricset: pod }
+
+  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-counter: 0 }
+  - match:  { hits.hits.0._source.k8s\.pod\.scaled-counter: 0.00 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge: 101 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge: 101.0 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx: 1434577921 }
+  - match:  { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.56" }
+  - match:  { hits.hits.0._source.k8s\.pod\.created_at: "2021-04-28T19:43:00.000Z" }
+  - match:  { hits.hits.0._source.k8s\.pod\.number_of_containers: 1 }
+  - match:  { hits.hits.0._source.k8s\.pod\.tags: ["backend", "test", "us-west2"] }
+  - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
+  - is_false: hits.hits.0._source.k8s\.pod\.running
+
+  # Assert rollup index settings
+  - do:
+      indices.get_settings:
         index: test-downsample
 
-  - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
-  - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}
+  - match: { test-downsample.settings.index.mode: time_series }
+  - match: { test-downsample.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
+  - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
+  - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
+  - match: { test-downsample.settings.index.downsample.source.name: test }
+  - match: { test-downsample.settings.index.downsample.method: last_value }
+  - match: { test-downsample.settings.index.number_of_shards: "1" }
+
+  # Assert rollup index mapping
+  - do:
+      indices.get_mapping:
+        index: test-downsample
+
+  - match: { test-downsample.mappings.properties.@timestamp.type: date }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.type: integer }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.type: long }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.type: scaled_float }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.scaling_factor: 100 }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.type: scaled_float }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.uid.type: keyword }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
+
+
+  # Assert source index has not been deleted
+  - do:
+      indices.get:
+        index: test
 
 ---
 "Downsample non-existing index":
@@ -869,6 +944,69 @@ setup:
         body: >
           {
             "fixed_interval": "90m"
+          }
+
+---
+"Downsample a downsampled index with wrong sampling methods":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsample.sampling_mode.last_value" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Last value sampling method was added in 9.3
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample-default
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample-last-value
+        body: >
+          {
+            "fixed_interval": "1h",
+            "sampling_method": "last_value"
+          }
+  - is_true: acknowledged
+
+  - do:
+      catch: /Downsampling method \[last_value\] is not compatible with the source index downsampling method \[aggregate\]/
+      indices.downsample:
+        index: test-downsample-default
+        target_index: test-downsample-2
+        body: >
+          {
+            "fixed_interval": "2h",
+            "sampling_method": "last_value"
+          }
+
+  - do:
+      catch: /Downsampling method \[aggregate\] is not compatible with the source index downsampling method \[last_value\]/
+      indices.downsample:
+        index: test-downsample-last-value
+        target_index: test-downsample-2
+        body: >
+          {
+            "fixed_interval": "2h"
+          }
+
+  - do:
+      catch: /Downsampling method \[aggregate\] is not compatible with the source index downsampling method \[last_value\]/
+      indices.downsample:
+        index: test-downsample
+        target_index: test-downsample-2
+        body: >
+          {
+            "fixed_interval": "2h",
+            "sampling_method": "aggregate"
           }
 
 ---

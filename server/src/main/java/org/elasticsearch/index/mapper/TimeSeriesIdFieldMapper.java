@@ -14,7 +14,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
@@ -60,7 +61,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static TimeSeriesIdFieldMapper getInstance(MappingParserContext context) {
-        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX)
+        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
             && context.getIndexSettings().useDocValuesSkipper();
         return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
     }
@@ -94,12 +95,17 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
-            super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.docValuesOnly(), false, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
 
         @Override
@@ -135,8 +141,17 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return TimeSeriesIdFieldMapper.encodeTsid(binaryValue);
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name());
         }
     }
 
@@ -149,7 +164,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        assert fieldType().isIndexed() == false;
+        assert fieldType().indexType().hasOnlyDocValues();
 
         final BytesRef timeSeriesId;
         final RoutingPathFields routingPathFields;
@@ -161,12 +176,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 throw new MapperException("Too many dimension fields [" + size + "], max [" + limit + "] dimension fields allowed");
             }
             timeSeriesId = buildLegacyTsid(routingPathFields).toBytesRef();
-        } else if (context.getTsid() != null) {
-            routingPathFields = null;
-            timeSeriesId = context.getTsid();
-        } else {
-            routingPathFields = (RoutingPathFields) context.getRoutingFields();
+        } else if (context.getRoutingFields() instanceof RoutingPathFields routingPathFieldsFromContext) {
+            routingPathFields = routingPathFieldsFromContext;
             timeSeriesId = routingPathFields.buildHash().toBytesRef();
+        } else {
+            routingPathFields = null;
+            assert context.getTsid() != null;
+            timeSeriesId = context.getTsid();
         }
 
         if (this.useDocValuesSkipper) {
@@ -175,7 +191,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
         }
 
-        IndexRouting.ExtractFromSource.RoutingHashBuilder routingBuilder;
+        RoutingHashBuilder routingBuilder;
         if (getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID) && routingPathFields != null) {
             // For legacy indices, we need to create the routing hash from the routing path fields.
             routingBuilder = routingPathFields.routingBuilder();

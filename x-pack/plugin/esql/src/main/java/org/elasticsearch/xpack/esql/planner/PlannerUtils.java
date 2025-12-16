@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -115,11 +116,22 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static PhysicalPlan reductionPlan(PhysicalPlan plan) {
+    public sealed interface PlanReduction {}
+
+    public enum SimplePlanReduction implements PlanReduction {
+        NO_REDUCTION,
+    }
+
+    /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after TopN. */
+    public record TopNReduction(PhysicalPlan plan) implements PlanReduction {}
+
+    public record ReducedPlan(PhysicalPlan plan) implements PlanReduction {}
+
+    public static PlanReduction reductionPlan(PhysicalPlan plan) {
         // find the logical fragment
         var fragments = plan.collectFirstChildren(p -> p instanceof FragmentExec);
         if (fragments.isEmpty()) {
-            return null;
+            return SimplePlanReduction.NO_REDUCTION;
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
 
@@ -127,15 +139,20 @@ public class PlannerUtils {
         // See also: https://github.com/elastic/elasticsearch/pull/131945/files#r2235572935
         final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
-            return null;
+            return SimplePlanReduction.NO_REDUCTION;
         }
-        final var pipelineBreaker = pipelineBreakers.getFirst();
+        final LogicalPlan pipelineBreaker = pipelineBreakers.getFirst();
         final LocalMapper mapper = new LocalMapper();
-        PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
-        if (reducePlan instanceof AggregateExec agg) {
-            reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
-        }
-        return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
+        int estimatedRowSize = fragment.estimatedRowSize();
+        return switch (mapper.map(pipelineBreaker)) {
+            case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
+            case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
+        };
+    }
+
+    private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
+        return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
     }
 
     /**
@@ -180,18 +197,18 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(
-        PhysicalSettings physicalSettings,
+        PlannerSettings plannerSettings,
         EsqlFlags flags,
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan
     ) {
-        return localPlan(physicalSettings, flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
     }
 
     public static PhysicalPlan localPlan(
-        PhysicalSettings physicalSettings,
+        PlannerSettings plannerSettings,
         EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
@@ -200,7 +217,7 @@ public class PlannerUtils {
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(physicalSettings, flags, configuration, foldCtx, searchStats)
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);
@@ -354,6 +371,7 @@ public class PlannerUtils {
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
             case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
+            case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case DENSE_VECTOR -> ElementType.FLOAT;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);

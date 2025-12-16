@@ -171,7 +171,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
 
                         List<Expression> existingFilters = new ArrayList<>(Predicates.splitAnd(existingRightFilter.condition()));
                         int sizeBefore = existingFilters.size();
-                        rightPushableFilters.stream().filter(e -> existingFilters.contains(e) == false).forEach(existingFilters::add);
+                        rightPushableFilters.stream()
+                            .filter(e -> existingFilters.stream().anyMatch(x -> x.semanticEquals(e)) == false)
+                            .forEach(existingFilters::add);
                         if (sizeBefore != existingFilters.size()) {
                             right = existingRightFilter.with(Predicates.combineAnd(existingFilters));
                             join = (Join) join.replaceRight(right);

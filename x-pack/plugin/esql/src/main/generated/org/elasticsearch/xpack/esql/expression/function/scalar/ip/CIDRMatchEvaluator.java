@@ -91,28 +91,28 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         cidrsScratch[i] = new BytesRef();
       }
       position: for (int p = 0; p < positionCount; p++) {
-        if (ipBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (ipBlock.getValueCount(p) != 1) {
-          if (ipBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (ipBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         for (int i = 0; i < cidrsBlocks.length; i++) {
-          if (cidrsBlocks[i].isNull(p)) {
-            result.appendNull();
-            continue position;
-          }
-          if (cidrsBlocks[i].getValueCount(p) != 1) {
-            if (cidrsBlocks[i].getValueCount(p) > 1) {
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-            }
-            result.appendNull();
-            continue position;
+          switch (cidrsBlocks[i].getValueCount(p)) {
+            case 0:
+                result.appendNull();
+                continue position;
+            case 1:
+                break;
+            default:
+                warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                result.appendNull();
+                continue position;
           }
         }
         BytesRef ip = ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch);

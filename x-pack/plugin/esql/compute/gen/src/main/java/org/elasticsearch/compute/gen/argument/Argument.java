@@ -13,6 +13,7 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
 
 import java.util.List;
@@ -22,6 +23,9 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
+import static org.elasticsearch.compute.gen.Methods.getMethod;
+import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.vectorType;
 import static org.elasticsearch.compute.gen.argument.StandardArgument.isBlockType;
 
 /**
@@ -41,6 +45,12 @@ public interface Argument {
                 Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
             );
         }
+
+        Position position = v.getAnnotation(Position.class);
+        if (position != null) {
+            return new PositionArgument(type, name);
+        }
+
         if (type instanceof ClassName c
             && c.simpleName().equals("Builder")
             && c.enclosingClassName() != null
@@ -57,11 +67,62 @@ public interface Argument {
         return new StandardArgument(type, name);
     }
 
+    default String blockName() {
+        return paramName(true);
+    }
+
+    default String vectorName() {
+        return paramName(false);
+    }
+
+    default String valueName() {
+        return name() + "Value";
+    }
+
+    default String startName() {
+        return name() + "Start";
+    }
+
+    default String endName() {
+        return name() + "End";
+    }
+
+    default String offsetName() {
+        return name() + "Offset";
+    }
+
+    default ClassName scratchType() {
+        return Types.scratchType(type().toString());
+    }
+
+    default String scratchName() {
+        if (scratchType() == null) {
+            throw new IllegalStateException("can't build scratch for " + type());
+        }
+
+        return name() + "Scratch";
+    }
+
+    String name();
+
+    TypeName type();
+
+    default TypeName elementType() {
+        return type();
+    }
+
     /**
      * Type containing the actual data for a page of values for this field. Usually a
      * Block or Vector, but for fixed fields will be the original fixed type.
      */
     TypeName dataType(boolean blockStyle);
+
+    /**
+     * False if and only if there is a block backing this parameter and that block does not support access as a vector. Otherwise true.
+     */
+    default boolean supportsVectorReadAccess() {
+        return true;
+    }
 
     /**
      * The parameter passed to the real evaluation function
@@ -114,7 +175,7 @@ public interface Argument {
      * call the block flavored evaluator if this is a block. Noop if the
      * parameter is {@link Fixed}.
      */
-    void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval);
+    void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval);
 
     /**
      * Create any scratch structures needed by {@code eval}.
@@ -136,6 +197,27 @@ public interface Argument {
      * unpacks the values into an array, otherwise it just reads to a local.
      */
     void read(MethodSpec.Builder builder, boolean blockStyle);
+
+    /**
+     * Read the value of this parameter to a local variable, by calling the accessor's typed get method and passing necessary params.
+     */
+    default void read(MethodSpec.Builder builder, String accessor, String firstParam) {
+        String params = firstParam;
+        if (scratchType() != null) {
+            params += ", " + scratchName();
+        }
+        builder.addStatement("$T $L = $L.$L($L)", type(), valueName(), accessor, getMethod(type()), params);
+    }
+
+    /**
+     * Adds the parameter declaration for this argument to the method spec.
+     */
+    default void declareProcessParameter(MethodSpec.Builder builder, boolean blockStyle) {
+        TypeName typeName = elementType();
+        ClassName parameterType = blockStyle ? blockType(typeName) : vectorType(typeName);
+        String parameterName = blockStyle ? blockName() : vectorName();
+        builder.addParameter(parameterType, parameterName);
+    }
 
     /**
      * Build the invocation of the process method for this parameter.

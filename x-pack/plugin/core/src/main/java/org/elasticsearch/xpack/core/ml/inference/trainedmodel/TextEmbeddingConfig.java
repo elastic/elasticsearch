@@ -180,7 +180,7 @@ public class TextEmbeddingConfig implements NlpConfig {
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return TransportVersions.V_8_0_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

@@ -41,7 +41,8 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // users
             randomIntBetween(0, 3), // roles
             randomIntBetween(0, 1), // jwtCacheSize
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false // jwkSetReloadEnabled
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         final User user = randomUser(jwtIssuerAndRealm.issuer());
@@ -62,7 +63,8 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
             randomIntBetween(1, 3), // users
             randomIntBetween(0, 3), // roles
             randomIntBetween(0, 1), // jwtCacheSize
-            randomBoolean() // createHttpsServer
+            randomBoolean(), // createHttpsServer
+            false
         );
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
         final User user = randomUser(jwtIssuerAndRealm.issuer());
@@ -73,9 +75,18 @@ public class JwtRealmAuthenticateAccessTokenTypeTests extends JwtRealmTestCase {
     }
 
     @Override
-    protected JwtRealmSettingsBuilder createJwtRealmSettingsBuilder(JwtIssuer jwtIssuer, int authzCount, int jwtCacheSize)
-        throws Exception {
-        final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = super.createJwtRealmSettingsBuilder(jwtIssuer, authzCount, jwtCacheSize);
+    protected JwtRealmSettingsBuilder createJwtRealmSettingsBuilder(
+        JwtIssuer jwtIssuer,
+        int authzCount,
+        int jwtCacheSize,
+        final boolean jwkSetReloadEnabled
+    ) throws Exception {
+        final JwtRealmSettingsBuilder jwtRealmSettingsBuilder = super.createJwtRealmSettingsBuilder(
+            jwtIssuer,
+            authzCount,
+            jwtCacheSize,
+            false
+        );
         final String realmName = jwtRealmSettingsBuilder.name();
         final Settings.Builder settingsBuilder = jwtRealmSettingsBuilder.settingsBuilder();
         settingsBuilder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE), "access_token")

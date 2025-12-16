@@ -29,4 +29,9 @@ public record FullyQualifiedInferenceId(String clusterAlias, String inferenceId)
         out.writeString(clusterAlias);
         out.writeString(inferenceId);
     }
+
+    @Override
+    public String toString() {
+        return "{clusterAlias=" + clusterAlias + ", inferenceId=" + inferenceId + "}";
+    }
 }

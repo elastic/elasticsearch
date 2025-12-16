@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -184,11 +183,25 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         | EVAL ip = TO_IP(host), x = TO_STRING(host), y = TO_STRING(host)
                         | INLINE STATS MAX(id)
                         """,
-                    Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINE STATS", 1) : Collections.emptyMap(),
-                    Build.current().isSnapshot()
+                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
+                        ? Map.of("FROM", 1, "EVAL", 1, "INLINE STATS", 1)
+                        : Collections.emptyMap(),
+                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
                         ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
                         : Collections.emptyMap(),
-                    Build.current().isSnapshot()
+                    EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx, (FROM idx | WHERE host =="127.0.0.1")
+                        | WHERE id > 10
+                        """,
+                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
+                        ? Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2)
+                        : Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
                 ) }
         );
     }

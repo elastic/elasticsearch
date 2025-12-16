@@ -176,6 +176,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
 
+    public interface VersionFeaturesPredicate {
+        boolean test(Version featureVersion, boolean canMatchAnyNode);
+    }
+
     private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
 
     private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
@@ -364,6 +368,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return testFeatureService != ALL_FEATURES;
     }
 
+    /**
+     * Whether the old cluster version is not of the released versions, but a detached build.
+     * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
+     */
+    protected static boolean isOldClusterDetachedVersion() {
+        return System.getProperty("tests.bwc.refspec.main") != null;
+    }
+
     @BeforeClass
     public static void initializeProjectIds() {
         // The active project-id is slightly longer, and has a fixed prefix so that it's easier to pick in error messages etc.
@@ -438,13 +450,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
             nodesVersions = Collections.unmodifiableSet(versions);
-
-            var semanticNodeVersions = nodesVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-            assert semanticNodeVersions.isEmpty() == false || serverless;
-            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
+            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), fromSemanticVersions(nodesVersions));
 
             configureProjects();
         }
@@ -459,9 +465,9 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
-        Set<Version> semanticNodeVersions
+        VersionFeaturesPredicate versionFeaturesPredicate
     ) {
-        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
+        return new ESRestTestFeatureService(versionFeaturesPredicate, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -2576,6 +2582,27 @@ public abstract class ESRestTestCase extends ESTestCase {
         return Optional.empty();
     }
 
+    public static VersionFeaturesPredicate fromSemanticVersions(Set<String> nodesVersions) {
+        Set<Version> semanticNodeVersions = nodesVersions.stream()
+            .map(ESRestTestCase::parseLegacyVersion)
+            .flatMap(Optional::stream)
+            .collect(Collectors.toSet());
+        if (semanticNodeVersions.isEmpty()) {
+            // Nodes do not have a semantic version (e.g. serverless).
+            // We assume the cluster is on the "latest version", and all is supported.
+            return ((featureVersion, canMatchAnyNode) -> true);
+        }
+
+        return (featureVersion, canMatchAnyNode) -> {
+            if (canMatchAnyNode) {
+                return semanticNodeVersions.stream().anyMatch(nodeVersion -> nodeVersion.onOrAfter(featureVersion));
+            } else {
+                return semanticNodeVersions.isEmpty() == false
+                    && semanticNodeVersions.stream().allMatch(nodeVersion -> nodeVersion.onOrAfter(featureVersion));
+            }
+        };
+    }
+
     /**
      * Wait for the license to be applied and active. The specified admin client is used to check the license and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give some time to the License to be applied on nodes.
@@ -2586,6 +2613,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void waitForActiveLicense(final RestClient restClient) throws Exception {
         assertBusy(() -> {
             final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+            request.addParameter("categories", "license");
             request.setOptions(RequestOptions.DEFAULT.toBuilder());
 
             final Response response = restClient.performRequest(request);

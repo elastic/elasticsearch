@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -41,7 +40,6 @@ import java.util.Set;
  */
 public class PerFieldFormatSupplier {
 
-    static final FeatureFlag SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT = new FeatureFlag("seqno_field_use_tsdb_doc_values_format");
     private static final Set<String> INCLUDE_META_FIELDS;
 
     static {
@@ -51,9 +49,7 @@ public class PerFieldFormatSupplier {
         Set<String> includeMetaField = new HashSet<>(3);
         includeMetaField.add(TimeSeriesIdFieldMapper.NAME);
         includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
-        if (SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled()) {
-            includeMetaField.add(SeqNoFieldMapper.NAME);
-        }
+        includeMetaField.add(SeqNoFieldMapper.NAME);
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
@@ -75,9 +71,9 @@ public class PerFieldFormatSupplier {
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
 
         if (mapperService != null
-            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
+            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)
             && mapperService.getIndexSettings().getMode().useDefaultPostingsFormat()) {
-            defaultPostingsFormat = Elasticsearch900Lucene101Codec.DEFAULT_POSTINGS_FORMAT;
+            defaultPostingsFormat = Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
         } else {
             // our own posting format using PFOR
             defaultPostingsFormat = es812PostingsFormat;
@@ -124,7 +120,7 @@ public class PerFieldFormatSupplier {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat);
+                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings());
             }
         }
         return knnVectorsFormat;
@@ -143,20 +139,12 @@ public class PerFieldFormatSupplier {
         }
 
         return mapperService != null
-            && (isTimeSeriesModeIndex() || isLogsModeIndex())
+            && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 
     private boolean excludeFields(String fieldName) {
         return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
-    }
-
-    private boolean isTimeSeriesModeIndex() {
-        return mapperService != null && IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
-    }
-
-    private boolean isLogsModeIndex() {
-        return mapperService != null && IndexMode.LOGSDB == mapperService.getIndexSettings().getMode();
     }
 
 }

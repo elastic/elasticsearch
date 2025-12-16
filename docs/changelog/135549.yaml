@@ -1,0 +1,5 @@
+pr: 135549
+summary: Add time range bucketing attribute to APM took time latency metrics
+area: Search
+type: enhancement
+issues: []

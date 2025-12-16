@@ -33,6 +33,7 @@
     "params": {
       "refresh": {
         "type": "boolean",
+        "default": true,
         "description": "Refresh search analyzers to update synonyms"
       }
     },

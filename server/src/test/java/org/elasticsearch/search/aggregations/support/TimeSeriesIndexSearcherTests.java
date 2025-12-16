@@ -43,7 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+import static org.elasticsearch.index.IndexSortConfig.IndexSortConfigDefaults.TIME_SERIES_SORT;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class TimeSeriesIndexSearcherTests extends ESTestCase {

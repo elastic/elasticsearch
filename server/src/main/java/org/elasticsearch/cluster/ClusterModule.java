@@ -9,7 +9,9 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
+import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
@@ -270,6 +272,7 @@ public class ClusterModule extends AbstractModule {
         registerProjectCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
         registerProjectCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
         registerProjectCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
+        registerProjectCustom(entries, SamplingMetadata.TYPE, SamplingMetadata::new, SamplingMetadata::readDiffFrom);
         // Project scoped persistent tasks
         registerProjectCustom(
             entries,
@@ -319,6 +322,9 @@ public class ClusterModule extends AbstractModule {
         // Streams
         registerProjectCustom(entries, StreamsMetadata.TYPE, StreamsMetadata::new, StreamsMetadata::readDiffFrom);
 
+        // Actions
+        entries.addAll(ActionModule.getNamedWriteables());
+
         return entries;
     }
 
@@ -340,6 +346,13 @@ public class ClusterModule extends AbstractModule {
         );
         entries.add(
             new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(SamplingMetadata.TYPE),
+                SamplingMetadata::fromXContent
+            )
         );
         // Project scoped persistent tasks
         entries.add(
@@ -397,6 +410,13 @@ public class ClusterModule extends AbstractModule {
                 Metadata.ProjectCustom.class,
                 new ParseField(StreamsMetadata.TYPE),
                 StreamsMetadata::fromXContent
+            )
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(RegisteredPolicySnapshots.TYPE),
+                RegisteredPolicySnapshots::parse
             )
         );
         return entries;

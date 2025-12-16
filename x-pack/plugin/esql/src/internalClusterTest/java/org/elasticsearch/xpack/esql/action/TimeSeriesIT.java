@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -29,10 +30,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -572,15 +576,37 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 assertThat(dataProfiles, hasSize(1));
                 List<OperatorStatus> ops = dataProfiles.get(0).operators();
-                assertThat(ops, hasSize(5));
+                assertThat(ops, hasSize(8));
                 assertThat(ops.get(0).operator(), containsString("LuceneSourceOperator"));
                 assertThat(ops.get(0).status(), Matchers.instanceOf(LuceneSourceOperator.Status.class));
                 LuceneSourceOperator.Status status = (LuceneSourceOperator.Status) ops.get(0).status();
                 assertThat(status.processedShards().size(), Matchers.lessThanOrEqualTo(3));
                 assertThat(ops.get(1).operator(), containsString("EvalOperator"));
+                // read _tisd, cpu
                 assertThat(ops.get(2).operator(), containsString("ValuesSourceReaderOperator"));
+                var readMetrics = (ValuesSourceReaderOperatorStatus) ops.get(2).status();
+                assertThat(
+                    readMetrics.readersBuilt().keySet(),
+                    equalTo(
+                        Set.of(
+                            "_tsid:column_at_a_time:BytesRefsFromOrds.Singleton",
+                            "cpu:column_at_a_time:BlockDocValuesReader.SingletonDoubles"
+                        )
+                    )
+                );
                 assertThat(ops.get(3).operator(), containsString("TimeSeriesAggregationOperator"));
-                assertThat(ops.get(4).operator(), containsString("ExchangeSinkOperator"));
+                assertThat(ops.get(4).operator(), containsString("ValuesSourceReaderOperator"));
+                var readDimensions = (ValuesSourceReaderOperatorStatus) ops.get(4).status();
+                assertThat(readDimensions.readersBuilt(), aMapWithSize(1));
+                assertThat(
+                    Iterables.get(readDimensions.readersBuilt().keySet(), 0),
+                    either(equalTo("cluster:row_stride:BytesRefsFromOrds.Singleton")).or(
+                        equalTo("cluster:column_at_a_time:BytesRefsFromOrds.Singleton")
+                    )
+                );
+                assertThat(ops.get(5).operator(), containsString("EvalOperator"));
+                assertThat(ops.get(6).operator(), containsString("ProjectOperator"));
+                assertThat(ops.get(7).operator(), containsString("ExchangeSinkOperator"));
             }
         }
     }
@@ -686,4 +712,21 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             assertEquals("Did not filter nulls on counter type", 50, resp.documentsFound());
         }
     }
+
+    public void testTSIDMetadataAttribute() {
+        List<ColumnInfoImpl> columns = List.of(
+            new ColumnInfoImpl("_tsid", DataType.TSID_DATA_TYPE, null),
+            new ColumnInfoImpl("cluster", DataType.KEYWORD, null)
+        );
+
+        try (EsqlQueryResponse resp = run(" TS hosts METADATA _tsid | KEEP _tsid, cluster | LIMIT 1")) {
+            assertThat(resp.columns(), equalTo(columns));
+
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertThat(values.getFirst().get(0), Matchers.notNullValue());
+            assertThat(values.getFirst().get(1), Matchers.notNullValue());
+        }
+    }
+
 }

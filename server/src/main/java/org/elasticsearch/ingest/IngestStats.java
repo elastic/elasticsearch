@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -49,6 +50,10 @@ public record IngestStats(
 
     public static final IngestStats IDENTITY = new IngestStats(Stats.IDENTITY, List.of(), Map.of());
 
+    private static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = TransportVersion.fromName(
+        "nodes_stats_supports_multi_project"
+    );
+
     /**
      * @param totalStats - The total stats for Ingest. This is logically the sum of all pipeline stats,
      *                   and pipeline stats are logically the sum of the processor stats.
@@ -77,7 +82,7 @@ public record IngestStats(
         Map<ProjectId, Map<String, List<ProcessorStat>>> processorStats = new HashMap<>();
 
         for (var i = 0; i < size; i++) {
-            ProjectId projectId = in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)
+            ProjectId projectId = in.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)
                 ? ProjectId.readFrom(in)
                 // We will not have older nodes in a multi-project cluster, so we can assume that everything is in the default project.
                 : Metadata.DEFAULT_PROJECT_ID;
@@ -107,7 +112,7 @@ public record IngestStats(
         totalStats.writeTo(out);
         out.writeVInt(pipelineStats.size());
         for (PipelineStat pipelineStat : pipelineStats) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+            if (out.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
                 pipelineStat.projectId().writeTo(out);
             }
             out.writeString(pipelineStat.pipelineId());

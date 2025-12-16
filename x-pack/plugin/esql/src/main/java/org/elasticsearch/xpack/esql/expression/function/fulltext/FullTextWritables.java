@@ -25,12 +25,10 @@ public class FullTextWritables {
         entries.add(MultiMatch.ENTRY);
         entries.add(Kql.ENTRY);
         entries.add(MatchPhrase.ENTRY);
+        entries.add(Score.ENTRY);
 
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
-        }
-        if (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled()) {
-            entries.add(Score.ENTRY);
         }
         if (EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled()) {
             entries.add(Decay.ENTRY);

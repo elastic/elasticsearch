@@ -24,6 +24,24 @@ setup:
               message:
                 type: keyword
 
+  - do:
+      indices.create:
+        index: test-ts
+        body:
+          settings:
+            number_of_shards: 1
+            index.mode: time_series
+            index.routing_path: [ host ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              count:
+                type: integer
+              host:
+                type: keyword
+                time_series_dimension: true
+
 ---
 "Basic ESQL usage output (telemetry) snapshot version":
   - requires:
@@ -37,25 +55,21 @@ setup:
             - snapshot_test_for_telemetry_v2
             - fn_byte_length
             - match_function_options
-            - first_over_time
-            - sum_over_time
-            - count_over_time
-            - count_distinct_over_time
+            - ts_command_v0
             - cosine_vector_similarity_function
-            - present_over_time
-            - absent_over_time
             - inline_stats
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 27 }
+  - length: { esql.features: 29 }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
   - set: { esql.features.enrich: enrich_counter }
   - set: { esql.features.from: from_counter }
+  - set: { esql.features.ts: ts_counter }
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
@@ -77,6 +91,7 @@ setup:
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
+  - set: { esql.features.subquery: subquery_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -90,6 +105,7 @@ setup:
   - set: { esql.functions.to_long: functions_to_long }
   - set: { esql.functions.coalesce: functions_coalesce }
   - set: { esql.functions.categorize: functions_categorize }
+  - set: {esql.functions.text_embedding: functions_text_embedding}
 
   - do:
       esql.query:
@@ -121,6 +137,7 @@ setup:
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
+  - match: { esql.features.ts: $ts_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -133,6 +150,54 @@ setup:
   - gt: { esql.functions.to_long: $functions_to_long }
   - match: { esql.functions.coalesce: $functions_coalesce }
   - gt: { esql.functions.categorize: $functions_categorize }
+  - match: {esql.functions.text_embedding: $functions_text_embedding}
+
+  - set: { esql.features.limit: limit_counter }
+  - set: { esql.features.sort: sort_counter }
+  - set: { esql.features.stats: stats_counter }
+  - set: { esql.features.where: where_counter }
+  - set: { esql.features.ts: ts_counter }
+  - set: { esql.queries.rest.total: rest_total_counter }
+  - set: { esql.queries._all.total: all_total_counter }
+  - set: { esql.functions.min: functions_min }
+  - set: { esql.functions.avg_over_time: functions_avg_over_time }
+
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-ts
+            | stats min(avg_over_time(count))'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.available: true }
+  - match: { esql.enabled: true }
+  - match: { esql.features.dissect: $dissect_counter }
+  - match: { esql.features.eval: $eval_counter }
+  - match: { esql.features.grok: $grok_counter }
+  - match: { esql.features.limit: $limit_counter }
+  - match: { esql.features.sort: $sort_counter }
+  - gt: { esql.features.stats: $stats_counter }
+  - match: { esql.features.where: $where_counter }
+  - match: { esql.features.lookup_join: $lookup_join_counter }
+  - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }
+  - match: { esql.features.lookup: $lookup_counter }
+  - match: { esql.features.change_point: $change_point_counter }
+  - match: { esql.features.inline_stats: $inline_stats_counter }
+  - match: { esql.features.rerank: $rerank_counter }
+  - match: { esql.features.insist: $insist_counter }
+  - match: { esql.features.fork: $fork_counter }
+  - match: { esql.features.fuse: $fuse_counter }
+  - match: { esql.features.completion: $completion_counter }
+  - match: { esql.features.sample: $sample_counter }
+  - gt: { esql.features.ts: $ts_counter }
+  - gt: { esql.queries.rest.total: $rest_total_counter }
+  - match: { esql.queries.rest.failed: $rest_failed_counter }
+  - match: { esql.queries.kibana.total: $kibana_total_counter }
+  - match: { esql.queries.kibana.failed: $kibana_failed_counter }
+  - gt: { esql.queries._all.total: $all_total_counter }
+  - match: { esql.queries._all.failed: $all_failed_counter }
+  - gt: { esql.functions.min: $functions_min }
+  - gt: { esql.functions.avg_over_time: $functions_avg_over_time }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - exists: esql.functions.delay
@@ -154,12 +219,13 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 27 }
+  - length: { esql.features: 29 }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
   - set: { esql.features.enrich: enrich_counter }
   - set: { esql.features.from: from_counter }
+  - set: { esql.features.ts: ts_counter }
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
@@ -181,6 +247,7 @@ setup:
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
+  - set: { esql.features.subquery: subquery_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -194,6 +261,7 @@ setup:
   - set: { esql.functions.to_long: functions_to_long }
   - set: { esql.functions.coalesce: functions_coalesce }
   - set: { esql.functions.categorize: functions_categorize }
+  - set: {esql.functions.text_embedding: functions_text_embedding}
 
   - do:
       esql.query:
@@ -224,6 +292,7 @@ setup:
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
+  - match: { esql.features.ts: $ts_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -236,10 +305,58 @@ setup:
   - gt: { esql.functions.to_long: $functions_to_long }
   - match: { esql.functions.coalesce: $functions_coalesce }
   - gt: { esql.functions.categorize: $functions_categorize }
+  - match: {esql.functions.text_embedding: $functions_text_embedding}
+
+  - set: { esql.features.limit: limit_counter }
+  - set: { esql.features.sort: sort_counter }
+  - set: { esql.features.stats: stats_counter }
+  - set: { esql.features.where: where_counter }
+  - set: { esql.features.ts: ts_counter }
+  - set: { esql.queries.rest.total: rest_total_counter }
+  - set: { esql.queries._all.total: all_total_counter }
+  - set: { esql.functions.min: functions_min }
+  - set: { esql.functions.avg_over_time: functions_avg_over_time }
+
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-ts
+            | stats min(avg_over_time(count))'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.available: true }
+  - match: { esql.enabled: true }
+  - match: { esql.features.dissect: $dissect_counter }
+  - match: { esql.features.eval: $eval_counter }
+  - match: { esql.features.grok: $grok_counter }
+  - match: { esql.features.limit: $limit_counter }
+  - match: { esql.features.sort: $sort_counter }
+  - gt: { esql.features.stats: $stats_counter }
+  - match: { esql.features.where: $where_counter }
+  - match: { esql.features.lookup_join: $lookup_join_counter }
+  - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }
+  - match: { esql.features.lookup: $lookup_counter }
+  - match: { esql.features.change_point: $change_point_counter }
+  - match: { esql.features.inline_stats: $inline_stats_counter }
+  - match: { esql.features.rerank: $rerank_counter }
+  - match: { esql.features.insist: $insist_counter }
+  - match: { esql.features.fork: $fork_counter }
+  - match: { esql.features.fuse: $fuse_counter }
+  - match: { esql.features.completion: $completion_counter }
+  - match: { esql.features.sample: $sample_counter }
+  - gt: { esql.features.ts: $ts_counter }
+  - gt: { esql.queries.rest.total: $rest_total_counter }
+  - match: { esql.queries.rest.failed: $rest_failed_counter }
+  - match: { esql.queries.kibana.total: $kibana_total_counter }
+  - match: { esql.queries.kibana.failed: $kibana_failed_counter }
+  - gt: { esql.queries._all.total: $all_total_counter }
+  - match: { esql.queries._all.failed: $all_failed_counter }
+  - gt: { esql.functions.min: $functions_min }
+  - gt: { esql.functions.avg_over_time: $functions_avg_over_time }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay
-  - not_exists: esql.functions.idelta
+  - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
 

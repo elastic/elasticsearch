@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
@@ -58,6 +57,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterSerializationTests extends ESAllocationTestCase {
+
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = TransportVersion.fromName(
+        "project_id_in_snapshots_deletions_and_repo_cleanup"
+    );
 
     public void testClusterStateSerialization() throws Exception {
         IndexLongFieldRange eventIngestedRangeInput = randomFrom(
@@ -184,7 +187,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 SnapshotDeletionsInProgress.of(
                     List.of(
                         new SnapshotDeletionsInProgress.Entry(
-                            version.onOrAfter(TransportVersions.PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
+                            version.supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
                                 ? randomProjectIdOrDefault()
                                 : ProjectId.DEFAULT,
                             "repo1",

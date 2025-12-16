@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
@@ -69,7 +70,9 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.ES_EXECUTOR_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_TO_RECORD;
 
 /**
@@ -418,6 +421,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     public BlobCacheMetrics getBlobCacheMetrics() {
         return blobCacheMetrics;
+    }
+
+    public ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     public int getRangeSize() {
@@ -1280,6 +1287,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     ActionListener<Void> completionListener
                 ) throws IOException {
                     String blobFileExtension = getFileExtension(resourceDescription);
+                    String executorName = EsExecutors.executorName(Thread.currentThread());
                     writer.fillCacheRange(
                         channel,
                         channelPos,
@@ -1291,7 +1299,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
                             blobCacheMetrics.getCacheMissCounter()
-                                .incrementBy(1L, Map.of(LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY, blobFileExtension));
+                                .incrementBy(
+                                    1L,
+                                    Map.of(
+                                        LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
+                                        blobFileExtension,
+                                        ES_EXECUTOR_ATTRIBUTE_KEY,
+                                        executorName != null ? executorName : NON_ES_EXECUTOR_TO_RECORD
+                                    )
+                                );
                             return null;
                         })
                     );

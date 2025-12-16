@@ -55,11 +55,12 @@ import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REW
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TextFieldTypeTests extends FieldTypeTestCase {
 
     private static TextFieldType createFieldType() {
-        return new TextFieldType("field", randomBoolean());
+        return new TextFieldType("field", randomBoolean(), false);
     }
 
     public void testIsAggregatableDependsOnFieldData() {
@@ -247,31 +248,31 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermIntervals() throws IOException {
-        MappedFieldType ft = createFieldType();
+        TextFieldType ft = createFieldType();
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.term(new BytesRef("foo")), termIntervals);
     }
 
     public void testPrefixIntervals() throws IOException {
-        MappedFieldType ft = createFieldType();
+        TextFieldType ft = createFieldType();
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.prefix(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), prefixIntervals);
     }
 
     public void testWildcardIntervals() {
-        MappedFieldType ft = createFieldType();
+        TextFieldType ft = createFieldType();
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), wildcardIntervals);
     }
 
     public void testRegexpIntervals() {
-        MappedFieldType ft = createFieldType();
+        TextFieldType ft = createFieldType();
         IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertEquals(Intervals.regexp(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()), regexpIntervals);
     }
 
     public void testFuzzyIntervals() {
-        MappedFieldType ft = createFieldType();
+        TextFieldType ft = createFieldType();
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         FuzzyQuery fq = new FuzzyQuery(new Term("field", "foo"), 1, 2, 128, true);
         IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), "foo");
@@ -293,7 +294,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeIntervals() {
-        MappedFieldType ft = createFieldType();
+        TextFieldType ft = createFieldType();
         IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
         assertEquals(
             Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
@@ -301,7 +302,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public void test_block_loader_uses_synthetic_source_delegate_when_ignore_above_is_not_set() {
+    public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
         // given
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
@@ -316,6 +317,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,
@@ -331,7 +333,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertThat(((BlockLoader.Delegating) blockLoader).delegatingTo(), equalTo("child"));
     }
 
-    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set() {
+    public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSet() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -344,6 +346,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         doReturn(settings).when(mappingParserContext).getSettings();
         doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+        doReturn(true).when(mappingParserContext).isWithinMultiField();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
         builder.ignoreAbove(123);
@@ -364,6 +367,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,
@@ -371,14 +375,16 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.indexSettings()).thenReturn(indexSettings);
+        BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
         // verify that we don't delegate anything
         assertFalse(blockLoader instanceof BlockLoader.Delegating);
     }
 
-    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set_at_index_level() {
+    public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSetAtIndexLevel() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -392,6 +398,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         doReturn(settings).when(mappingParserContext).getSettings();
         doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+        doReturn(true).when(mappingParserContext).isWithinMultiField();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
 
@@ -411,6 +418,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,
@@ -418,7 +426,9 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.indexSettings()).thenReturn(indexSettings);
+        BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
         // verify that we don't delegate anything

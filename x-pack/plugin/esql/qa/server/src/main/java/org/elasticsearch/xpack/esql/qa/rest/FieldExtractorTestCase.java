@@ -73,7 +73,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     public ProfileLogger profileLogger = new ProfileLogger();
 
     @ParametersFactory(argumentFormatting = "%s")
-    public static List<Object[]> args() throws Exception {
+    public static List<Object[]> args() {
         return List.of(
             new Object[] { null },
             new Object[] { MappedFieldType.FieldExtractPreference.NONE },

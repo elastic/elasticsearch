@@ -1501,7 +1501,72 @@ public abstract class ESTestCase extends LuceneTestCase {
      * helper to get a random value in a certain range that's different from the input
      */
     public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        assert input == null || input.getClass().isArray() == false
+            : "randomValueOtherThan() does not work as expected with arrays, use randomArrayOtherThan() instead";
         return randomValueOtherThanMany(v -> Objects.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for object arrays
+     */
+    public static <T> T[] randomArrayOtherThan(T[] input, Supplier<T[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for boolean arrays
+     */
+    public static boolean[] randomArrayOtherThan(boolean[] input, Supplier<boolean[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for byte arrays
+     */
+    public static byte[] randomArrayOtherThan(byte[] input, Supplier<byte[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for char arrays
+     */
+    public static char[] randomArrayOtherThan(char[] input, Supplier<char[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for short arrays
+     */
+    public static short[] randomArrayOtherThan(short[] input, Supplier<short[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for int arrays
+     */
+    public static int[] randomArrayOtherThan(int[] input, Supplier<int[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for long arrays
+     */
+    public static long[] randomArrayOtherThan(long[] input, Supplier<long[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for float arrays
+     */
+    public static float[] randomArrayOtherThan(float[] input, Supplier<float[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for double arrays
+     */
+    public static double[] randomArrayOtherThan(double[] input, Supplier<double[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
     }
 
     /**
@@ -1686,6 +1751,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return TestEnvironment.newEnvironment(build);
     }
 
+    public static IndexSettings defaultIndexSettings() {
+        IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        return new IndexSettings(INDEX_METADATA, Settings.EMPTY);
+    }
+
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
@@ -1747,6 +1821,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> List<T> shuffledList(T... values) {
+        return shuffledList(Arrays.asList(values));
     }
 
     public static <T> List<T> shuffledList(List<T> list) {

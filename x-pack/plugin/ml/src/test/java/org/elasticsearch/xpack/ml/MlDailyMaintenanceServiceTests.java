@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -319,6 +320,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 clusterService,
                 mlAssignmentNotifier,
                 scheduleProvider,
+                TestIndexNameExpressionResolver.newInstance(),
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
                 isNlpEnabled

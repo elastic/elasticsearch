@@ -300,3 +300,15 @@ FROM books
                                                     The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | he Lo |                                                                [J. R. R. Tolkien, Alan Lee] | Alan Lee
 A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) |  Gent |                                        [W. J. Leatherbarrow, Fyodor Dostoevsky, Alan Myers] | Alan Myers
 ;
+
+
+topWithOptionalOrder
+required_capability: agg_top
+required_capability: agg_top_with_optional_order_field
+
+FROM employees | STATS top_salaries = TOP(salary, 3);
+
+top_salaries:integer
+[25324, 25945, 25976]
+;
+

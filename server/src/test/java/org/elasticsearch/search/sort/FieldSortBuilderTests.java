@@ -175,6 +175,14 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         assertEquals(expectedSortField, sortField);
     }
 
+    // Specialised assertEquals to handle subclasses of SortedNumericSortField
+    public static void assertEquals(SortedNumericSortField expected, SortField actual) {
+        assertEquals(expected.getField(), actual.getField());
+        assertEquals(expected.getMissingValue(), actual.getMissingValue());
+        assertEquals(expected.getType(), actual.getType());
+        assertEquals(expected.getReverse(), actual.getReverse());
+    }
+
     /**
      * Test that the sort builder order gets transferred correctly to the SortField
      */

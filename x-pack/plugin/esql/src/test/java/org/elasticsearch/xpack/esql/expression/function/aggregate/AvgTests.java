@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -37,7 +38,8 @@ public class AvgTests extends AbstractAggregationTestCase {
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
+            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE)
         ).flatMap(List::stream).map(AvgTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.add(
@@ -53,7 +55,7 @@ public class AvgTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, true);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
     }
 
     @Override
@@ -70,7 +72,12 @@ public class AvgTests extends AbstractAggregationTestCase {
 
             if (fieldData.size() == 1) {
                 // For single elements, we directly return them to avoid precision issues
-                expected = ((Number) fieldData.get(0)).doubleValue();
+                if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
+                    var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) fieldData.get(0);
+                    expected = aggMetric.sum() / (aggMetric.count().doubleValue());
+                } else {
+                    expected = ((Number) fieldData.get(0)).doubleValue();
+                }
             } else if (fieldData.size() > 1) {
                 expected = switch (fieldTypedData.type().widenSmallNumeric()) {
                     case INTEGER -> fieldData.stream()
@@ -82,6 +89,15 @@ public class AvgTests extends AbstractAggregationTestCase {
                         .map(v -> (Double) v)
                         .collect(Collectors.summarizingDouble(Double::doubleValue))
                         .getAverage();
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        double sum = fieldData.stream()
+                            .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
+                            .sum();
+                        double count = fieldData.stream()
+                            .mapToInt(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).count())
+                            .sum();
+                        yield count == 0 ? null : sum / count;
+                    }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
             }

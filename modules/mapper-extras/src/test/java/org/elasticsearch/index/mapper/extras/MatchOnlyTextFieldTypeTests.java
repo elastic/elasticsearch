@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -59,6 +60,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
@@ -173,14 +175,14 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(termIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(Intervals.term(new BytesRef("foo")), ((SourceIntervalsSource) termIntervals).getIntervalsSource());
     }
 
     public void testPrefixIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(prefixIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -190,7 +192,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(wildcardIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -200,7 +202,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(regexpIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -210,13 +212,13 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         assertThat(fuzzyIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
     }
 
     public void testRangeIntervals() {
-        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
         assertThat(rangeIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -225,7 +227,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public void test_block_loader_uses_stored_fields_for_loading_when_synthetic_source_delegate_is_absent() {
+    public void testBlockLoaderUsesStoredFieldsForLoadingWhenSyntheticSourceDelegateIsAbsent() {
         // given
         MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
             "parent",
@@ -246,7 +248,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
     }
 
-    public void test_block_loader_uses_synthetic_source_delegate_when_ignore_above_is_not_set() {
+    public void testBlockLoaderUsesSyntheticSourceDelegateWhenIgnoreAboveIsNotSet() {
         // given
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
@@ -274,7 +276,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
     }
 
-    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set() {
+    public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSet() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -315,6 +317,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // when
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
         doReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false)).when(blContext).fieldNames();
+        when(blContext.indexSettings()).thenReturn(indexSettings);
         BlockLoader blockLoader = ft.blockLoader(blContext);
 
         // then
@@ -322,7 +325,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
     }
 
-    public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set_at_index_level() {
+    public void testBlockLoaderDoesNotUseSyntheticSourceDelegateWhenIgnoreAboveIsSetAtIndexLevel() {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -362,11 +365,44 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // when
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(blContext.indexSettings()).thenReturn(indexSettings);
         doReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false)).when(blContext).fieldNames();
         BlockLoader blockLoader = ft.blockLoader(blContext);
 
         // then
         // verify that we don't delegate anything
         assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
+    }
+
+    public void testBlockLoaderDelegateToKeywordFieldWhenSyntheticSourceIsDisabled() {
+        String parentFieldName = "foo";
+        String childFieldName = "foo.bar";
+        // given
+        KeywordFieldMapper.KeywordFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(
+            parentFieldName,
+            true,
+            true,
+            Collections.emptyMap()
+        );
+
+        MatchOnlyTextFieldMapper.MatchOnlyTextFieldType ft = new MatchOnlyTextFieldMapper.MatchOnlyTextFieldType(
+            childFieldName,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            mock(NamedAnalyzer.class),
+            false,
+            Collections.emptyMap(),
+            true,
+            false,
+            keywordFieldType
+        );
+
+        var mockedSearchLookup = mock(SearchLookup.class);
+        when(mockedSearchLookup.fieldType(parentFieldName)).thenReturn(keywordFieldType);
+
+        var mockedBlockLoaderContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(mockedBlockLoaderContext.parentField(childFieldName)).thenReturn(parentFieldName);
+        when(mockedBlockLoaderContext.lookup()).thenReturn(mockedSearchLookup);
+        BlockLoader blockLoader = ft.blockLoader(mockedBlockLoaderContext);
+        assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
     }
 }

@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.gradleup.shadow'
@@ -20,7 +22,7 @@ dependencies {
   }
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /opensaml-.*/, to: 'shibboleth'
 }
 

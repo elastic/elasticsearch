@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -212,7 +213,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput pso = new PlanStreamOutput(out, configuration())) {
             pso.writeNamedWriteable(exchangeSinkExec);
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
-            try (PlanStreamInput psi = new PlanStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry(), configuration())) {
+            try (
+                PlanStreamInput psi = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    getNamedWriteableRegistry(),
+                    configuration(),
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 assertThat(psi.readNamedWriteable(PhysicalPlan.class), equalTo(exchangeSinkExec));
             }
         }

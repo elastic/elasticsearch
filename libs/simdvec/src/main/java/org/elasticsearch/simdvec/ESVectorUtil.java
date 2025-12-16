@@ -48,6 +48,16 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
     }
 
+    public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength
+    ) throws IOException {
+        return ESVectorizationProvider.getInstance().newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength);
+    }
+
     public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
         return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
     }
@@ -381,6 +391,13 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
         }
         IMPL.packAsBinary(vector, packed);
+    }
+
+    public static void packDibit(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.packDibit(vector, packed);
     }
 
     /**

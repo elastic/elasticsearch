@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -50,7 +49,6 @@ import java.util.function.Supplier;
  */
 public class PatternTextFieldMapper extends FieldMapper {
 
-    public static final FeatureFlag PATTERN_TEXT_MAPPER = new FeatureFlag("pattern_text");
     private static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
 
     /**
@@ -58,7 +56,7 @@ public class PatternTextFieldMapper extends FieldMapper {
      * no valid enterprise license.
      */
     public static final Setting<Boolean> DISABLE_TEMPLATING_SETTING = Setting.boolSetting(
-        "index.mapping.patterned_text.disable_templating",
+        "index.mapping.pattern_text.disable_templating",
         false,
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex
@@ -89,9 +87,8 @@ public class PatternTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyBuilder {
 
-        private final IndexVersion indexCreatedVersion;
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
@@ -99,12 +96,11 @@ public class PatternTextFieldMapper extends FieldMapper {
         private final Parameter<Boolean> disableTemplating;
 
         public Builder(String name, MappingParserContext context) {
-            this(name, context.indexVersionCreated(), context.getIndexSettings());
+            this(name, context.indexVersionCreated(), context.getIndexSettings(), context.isWithinMultiField());
         }
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings) {
-            super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings, boolean isWithinMultiField) {
+            super(name, indexCreatedVersion, isWithinMultiField);
             this.indexSettings = indexSettings;
             this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
             this.disableTemplating = disableTemplatingParameter(indexSettings);
@@ -122,9 +118,10 @@ public class PatternTextFieldMapper extends FieldMapper {
                 context.buildFullName(leafName()),
                 tsi,
                 analyzer,
-                context.isSourceSynthetic(),
                 disableTemplating.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                context.isSourceSynthetic(),
+                isWithinMultiField()
             );
         }
 
@@ -195,9 +192,8 @@ public class PatternTextFieldMapper extends FieldMapper {
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternTextFieldType.templateIdFieldName(leafName()),
-                indexSettings.getMode(),
-                indexCreatedVersion,
-                true
+                indexSettings,
+                isWithinMultiField()
             ).indexed(false).build(context);
             return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);
         }
@@ -224,7 +220,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.analyzer = builder.analyzer.get();
         this.indexSettings = builder.indexSettings;
         this.indexOptions = builder.indexOptions.getValue();
@@ -238,7 +234,7 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings, fieldType().isWithinMultiField()).init(this);
     }
 
     @Override

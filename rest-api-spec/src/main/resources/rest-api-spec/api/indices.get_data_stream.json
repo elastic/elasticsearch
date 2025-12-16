@@ -48,6 +48,7 @@
       },
       "include_defaults": {
         "type": "boolean",
+        "default": false,
         "description": "Return all relevant default configurations for the data stream (default: false)"
       },
       "master_timeout": {
@@ -57,6 +58,7 @@
       },
       "verbose": {
         "type": "boolean",
+        "default": false,
         "description": "Whether the maximum timestamp for each data stream should be calculated and returned (default: false)"
       }
     }

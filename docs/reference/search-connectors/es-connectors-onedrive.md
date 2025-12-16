@@ -51,6 +51,7 @@ PUT _connector/my-onedrive-connector
   "service_type": "onedrive"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -136,6 +137,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -311,6 +313,7 @@ This rule skips indexing for files with `.xlsx` and `.docx` extensions. All othe
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-2$$$
 **Example 2**
@@ -325,6 +328,7 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-3$$$
 **Example 3**
@@ -339,6 +343,7 @@ This rule indexes only the files and folders directly inside the root folder, ex
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-4$$$
 **Example 4**
@@ -354,6 +359,7 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-5$$$
 **Example 5**
@@ -370,6 +376,7 @@ This example contains two rules. The first rule indexes all files and folders ow
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-6$$$
 **Example 6**
@@ -387,6 +394,7 @@ This example contains two rules. The first rule indexes all files owned by `user
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ### Content Extraction [es-connectors-onedrive-client-content-extraction]

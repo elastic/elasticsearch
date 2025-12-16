@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -23,11 +25,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
@@ -78,6 +80,9 @@ public class QueryRewriteContext {
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
+    private final boolean isProfile;
+    private Long timeRangeFilterFromMillis;
+    private boolean trackTimeRangeFilterFrom = true;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -99,7 +104,8 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -123,6 +129,7 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
         this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
         this.isExplain = isExplain;
+        this.isProfile = isProfile;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -146,6 +153,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            false,
             false
         );
     }
@@ -171,6 +179,7 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
+            false,
             false
         );
     }
@@ -185,7 +194,8 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean isProfile
     ) {
         this(
             parserConfiguration,
@@ -207,7 +217,8 @@ public class QueryRewriteContext {
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            isProfile
         );
     }
 
@@ -294,11 +305,7 @@ public class QueryRewriteContext {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
-                name,
-                getIndexAnalyzers(),
-                getIndexSettings() != null && SourceFieldMapper.isSynthetic(getIndexSettings())
-            );
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -322,6 +329,10 @@ public class QueryRewriteContext {
 
     public boolean isExplain() {
         return this.isExplain;
+    }
+
+    public boolean isProfile() {
+        return this.isProfile;
     }
 
     public NamedWriteableRegistry getWriteableRegistry() {
@@ -520,4 +531,48 @@ public class QueryRewriteContext {
         this.queryRewriteInterceptor = queryRewriteInterceptor;
     }
 
+    /**
+     * Returns the minimum lower bound across the time ranges filters against the @timestamp field included in the query
+     */
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
+    }
+
+    /**
+     * Optionally records the lower bound of a time range filter included in the query. For telemetry purposes.
+     */
+    public void setTimeRangeFilterFromMillis(String fieldName, long timeRangeFilterFromMillis, DateFieldMapper.Resolution resolution) {
+        if (trackTimeRangeFilterFrom) {
+            if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName) || IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
+                // if we got a timestamp with nanoseconds precision, round it down to millis
+                if (resolution == DateFieldMapper.Resolution.NANOSECONDS) {
+                    timeRangeFilterFromMillis = timeRangeFilterFromMillis / 1_000_000;
+                }
+                if (this.timeRangeFilterFromMillis == null) {
+                    this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+                } else {
+                    // if there's more range filters on timestamp, we'll take the lowest of the lower bounds
+                    this.timeRangeFilterFromMillis = Math.min(timeRangeFilterFromMillis, this.timeRangeFilterFromMillis);
+                }
+            }
+        }
+    }
+
+    /**
+     * Records the lower bound of a time range filter included in the query. For telemetry purposes.
+     * Similar to {@link #setTimeRangeFilterFromMillis(String, long, DateFieldMapper.Resolution)} but used to copy the value from
+     * another instance of the context, that had its value previously set.
+     */
+    public void setTimeRangeFilterFromMillis(long timeRangeFilterFromMillis) {
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+    }
+
+    /**
+     * Enables or disables the tracking of the lower bound for time range filters against the @timestamp field,
+     * done via {@link #setTimeRangeFilterFromMillis(String, long, DateFieldMapper.Resolution)}. Tracking is enabled by default,
+     * and explicitly disabled to ensure we don't record the bound for range queries within should and must_not clauses.
+     */
+    public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
+        this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
+    }
 }

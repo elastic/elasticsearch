@@ -78,27 +78,27 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (strBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (strBlock.getValueCount(p) != 1) {
-          if (strBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (delimBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (delimBlock.getValueCount(p) != 1) {
-          if (delimBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (delimBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         BytesRef delim = delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch);

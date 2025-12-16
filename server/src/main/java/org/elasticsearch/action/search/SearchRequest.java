@@ -9,11 +9,13 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -62,6 +64,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
+    private static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = TransportVersion.fromName(
+        "re_remove_min_compatible_shard_node"
+    );
+
     private final String localClusterAlias;
     private final long absoluteStartMillis;
     private final boolean finalReduce;
@@ -69,6 +75,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
+
+    @Nullable
+    private ResolvedIndexExpressions resolvedIndexExpressions = null;
 
     @Nullable
     private String routing;
@@ -151,6 +160,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
 
     @Override
     public boolean allowsRemoteIndices() {
+        return true;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
         return true;
     }
 
@@ -254,8 +268,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if ((in.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
-            && in.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
+        if (in.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false && in.readBoolean()) {
             Version.readVersion(in); // and drop on the floor
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
@@ -299,8 +312,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if ((out.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
-            && out.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE))) {
+        if (out.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false) {
             out.writeBoolean(false);
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
@@ -398,6 +410,17 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         validateIndices(indices);
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    @Nullable
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 
     private static void validateIndices(String... indices) {

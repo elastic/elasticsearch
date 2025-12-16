@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -271,7 +272,7 @@ public abstract class DocumentParserContext {
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
-            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings(), source),
+            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
             new HashSet<>(),
@@ -303,6 +304,10 @@ public abstract class DocumentParserContext {
 
     public final MetadataFieldMapper getMetadataMapper(String mapperName) {
         return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
+    }
+
+    public final List<VectorsFormatProvider> getVectorFormatProviders() {
+        return mappingParserContext.getVectorsFormatProviders();
     }
 
     public final MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
@@ -554,6 +559,24 @@ public abstract class DocumentParserContext {
                 mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
             }
             dynamicMappersSize.add(mapperSize);
+
+            if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
+                if (mapper.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
+                    if (canAddIgnoredField()) {
+                        try {
+                            addIgnoredField(
+                                IgnoredSourceFieldMapper.NameValue.fromContext(this, mapper.fullPath(), encodeFlattenedToken())
+                            );
+                        } catch (IOException e) {
+                            throw new IllegalArgumentException("failed to parse field [" + mapper.fullPath() + "]", e);
+                        }
+                    }
+                    addIgnoredField(mapper.fullPath());
+                    return false;
+                } else {
+                    mappingLookup.checkFieldNameLengthLimit(indexSettings().getMappingFieldNameLengthLimit());
+                }
+            }
         }
         if (mapper instanceof ObjectMapper objectMapper) {
             dynamicObjectMappers.put(objectMapper.fullPath(), objectMapper);

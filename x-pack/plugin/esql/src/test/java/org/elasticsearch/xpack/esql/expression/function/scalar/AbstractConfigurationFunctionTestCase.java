@@ -7,18 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
-import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 
 public abstract class AbstractConfigurationFunctionTestCase extends AbstractScalarFunctionTestCase {
@@ -30,34 +27,20 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
     }
 
     public void testSerializationWithConfiguration() {
-        Configuration config = randomConfiguration();
+        assumeTrue("can't serialize function", canSerialize());
+
+        Configuration config = randomConfiguration(testCase.getSource().text(), randomTables());
         Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
 
         assertSerialization(expr, config);
 
-        Configuration differentConfig = randomValueOtherThan(config, AbstractConfigurationFunctionTestCase::randomConfiguration);
+        Configuration differentConfig = randomValueOtherThan(
+            config,
+            // The source must match the original (static) one, as function source serialization depends on it
+            () -> randomConfiguration(testCase.getSource().text(), randomTables())
+        );
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
         assertNotEquals(expr, differentExpr);
-    }
-
-    private static Configuration randomConfiguration() {
-        // TODO: Randomize the query and maybe the pragmas.
-        return new Configuration(
-            randomZone(),
-            randomLocale(random()),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            QueryPragmas.EMPTY,
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            StringUtils.EMPTY,
-            randomBoolean(),
-            Map.of(),
-            System.nanoTime(),
-            randomBoolean(),
-            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
-        );
     }
 }

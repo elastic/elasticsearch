@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -110,7 +109,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
+        if (state.nodes().isMixedVersionCluster()) {
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException(
                     "Cannot upgrade job [{}] snapshot [{}] while cluster upgrade is in progress.",

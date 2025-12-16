@@ -54,6 +54,7 @@ public class CachingEnableFilterQueryTests extends ESTestCase {
                 }
                 iw.addDocument(doc);
             }
+            iw.forceMerge(1);
 
             try (IndexReader reader = iw.getReader()) {
                 assertTrue(reader.leaves().size() == 1 && reader.hasDeletions() == false);
@@ -89,6 +90,7 @@ public class CachingEnableFilterQueryTests extends ESTestCase {
                 doc.add(newStringField("f2", "bar", Field.Store.YES));
                 iw.addDocument(doc);
             }
+            iw.forceMerge(1);
 
             try (IndexReader reader = iw.getReader()) {
                 assertTrue(reader.leaves().size() == 1 && reader.hasDeletions() == false);

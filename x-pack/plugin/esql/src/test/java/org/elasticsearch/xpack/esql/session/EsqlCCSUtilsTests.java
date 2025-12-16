@@ -59,62 +59,6 @@ public class EsqlCCSUtilsTests extends ESTestCase {
     private final String REMOTE1_ALIAS = "remote1";
     private final String REMOTE2_ALIAS = "remote2";
 
-    public void testCreateIndexExpressionFromAvailableClusters() {
-        var skipped = EsqlExecutionInfo.Cluster.Status.SKIPPED;
-        // no clusters marked as skipped
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
-            executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true));
-            assertIndexPattern(
-                EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo),
-                containsInAnyOrder("logs*", "remote1:*", "remote2:mylogs1", "remote2:mylogs2", "remote2:logs*")
-            );
-        }
-
-        // one cluster marked as skipped, so not present in revised index expression
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true));
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertIndexPattern(
-                EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo),
-                containsInAnyOrder("logs*", "remote1:*", "remote1:foo")
-            );
-        }
-
-        // two clusters marked as skipped, so only local cluster present in revised index expression
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-            executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true, skipped));
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertThat(EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo("logs*"));
-        }
-
-        // only remotes present and all marked as skipped, so in revised index expression should be empty string
-        {
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-            executionInfo.swapCluster(
-                REMOTE1_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*,foo", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
-            );
-            executionInfo.swapCluster(
-                REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true, skipped)
-            );
-            assertThat(EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo(""));
-        }
-    }
-
     public void testCreateQualifiedLookupIndexExpressionFromAvailableClusters() {
 
         var skipped = EsqlExecutionInfo.Cluster.Status.SKIPPED;
@@ -280,7 +224,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -323,7 +267,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             );
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -365,7 +309,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -406,7 +350,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -455,7 +399,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
 
-            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, Set.of(indexResolution));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -769,7 +713,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         String... expectedRemotes
     ) {
         var executionInfo = new EsqlExecutionInfo(true);
-        initCrossClusterState(indicesGrouper, createLicenseState(status), pattern, executionInfo);
+        initCrossClusterState(indicesGrouper, createLicenseState(status), Set.of(pattern), executionInfo);
         assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
     }
 
@@ -784,7 +728,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             equalTo(
                 "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
             ),
-            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), pattern, new EsqlExecutionInfo(true))
+            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), Set.of(pattern), new EsqlExecutionInfo(true))
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
@@ -799,11 +743,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {
         @Override
-        public Map<String, OriginalIndices> groupIndices(
-            Set<String> remoteClusterNames,
-            IndicesOptions indicesOptions,
-            String[] indexExpressions
-        ) {
+        public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indexExpressions, boolean returnLocalAll) {
             final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
             final String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 

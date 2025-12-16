@@ -18,6 +18,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -33,9 +34,11 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     private final Settings settings;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public RestFieldCapabilitiesAction(Settings settings) {
         this.settings = settings;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -55,14 +58,25 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
+        final FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest();
+
+        final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            fieldRequest.projectRouting(request.param("project_routing", null));
+            // Setting includeResolvedTo to always include index resolution data structure in the linked project responses,
+            // in order to allow the coordinating node to call CrossProjectIndexResolutionValidator#validate
+            fieldRequest.includeResolvedTo(true);
         }
 
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest();
         fieldRequest.indices(indices);
+
+        if (crossProjectEnabled && fieldRequest.allowsCrossProject()) {
+            var cpsIdxOpts = IndicesOptions.builder(fieldRequest.indicesOptions())
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+            fieldRequest.indicesOptions(cpsIdxOpts);
+        }
 
         fieldRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
         fieldRequest.includeUnmapped(request.paramAsBoolean("include_unmapped", false));

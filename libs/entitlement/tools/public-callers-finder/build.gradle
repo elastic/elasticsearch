@@ -42,8 +42,22 @@ application {
   ]
 }
 
+configurations {
+  dumpMethods
+}
+
+def instrumentedMethodsDump = project.layout.buildDirectory.file('instrumented-methods.dump').get().asFile
+
 tasks.named("run").configure {
+  dependsOn 'dumpInstrumentedMethods'
+  systemProperty 'es.entitlements.dump', instrumentedMethodsDump
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+}
+
+tasks.register('dumpInstrumentedMethods', JavaExec) {
+  classpath = configurations.dumpMethods
+  mainClass = 'org.elasticsearch.entitlement.initialization.DynamicInstrumentationUtils'
+  systemProperty 'es.entitlements.dump', instrumentedMethodsDump
 }
 
 repositories {
@@ -51,10 +65,12 @@ repositories {
 }
 
 dependencies {
-  compileOnly(project(':libs:core'))
-  implementation 'org.ow2.asm:asm:9.8'
-  implementation 'org.ow2.asm:asm-util:9.8'
+  implementation(project(':libs:core'))
+  implementation 'org.ow2.asm:asm:9.9'
+  implementation 'org.ow2.asm:asm-util:9.9'
   implementation(project(':libs:entitlement:tools:common'))
+
+  dumpMethods testArtifact(project(':libs:entitlement'))
 }
 
 tasks.named('forbiddenApisMain').configure {

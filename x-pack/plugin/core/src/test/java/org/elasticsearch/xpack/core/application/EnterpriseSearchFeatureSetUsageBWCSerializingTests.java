@@ -30,7 +30,25 @@ public class EnterpriseSearchFeatureSetUsageBWCSerializingTests extends Abstract
 
     @Override
     protected EnterpriseSearchFeatureSetUsage mutateInstance(EnterpriseSearchFeatureSetUsage instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        Map<String, Object> searchApplicationsUsage = instance.getSearchApplicationsUsage();
+        Map<String, Object> analyticsCollectionsUsage = instance.getAnalyticsCollectionsUsage();
+        Map<String, Object> queryRulesUsage = instance.getQueryRulesUsage();
+        switch (between(0, 2)) {
+            case 0 -> searchApplicationsUsage = randomValueOtherThan(
+                searchApplicationsUsage,
+                () -> Map.of(EnterpriseSearchFeatureSetUsage.COUNT, randomLong())
+            );
+            case 1 -> analyticsCollectionsUsage = randomValueOtherThan(
+                analyticsCollectionsUsage,
+                () -> Map.of(EnterpriseSearchFeatureSetUsage.COUNT, randomLong())
+            );
+            case 2 -> queryRulesUsage = randomValueOtherThan(
+                queryRulesUsage,
+                () -> Map.of(EnterpriseSearchFeatureSetUsage.COUNT, randomLong())
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new EnterpriseSearchFeatureSetUsage(true, true, searchApplicationsUsage, analyticsCollectionsUsage, queryRulesUsage);
     }
 
     @Override

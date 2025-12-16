@@ -29,7 +29,7 @@ public class GetSearchApplicationActionRequestBWCSerializingTests extends Abstra
 
     @Override
     protected GetSearchApplicationAction.Request mutateInstance(GetSearchApplicationAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new GetSearchApplicationAction.Request(randomValueOtherThan(instance.getName(), () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     @Override

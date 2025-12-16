@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -352,7 +351,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }));
         var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     @Override
@@ -520,5 +519,10 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected boolean supportsBulkLongBlockReading() {
         return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 }

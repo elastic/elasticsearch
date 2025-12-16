@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.util;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
+import org.gradle.api.artifacts.ArtifactView;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolvableDependencies;
 import org.gradle.api.artifacts.component.ComponentIdentifier;
@@ -31,6 +32,14 @@ public class DependenciesUtils {
         Configuration configuration,
         Spec<ComponentIdentifier> componentFilter
     ) {
+        return createNonTransitiveArtifactsView(configuration, componentFilter).getFiles();
+    }
+
+    public static ArtifactView createNonTransitiveArtifactsView(Configuration configuration) {
+        return createNonTransitiveArtifactsView(configuration, identifier -> true);
+    }
+
+    public static ArtifactView createNonTransitiveArtifactsView(Configuration configuration, Spec<ComponentIdentifier> componentFilter) {
         ResolvableDependencies incoming = configuration.getIncoming();
         return incoming.artifactView(viewConfiguration -> {
             Provider<Set<ComponentIdentifier>> firstLevelDependencyComponents = incoming.getResolutionResult()
@@ -47,7 +56,7 @@ public class DependenciesUtils {
             viewConfiguration.componentFilter(
                 new AndSpec<>(identifier -> firstLevelDependencyComponents.get().contains(identifier), componentFilter)
             );
-        }).getFiles();
+        });
     }
 
     /**

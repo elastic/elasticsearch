@@ -16,6 +16,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
+  api project(':libs:exponential-histogram')
 
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))
@@ -511,6 +512,28 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile = irateAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/IrateDoubleAggregator.java"
+  }
+
+  File deltaAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-DeltaAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = deltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DeltaIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = deltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DeltaLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = deltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DeltaFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = deltaAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/DeltaDoubleAggregator.java"
   }
 
   File fallibleStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-FallibleState.java.st")

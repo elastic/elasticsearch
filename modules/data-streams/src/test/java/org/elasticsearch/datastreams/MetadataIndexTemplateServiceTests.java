@@ -43,6 +43,8 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTs
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.composeDataLifecycles;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomResettable;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomSamplingMethod;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -146,51 +148,63 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<DataStreamLifecycle.Template> lifecycles = List.of();
             assertThat(composeDataLifecycles(lifecycles), nullValue());
         }
-        // One lifecycle results to this lifecycle as the final
+        // One lifecycle results in this lifecycle as the final
         {
+            ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds = randomDownsampling();
             DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
                 true,
                 randomRetention(),
-                randomDownsampling()
+                downsamplingRounds,
+                randomResettable(() -> randomSamplingMethod(downsamplingRounds.get()))
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             // Defaults to true
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle.downsamplingRounds().get()));
+            assertThat(result.downsamplingMethod(), equalTo(lifecycle.downsamplingMethod().get()));
         }
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
         // Enabled is always true unless it's explicitly set to false
         {
+            List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = randomRounds();
             DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.createDataLifecycleTemplate(
                 false,
                 randomPositiveTimeValue(),
-                randomRounds()
+                downsamplingRounds,
+                randomSamplingMethod(downsamplingRounds)
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DATA_DEFAULT);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle.downsamplingRounds().get()));
+            assertThat(result.downsamplingMethod(), equalTo(lifecycle.downsamplingMethod().get()));
         }
-        // If both lifecycle have all properties, then the latest one overwrites all the others
+        // If both lifecycles have all properties, then the latest one overwrites all the others
         {
+            DownsampleConfig.SamplingMethod downsamplingMethod1 = randomFrom(DownsampleConfig.SamplingMethod.LAST_VALUE);
             DataStreamLifecycle.Template lifecycle1 = DataStreamLifecycle.createDataLifecycleTemplate(
                 false,
                 randomPositiveTimeValue(),
-                randomRounds()
+                randomRounds(),
+                downsamplingMethod1
             );
             DataStreamLifecycle.Template lifecycle2 = DataStreamLifecycle.createDataLifecycleTemplate(
                 true,
                 randomPositiveTimeValue(),
-                randomRounds()
+                randomRounds(),
+                downsamplingMethod1 == DownsampleConfig.SamplingMethod.LAST_VALUE
+                    ? DownsampleConfig.SamplingMethod.AGGREGATE
+                    : DownsampleConfig.SamplingMethod.LAST_VALUE
             );
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(lifecycle2.enabled()));
             assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
-            assertThat(result.downsampling(), equalTo(lifecycle2.downsampling().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle2.downsamplingRounds().get()));
+            assertThat(result.downsamplingMethod(), equalTo(lifecycle2.downsamplingMethod().get()));
         }
     }
 
@@ -255,7 +269,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.DownsamplingRound(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -268,9 +282,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
     }
 

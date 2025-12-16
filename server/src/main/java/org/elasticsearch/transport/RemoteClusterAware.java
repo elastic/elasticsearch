@@ -70,6 +70,19 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
     }
 
     /**
+     * Extracts the list of remote index expressions from the given array of index expressions
+     */
+    public static List<String> getRemoteIndexExpressions(String... expressions) {
+        List<String> crossClusterIndices = new ArrayList<>();
+        for (int i = 0; i < expressions.length; i++) {
+            if (isRemoteIndexName(expressions[i])) {
+                crossClusterIndices.add(expressions[i]);
+            }
+        }
+        return crossClusterIndices;
+    }
+
+    /**
      * @param indexExpression expects a single index expression at a time (not a csv list of expression)
      * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
      */

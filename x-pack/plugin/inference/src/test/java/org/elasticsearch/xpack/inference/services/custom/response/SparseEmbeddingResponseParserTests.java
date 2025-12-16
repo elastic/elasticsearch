@@ -345,6 +345,12 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
 
     @Override
     protected SparseEmbeddingResponseParser mutateInstance(SparseEmbeddingResponseParser instance) throws IOException {
-        return randomValueOtherThan(instance, SparseEmbeddingResponseParserTests::createRandom);
+        if (randomBoolean()) {
+            var tokenPath = randomValueOtherThan(instance.getTokenPath(), () -> randomAlphaOfLength(5));
+            return new SparseEmbeddingResponseParser(tokenPath, instance.getWeightPath());
+        } else {
+            var weightPath = randomValueOtherThan(instance.getWeightPath(), () -> randomAlphaOfLength(5));
+            return new SparseEmbeddingResponseParser(instance.getTokenPath(), weightPath);
+        }
     }
 }

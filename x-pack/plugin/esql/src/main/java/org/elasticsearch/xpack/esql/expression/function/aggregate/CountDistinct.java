@@ -65,7 +65,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Map.entry(DataType.KEYWORD, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TSID_DATA_TYPE, CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -74,6 +75,8 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     @FunctionInfo(
         returnType = "long",
         description = "Returns the approximate number of distinct values.",
+        note = "[Counts are approximate](/reference/query-languages/esql/functions-operators/"
+            + "aggregation-functions.md#esql-agg-count-distinct-approximate).",
         appendix = """
             ### Counts are approximate [esql-agg-count-distinct-approximate]
 
@@ -116,7 +119,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version", "_tsid" },
             description = "Column or literal for which to count the number of distinct values."
         ) Expression field,
         @Param(
@@ -128,15 +131,15 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
                 + "same effect as a threshold of 40000. The default value is 3000."
         ) Expression precision
     ) {
-        this(source, field, Literal.TRUE, precision);
+        this(source, field, Literal.TRUE, NO_WINDOW, precision);
     }
 
-    public CountDistinct(Source source, Expression field, Expression filter, Expression precision) {
-        this(source, field, filter, precision != null ? List.of(precision) : List.of());
+    public CountDistinct(Source source, Expression field, Expression filter, Expression window, Expression precision) {
+        this(source, field, filter, window, precision != null ? List.of(precision) : List.of());
     }
 
-    private CountDistinct(Source source, Expression field, Expression filter, List<Expression> params) {
-        super(source, field, filter, params);
+    private CountDistinct(Source source, Expression field, Expression filter, Expression window, List<Expression> params) {
+        super(source, field, filter, window, params);
         this.precision = params.size() > 0 ? params.get(0) : null;
     }
 
@@ -145,6 +148,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
+            readWindow(in),
             in.readNamedWriteableCollectionAsList(Expression.class)
         );
     }
@@ -156,17 +160,18 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     @Override
     protected NodeInfo<CountDistinct> info() {
-        return NodeInfo.create(this, CountDistinct::new, field(), filter(), precision);
+        return NodeInfo.create(this, CountDistinct::new, field(), filter(), window(), precision);
     }
 
     @Override
     public CountDistinct replaceChildren(List<Expression> newChildren) {
-        return new CountDistinct(source(), newChildren.get(0), newChildren.get(1), newChildren.size() > 2 ? newChildren.get(2) : null);
+        Expression precision = newChildren.size() > 3 ? newChildren.get(3) : null;
+        return new CountDistinct(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), precision);
     }
 
     @Override
     public CountDistinct withFilter(Expression filter) {
-        return new CountDistinct(source(), field(), filter, precision);
+        return new CountDistinct(source(), field(), filter, window(), precision);
     }
 
     @Override

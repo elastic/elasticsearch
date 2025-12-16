@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
@@ -25,7 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceSparseEmbeddingsRequest.inputTypeToUsageContext;
+import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 
 public class ElasticInferenceServiceDenseTextEmbeddingsRequest extends ElasticInferenceServiceRequest {
 
@@ -53,9 +54,14 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequest extends ElasticIn
     @Override
     public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(uri);
-        var usageContext = inputTypeToUsageContext(inputType);
+        var usageContext = ElasticInferenceServiceUsageContext.fromInputType(inputType);
         var requestEntity = Strings.toString(
-            new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(inputs, model.getServiceSettings().modelId(), usageContext)
+            new ElasticInferenceServiceDenseTextEmbeddingsRequestEntity(
+                inputs,
+                model.getServiceSettings().modelId(),
+                usageContext,
+                model.getServiceSettings().dimensions()
+            )
         );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
@@ -63,6 +69,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequest extends ElasticIn
 
         traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        httpPost.setHeader(new BasicHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, usageContext.productUseCaseHeaderValue()));
 
         return httpPost;
     }

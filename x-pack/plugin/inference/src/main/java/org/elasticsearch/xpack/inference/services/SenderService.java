@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
@@ -73,10 +74,11 @@ public abstract class SenderService implements InferenceService {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
-        init();
-        var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
-        doInfer(model, inferenceInput, taskSettings, timeout, listener);
+        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
+            var resolvedInferenceTimeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
+            var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
+            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
+        }).addListener(listener);
     }
 
     private static InferenceInputs createInput(
@@ -94,6 +96,11 @@ public abstract class SenderService implements InferenceService {
             case RERANK -> {
                 ValidationException validationException = new ValidationException();
                 service.validateRerankParameters(returnDocuments, topN, validationException);
+
+                if (query == null) {
+                    validationException.addValidationError("Rerank task type requires a non-null query field");
+                }
+
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }
@@ -105,7 +112,7 @@ public abstract class SenderService implements InferenceService {
                 if (validationException.validationErrors().isEmpty() == false) {
                     throw validationException;
                 }
-                yield new EmbeddingsInput(input, null, inputType, stream);
+                yield new EmbeddingsInput(input, inputType, stream);
             }
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),
@@ -121,8 +128,9 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        init();
-        doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, listener);
+        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
+        }).addListener(listener);
     }
 
     @Override
@@ -135,16 +143,16 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        init();
+        SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
+            ValidationException validationException = new ValidationException();
+            validateInputType(inputType, model, validationException);
+            if (validationException.validationErrors().isEmpty() == false) {
+                throw validationException;
+            }
 
-        ValidationException validationException = new ValidationException();
-        validateInputType(inputType, model, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new EmbeddingsInput(input, inputType), taskSettings, inputType, timeout, listener);
+            // a non-null query is not supported and is dropped by all providers
+            doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+        }).addListener(listener);
     }
 
     protected abstract void doInfer(
@@ -168,7 +176,7 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -176,8 +184,9 @@ public abstract class SenderService implements InferenceService {
     );
 
     public void start(Model model, ActionListener<Boolean> listener) {
-        init();
-        doStart(model, listener);
+        SubscribableListener.newForked(this::init)
+            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
+            .addListener(listener);
     }
 
     @Override
@@ -189,8 +198,8 @@ public abstract class SenderService implements InferenceService {
         listener.onResponse(true);
     }
 
-    private void init() {
-        sender.start();
+    private void init(ActionListener<Void> listener) {
+        sender.startAsynchronously(listener);
     }
 
     @Override

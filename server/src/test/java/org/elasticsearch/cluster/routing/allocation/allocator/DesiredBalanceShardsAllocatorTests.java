@@ -145,7 +145,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
 
-        var settings = Settings.EMPTY;
+        final var settings = Settings.builder()
+            // disable thread watchdog to avoid infinitely repeating task
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+            .build();
+
         var clusterSettings = createBuiltInClusterSettings(settings);
         var clusterService = new ClusterService(
             settings,
@@ -394,7 +398,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         };
@@ -848,7 +852,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         };
@@ -1346,7 +1350,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         };

@@ -45,16 +45,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public abstract class NumericAggregate extends AggregateFunction implements ToAggregator {
 
-    NumericAggregate(Source source, Expression field, List<Expression> parameters) {
-        super(source, field, parameters);
-    }
-
-    NumericAggregate(Source source, Expression field, Expression filter, List<Expression> parameters) {
-        super(source, field, filter, parameters);
-    }
-
-    NumericAggregate(Source source, Expression field) {
-        super(source, field);
+    NumericAggregate(Source source, Expression field, Expression filter, Expression window, List<Expression> parameters) {
+        super(source, field, filter, window, parameters);
     }
 
     NumericAggregate(StreamInput in) throws IOException {

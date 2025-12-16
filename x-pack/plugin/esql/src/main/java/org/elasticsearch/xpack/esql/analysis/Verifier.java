@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -29,7 +30,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -108,6 +111,7 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkInsist(p, failures);
+            checkLimitBeforeInlineStats(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -252,6 +256,44 @@ public class Verifier {
             LogicalPlan child = i.child();
             if ((child instanceof EsRelation || child instanceof Insist) == false) {
                 failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
+            }
+        }
+    }
+
+    /*
+     * This is a rudimentary check to prevent INLINE STATS after LIMIT. A LIMIT command can be added by other commands by default,
+     * the best example being FORK. A more robust solution would be to track the commands that add LIMIT and prevent them from doing so
+     * if INLINE STATS is present in the plan. However, this would require authors of new such commands to be aware of this limitation and
+     * implement the necessary checks, which is error-prone.
+     */
+    private static void checkLimitBeforeInlineStats(LogicalPlan plan, Failures failures) {
+        if (plan instanceof InlineStats is) {
+            Holder<Limit> inlineStatsDescendantLimit = new Holder<>();
+            is.forEachDownMayReturnEarly((p, breakEarly) -> {
+                if (p instanceof Limit l) {
+                    inlineStatsDescendantLimit.set(l);
+                    breakEarly.set(true);
+                    return;
+                }
+            });
+
+            var firstLimit = inlineStatsDescendantLimit.get();
+            if (firstLimit != null) {
+                var isString = is.sourceText().length() > Node.TO_STRING_MAX_WIDTH
+                    ? is.sourceText().substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                    : is.sourceText();
+                var limitString = firstLimit.sourceText().length() > Node.TO_STRING_MAX_WIDTH
+                    ? firstLimit.sourceText().substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                    : firstLimit.sourceText();
+                failures.add(
+                    fail(
+                        is,
+                        "INLINE STATS cannot be used after an explicit or implicit LIMIT command, but was [{}] after [{}] [{}]",
+                        isString,
+                        limitString,
+                        firstLimit.source().source().toString()
+                    )
+                );
             }
         }
     }

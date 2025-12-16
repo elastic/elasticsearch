@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.RateLongGroupingAggregatorFunction;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -36,7 +36,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
 
     private final Expression timestamp;
@@ -44,30 +44,27 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The rate of a counter field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        description = "Calculates the per-second average rate of increase of a"
+            + " [counter](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). "
+            + "Rate calculations account for breaks in monotonicity, such as counter resets when a service restarts, and extrapolate "
+            + "values within each bucketed time interval. Rate is the most appropriate aggregate function for counters. It is only allowed "
+            + "in a [STATS](/reference/query-languages/esql/commands/stats-by.md) command under a "
+            + "[`TS`](/reference/query-languages/esql/commands/ts.md) source command, to be properly applied per time series.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
-    public Rate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
 
     public Rate(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
     }
 
-    // compatibility constructor used when reading from the stream
-    private Rate(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private Rate(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    public Rate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -76,7 +73,8 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -87,21 +85,17 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
 
     @Override
     protected NodeInfo<Rate> info() {
-        return NodeInfo.create(this, Rate::new, field(), timestamp);
+        return NodeInfo.create(this, Rate::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public Rate replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Rate withFilter(Expression filter) {
-        return new Rate(source(), field(), filter, timestamp);
+        return new Rate(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -135,7 +129,8 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         return "rate(" + field() + ")";
     }
 
-    Expression timestamp() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 

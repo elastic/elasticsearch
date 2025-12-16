@@ -24,12 +24,14 @@
     "params": {
       "local": {
         "type": "boolean",
+        "default": true,
         "description": "Return local information, do not retrieve the state from master node (default: false)"
       },
       "accept_enterprise": {
         "type": "boolean",
-        "description": "Supported for backwards compatibility with 7.x. If this param is used it must be set to true",
-        "deprecated": true
+        "deprecated": true,
+        "default": true,
+        "description": "Supported for backwards compatibility with 7.x. If this param is used it must be set to true"
       }
     }
   }

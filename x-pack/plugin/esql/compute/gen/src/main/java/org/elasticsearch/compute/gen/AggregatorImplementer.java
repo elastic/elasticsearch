@@ -19,14 +19,14 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.gen.Methods.TypeMatcher;
 import org.elasticsearch.compute.gen.argument.Argument;
-import org.elasticsearch.compute.gen.argument.ArrayArgument;
+import org.elasticsearch.compute.gen.argument.BlockArgument;
+import org.elasticsearch.compute.gen.argument.PositionArgument;
 import org.elasticsearch.compute.gen.argument.StandardArgument;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,6 +37,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
 import static org.elasticsearch.compute.gen.Methods.requireAnyType;
@@ -53,7 +54,6 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
@@ -62,6 +62,8 @@ import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.fromString;
+import static org.elasticsearch.compute.gen.Types.scratchType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 /**
@@ -84,7 +86,8 @@ public class AggregatorImplementer {
     private final List<IntermediateStateDesc> intermediateState;
 
     private final AggregationState aggState;
-    private final List<AggregationParameter> aggParams;
+    private final List<Argument> aggParams;
+    private final boolean tryToUseVectors;
 
     public AggregatorImplementer(
         Elements elements,
@@ -112,12 +115,14 @@ public class AggregatorImplementer {
         );
         this.aggParams = combine.getParameters().stream().skip(1).map(v -> {
             Argument a = Argument.fromParameter(types, v);
-            return switch (a) {
-                case StandardArgument sa -> new AggregationParameter(sa.name(), sa.type(), false);
-                case ArrayArgument aa -> new AggregationParameter(aa.name(), aa.componentType(), true);
-                default -> throw new IllegalArgumentException("unsupported argument [" + a + "]");
-            };
-        }).toList();
+            if ((a instanceof StandardArgument || a instanceof BlockArgument || a instanceof PositionArgument) == false) {
+                throw new IllegalArgumentException("unsupported argument [" + declarationType + "][" + a + "]");
+            }
+            return a;
+        }).filter(a -> a instanceof PositionArgument == false).toList();
+
+        this.tryToUseVectors = aggParams.stream().anyMatch(a -> (a instanceof BlockArgument) == false)
+            && aggParams.stream().noneMatch(a -> a.supportsVectorReadAccess() == false);
 
         this.createParameters = init.getParameters()
             .stream()
@@ -197,8 +202,10 @@ public class AggregatorImplementer {
         builder.addMethod(addRawInput());
         builder.addMethod(addRawInputExploded(true));
         builder.addMethod(addRawInputExploded(false));
-        builder.addMethod(addRawVector(false));
-        builder.addMethod(addRawVector(true));
+        if (tryToUseVectors) {
+            builder.addMethod(addRawVector(false));
+            builder.addMethod(addRawVector(true));
+        }
         builder.addMethod(addRawBlock(false));
         builder.addMethod(addRawBlock(true));
         builder.addMethod(addIntermediateInput());
@@ -332,35 +339,41 @@ public class AggregatorImplementer {
         }
 
         for (int i = 0; i < aggParams.size(); i++) {
-            AggregationParameter p = aggParams.get(i);
-            builder.addStatement("$T $L = page.getBlock(channels.get($L))", blockType(p.type()), p.blockName(), i);
+            Argument a = aggParams.get(i);
+            builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
         }
-        for (AggregationParameter p : aggParams) {
-            builder.addStatement("$T $L = $L.asVector()", vectorType(p.type()), p.vectorName(), p.blockName());
-            builder.beginControlFlow("if ($L == null)", p.vectorName());
-            builder.addStatement(
-                "addRawBlock("
-                    + aggParams.stream().map(AggregationParameter::blockName).collect(joining(", "))
+
+        if (tryToUseVectors) {
+            for (Argument a : aggParams) {
+                String rawBlock = "addRawBlock("
+                    + aggParams.stream().map(arg -> arg.blockName()).collect(joining(", "))
                     + (hasMask ? ", mask" : "")
-                    + ")"
-            );
-            builder.addStatement("return");
-            builder.endControlFlow();
+                    + ")";
+
+                a.resolveVectors(builder, rawBlock, "return");
+            }
         }
-        builder.addStatement(
-            "addRawVector("
-                + aggParams.stream().map(AggregationParameter::vectorName).collect(joining(", "))
-                + (hasMask ? ", mask" : "")
-                + ")"
-        );
+
+        builder.addStatement(invokeAddRaw(tryToUseVectors == false, hasMask));
         return builder.build();
     }
 
+    private String invokeAddRaw(boolean blockStyle, boolean hasMask) {
+        return addRawName(blockStyle)
+            + "("
+            + aggParams.stream().map(a -> blockStyle ? a.blockName() : a.vectorName()).collect(joining(", "))
+            + (hasMask ? ", mask" : "")
+            + ")";
+    }
+
+    private String addRawName(boolean blockStyle) {
+        return blockStyle ? "addRawBlock" : "addRawVector";
+    }
+
     private MethodSpec addRawVector(boolean masked) {
-        MethodSpec.Builder builder = initAddRaw(true, masked);
-        if (aggParams.getFirst().isArray()) {
-            builder.addComment("This type does not support vectors because all values are multi-valued");
-            return builder.build();
+        MethodSpec.Builder builder = initAddRaw(false, masked);
+        if (aggParams.getFirst() instanceof BlockArgument) {
+            throw new IllegalStateException("The BlockArgument type does not support vectors because all values are multi-valued");
         }
 
         if (first != null) {
@@ -381,8 +394,8 @@ public class AggregatorImplementer {
             if (masked) {
                 builder.beginControlFlow("if (mask.getBoolean(valuesPosition) == false)").addStatement("continue").endControlFlow();
             }
-            for (AggregationParameter p : aggParams) {
-                p.read(builder, true);
+            for (Argument a : aggParams) {
+                a.read(builder, a.vectorName(), "valuesPosition");
             }
             combineRawInput(builder, false);
         }
@@ -404,8 +417,8 @@ public class AggregatorImplementer {
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
-            for (AggregationParameter p : aggParams) {
-                p.read(builder, true);
+            for (Argument a : aggParams) {
+                a.read(builder, a.vectorName(), "valuesPosition");
             }
             combineRawInput(builder, firstPass);
             builder.addStatement("valuesPosition++");
@@ -418,55 +431,44 @@ public class AggregatorImplementer {
     }
 
     private MethodSpec addRawBlock(boolean masked) {
-        MethodSpec.Builder builder = initAddRaw(false, masked);
+        MethodSpec.Builder builder = initAddRaw(true, masked);
 
         builder.beginControlFlow("for (int p = 0; p < $L.getPositionCount(); p++)", aggParams.getFirst().blockName());
         {
             if (masked) {
                 builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
             }
-            for (AggregationParameter p : aggParams) {
-                builder.beginControlFlow("if ($L.isNull(p))", p.blockName());
+            for (Argument a : aggParams) {
+                builder.addStatement("int $LValueCount = $L.getValueCount(p)", a.name(), a.blockName());
+                builder.beginControlFlow("if ($LValueCount == 0)", a.name());
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
 
-            if (aggParams.getFirst().isArray()) {
+            if (aggParams.getFirst() instanceof BlockArgument) {
                 if (aggParams.size() > 1) {
                     throw new IllegalArgumentException("array mode not supported for multiple args");
                 }
-                builder.addStatement("int start = $L.getFirstValueIndex(p)", aggParams.getFirst().blockName());
-                builder.addStatement("int end = start + $L.getValueCount(p)", aggParams.getFirst().blockName());
-                // TODO move this to the top of the loop
-                builder.addStatement(
-                    "$L[] valuesArray = new $L[end - start]",
-                    aggParams.getFirst().arrayType(),
-                    aggParams.getFirst().arrayType()
+                warningsBlock(
+                    builder,
+                    () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, aggParams.getFirst().blockName())
                 );
-                builder.beginControlFlow("for (int i = start; i < end; i++)");
-                builder.addStatement(
-                    "valuesArray[i-start] = $L.get$L(i)",
-                    aggParams.getFirst().blockName(),
-                    capitalize(aggParams.getFirst().arrayType())
-                );
-                builder.endControlFlow();
-                combineRawInputForArray(builder, "valuesArray");
             } else {
                 if (first == null && aggState.hasSeen()) {
                     builder.addStatement("state.seen(true)");
                 }
-                for (AggregationParameter p : aggParams) {
-                    builder.addStatement("int $L = $L.getFirstValueIndex(p)", p.startName(), p.blockName());
-                    builder.addStatement("int $L = $L + $L.getValueCount(p)", p.endName(), p.startName(), p.blockName());
+                for (Argument a : aggParams) {
+                    builder.addStatement("int $L = $L.getFirstValueIndex(p)", a.startName(), a.blockName());
+                    builder.addStatement("int $L = $L + $LValueCount", a.endName(), a.startName(), a.name());
                     builder.beginControlFlow(
                         "for (int $L = $L; $L < $L; $L++)",
-                        p.offsetName(),
-                        p.startName(),
-                        p.offsetName(),
-                        p.endName(),
-                        p.offsetName()
+                        a.offsetName(),
+                        a.startName(),
+                        a.offsetName(),
+                        a.endName(),
+                        a.offsetName()
                     );
-                    p.read(builder, false);
+                    a.read(builder, a.blockName(), a.offsetName());
                 }
                 if (first != null) {
                     builder.addComment("Check seen in every iteration to save on complexity in the Block path");
@@ -483,7 +485,7 @@ public class AggregatorImplementer {
                 } else {
                     combineRawInput(builder, false);
                 }
-                for (AggregationParameter p : aggParams) {
+                for (Argument a : aggParams) {
                     builder.endControlFlow();
                 }
             }
@@ -492,22 +494,19 @@ public class AggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec.Builder initAddRaw(boolean valuesAreVector, boolean masked) {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder(valuesAreVector ? "addRawVector" : "addRawBlock");
+    private MethodSpec.Builder initAddRaw(boolean blockStyle, boolean masked) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(addRawName(blockStyle));
         builder.addModifiers(Modifier.PRIVATE);
-        for (AggregationParameter p : aggParams) {
-            builder.addParameter(
-                valuesAreVector ? vectorType(p.type) : blockType(p.type),
-                valuesAreVector ? p.vectorName() : p.blockName()
-            );
+        for (Argument a : aggParams) {
+            a.declareProcessParameter(builder, blockStyle);
         }
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
-        for (AggregationParameter p : aggParams) {
-            if (p.isBytesRef()) {
-                // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
-                builder.addStatement("$T $L = new $T()", BYTES_REF, p.scratchName(), BYTES_REF);
+        for (Argument a : aggParams) {
+            if (a.scratchType() != null) {
+                // Add scratch var that will be used for some blocks/vectors, e.g. for bytes_ref
+                builder.addStatement("$T $L = new $T()", a.scratchType(), a.scratchName(), a.scratchType());
             }
         }
         return builder;
@@ -536,19 +535,15 @@ public class AggregatorImplementer {
         } else {
             throw new IllegalArgumentException("combine must return void or a primitive");
         }
-        for (AggregationParameter p : aggParams) {
+        for (Argument a : aggParams) {
             pattern.append(", $L");
-            params.add(p.valueName());
+            params.add(a.valueName());
         }
         if (returnType.isPrimitive()) {
             pattern.append(")");
         }
         pattern.append(")");
         builder.addStatement(pattern.toString(), params.toArray());
-    }
-
-    private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
-        warningsBlock(builder, () -> builder.addStatement("$T.combine(state, $L)", declarationType, arrayVariable));
     }
 
     private void warningsBlock(MethodSpec.Builder builder, Runnable block) {
@@ -620,8 +615,8 @@ public class AggregatorImplementer {
                     ).map(Methods::requireType).toArray(TypeMatcher[]::new)
                 )
             );
-            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
-                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+            for (IntermediateStateDesc interState : intermediateState) {
+                interState.addScratchDeclaration(builder);
             }
             builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
         }
@@ -716,11 +711,23 @@ public class AggregatorImplementer {
             if (block) {
                 return name();
             }
-            String s = name() + "." + vectorAccessorName(elementType()) + "(" + position;
-            if (elementType().equals("BYTES_REF")) {
-                s += ", scratch";
+            String s = name() + ".";
+            if (vectorType(elementType) != null) {
+                s += vectorAccessorName(elementType()) + "(" + position;
+            } else {
+                s += getMethod(fromString(elementType())) + "(" + name() + ".getFirstValueIndex(" + position + ")";
+            }
+            if (scratchType(elementType()) != null) {
+                s += ", " + name() + "Scratch";
             }
             return s + ")";
+        }
+
+        public void addScratchDeclaration(MethodSpec.Builder builder) {
+            ClassName scratchType = scratchType(elementType());
+            if (scratchType != null) {
+                builder.addStatement("$T $L = new $T()", scratchType, name() + "Scratch", scratchType);
+            }
         }
 
         public void assignToVariable(MethodSpec.Builder builder, int offset) {
@@ -731,7 +738,7 @@ public class AggregatorImplementer {
                 builder.addStatement("return");
                 builder.endControlFlow();
             }
-            if (block) {
+            if (block || vectorType(elementType) == null) {
                 builder.addStatement("$T $L = ($T) $L", blockType, name, blockType, name + "Uncast");
             } else {
                 builder.addStatement("$T $L = (($T) $L).asVector()", vectorType(elementType), name, blockType, name + "Uncast");
@@ -742,6 +749,7 @@ public class AggregatorImplementer {
             var type = Types.fromString(elementType);
             return block ? blockType(type) : type;
         }
+
     }
 
     /**
@@ -773,74 +781,6 @@ public class AggregatorImplementer {
                 name += "Array";
             }
             return name + "State";
-        }
-    }
-
-    public record AggregationParameter(String name, TypeName type, boolean isArray) {
-        public String blockName() {
-            return name + "Block";
-        }
-
-        public String vectorName() {
-            return name + "Vector";
-        }
-
-        public String scratchName() {
-            if (isBytesRef() == false) {
-                throw new IllegalStateException("can't build scratch for non-BytesRef");
-            }
-            return name + "Scratch";
-        }
-
-        public String valueName() {
-            return name + "Value";
-        }
-
-        public String startName() {
-            return name + "Start";
-        }
-
-        public String endName() {
-            return name + "End";
-        }
-
-        public String offsetName() {
-            return name + "Offset";
-        }
-
-        public String arrayType() {
-            return type.toString().replace("[]", "");
-        }
-
-        public String readMethod() {
-            String type = this.type.toString();
-            int lastDot = type.lastIndexOf('.');
-            return "get" + capitalize(lastDot >= 0 ? type.substring(lastDot + 1) : type);
-        }
-
-        public void read(MethodSpec.Builder builder, boolean vector) {
-            StringBuilder pattern = new StringBuilder("$T $L = $L.$L(");
-            List<Object> params = new ArrayList<>();
-            params.add(type);
-            params.add(valueName());
-            params.add(vector ? vectorName() : blockName());
-            params.add(readMethod());
-            if (vector) {
-                pattern.append("valuesPosition");
-            } else {
-                pattern.append("$L");
-                params.add(offsetName());
-            }
-            if (isBytesRef()) {
-                pattern.append(", $L");
-                params.add(scratchName());
-            }
-            pattern.append(")");
-            builder.addStatement(pattern.toString(), params.toArray());
-        }
-
-        public boolean isBytesRef() {
-            return Objects.equals(type, BYTES_REF);
         }
     }
 

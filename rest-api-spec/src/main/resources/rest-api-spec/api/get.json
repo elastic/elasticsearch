@@ -48,10 +48,12 @@
       },
       "realtime": {
         "type": "boolean",
+        "default": true,
         "description": "Specify whether to perform the operation in realtime or search mode"
       },
       "refresh": {
         "type": "boolean",
+        "default": false,
         "description": "Refresh the shard containing the document before performing the operation"
       },
       "routing": {
@@ -72,10 +74,11 @@
       },
       "_source_exclude_vectors": {
         "type": "boolean",
+        "default": false,
         "description": "Whether vectors should be excluded from _source"
       },
       "version": {
-        "type": "number",
+        "type": "long",
         "description": "Explicit version number for concurrency control"
       },
       "version_type": {

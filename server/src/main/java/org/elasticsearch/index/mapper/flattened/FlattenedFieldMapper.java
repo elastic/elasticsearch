@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -294,7 +296,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
             this(
                 rootName,
-                ref.isIndexed(),
+                ref.indexType().hasTerms(),
                 ref.hasDocValues(),
                 key,
                 ref.splitQueriesOnWhitespace,
@@ -752,15 +754,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
         public IgnoreAbove ignoreAbove() {
             return ignoreAbove;
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, null) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, null, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {
@@ -890,7 +895,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return;
         }
 
-        if (mappedFieldType.isIndexed() == false && mappedFieldType.hasDocValues() == false) {
+        if (mappedFieldType.indexType() == IndexType.NONE) {
             context.parser().skipChildren();
             return;
         }
@@ -921,7 +926,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
                     fullPath(),
                     fullPath() + KEYED_FIELD_SUFFIX,
-                    fieldType().ignoreAbove.isSet() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
                     leafName()
                 )
             );

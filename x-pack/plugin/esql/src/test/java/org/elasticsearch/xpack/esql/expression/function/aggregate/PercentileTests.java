@@ -53,7 +53,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
             }
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
     }
 
     @Override

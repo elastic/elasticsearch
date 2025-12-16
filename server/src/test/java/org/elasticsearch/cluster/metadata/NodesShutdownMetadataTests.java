@@ -206,6 +206,12 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
 
     @Override
     protected Metadata.ClusterCustom mutateInstance(Metadata.ClusterCustom instance) {
-        return makeTestChanges(instance);
+        Map<String, SingleNodeShutdownMetadata> originalNodes = ((NodesShutdownMetadata) instance).getAll();
+        Map<String, SingleNodeShutdownMetadata> mutatedNodes = randomValueOtherThan(
+            originalNodes,
+            () -> randomList(0, 10, this::randomNodeShutdownInfo).stream()
+                .collect(Collectors.toMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()))
+        );
+        return new NodesShutdownMetadata(mutatedNodes);
     }
 }

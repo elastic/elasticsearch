@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -144,6 +145,32 @@ public class ElasticInferenceServiceDenseTextEmbeddingsRequestTests extends ESTe
 
         // Dense text embeddings request doesn't support truncation info
         assertThat(request.getTruncationInfo(), is(nullValue()));
+    }
+
+    public void testDecorate_HttpRequest_WithProductUseCase() {
+        var input = "elastic";
+        var modelId = "my-model-id";
+        var url = "http://eis-gateway.com";
+
+        for (var inputType : List.of(InputType.INTERNAL_SEARCH, InputType.INTERNAL_INGEST, InputType.UNSPECIFIED)) {
+            var request = new ElasticInferenceServiceDenseTextEmbeddingsRequest(
+                ElasticInferenceServiceDenseTextEmbeddingsModelTests.createModel(url, modelId),
+                List.of(input),
+                new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
+                inputType
+            );
+
+            var httpRequest = request.createHttpRequest();
+
+            assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+            var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+            var headers = httpPost.getHeaders(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            assertThat(headers.length, is(2));
+            assertThat(headers[0].getValue(), is(inputType.toString()));
+            assertThat(headers[1].getValue(), is("my-product-use-case-from-metadata"));
+        }
     }
 
     private ElasticInferenceServiceDenseTextEmbeddingsRequest createRequest(

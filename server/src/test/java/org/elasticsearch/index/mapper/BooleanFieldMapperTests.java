@@ -409,4 +409,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             }
         };
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO: boolean field mapper uses a numeric comparator but is indexed with Terms
+            // so skipping doesn't work here.
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
+    }
 }

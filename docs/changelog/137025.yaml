@@ -1,0 +1,6 @@
+pr: 137025
+summary: Fix `ReplaceAliasingEvalWithProject` in case of shadowing
+area: ES|QL
+type: bug
+issues:
+ - 137019

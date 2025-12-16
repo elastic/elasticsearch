@@ -1,19 +1,20 @@
-* [preview] [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md)
-* [preview] [`COMPLETION`](/reference/query-languages/esql/commands/completion.md)
+* [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md)
+* [`COMPLETION`](/reference/query-languages/esql/commands/completion.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`DISSECT`](/reference/query-languages/esql/commands/dissect.md)
 * [`DROP`](/reference/query-languages/esql/commands/drop.md)
 * [`ENRICH`](/reference/query-languages/esql/commands/enrich.md)
 * [`EVAL`](/reference/query-languages/esql/commands/eval.md)
 * [`GROK`](/reference/query-languages/esql/commands/grok.md)
-* [preview] [`FORK`](/reference/query-languages/esql/commands/fork.md)
+* [`FORK`](/reference/query-languages/esql/commands/fork.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`FUSE`](/reference/query-languages/esql/commands/fuse.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`KEEP`](/reference/query-languages/esql/commands/keep.md)
 * [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
 * [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md)
-* [preview] [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md)
-* [preview] [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md)
+* [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`RENAME`](/reference/query-languages/esql/commands/rename.md)
-* [preview] [`RERANK`](/reference/query-languages/esql/commands/rerank.md)
-* [preview] [`SAMPLE`](/reference/query-languages/esql/commands/sample.md)
+* [`RERANK`](/reference/query-languages/esql/commands/rerank.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`SORT`](/reference/query-languages/esql/commands/sort.md)
 * [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 * [`WHERE`](/reference/query-languages/esql/commands/where.md)

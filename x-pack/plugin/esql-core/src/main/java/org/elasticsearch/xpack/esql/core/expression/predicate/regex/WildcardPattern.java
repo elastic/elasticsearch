@@ -53,7 +53,7 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
     }
 
     @Override
-    public Automaton createAutomaton(boolean ignoreCase) {
+    protected Automaton doCreateAutomaton(boolean ignoreCase) {
         return ignoreCase
             ? Operations.determinize(
                 new RegExp(luceneWildcardToRegExp(wildcard), RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, RegExp.CASE_INSENSITIVE)

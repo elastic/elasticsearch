@@ -10,6 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -70,15 +73,52 @@ public class ParsedDocument {
     /**
      * Create a delete tombstone document, which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
-     * @param id    the id of the deleted document
+     * @param id                the id of the deleted document
      */
     public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
+        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, id, null /* ignored */);
+    }
+
+    /**
+     * Create a delete tombstone document, which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     * @param useSyntheticId    whether the id is synthetic or not
+     * @param id                the id of the deleted document
+     */
+    public static ParsedDocument deleteTombstone(
+        SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,
+        boolean useDocValuesSkipper,
+        boolean useSyntheticId,
+        String id,
+        BytesRef uid
+    ) {
         LuceneDocument document = new LuceneDocument();
         SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone(seqNoIndexOptions);
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
-        document.add(IdFieldMapper.standardIdField(id));
+        if (useSyntheticId) {
+            // Use a synthetic _id field which is not indexed nor stored
+            document.add(IdFieldMapper.syntheticIdField(id));
+
+            var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
+            var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
+            var routingHash = TsidExtractingIdFieldMapper.extractRoutingHashBytesFromSyntheticId(uid);
+
+            if (useDocValuesSkipper) {
+                document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
+                document.add(SortedNumericDocValuesField.indexedField("@timestamp", timestamp));
+            } else {
+                document.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
+                document.add(new LongField("@timestamp", timestamp, Field.Store.NO));
+            }
+            var field = new SortedDocValuesField(TimeSeriesRoutingHashFieldMapper.NAME, routingHash);
+            document.add(field);
+
+        } else {
+            // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
+            document.add(IdFieldMapper.standardIdField(id));
+        }
         return new ParsedDocument(
             versionField,
             seqIdFields,

@@ -9,10 +9,12 @@
 
 package org.elasticsearch.test.knn;
 
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -53,7 +55,11 @@ record CmdLineArgs(
     VectorEncoding vectorEncoding,
     int dimensions,
     boolean earlyTermination,
-    KnnIndexTester.MergePolicyType mergePolicy
+    KnnIndexTester.MergePolicyType mergePolicy,
+    double writerBufferSizeInMb,
+    int writerMaxBufferedDocs,
+    int forceMergeMaxNumSegments,
+    boolean onDiskRescore
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -74,6 +80,7 @@ record CmdLineArgs(
     static final ParseField INDEX_THREADS_FIELD = new ParseField("index_threads");
     static final ParseField REINDEX_FIELD = new ParseField("reindex");
     static final ParseField FORCE_MERGE_FIELD = new ParseField("force_merge");
+    static final ParseField FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD = new ParseField("force_merge_max_num_segments");
     static final ParseField VECTOR_SPACE_FIELD = new ParseField("vector_space");
     static final ParseField QUANTIZE_BITS_FIELD = new ParseField("quantize_bits");
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
@@ -82,6 +89,16 @@ record CmdLineArgs(
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
+    static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
+    static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
+    static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
+
+    /** By default, in ES the default writer buffer size is 10% of the heap space
+     * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
+     * We configure the Java heap size for this tool in {@code build.gradle}; currently we default to 16GB, so in that case
+     * the buffer size would be 1.6GB.
+     */
+    static final double DEFAULT_WRITER_BUFFER_MB = (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024.0 * 1024.0)) * 0.1;
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -117,6 +134,10 @@ record CmdLineArgs(
         PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, SEED_FIELD);
         PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
+        PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_MB_FIELD);
+        PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
+        PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
+        PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
     }
 
     @Override
@@ -152,6 +173,9 @@ record CmdLineArgs(
         builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
         builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
         builder.field(SEED_FIELD.getPreferredName(), seed);
+        builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
+        builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
+        builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
         return builder.endObject();
     }
 
@@ -178,6 +202,7 @@ record CmdLineArgs(
         private int indexThreads = 1;
         private boolean reindex = false;
         private boolean forceMerge = false;
+        private int forceMergeMaxNumSegments = 1;
         private VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
         private int quantizeBits = 8;
         private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
@@ -186,6 +211,14 @@ record CmdLineArgs(
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
         private KnnIndexTester.MergePolicyType mergePolicy = null;
+        private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
+        private boolean onDiskRescore = false;
+
+        /**
+         * Elasticsearch does not set this explicitly, and in Lucene this setting is
+         * disabled by default (writer flushes by RAM usage).
+         */
+        private int writerMaxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -316,6 +349,26 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setWriterBufferMb(double writerBufferSizeInMb) {
+            this.writerBufferSizeInMb = writerBufferSizeInMb;
+            return this;
+        }
+
+        public Builder setWriterMaxBufferedDocs(int writerMaxBufferedDocs) {
+            this.writerMaxBufferedDocs = writerMaxBufferedDocs;
+            return this;
+        }
+
+        public Builder setForceMergeMaxNumSegments(int forceMergeMaxNumSegments) {
+            this.forceMergeMaxNumSegments = forceMergeMaxNumSegments;
+            return this;
+        }
+
+        public Builder setOnDiskRescore(boolean onDiskRescore) {
+            this.onDiskRescore = onDiskRescore;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -350,7 +403,11 @@ record CmdLineArgs(
                 vectorEncoding,
                 dimensions,
                 earlyTermination,
-                mergePolicy
+                mergePolicy,
+                writerBufferSizeInMb,
+                writerMaxBufferedDocs,
+                forceMergeMaxNumSegments,
+                onDiskRescore
             );
         }
     }

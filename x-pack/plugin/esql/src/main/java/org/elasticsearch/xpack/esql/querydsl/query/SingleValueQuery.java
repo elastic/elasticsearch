@@ -327,7 +327,7 @@ public class SingleValueQuery extends Query {
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
-            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate();
+            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
 
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(next().toQuery(context), BooleanClause.Occur.FILTER);
@@ -427,7 +427,7 @@ public class SingleValueQuery extends Query {
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + field() + "]");
             }
-            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate();
+            ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
             org.apache.lucene.search.Query svNext = simple(ft, context);
 
             org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));

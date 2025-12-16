@@ -59,7 +59,7 @@
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "max_num_segments": {
-        "type": "number",
+        "type": "long",
         "description": "The number of segments the index should be merged into (default: dynamic)"
       },
       "only_expunge_deletes": {

@@ -86,6 +86,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
     private static final TransportVersion MAPPINGS_IN_DATA_STREAMS = TransportVersion.fromName("mappings_in_data_streams");
 
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
@@ -298,7 +299,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var hidden = in.readBoolean();
         var replicated = in.readBoolean();
         var system = in.readBoolean();
-        var allowCustomRouting = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false;
+        var allowCustomRouting = in.readBoolean();
         var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
         var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(DataStreamLifecycle::new)
@@ -334,8 +335,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
         }
         final Settings settings;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+        if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings = Settings.readSettingsFromStream(in);
         } else {
             settings = Settings.EMPTY;
@@ -446,12 +446,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return getMatchingIndexTemplate(projectMetadata).mergeSettings(settings).mergeMappings(mappings);
     }
 
-    public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
-        ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
-        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
-        return templateSettings.merge(settings);
-    }
-
     /**
      * Returns the mappings that would be used to create the write index if this data stream were rolled over right now. This includes
      * the mapping overrides on this data stream, the mapping from the matching composable template, and the mappings from all component
@@ -499,9 +493,37 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             writeIndex.getName()
         );
         return indicesService.withTempIndexService(projectMetadata.index(writeIndex), indexService -> {
-            CompressedXContent mergedMapping = indexService.mapperService()
-                .merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE)
-                .mappingSource();
+            MapperService mapperService = indexService.mapperService();
+            if (mapperService == null) {
+                return CompressedXContent.fromJSON("{}");
+            }
+            Settings templateSettings = mergedTemplate.template().settings();
+            String indexModeSettingName = IndexSettings.MODE.getKey();
+            if (templateSettings != null
+                && Objects.equals(
+                    mapperService.getIndexSettings().getMode().getName(),
+                    templateSettings.get(indexModeSettingName)
+                ) == false) {
+                /*
+                 * It is possible that someone has changed the index mode in the template, but the data stream has not been rolled over yet.
+                 * This mapperService is for the write index, which still has the old index mode in its index settings. This only matters
+                 * for validation. To avoid failing index-mode-specific mapping validation due to using the old index mode with the new
+                 * mapping, we make sure to correct the index mode and index routing path here.
+                 */
+                IndexMetadata oldIndexMetadata = indexService.getMetadata();
+                Settings.Builder settingsBuilder = Settings.builder().put(oldIndexMetadata.getSettings());
+                settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
+
+                String indexRoutingPathSettingName = IndexMetadata.INDEX_ROUTING_PATH.getKey();
+                settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
+                IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();
+                mapperService.getIndexSettings().updateIndexMetadata(newIndexMetadata);
+            }
+            CompressedXContent mergedMapping = mapperService.merge(
+                MapperService.SINGLE_MAPPING_NAME,
+                mappings,
+                MapperService.MergeReason.INDEX_TEMPLATE
+            ).mappingSource();
             /*
              * If the merged mapping contains the old "_doc" type placeholder, we remove it to make things more straightforward for the
              * client:
@@ -1247,7 +1269,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier
     ) {
         assert backingIndices.indices.contains(index) : "the provided index must be a backing index for this datastream";
-        if (lifecycle == null || lifecycle.downsampling() == null) {
+        if (lifecycle == null || lifecycle.downsamplingRounds() == null) {
             return List.of();
         }
 
@@ -1260,8 +1282,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexGenerationTime != null) {
             long nowMillis = nowSupplier.getAsLong();
             long indexGenerationTimeMillis = indexGenerationTime.millis();
-            List<DownsamplingRound> orderedRoundsForIndex = new ArrayList<>(lifecycle.downsampling().size());
-            for (DownsamplingRound round : lifecycle.downsampling()) {
+            List<DownsamplingRound> orderedRoundsForIndex = new ArrayList<>(lifecycle.downsamplingRounds().size());
+            for (DownsamplingRound round : lifecycle.downsamplingRounds()) {
                 if (nowMillis >= indexGenerationTimeMillis + round.after().getMillis()) {
                     orderedRoundsForIndex.add(round);
                 }
@@ -1449,9 +1471,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(allowCustomRouting);
-        }
+        out.writeBoolean(allowCustomRouting);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
@@ -1479,8 +1499,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+        if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings.writeTo(out);
         }
         if (out.getTransportVersion().supports(MAPPINGS_IN_DATA_STREAMS)) {

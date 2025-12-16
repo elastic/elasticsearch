@@ -45,6 +45,10 @@ public class IrateIntAggregator {
         current.append(groupId, timestamp, value);
     }
 
+    public static String describe() {
+        return "instant change of ints";
+    }
+
     public static void combineIntermediate(
         IntIrateGroupingState current,
         int groupId,

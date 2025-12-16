@@ -8,15 +8,9 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
@@ -52,7 +46,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testSimple1() {
         assertFieldNames(
             "from employees | sort emp_no | keep emp_no, still_hired | limit 3",
-            Set.of("emp_no", "emp_no.*", "still_hired", "still_hired.*")
+            Set.of("_index", "emp_no", "emp_no.*", "still_hired", "still_hired.*")
         );
     }
 
@@ -66,7 +60,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testDirectFilter() {
         assertFieldNames(
             "from employees | sort emp_no | where still_hired | keep emp_no | limit 3",
-            Set.of("emp_no", "emp_no.*", "still_hired", "still_hired.*")
+            Set.of("_index", "emp_no", "emp_no.*", "still_hired", "still_hired.*")
         );
     }
 
@@ -77,14 +71,14 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testSort1() {
         assertFieldNames(
             "from employees | sort still_hired, emp_no | keep emp_no, still_hired | limit 3",
-            Set.of("emp_no", "emp_no.*", "still_hired", "still_hired.*")
+            Set.of("_index", "emp_no", "emp_no.*", "still_hired", "still_hired.*")
         );
     }
 
     public void testStatsBy() {
         assertFieldNames(
             "from employees | stats avg(salary) by still_hired | sort still_hired",
-            Set.of("salary", "salary.*", "still_hired", "still_hired.*")
+            Set.of("_index", "salary", "salary.*", "still_hired", "still_hired.*")
         );
     }
 
@@ -92,7 +86,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames(
             "from employees | where first_name is not null | eval always_true = starts_with(first_name, \"\") "
                 + "| stats avg(salary) by always_true",
-            Set.of("first_name", "first_name.*", "salary", "salary.*")
+            Set.of("_index", "first_name", "first_name.*", "salary", "salary.*")
         );
     }
 
@@ -101,7 +95,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             "from employees | where first_name is not null "
                 + "| eval always_false = starts_with(first_name, \"nonestartwiththis\") "
                 + "| stats avg(salary) by always_false",
-            Set.of("first_name", "first_name.*", "salary", "salary.*")
+            Set.of("_index", "first_name", "first_name.*", "salary", "salary.*")
         );
     }
 
@@ -109,7 +103,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames(
             "from employees | keep emp_no, is_rehired, still_hired "
                 + "| where is_rehired in (still_hired, true) | where is_rehired != still_hired",
-            Set.of("emp_no", "emp_no.*", "is_rehired", "is_rehired.*", "still_hired", "still_hired.*")
+            Set.of("_index", "emp_no", "emp_no.*", "is_rehired", "is_rehired.*", "still_hired", "still_hired.*")
         );
     }
 
@@ -121,17 +115,20 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval rehired_bool = to_boolean(rehired_str)
             | eval all_false = to_boolean(first_name)
             | drop first_name
-            | limit 5""", Set.of("emp_no", "emp_no.*", "is_rehired", "is_rehired.*", "first_name", "first_name.*"));
+            | limit 5""", Set.of("_index", "emp_no", "emp_no.*", "is_rehired", "is_rehired.*", "first_name", "first_name.*"));
     }
 
     public void testConvertFromDouble1() {
-        assertFieldNames("""
-            from employees
-            | eval h_2 = height - 2.0, double2bool = to_boolean(h_2)
-            | where emp_no in (10036, 10037, 10038)
-            | keep emp_no, height, *2bool""", Set.of("height", "height.*", "emp_no", "emp_no.*", "h_2", "h_2.*", "*2bool.*", "*2bool"));
+        assertFieldNames(
+            """
+                from employees
+                | eval h_2 = height - 2.0, double2bool = to_boolean(h_2)
+                | where emp_no in (10036, 10037, 10038)
+                | keep emp_no, height, *2bool""",
+            Set.of("_index", "height", "height.*", "emp_no", "emp_no.*", "h_2", "h_2.*", "*2bool.*", "*2bool")
+        );
         // TODO asking for more shouldn't hurt. Can we do better? ("h_2" shouldn't be in the list of fields)
-        // Set.of("height", "height.*", "emp_no", "emp_no.*", "*2bool.*", "*2bool"));
+        // Set.of("_index", "height", "height.*", "emp_no", "emp_no.*", "*2bool.*", "*2bool"));
     }
 
     public void testConvertFromIntAndLong() {
@@ -139,6 +136,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             "from employees | keep emp_no, salary_change*"
                 + "| eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10",
             Set.of(
+                "_index",
                 "emp_no",
                 "emp_no.*",
                 "salary_change*",
@@ -154,7 +152,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("""
             from employees
             | where emp_no < 10002
-            | keep emp_no""", Set.of("emp_no", "emp_no.*"));
+            | keep emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
     }
 
     public void testLongToLong() {
@@ -164,7 +162,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | where languages.long < avg_worked_seconds
                 | limit 1
                 | keep emp_no""",
-            Set.of("emp_no", "emp_no.*", "languages.long", "languages.long.*", "avg_worked_seconds", "avg_worked_seconds.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages.long", "languages.long.*", "avg_worked_seconds", "avg_worked_seconds.*")
         );
     }
 
@@ -174,7 +172,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | where birth_date < hire_date
             | keep emp_no
             | sort emp_no
-            | limit 1""", Set.of("birth_date", "birth_date.*", "emp_no", "emp_no.*", "hire_date", "hire_date.*"));
+            | limit 1""", Set.of("_index", "birth_date", "birth_date.*", "emp_no", "emp_no.*", "hire_date", "hire_date.*"));
     }
 
     public void testTwoConditionsWithDefault() {
@@ -182,7 +180,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | eval type = case(languages <= 1, "monolingual", languages <= 2, "bilingual", "polyglot")
             | keep emp_no, type
-            | limit 10""", Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+            | limit 10""", Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
     public void testSingleCondition() {
@@ -190,7 +188,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | eval g = case(gender == "F", true)
             | keep gender, g
-            | limit 10""", Set.of("gender", "gender.*"));
+            | limit 10""", Set.of("_index", "gender", "gender.*"));
     }
 
     public void testConditionIsNull() {
@@ -198,24 +196,24 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | eval g = case(gender == "F", 1, languages > 1, 2, 3)
             | keep gender, languages, g
-            | limit 25""", Set.of("gender", "gender.*", "languages", "languages.*"));
+            | limit 25""", Set.of("_index", "gender", "gender.*", "languages", "languages.*"));
     }
 
     public void testEvalAssign() {
         assertFieldNames(
             "from employees | sort hire_date | eval x = hire_date | keep emp_no, x | limit 5",
-            Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*")
+            Set.of("_index", "hire_date", "hire_date.*", "emp_no", "emp_no.*")
         );
     }
 
     public void testMinMax() {
-        assertFieldNames("from employees | stats min = min(hire_date), max = max(hire_date)", Set.of("hire_date", "hire_date.*"));
+        assertFieldNames("from employees | stats min = min(hire_date), max = max(hire_date)", Set.of("_index", "hire_date", "hire_date.*"));
     }
 
     public void testEvalDateTruncIntervalExpressionPeriod() {
         assertFieldNames(
             "from employees | sort hire_date | eval x = date_trunc(hire_date, 1 month) | keep emp_no, hire_date, x | limit 5",
-            Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*")
+            Set.of("_index", "hire_date", "hire_date.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -226,7 +224,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | stats count(emp_no) by y
             | sort y
             | keep y, `count(emp_no)`
-            | limit 5""", Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*"));
+            | limit 5""", Set.of("_index", "hire_date", "hire_date.*", "emp_no", "emp_no.*"));
     }
 
     public void testIn2() {
@@ -236,7 +234,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | where birth_date not in (x, hire_date)
             | keep x, hire_date
             | sort x desc
-            | limit 4""", Set.of("hire_date", "hire_date.*", "birth_date", "birth_date.*"));
+            | limit 4""", Set.of("_index", "hire_date", "hire_date.*", "birth_date", "birth_date.*"));
     }
 
     public void testBucketMonth() {
@@ -245,13 +243,13 @@ public class FieldNameUtilsTests extends ESTestCase {
             | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
             | eval hd = bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | sort hire_date
-            | keep hire_date, hd""", Set.of("hire_date", "hire_date.*"));
+            | keep hire_date, hd""", Set.of("_index", "hire_date", "hire_date.*"));
     }
 
     public void testBorn_before_today() {
         assertFieldNames(
             "from employees | where birth_date < now() | sort emp_no asc | keep emp_no, birth_date| limit 1",
-            Set.of("birth_date", "birth_date.*", "emp_no", "emp_no.*")
+            Set.of("_index", "birth_date", "birth_date.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -261,7 +259,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
             | EVAL bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | STATS AVG(salary) BY bucket
-            | SORT bucket""", Set.of("salary", "salary.*", "hire_date", "hire_date.*"));
+            | SORT bucket""", Set.of("_index", "salary", "salary.*", "hire_date", "hire_date.*"));
     }
 
     public void testEvalDateParseDynamic() {
@@ -272,7 +270,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval birth_date_string = date_format("yyyy-MM-dd", birth_date)
             | eval new_date = date_parse("yyyy-MM-dd", birth_date_string)
             | eval bool = new_date == birth_date
-            | keep emp_no, new_date, birth_date, bool""", Set.of("emp_no", "emp_no.*", "birth_date", "birth_date.*"));
+            | keep emp_no, new_date, birth_date, bool""", Set.of("_index", "emp_no", "emp_no.*", "birth_date", "birth_date.*"));
     }
 
     public void testDateFields() {
@@ -280,7 +278,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | where emp_no == 10049 or emp_no == 10050
             | eval year = date_extract("year", birth_date), month = date_extract("month_of_year", birth_date)
-            | keep emp_no, year, month""", Set.of("emp_no", "emp_no.*", "birth_date", "birth_date.*"));
+            | keep emp_no, year, month""", Set.of("_index", "emp_no", "emp_no.*", "birth_date", "birth_date.*"));
     }
 
     public void testEvalDissect() {
@@ -290,7 +288,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | dissect full_name "%{a} %{b}"
             | sort emp_no asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
+            | limit 3""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testDissectExpression() {
@@ -299,7 +297,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | dissect concat(first_name, " ", last_name) "%{a} %{b}"
             | sort emp_no asc
             | keep a, b
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
+            | limit 3""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testMultivalueInput1() {
@@ -308,7 +306,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | where emp_no <= 10006
             | dissect job_positions "%{a} %{b} %{c}"
             | sort emp_no
-            | keep emp_no, a, b, c""", Set.of("emp_no", "emp_no.*", "job_positions", "job_positions.*"));
+            | keep emp_no, a, b, c""", Set.of("_index", "emp_no", "emp_no.*", "job_positions", "job_positions.*"));
     }
 
     public void testLimitZero() {
@@ -363,14 +361,14 @@ public class FieldNameUtilsTests extends ESTestCase {
             | KEEP first_name, last_name, height
             | EVAL height_feet = height * 3.281, height_cm = height * 100
             | WHERE first_name == "Georgi"
-            | LIMIT 1""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "height", "height.*"));
+            | LIMIT 1""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*", "height", "height.*"));
     }
 
     public void testDocsKeepWildcard() {
         assertFieldNames("""
             FROM employees
             | KEEP h*
-            | LIMIT 0""", Set.of("h*"));
+            | LIMIT 0""", Set.of("_index", "h*"));
     }
 
     public void testDocsKeepDoubleWildcard() {
@@ -385,7 +383,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             FROM employees
             | KEEP first_name, last_name, still_hired
             | RENAME  still_hired AS employed
-            | LIMIT 0""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "still_hired", "still_hired.*"));
+            | LIMIT 0""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*", "still_hired", "still_hired.*"));
     }
 
     public void testDocsRenameMultipleColumns() {
@@ -393,14 +391,14 @@ public class FieldNameUtilsTests extends ESTestCase {
             FROM employees
             | KEEP first_name, last_name
             | RENAME first_name AS fn, last_name AS ln
-            | LIMIT 0""", Set.of("first_name", "first_name.*", "last_name", "last_name.*"));
+            | LIMIT 0""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*"));
     }
 
     public void testDocsStats() {
         assertFieldNames("""
             FROM employees
             | STATS count = COUNT(emp_no) BY languages
-            | SORT languages""", Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+            | SORT languages""", Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
     public void testEvalStats() {
@@ -425,13 +423,13 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("""
             FROM employees
             | STATS count = COUNT(*) BY first_name
-            | SORT first_name""", Set.of("first_name", "first_name.*"));
+            | SORT first_name""", Set.of("_index", "first_name", "first_name.*"));
 
         assertFieldNames("""
             FROM employees
             | EVAL y = "a"
             | STATS count = COUNT(*) BY x = y
-            | SORT x, first_name""", Set.of("first_name", "first_name.*"));
+            | SORT x, first_name""", Set.of("_index", "first_name", "first_name.*"));
 
         assertFieldNames("""
             FROM employees
@@ -449,26 +447,26 @@ public class FieldNameUtilsTests extends ESTestCase {
             FROM employees
             | EVAL y = to_upper(first_name), z = "z"
             | STATS count = COUNT(*) BY first_name = to_lower(y), z
-            | SORT first_name""", Set.of("first_name", "first_name.*"));
+            | SORT first_name""", Set.of("_index", "first_name", "first_name.*"));
 
         assertFieldNames("""
             FROM employees
             | EVAL y = "a"
             | STATS count = COUNT(*) BY x = y, z = first_name
-            | SORT x, z""", Set.of("first_name", "first_name.*"));
+            | SORT x, z""", Set.of("_index", "first_name", "first_name.*"));
 
         assertFieldNames("""
             FROM employees
             | EVAL y = "a"
             | STATS count = COUNT(*) BY x = y, first_name
-            | SORT x, first_name""", Set.of("first_name", "first_name.*"));
+            | SORT x, first_name""", Set.of("_index", "first_name", "first_name.*"));
 
         assertFieldNames("""
             FROM employees
             | EVAL y = "a"
             | STATS count = COUNT(first_name) BY x = y
             | SORT x
-            | DROP first_name""", Set.of("first_name", "first_name.*"));
+            | DROP first_name""", Set.of("_index", "first_name", "first_name.*"));
 
         assertFieldNames("""
             FROM employees
@@ -480,14 +478,14 @@ public class FieldNameUtilsTests extends ESTestCase {
             FROM employees
             | EVAL y = "a"
             | STATS count = COUNT(*) BY first_name, y
-            | MV_EXPAND first_name""", Set.of("first_name", "first_name.*"));
+            | MV_EXPAND first_name""", Set.of("_index", "first_name", "first_name.*"));
 
         assertFieldNames("""
             FROM employees
             | MV_EXPAND first_name
             | EVAL y = "a"
             | STATS count = COUNT(*) BY first_name, y
-            | SORT y""", Set.of("first_name", "first_name.*"));
+            | SORT y""", Set.of("_index", "first_name", "first_name.*"));
 
         assertFieldNames("""
             FROM employees
@@ -508,7 +506,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL y = "a"
             | STATS count = COUNT(*) BY first_name, y
             | STATS count = COUNT(count) by x = y
-            | SORT x""", Set.of("first_name", "first_name.*"));
+            | SORT x""", Set.of("_index", "first_name", "first_name.*"));
     }
 
     public void testSortWithLimitOne_DropHeight() {
@@ -521,13 +519,13 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropAllColumns() {
-        assertFieldNames("from employees | keep height | drop height | eval x = 1", Set.of("height", "height.*"));
+        assertFieldNames("from employees | keep height | drop height | eval x = 1", Set.of("_index", "height", "height.*"));
     }
 
     public void testDropAllColumns_WithStats() {
         assertFieldNames(
             "from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x)",
-            Set.of("height", "height.*")
+            Set.of("_index", "height", "height.*")
         );
     }
 
@@ -540,18 +538,21 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | eval x = to_string(languages)
                 | enrich languages_policy on x
                 | keep emp_no, language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
     public void testEnrichOn2() {
-        assertFieldNames("""
-            from employees
-            | eval x = to_string(languages)
-            | enrich languages_policy on x
-            | keep emp_no, language_name
-            | sort emp_no
-            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval x = to_string(languages)
+                | enrich languages_policy on x
+                | keep emp_no, language_name
+                | sort emp_no
+                | limit 1""",
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+        );
     }
 
     public void testUselessEnrich() {
@@ -563,13 +564,16 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSimpleSortLimit() {
-        assertFieldNames("""
-            from employees
-            | eval x = to_string(languages)
-            | enrich languages_policy on x
-            | keep emp_no, language_name
-            | sort emp_no
-            | limit 1""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval x = to_string(languages)
+                | enrich languages_policy on x
+                | keep emp_no, language_name
+                | sort emp_no
+                | limit 1""",
+            Set.of("_index", "languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*")
+        );
     }
 
     public void testWith() {
@@ -577,7 +581,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             """
                 from employees | eval x = to_string(languages) | keep emp_no, x | sort emp_no | limit 1
                 | enrich languages_policy on x with language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -586,7 +590,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 3 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -595,7 +599,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             """
                 from employees | eval x = to_string(languages) | keep emp_no, x  | sort emp_no | limit 3
                 | enrich languages_policy on x with lang = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -604,7 +608,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             """
                 from employees  | sort emp_no desc | limit 3 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name, language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -613,7 +617,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name, lang2 = language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -622,7 +626,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with language_name, language_name""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -633,7 +637,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | where emp_no == 10017
                 | keep emp_no, gender
                 | enrich languages_policy on gender with language_name, language_name""",
-            Set.of("gender", "gender.*", "emp_no", "emp_no.*", "language_name", "language_name.*")
+            Set.of("_index", "gender", "gender.*", "emp_no", "emp_no.*", "language_name", "language_name.*")
         );
     }
 
@@ -645,7 +649,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | eval x = to_string(languages)
                 | keep emp_no, x
                 | enrich languages_policy on x with language_name, language_name""",
-            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*")
+            Set.of("_index", "languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*", "x", "x.*")
         );
     }
 
@@ -659,6 +663,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | keep emp_no, x, lang, language
                 | sort emp_no desc | limit 3""",
             Set.of(
+                "_index",
                 "emp_no",
                 "x",
                 "lang",
@@ -684,14 +689,14 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | where x > 1
                 | keep emp_no, language_name
                 | limit 1""",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "y", "x.*", "y.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "y", "x.*", "y.*")
         );
     }
 
     public void testEvalNullSort() {
         assertFieldNames(
             "from employees | eval x = null | sort x asc, emp_no desc | keep emp_no, x, last_name | limit 2",
-            Set.of("last_name", "last_name.*", "emp_no", "emp_no.*")
+            Set.of("_index", "last_name", "last_name.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -702,7 +707,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval name_len = length(first_name)
             | where name_len < 4
             | keep first_name
-            | sort first_name""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
+            | sort first_name""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testEvalWithIsNullIsNotNull() {
@@ -713,7 +718,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | sort emp_no
                 | limit 1
                 | keep *true*, *false*, first_name, last_name""",
-            Set.of("emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "*true*", "*false*")
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "*true*", "*false*")
         );
     }
 
@@ -721,6 +726,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames(
             "from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03)",
             Set.of(
+                "_index",
                 "emp_no",
                 "emp_no.*",
                 "height",
@@ -738,7 +744,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testConvertFromDatetime() {
         assertFieldNames(
             "from employees | sort emp_no | eval hire_double = to_double(hire_date) | keep emp_no, hire_date, hire_double | limit 3",
-            Set.of("emp_no", "emp_no.*", "hire_date", "hire_date.*")
+            Set.of("_index", "emp_no", "emp_no.*", "hire_date", "hire_date.*")
         );
     }
 
@@ -748,7 +754,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
             | EVAL bh = bucket(height, 20, 1.41, 2.10)
             | SORT hire_date
-            | KEEP hire_date, height, bh""", Set.of("hire_date", "hire_date.*", "height", "height.*"));
+            | KEEP hire_date, height, bh""", Set.of("_index", "hire_date", "hire_date.*", "height", "height.*"));
     }
 
     public void testEvalGrok() {
@@ -758,7 +764,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | grok full_name "%{WORD:a} %{WORD:b}"
             | sort emp_no asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
+            | limit 3""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testGrokExpression() {
@@ -767,7 +773,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | grok concat(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
             | sort emp_no asc
             | keep a, b
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
+            | limit 3""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testEvalGrokSort() {
@@ -777,7 +783,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | grok full_name "%{WORD:a} %{WORD:b}"
             | sort a asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*"));
+            | limit 3""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*"));
     }
 
     public void testGrokStats() {
@@ -787,7 +793,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | grok x "%{WORD:a} %{WORD:b}"
             | stats n = max(emp_no) by a
             | keep a, n
-            | sort a asc""", Set.of("gender", "gender.*", "emp_no", "emp_no.*"));
+            | sort a asc""", Set.of("_index", "gender", "gender.*", "emp_no", "emp_no.*"));
     }
 
     public void testNullOnePattern() {
@@ -795,7 +801,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | where emp_no == 10030
             | grok first_name "%{WORD:a}"
-            | keep first_name, a""", Set.of("first_name", "first_name.*", "emp_no", "emp_no.*"));
+            | keep first_name, a""", Set.of("_index", "first_name", "first_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testMultivalueInput() {
@@ -804,7 +810,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | where emp_no <= 10006
             | grok job_positions "%{WORD:a} %{WORD:b} %{WORD:c}"
             | sort emp_no
-            | keep emp_no, a, b, c, job_positions""", Set.of("job_positions", "job_positions.*", "emp_no", "emp_no.*"));
+            | keep emp_no, a, b, c, job_positions""", Set.of("_index", "job_positions", "job_positions.*", "emp_no", "emp_no.*"));
     }
 
     public void testSelectAll() {
@@ -821,7 +827,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testKeepId() {
-        assertFieldNames("FROM apps metadata _id | WHERE id == 3 | KEEP _id", Set.of("id", "id.*"));
+        assertFieldNames("FROM apps metadata _id | WHERE id == 3 | KEEP _id", Set.of("_index", "id", "id.*"));
     }
 
     public void testIdRangeAndSort() {
@@ -829,19 +835,19 @@ public class FieldNameUtilsTests extends ESTestCase {
             FROM apps metadata _id
             | WHERE _id >= "2" AND _id <= "7"
             | SORT _id
-            | keep id, name, _id""", Set.of("id", "id.*", "name", "name.*"));
+            | keep id, name, _id""", Set.of("_index", "id", "id.*", "name", "name.*"));
     }
 
     public void testOrderById() {
-        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id", Set.of("_index", "name", "name.*"));
     }
 
     public void testOrderByIdDesc() {
-        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id DESC", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id DESC", Set.of("_index", "name", "name.*"));
     }
 
     public void testConcatId() {
-        assertFieldNames("FROM apps metadata _id | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("_index", "name", "name.*"));
     }
 
     public void testStatsOnId() {
@@ -849,45 +855,51 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testStatsOnIdByGroup() {
-        assertFieldNames("FROM apps metadata _id | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name", "name.*"));
+        assertFieldNames(
+            "FROM apps metadata _id | stats c = count(_id) by name | sort c desc, name | limit 5",
+            Set.of("_index", "name", "name.*")
+        );
     }
 
     public void testSimpleProject() {
         assertFieldNames(
             "from hosts | keep card, host, ip0, ip1",
-            Set.of("card", "card.*", "host", "host.*", "ip0", "ip0.*", "ip1", "ip1.*")
+            Set.of("_index", "card", "card.*", "host", "host.*", "ip0", "ip0.*", "ip1", "ip1.*")
         );
     }
 
     public void testEquals() {
         assertFieldNames(
             "from hosts | sort host, card | where ip0 == ip1 | keep card, host",
-            Set.of("card", "card.*", "host", "host.*", "ip0", "ip0.*", "ip1", "ip1.*")
+            Set.of("_index", "card", "card.*", "host", "host.*", "ip0", "ip0.*", "ip1", "ip1.*")
         );
     }
 
     public void testConditional() {
-        assertFieldNames("from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1", Set.of("ip1", "ip1.*", "ip0", "ip0.*"));
+        assertFieldNames(
+            "from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1",
+            Set.of("_index", "ip1", "ip1.*", "ip0", "ip0.*")
+        );
     }
 
     public void testWhereWithAverageBySubField() {
         assertFieldNames(
             "from employees | where languages + 1 == 6 | stats avg(avg_worked_seconds) by languages.long",
-            Set.of("languages", "languages.*", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*")
+            Set.of("_index", "languages", "languages.*", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*")
         );
     }
 
     public void testAverageOfEvalValue() {
         assertFieldNames(
             "from employees | eval ratio = salary / height | stats avg(ratio)",
-            Set.of("salary", "salary.*", "height", "height.*")
+            Set.of("_index", "salary", "salary.*", "height", "height.*")
         );
     }
 
     public void testTopNProjectEvalProject() {
         assertFieldNames(
             "from employees | sort salary | limit 1 | keep languages, salary | eval x = languages + 1 | keep x",
-            Set.of("salary", "salary.*", "languages", "languages.*")
+            Set.of("_index", "salary", "salary.*", "languages", "languages.*")
         );
     }
 
@@ -898,11 +910,14 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval salary_change = mv_sum(salary_change.int)
             | sort emp_no
             | keep emp_no, salary_change.int, salary_change
-            | limit 7""", Set.of("emp_no", "emp_no.*", "salary_change.int", "salary_change.int.*"));
+            | limit 7""", Set.of("_index", "emp_no", "emp_no.*", "salary_change.int", "salary_change.int.*"));
     }
 
     public void testMetaIndexAliasedInAggs() {
-        assertFieldNames("from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i", Set.of("emp_no", "emp_no.*"));
+        assertFieldNames(
+            "from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i",
+            Set.of("_index", "emp_no", "emp_no.*")
+        );
     }
 
     public void testCoalesceFolding() {
@@ -911,13 +926,13 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL foo=COALESCE(true, false, null)
             | SORT emp_no ASC
             | KEEP emp_no, first_name, foo
-            | limit 3""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
+            | limit 3""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testRenameEvalProject() {
         assertFieldNames(
             "from employees | rename languages as x | keep x | eval z = 2 * x | keep x, z | limit 3",
-            Set.of("languages", "languages.*")
+            Set.of("_index", "languages", "languages.*")
         );
     }
 
@@ -929,27 +944,27 @@ public class FieldNameUtilsTests extends ESTestCase {
             | keep x, y
             | eval x2 = x + 1
             | eval y2 = y + 2
-            | limit 3""", Set.of("languages", "languages.*"));
+            | limit 3""", Set.of("_index", "languages", "languages.*"));
     }
 
     public void testRenameWithFilterPushedToES() {
         assertFieldNames(
             "from employees | rename emp_no as x | keep languages, first_name, last_name, x | where x > 10030 and x < 10040 | limit 5",
-            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "first_name", "first_name.*", "last_name", "last_name.*")
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "first_name", "first_name.*", "last_name", "last_name.*")
         );
     }
 
     public void testRenameOverride() {
         assertFieldNames(
             "from employees | rename emp_no as languages | keep languages, last_name | limit 3",
-            Set.of("emp_no", "emp_no.*", "last_name", "last_name.*")
+            Set.of("_index", "emp_no", "emp_no.*", "last_name", "last_name.*")
         );
     }
 
     public void testProjectRenameDate() {
         assertFieldNames(
             "from employees | sort hire_date | rename hire_date as x | keep emp_no, x | limit 5",
-            Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*")
+            Set.of("_index", "hire_date", "hire_date.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -964,13 +979,13 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMaxOfLong() {
-        assertFieldNames("from employees | stats l = max(languages.long)", Set.of("languages.long", "languages.long.*"));
+        assertFieldNames("from employees | stats l = max(languages.long)", Set.of("_index", "languages.long", "languages.long.*"));
     }
 
     public void testGroupByAlias() {
         assertFieldNames(
             "from employees | rename languages as l | keep l, height | stats m = min(height) by l | sort l",
-            Set.of("languages", "languages.*", "height", "height.*")
+            Set.of("_index", "languages", "languages.*", "height", "height.*")
         );
     }
 
@@ -979,7 +994,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
             | stats c = count(gender) by gender, trunk_worked_seconds
-            | sort c desc""", Set.of("avg_worked_seconds", "avg_worked_seconds.*", "gender", "gender.*"));
+            | sort c desc""", Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "gender", "gender.*"));
     }
 
     public void testByStringAndLongWithAlias() {
@@ -989,7 +1004,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | rename gender as g, trunk_worked_seconds as tws
             | keep g, tws
             | stats c = count(g) by g, tws
-            | sort c desc""", Set.of("avg_worked_seconds", "avg_worked_seconds.*", "gender", "gender.*"));
+            | sort c desc""", Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "gender", "gender.*"));
     }
 
     public void testByStringAndString() {
@@ -998,7 +1013,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval hire_year_str = date_format("yyyy", hire_date)
             | stats c = count(gender) by gender, hire_year_str
             | sort c desc, gender, hire_year_str
-            | where c >= 5""", Set.of("hire_date", "hire_date.*", "gender", "gender.*"));
+            | where c >= 5""", Set.of("_index", "hire_date", "hire_date.*", "gender", "gender.*"));
     }
 
     public void testByLongAndLong() {
@@ -1006,18 +1021,21 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
             | stats c = count(languages.long) by languages.long, trunk_worked_seconds
-            | sort c desc""", Set.of("avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*"));
+            | sort c desc""", Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*"));
     }
 
     public void testByDateAndKeywordAndIntWithAlias() {
-        assertFieldNames("""
-            from employees
-            | eval d = date_trunc(hire_date, 1 year)
-            | rename gender as g, languages as l, emp_no as e
-            | keep d, g, l, e
-            | stats c = count(e) by d, g, l
-            | sort c desc, d, l desc
-            | limit 10""", Set.of("hire_date", "hire_date.*", "gender", "gender.*", "languages", "languages.*", "emp_no", "emp_no.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval d = date_trunc(hire_date, 1 year)
+                | rename gender as g, languages as l, emp_no as e
+                | keep d, g, l, e
+                | stats c = count(e) by d, g, l
+                | sort c desc, d, l desc
+                | limit 10""",
+            Set.of("_index", "hire_date", "hire_date.*", "gender", "gender.*", "languages", "languages.*", "emp_no", "emp_no.*")
+        );
     }
 
     public void testCountDistinctOfKeywords() {
@@ -1026,14 +1044,14 @@ public class FieldNameUtilsTests extends ESTestCase {
                 from employees
                 | eval hire_year_str = date_format("yyyy", hire_date)
                 | stats g = count_distinct(gender), h = count_distinct(hire_year_str)""",
-            Set.of("hire_date", "hire_date.*", "gender", "gender.*")
+            Set.of("_index", "hire_date", "hire_date.*", "gender", "gender.*")
         );
     }
 
     public void testCountDistinctOfIpPrecision() {
         assertFieldNames("""
             FROM hosts
-            | STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)""", Set.of("ip0", "ip0.*", "ip1", "ip1.*"));
+            | STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)""", Set.of("_index", "ip0", "ip0.*", "ip1", "ip1.*"));
     }
 
     public void testPercentileOfLong() {
@@ -1041,20 +1059,20 @@ public class FieldNameUtilsTests extends ESTestCase {
             """
                 from employees
                 | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50)""",
-            Set.of("salary_change.long", "salary_change.long.*")
+            Set.of("_index", "salary_change.long", "salary_change.long.*")
         );
     }
 
     public void testMedianOfInteger() {
         assertFieldNames("""
             FROM employees
-            | STATS MEDIAN(salary), PERCENTILE(salary, 50)""", Set.of("salary", "salary.*"));
+            | STATS MEDIAN(salary), PERCENTILE(salary, 50)""", Set.of("_index", "salary", "salary.*"));
     }
 
     public void testMedianAbsoluteDeviation() {
         assertFieldNames("""
             FROM employees
-            | STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)""", Set.of("salary", "salary.*"));
+            | STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)""", Set.of("_index", "salary", "salary.*"));
     }
 
     public void testIn3VLWithComputedNull() {
@@ -1067,7 +1085,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | keep emp_no, job_positions
                 | eval nil = concat("", null)
                 | eval is_in = job_positions in ("Accountant", "Internship", nil)""",
-            Set.of("job_positions", "job_positions.*", "emp_no", "emp_no.*")
+            Set.of("_index", "job_positions", "job_positions.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -1085,21 +1103,21 @@ public class FieldNameUtilsTests extends ESTestCase {
             version IS NULL, "none",
             "low")
             | SORT version DESC NULLS LAST, id DESC
-            | KEEP v, version, version_text, id, m, g, i, c""", Set.of("version", "version.*", "id", "id.*"));
+            | KEEP v, version, version_text, id, m, g, i, c""", Set.of("_index", "version", "version.*", "id", "id.*"));
     }
 
     public void testLikePrefix() {
         assertFieldNames("""
             from employees
             | where first_name like "Eberhar*"
-            | keep emp_no, first_name""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
+            | keep emp_no, first_name""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testRLikePrefix() {
         assertFieldNames("""
             from employees
             | where first_name rlike "Aleja.*"
-            | keep emp_no""", Set.of("first_name", "first_name.*", "emp_no", "emp_no.*"));
+            | keep emp_no""", Set.of("_index", "first_name", "first_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testByUnmentionedLongAndLong() {
@@ -1109,7 +1127,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
                 | stats c = count(gender) by languages.long, trunk_worked_seconds
                 | sort c desc""",
-            Set.of("avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*", "gender", "gender.*")
+            Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*", "gender", "gender.*")
         );
     }
 
@@ -1118,7 +1136,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from employees
             | rename emp_no as emp_no
             | keep emp_no, last_name
-            | limit 3""", Set.of("emp_no", "emp_no.*", "last_name", "last_name.*"));
+            | limit 3""", Set.of("_index", "emp_no", "emp_no.*", "last_name", "last_name.*"));
     }
 
     public void testRename() {
@@ -1126,7 +1144,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | rename emp_no as e
             | keep first_name, e
-            """, Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testChainedRename() {
@@ -1134,9 +1152,12 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | rename emp_no as r1, r1 as r2, r2 as r3
             | keep first_name, r3
-            """, Set.of("emp_no", "emp_no.*", "first_name", "first_name.*", "r1", "r1.*", "r2", "r2.*"));// TODO asking for more shouldn't
-                                                                                                         // hurt. Can we do better?
-        // Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "r1", "r1.*", "r2", "r2.*"));// TODO
+                                                                                                                   // asking for
+                                                                                                                   // more
+                                                                                                                   // shouldn't
+        // hurt. Can we do better?
+        // Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testChainedRenameReuse() {
@@ -1144,9 +1165,12 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | rename emp_no as r1, r1 as r2, r2 as r3, first_name as r1
             | keep r1, r3
-            """, Set.of("emp_no", "emp_no.*", "first_name", "first_name.*", "r1", "r1.*", "r2", "r2.*"));// TODO asking for more shouldn't
-                                                                                                         // hurt. Can we do better?
-        // Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "r1", "r1.*", "r2", "r2.*"));// TODO
+                                                                                                                   // asking for
+                                                                                                                   // more
+                                                                                                                   // shouldn't
+        // hurt. Can we do better?
+        // Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testRenameBackAndForth() {
@@ -1154,8 +1178,8 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | rename emp_no as r1, r1 as emp_no
             | keep emp_no
-            """, Set.of("emp_no", "emp_no.*", "r1", "r1.*"));// TODO asking for more shouldn't hurt. Can we do better?
-        // Set.of("emp_no", "emp_no.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "r1", "r1.*"));// TODO asking for more shouldn't hurt. Can we do better?
+        // Set.of("_index", "emp_no", "emp_no.*"));
     }
 
     public void testRenameReuseAlias() {
@@ -1168,7 +1192,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testIfDuplicateNamesGroupingHasPriority() {
         assertFieldNames(
             "from employees | stats languages = avg(height), languages = min(height) by languages | sort languages",
-            Set.of("height", "height.*", "languages", "languages.*")
+            Set.of("_index", "height", "height.*", "languages", "languages.*")
         );
     }
 
@@ -1178,7 +1202,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL first_name = COALESCE(first_name, "X")
             | SORT first_name DESC, emp_no ASC
             | KEEP emp_no, first_name
-            | limit 10""", Set.of("first_name", "first_name.*", "emp_no", "emp_no.*"));
+            | limit 10""", Set.of("_index", "first_name", "first_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testCoalesceBackwards() {
@@ -1187,7 +1211,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL first_name = COALESCE("X", first_name)
             | SORT first_name DESC, emp_no ASC
             | KEEP emp_no, first_name
-            | limit 10""", Set.of("first_name", "first_name.*", "emp_no", "emp_no.*"));
+            | limit 10""", Set.of("_index", "first_name", "first_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testGroupByVersionCast() {
@@ -1196,7 +1220,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL g = TO_VER(CONCAT("1.", TO_STR(version)))
             | STATS id = MAX(id) BY g
             | SORT id
-            | DROP g""", Set.of("version", "version.*", "id", "id.*"));
+            | DROP g""", Set.of("_index", "version", "version.*", "id", "id.*"));
     }
 
     public void testCoalesceEndsInNull() {
@@ -1205,17 +1229,20 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL first_name = COALESCE(first_name, last_name, null)
             | SORT first_name DESC, emp_no ASC
             | KEEP emp_no, first_name
-            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
+            | limit 3""", Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testMvAvg() {
-        assertFieldNames("""
-            from employees
-            | where emp_no > 10008
-            | eval salary_change = mv_avg(salary_change)
-            | sort emp_no
-            | keep emp_no, salary_change.int, salary_change
-            | limit 7""", Set.of("emp_no", "emp_no.*", "salary_change", "salary_change.*", "salary_change.int", "salary_change.int.*"));
+        assertFieldNames(
+            """
+                from employees
+                | where emp_no > 10008
+                | eval salary_change = mv_avg(salary_change)
+                | sort emp_no
+                | keep emp_no, salary_change.int, salary_change
+                | limit 7""",
+            Set.of("_index", "emp_no", "emp_no.*", "salary_change", "salary_change.*", "salary_change.int", "salary_change.int.*")
+        );
     }
 
     public void testEvalOverride() {
@@ -1224,8 +1251,9 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval languages = languages + 1
             | eval languages = languages + 1
             | limit 5
-            | keep l*""", Set.of("languages", "languages.*", "l*"));// subtlety here. Keeping only "languages*" can remove any other "l*"
-                                                                    // named fields
+            | keep l*""", Set.of("_index", "languages", "languages.*", "l*"));// subtlety here. Keeping only "languages*" can
+                                                                              // remove any other "l*"
+        // named fields
     }
 
     public void testBasicWildcardKeep() {
@@ -1236,7 +1264,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("""
             from test
             | keep un*
-            """, Set.of("un*"));
+            """, Set.of("_index", "un*"));
     }
 
     public void testWildcardKeep() {
@@ -1251,7 +1279,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | keep *name
             | drop first_name
-            """, Set.of("*name", "*name.*", "first_name", "first_name.*"));
+            """, Set.of("_index", "*name", "*name.*", "first_name", "first_name.*"));
     }
 
     public void testProjectAfterDropName() {
@@ -1259,7 +1287,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | drop first_name
             | keep *name
-            """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
+            """, Set.of("_index", "*name.*", "*name", "first_name", "first_name.*"));
     }
 
     public void testProjectWithMixedQuoting() {
@@ -1267,7 +1295,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | drop first_name
             | keep *`name`
-            """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
+            """, Set.of("_index", "*name.*", "*name", "first_name", "first_name.*"));
     }
 
     public void testProjectKeepAndDropName() {
@@ -1275,7 +1303,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | drop first_name
             | keep last_name
-            """, Set.of("last_name", "last_name.*", "first_name", "first_name.*"));
+            """, Set.of("_index", "last_name", "last_name.*", "first_name", "first_name.*"));
     }
 
     public void testProjectDropPattern() {
@@ -1324,7 +1352,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | drop l*
             | keep first_name, salary
-            """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
+            """, Set.of("_index", "l*", "first_name", "first_name.*", "salary", "salary.*"));
     }
 
     public void testProjectDropWithQuotedAndUnquotedPatternAndKeepOthers() {
@@ -1332,7 +1360,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | drop `l`*
             | keep first_name, salary
-            """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
+            """, Set.of("_index", "l*", "first_name", "first_name.*", "salary", "salary.*"));
     }
 
     public void testAliasesThatGetDropped() {
@@ -1358,7 +1386,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | stats c = count(*) by languages
             | rename languages as l
             | sort l DESC
-            """, Set.of("languages", "languages.*"));
+            """, Set.of("_index", "languages", "languages.*"));
     }
 
     public void testCountAllAndOtherStatGrouped() {
@@ -1366,7 +1394,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | stats c = count(*), min = min(emp_no) by languages
             | sort languages
-            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
     public void testCountAllAndOtherStatGrouped_WithInlineStats() {
@@ -1376,7 +1404,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | inline stats c = count(*), min = min(emp_no) by languages
             | stats c = count(*), min = min(emp_no) by languages
             | sort languages
-            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
     public void testCountAllWithImplicitNameOtherStatGrouped() {
@@ -1385,7 +1413,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | stats count(*), min = min(emp_no) by languages
             | drop `count(*)`
             | sort languages
-            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
     public void testDropWithQuotedAndUnquotedName() {
@@ -1394,7 +1422,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | stats count(*), min = min(emp_no) by languages
             | drop count`(*)`
             | sort languages
-            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
     public void testCountAllWithEval() {
@@ -1405,7 +1433,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval x = min + 1
             | stats ca = count(*), cx = count(x) by l
             | sort l
-            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+            """, Set.of("_index", "languages", "languages.*", "salary", "salary.*"));
     }
 
     public void testCountAllWithEval_AndInlineStats() {
@@ -1418,7 +1446,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval x = min + 1
             | stats ca = count(*), cx = count(x) by l
             | sort l
-            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+            """, Set.of("_index", "languages", "languages.*", "salary", "salary.*"));
     }
 
     public void testKeepAfterEval_AndInlineStats() {
@@ -1431,7 +1459,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval x = min + 1
             | keep x, l
             | sort l
-            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+            """, Set.of("_index", "languages", "languages.*", "salary", "salary.*"));
     }
 
     public void testKeepBeforeEval_AndInlineStats() {
@@ -1444,7 +1472,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval x = `max(salary)` + 1
             | stats min = min(salary) by l
             | sort l
-            """, Set.of("languages", "languages.*", "salary", "salary.*", "emp_no", "emp_no.*"));
+            """, Set.of("_index", "languages", "languages.*", "salary", "salary.*", "emp_no", "emp_no.*"));
     }
 
     public void testStatsBeforeEval_AndInlineStats() {
@@ -1456,7 +1484,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval salary = min + 1
             | inline stats max(salary) by l
             | sort l
-            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+            """, Set.of("_index", "languages", "languages.*", "salary", "salary.*"));
     }
 
     public void testStatsBeforeInlineStats() {
@@ -1465,7 +1493,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | stats min = min(salary) by languages
             | inline stats max(min) by languages
-            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+            """, Set.of("_index", "languages", "languages.*", "salary", "salary.*"));
     }
 
     public void testKeepBeforeInlineStats() {
@@ -1474,7 +1502,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             from test
             | keep languages, salary
             | inline stats max(salary) by languages
-            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+            """, Set.of("_index", "languages", "languages.*", "salary", "salary.*"));
     }
 
     public void testCountStar() {
@@ -1487,22 +1515,17 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testEnrichOnDefaultFieldWithKeep() {
-        assertFieldNames(
-            """
-                from employees
-                | enrich languages_policy
-                | keep emp_no""",
-            enrichResolutionWith("language_name"),
-            Set.of("emp_no", "emp_no.*", "language_name", "language_name.*"),
-            Set.of()
-        );
+        assertFieldNames("""
+            from employees
+            | enrich languages_policy
+            | keep emp_no""", true, Set.of("*"), Set.of());
     }
 
     public void testDissectOverwriteName() {
         assertFieldNames("""
             from employees
             | dissect first_name "%{first_name} %{more}"
-            | keep emp_no, first_name, more""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
+            | keep emp_no, first_name, more""", Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     /**
@@ -1510,7 +1533,6 @@ public class FieldNameUtilsTests extends ESTestCase {
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127467">ES|QL: pruning of JOINs leads to missing fields</a>
       */
     public void testAvoidGrokAttributesRemoval() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from message_types
             | eval type = 1
@@ -1518,11 +1540,10 @@ public class FieldNameUtilsTests extends ESTestCase {
             | drop  message
             | grok type "%{WORD:b}"
             | stats x = max(b)
-            | keep x""", Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*"));
+            | keep x""", Set.of("_index", "x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*"));
     }
 
     public void testAvoidGrokAttributesRemoval2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from sample_data
             | dissect message "%{type}"
@@ -1530,26 +1551,27 @@ public class FieldNameUtilsTests extends ESTestCase {
             | lookup join message_types_lookup on message
             | stats count = count(*) by type
             | keep count
-            | sort count""", Set.of("type", "message", "count", "message.*", "type.*", "count.*"));
+            | sort count""", Set.of("_index", "type", "message", "count", "message.*", "type.*", "count.*"));
     }
 
     public void testAvoidGrokAttributesRemoval3() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertFieldNames("""
-            from sample_data
-            | grok message "%{WORD:type}"
-            | drop type
-            | lookup join message_types_lookup on message
-            | stats max = max(event_duration) by type
-            | keep max
-            | sort max""", Set.of("type", "event_duration", "message", "max", "event_duration.*", "message.*", "type.*", "max.*"));
+        assertFieldNames(
+            """
+                from sample_data
+                | grok message "%{WORD:type}"
+                | drop type
+                | lookup join message_types_lookup on message
+                | stats max = max(event_duration) by type
+                | keep max
+                | sort max""",
+            Set.of("_index", "type", "event_duration", "message", "max", "event_duration.*", "message.*", "type.*", "max.*")
+        );
     }
 
     /**
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
      */
     public void testAvoidGrokAttributesRemoval4() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             from message_types
             | eval type = 1
@@ -1557,14 +1579,13 @@ public class FieldNameUtilsTests extends ESTestCase {
             | drop  message
             | grok type "%{WORD:b}"
             | stats x = max(b)
-            | keep x""", Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*"));
+            | keep x""", Set.of("_index", "x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*"));
     }
 
     /**
      * @see <a href="https://github.com/elastic/elasticsearch/issues/127468">ES|QL: Grok only supports KEYWORD or TEXT values, found expression [type] type [INTEGER]</a>
      */
     public void testAvoidGrokAttributesRemoval5() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data, employees
@@ -1581,6 +1602,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | SORT message DESC
                 | LIMIT 1""",
             Set.of(
+                "_index",
                 "message",
                 "type",
                 "languages",
@@ -1599,7 +1621,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testEnrichOnDefaultField() {
         assertFieldNames("""
             from employees
-            | enrich languages_policy""", enrichResolutionWith("language_name"), ALL_FIELDS, Set.of());
+            | enrich languages_policy""", true, ALL_FIELDS, Set.of());
     }
 
     public void testMetrics() {
@@ -1607,6 +1629,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames(
             query,
             Set.of(
+                "_index",
                 "@timestamp",
                 "@timestamp.*",
                 "network.total_bytes_in",
@@ -1621,16 +1644,14 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
-            Set.of("languages", "languages.*", "language_code", "language_code.*"),
+            Set.of("_index", "languages", "languages.*", "language_code", "language_code.*"),
             Set.of("languages_lookup") // Since we have KEEP before the LOOKUP JOIN we need to wildcard the lookup index
         );
     }
 
     public void testLookupJoinKeep() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1638,13 +1659,12 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | RENAME languages AS language_code
                 | LOOKUP JOIN languages_lookup ON language_code
                 | KEEP languages, language_code, language_name""",
-            Set.of("languages", "languages.*", "language_code", "language_code.*", "language_name", "language_name.*"),
+            Set.of("_index", "languages", "languages.*", "language_code", "language_code.*", "language_name", "language_name.*"),
             Set.of()  // Since we have KEEP after the LOOKUP, we can use the global field names instead of wildcarding the lookup index
         );
     }
 
     public void testLookupJoinKeepWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1652,13 +1672,12 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | RENAME languages AS language_code
                 | LOOKUP JOIN languages_lookup ON language_code
                 | KEEP language*""",
-            Set.of("language*", "languages", "languages.*", "language_code", "language_code.*"),
+            Set.of("_index", "language*", "languages", "languages.*", "language_code", "language_code.*"),
             Set.of()  // Since we have KEEP after the LOOKUP, we can use the global field names instead of wildcarding the lookup index
         );
     }
 
     public void testMultiLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1671,7 +1690,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBefore() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1679,13 +1697,22 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP @timestamp, client_ip, event_duration, message
                 | LOOKUP JOIN clientips_lookup ON client_ip
                 | LOOKUP JOIN message_types_lookup ON message""",
-            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "message", "message.*"),
+            Set.of(
+                "_index",
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*"
+            ),
             Set.of("clientips_lookup", "message_types_lookup") // Since the KEEP is before both JOINS we need to wildcard both indices
         );
     }
 
     public void testMultiLookupJoinKeepBetween() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1694,6 +1721,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP @timestamp, client_ip, event_duration, message, env
                 | LOOKUP JOIN message_types_lookup ON message""",
             Set.of(
+                "_index",
                 "@timestamp",
                 "@timestamp.*",
                 "client_ip",
@@ -1710,7 +1738,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfter() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1719,6 +1746,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN message_types_lookup ON message
                 | KEEP @timestamp, client_ip, event_duration, message, env, type""",
             Set.of(
+                "_index",
                 "@timestamp",
                 "@timestamp.*",
                 "client_ip",
@@ -1737,7 +1765,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfterWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1745,13 +1772,12 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN clientips_lookup ON client_ip
                 | LOOKUP JOIN message_types_lookup ON message
                 | KEEP *env*, *type*""",
-            Set.of("*env*", "*type*", "client_ip", "client_ip.*", "message", "message.*"),
+            Set.of("_index", "*env*", "*type*", "client_ip", "client_ip.*", "message", "message.*"),
             Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
         );
     }
 
     public void testMultiLookupJoinSameIndex() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1765,7 +1791,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBefore() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1774,13 +1799,22 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN clientips_lookup ON client_ip
                 | EVAL client_ip = message
                 | LOOKUP JOIN clientips_lookup ON client_ip""",
-            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "message", "message.*"),
+            Set.of(
+                "_index",
+                "@timestamp",
+                "@timestamp.*",
+                "client_ip",
+                "client_ip.*",
+                "event_duration",
+                "event_duration.*",
+                "message",
+                "message.*"
+            ),
             Set.of("clientips_lookup") // Since there is no KEEP after the last JOIN, we need to wildcard the index
         );
     }
 
     public void testMultiLookupJoinSameIndexKeepBetween() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1790,6 +1824,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | EVAL client_ip = message
                 | LOOKUP JOIN clientips_lookup ON client_ip""",
             Set.of(
+                "_index",
                 "@timestamp",
                 "@timestamp.*",
                 "client_ip",
@@ -1806,7 +1841,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepAfter() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1816,6 +1850,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN clientips_lookup ON client_ip
                 | KEEP @timestamp, client_ip, event_duration, message, env""",
             Set.of(
+                "_index",
                 "@timestamp",
                 "@timestamp.*",
                 "client_ip",
@@ -1835,7 +1870,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
         assertFieldNames(
             "FROM partial_mapping_sample_data | INSIST_🐔 client_ip | KEEP @timestamp, client_ip",
-            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*"),
+            Set.of("_index", "@timestamp", "@timestamp.*", "client_ip", "client_ip.*"),
             Set.of()
         );
     }
@@ -1844,7 +1879,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
         assertFieldNames(
             "FROM partial_mapping_sample_data | INSIST_🐔 message | KEEP @timestamp, message",
-            Set.of("@timestamp", "@timestamp.*", "message", "message.*"),
+            Set.of("_index", "@timestamp", "@timestamp.*", "message", "message.*"),
             Set.of()
         );
     }
@@ -1853,7 +1888,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
         assertFieldNames(
             "FROM partial_mapping_sample_data | INSIST_🐔 foo | KEEP @timestamp, foo",
-            Set.of("@timestamp", "@timestamp.*", "foo", "foo.*"),
+            Set.of("_index", "@timestamp", "@timestamp.*", "foo", "foo.*"),
             Set.of()
         );
     }
@@ -1862,7 +1897,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
         assertFieldNames(
             "FROM partial_mapping_sample_data | INSIST_🐔 unmapped_message | KEEP @timestamp, unmapped_message",
-            Set.of("@timestamp", "@timestamp.*", "unmapped_message", "unmapped_message.*"),
+            Set.of("_index", "@timestamp", "@timestamp.*", "unmapped_message", "unmapped_message.*"),
             Set.of()
         );
     }
@@ -1872,6 +1907,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames(
             "FROM partial_mapping_sample_data | INSIST_🐔 message, unmapped_message, client_ip, foo | KEEP @timestamp, unmapped_message",
             Set.of(
+                "_index",
                 "@timestamp",
                 "@timestamp.*",
                 "message",
@@ -1891,7 +1927,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
         assertFieldNames(
             "FROM sample_data_ts_long, sample_data METADATA _index | INSIST_🐔 @timestamp | KEEP _index, @timestamp",
-            Set.of("@timestamp", "@timestamp.*"),
+            Set.of("_index", "@timestamp", "@timestamp.*"),
             Set.of()
         );
     }
@@ -1904,7 +1940,17 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | INSIST_🐔 @timestamp, unmapped_message
                 | INSIST_🐔 message, foo
                 | KEEP _index, @timestamp, message, foo""",
-            Set.of("@timestamp", "@timestamp.*", "message", "message.*", "unmapped_message", "unmapped_message.*", "foo", "foo.*"),
+            Set.of(
+                "_index",
+                "@timestamp",
+                "@timestamp.*",
+                "message",
+                "message.*",
+                "unmapped_message",
+                "unmapped_message.*",
+                "foo",
+                "foo.*"
+            ),
             Set.of()
         );
     }
@@ -1919,7 +1965,17 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | rename type as message
                 | lookup join message_types_lookup on message
                 | keep `language.name`""",
-            Set.of("language.name", "type", "language_name", "message", "language_name.*", "message.*", "type.*", "language.name.*")
+            Set.of(
+                "_index",
+                "language.name",
+                "type",
+                "language_name",
+                "message",
+                "language_name.*",
+                "message.*",
+                "type.*",
+                "language.name.*"
+            )
         );
     }
 
@@ -1931,30 +1987,36 @@ public class FieldNameUtilsTests extends ESTestCase {
             | lookup join message_types_lookup on message
             | rename type as message
             | lookup join message_types_lookup on message
-            | keep `language.name`""", Set.of("language.name", "type", "message", "message.*", "type.*", "language.name.*"));
+            | keep `language.name`""", Set.of("_index", "language.name", "type", "message", "message.*", "type.*", "language.name.*"));
     }
 
     public void testEnrichMaskingEvalOn() {
-        assertFieldNames("""
-            from employees
-            | eval language_name = null
-            | enrich languages_policy on languages
-            | rename language_name as languages
-            | eval languages = length(languages)
-            | enrich languages_policy on languages
-            | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval language_name = null
+                | enrich languages_policy on languages
+                | rename language_name as languages
+                | eval languages = length(languages)
+                | enrich languages_policy on languages
+                | keep emp_no, language_name""",
+            Set.of("_index", "emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*")
+        );
     }
 
     public void testEnrichAndJoinMaskingEvalWh() {
-        assertFieldNames("""
-            from employees
-            | eval language_name = null
-            | enrich languages_policy on languages
-            | rename language_name as languages
-            | eval languages = length(languages)
-            | enrich languages_policy on languages
-            | lookup join message_types_lookup on language_name
-            | keep emp_no, language_name""", Set.of("emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval language_name = null
+                | enrich languages_policy on languages
+                | rename language_name as languages
+                | eval languages = length(languages)
+                | enrich languages_policy on languages
+                | lookup join message_types_lookup on language_name
+                | keep emp_no, language_name""",
+            Set.of("_index", "emp_no", "language_name", "languages", "language_name.*", "languages.*", "emp_no.*")
+        );
     }
 
     public void testDropAgainWithWildcardAfterEval() {
@@ -1964,7 +2026,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | drop full_name
             | drop *name
             | keep emp_no
-            """, Set.of("emp_no", "emp_no.*", "*name", "*name.*"));
+            """, Set.of("_index", "emp_no", "emp_no.*", "*name", "*name.*"));
     }
 
     public void testDropWildcardFieldsAfterRename() {
@@ -1976,12 +2038,11 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | drop first_names
                 | drop *_names
                 | keep gender""",
-            Set.of("first_name", "first_name.*", "last_name", "last_name.*", "*_names", "*_names.*", "gender", "gender.*")
+            Set.of("_index", "first_name", "first_name.*", "last_name", "last_name.*", "*_names", "*_names.*", "gender", "gender.*")
         );
     }
 
     public void testDropWildcardFieldsAfterLookupJoins() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             FROM sample_data
             | EVAL client_ip = client_ip::keyword
@@ -1992,7 +2053,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoins2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames("""
             FROM sample_data
             | EVAL client_ip = client_ip::keyword
@@ -2004,7 +2064,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testDropWildcardFieldsAfterLookupJoinsAndKeep() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2014,13 +2073,12 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP @timestamp, message, *e*
                 | SORT @timestamp
                 | DROP *e""",
-            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("_index", "client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
             Set.of()
         );
     }
 
     public void testDropWildcardFieldsAfterLookupJoinKeepLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2030,13 +2088,12 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN message_types_lookup ON message
                 | SORT @timestamp
                 | DROP *e""",
-            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("_index", "client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
             Set.of("message_types_lookup")
         );
     }
 
     public void testDropWildcardFieldsAfterKeepAndLookupJoins() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2046,13 +2103,12 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN message_types_lookup ON message
                 | SORT @timestamp
                 | DROP *e""",
-            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("_index", "client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
             Set.of("clientips_lookup", "message_types_lookup")
         );
     }
 
     public void testDropWildcardFieldsAfterKeepAndLookupJoins2() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -2063,7 +2119,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN message_types_lookup ON message
                 | SORT @timestamp
                 | DROP *e, client_ip""",
-            Set.of("client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
+            Set.of("_index", "client_ip", "client_ip.*", "message", "message.*", "@timestamp", "@timestamp.*", "*e*", "*e", "*e.*"),
             Set.of("clientips_lookup", "message_types_lookup")
         );
     }
@@ -2077,7 +2133,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
             | KEEP a, b, c, d, x
-            """, Set.of("a", "x", "y", "c", "d", "e", "e.*", "d.*", "y.*", "x.*", "a.*", "c.*"));
+            """, Set.of("_index", "a", "x", "y", "c", "d", "e", "e.*", "d.*", "y.*", "x.*", "a.*", "c.*"));
     }
 
     public void testForkFieldsWithKeepBeforeFork() {
@@ -2089,7 +2145,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
-            """, Set.of("x", "y", "a", "d", "e", "b", "c", "e.*", "d.*", "y.*", "x.*", "a.*", "c.*", "b.*"));
+            """, Set.of("_index", "x", "y", "a", "d", "e", "b", "c", "e.*", "d.*", "y.*", "x.*", "a.*", "c.*", "b.*"));
     }
 
     public void testForkFieldsWithNoProjection() {
@@ -2111,7 +2167,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, Set.of("x", "y", "a", "c", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
+            """, Set.of("_index", "x", "y", "a", "c", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
     }
 
     public void testForkFieldsWithEnrichAndLookupJoins() {
@@ -2127,7 +2183,27 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN my_lookup_index ON xyz
                 | WHERE x > y OR _fork == "fork1"
                 """,
-            Set.of("x", "y", "a", "c", "abc", "b", "def", "z", "xyz", "def.*", "y.*", "x.*", "xyz.*", "z.*", "abc.*", "a.*", "c.*", "b.*"),
+            Set.of(
+                "_index",
+                "x",
+                "y",
+                "a",
+                "c",
+                "abc",
+                "b",
+                "def",
+                "z",
+                "xyz",
+                "def.*",
+                "y.*",
+                "x.*",
+                "xyz.*",
+                "z.*",
+                "abc.*",
+                "a.*",
+                "c.*",
+                "b.*"
+            ),
             Set.of("my_lookup_index")
         );
     }
@@ -2141,7 +2217,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                    (EVAL z = a * b | STATS m = max(z))
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, Set.of("x", "y", "c", "a", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
+            """, Set.of("_index", "x", "y", "c", "a", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
     }
 
     public void testForkWithStatsInAllBranches1() {
@@ -2150,7 +2226,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK
                    ( STATS x = min(last_name))
                    ( EVAL last_name = first_name  | STATS y = max(last_name))
-            """, Set.of("first_name", "last_name", "first_name.*", "last_name.*"));
+            """, Set.of("_index", "first_name", "last_name", "first_name.*", "last_name.*"));
     }
 
     public void testForkWithStatsInAllBranches2() {
@@ -2159,7 +2235,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK
                    ( EVAL last_name = first_name  | STATS y = VALUES(last_name))
                    ( STATS x = VALUES(last_name))
-            """, Set.of("first_name", "last_name", "first_name.*", "last_name.*"));
+            """, Set.of("_index", "first_name", "last_name", "first_name.*", "last_name.*"));
     }
 
     public void testForkWithStatsAndWhere() {
@@ -2202,7 +2278,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK
                ( EVAL x = first_name)
                ( EVAL x = last_name)
-            """, Set.of("first_name", "last_name", "last_name.*", "first_name.*"));
+            """, Set.of("_index", "first_name", "last_name", "last_name.*", "first_name.*"));
     }
 
     public void testForkRefs2() {
@@ -2211,7 +2287,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK
                ( KEEP first_name | EVAL x = first_name)
                ( KEEP last_name | EVAL x = last_name)
-            """, Set.of("first_name", "last_name", "last_name.*", "first_name.*"));
+            """, Set.of("_index", "first_name", "last_name", "last_name.*", "first_name.*"));
     }
 
     public void testForkRefs3() {
@@ -2220,23 +2296,24 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK
                ( KEEP first_name | EVAL last_name = first_name)
                ( KEEP first_name | EVAL x = first_name)
-            """, Set.of("first_name", "first_name.*"));
+            """, Set.of("_index", "first_name", "first_name.*"));
     }
 
     public void testForkRef4() {
-        assertFieldNames("""
-            from employees
-            | sort emp_no
-            | limit 1
-            | FORK
-               (eval x = to_string(languages) | enrich languages_policy on x | keep language_name)
-               (eval y = to_string(emp_no) | enrich languages_policy on y | keep emp_no)
-            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*", "y", "y.*"));
+        assertFieldNames(
+            """
+                from employees
+                | sort emp_no
+                | limit 1
+                | FORK
+                   (eval x = to_string(languages) | enrich languages_policy on x | keep language_name)
+                   (eval y = to_string(emp_no) | enrich languages_policy on y | keep emp_no)
+                """,
+            Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*", "y", "y.*")
+        );
     }
 
     public void testRerankerAfterFuse() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2246,12 +2323,10 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _score=ROUND(_score, 2)
             | SORT _score DESC, book_no ASC
             | LIMIT 2
-            | KEEP book_no, title, author, _score""", Set.of("book_no", "title", "author", "title.*", "author.*", "book_no.*"));
+            | KEEP book_no, title, author, _score""", Set.of("_index", "book_no", "title", "author", "title.*", "author.*", "book_no.*"));
     }
 
     public void testSimpleFuse() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees METADATA _id, _index, _score
             | FORK ( WHERE emp_no:10001 )
@@ -2259,12 +2334,10 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FUSE
             | EVAL _score = round(_score, 4)
             | KEEP _score, _fork, emp_no
-            | SORT _score, _fork, emp_no""", Set.of("emp_no", "emp_no.*"));
+            | SORT _score, _fork, emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
     }
 
     public void testFuseWithMatchAndScore() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2273,12 +2346,10 @@ public class FieldNameUtilsTests extends ESTestCase {
             | SORT _score DESC, _id, _index
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 5)
-            | KEEP _score, _fork, _id""", Set.of("title", "author", "title.*", "author.*"));
+            | KEEP _score, _fork, _id""", Set.of("_index", "title", "author", "title.*", "author.*"));
     }
 
     public void testFuseWithDisjunctionAndPostFilter() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" OR author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2288,12 +2359,10 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 5)
             | KEEP _score, _fork, _id
-            | WHERE _score > 0.014""", Set.of("title", "author", "title.*", "author.*"));
+            | WHERE _score > 0.014""", Set.of("_index", "title", "author", "title.*", "author.*"));
     }
 
     public void testFuseWithStats() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -2301,12 +2370,10 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( WHERE author:"Ursula K. Le Guin" AND title:"short stories" | SORT _score, _id DESC | LIMIT 3)
             | FUSE
             | STATS count_fork=COUNT(*) BY _fork
-            | SORT _fork""", Set.of("title", "author", "title.*", "author.*"));
+            | SORT _fork""", Set.of("_index", "title", "author", "title.*", "author.*"));
     }
 
     public void testFuseWithMultipleForkBranches() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
             | FORK (WHERE author:"Keith Faulkner" AND qstr("author:Rory or author:Beverlie") | SORT _score, _id DESC | LIMIT 3)
@@ -2318,12 +2385,10 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL _fork = mv_sort(_fork)
             | EVAL _score = round(_score, 4)
             | EVAL title = trim(substring(title, 1, 20))
-            | KEEP _score, author, title, _fork""", Set.of("author", "title", "year", "title.*", "author.*", "year.*"));
+            | KEEP _score, author, title, _fork""", Set.of("_index", "author", "title", "year", "title.*", "author.*", "year.*"));
     }
 
     public void testFuseWithSemanticSearch() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM semantic_text METADATA _id, _score, _index
             | FORK ( WHERE semantic_text_field:"something" | SORT _score DESC | LIMIT 2)
@@ -2332,7 +2397,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | SORT _score DESC, _id, _index
             | EVAL _score = round(_score, 4)
             | EVAL _fork = mv_sort(_fork)
-            | KEEP _fork, _score, _id, semantic_text_field""", Set.of("semantic_text_field", "semantic_text_field.*"));
+            | KEEP _fork, _score, _id, semantic_text_field""", Set.of("_index", "semantic_text_field", "semantic_text_field.*"));
     }
 
     public void testSimpleFork() {
@@ -2341,7 +2406,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK ( WHERE emp_no == 10001 )
             ( WHERE emp_no == 10002 )
             | KEEP emp_no, _fork
-            | SORT emp_no""", Set.of("emp_no", "emp_no.*"));
+            | SORT emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
     }
 
     public void testSimpleForkWithStats() {
@@ -2351,7 +2416,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL score = round(_score, 2)
             | FORK (SORT score DESC, author | LIMIT 5 | KEEP author, score)
             (STATS total = COUNT(*))
-            | SORT _fork, score DESC, author""", Set.of("score", "author", "score.*", "author.*"));
+            | SORT _fork, score DESC, author""", Set.of("_index", "score", "author", "score.*", "author.*"));
     }
 
     public void testForkWithWhereSortAndLimit() {
@@ -2360,7 +2425,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
             ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
             | KEEP emp_no, first_name, _fork
-            | SORT emp_no, _fork""", Set.of("emp_no", "first_name", "hire_date", "first_name.*", "hire_date.*", "emp_no.*"));
+            | SORT emp_no, _fork""", Set.of("_index", "emp_no", "first_name", "hire_date", "first_name.*", "hire_date.*", "emp_no.*"));
     }
 
     public void testFiveFork() {
@@ -2372,16 +2437,19 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( WHERE emp_no == 10002 )
             ( WHERE emp_no == 10001 )
             | KEEP  _fork, emp_no
-            | SORT _fork""", Set.of("emp_no", "emp_no.*"));
+            | SORT _fork""", Set.of("_index", "emp_no", "emp_no.*"));
     }
 
     public void testForkWithWhereSortDescAndLimit() {
-        assertFieldNames("""
-            FROM employees
-            | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
-            ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name DESC NULLS LAST | LIMIT 2 )
-            | KEEP _fork, emp_no, first_name
-            | SORT _fork, first_name DESC""", Set.of("first_name", "emp_no", "hire_date", "first_name.*", "hire_date.*", "emp_no.*"));
+        assertFieldNames(
+            """
+                FROM employees
+                | FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
+                ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name DESC NULLS LAST | LIMIT 2 )
+                | KEEP _fork, emp_no, first_name
+                | SORT _fork, first_name DESC""",
+            Set.of("_index", "first_name", "emp_no", "hire_date", "first_name.*", "hire_date.*", "emp_no.*")
+        );
     }
 
     public void testForkWithCommonPrefilter() {
@@ -2391,7 +2459,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK ( SORT emp_no ASC | LIMIT 2 )
             ( SORT emp_no DESC NULLS LAST | LIMIT 2 )
             | KEEP _fork, emp_no
-            | SORT _fork, emp_no""", Set.of("emp_no", "emp_no.*"));
+            | SORT _fork, emp_no""", Set.of("_index", "emp_no", "emp_no.*"));
     }
 
     public void testForkWithSemanticSearchAndScore() {
@@ -2401,7 +2469,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( WHERE semantic_text_field:"something else" | SORT _score DESC | LIMIT 2)
             | EVAL _score = round(_score, 4)
             | SORT _fork, _score, _id
-            | KEEP _fork, _score, _id, semantic_text_field""", Set.of("semantic_text_field", "semantic_text_field.*"));
+            | KEEP _fork, _score, _id, semantic_text_field""", Set.of("_index", "semantic_text_field", "semantic_text_field.*"));
     }
 
     public void testForkWithEvals() {
@@ -2410,7 +2478,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | EVAL x = "abc" | EVAL y = 1)
             (WHERE emp_no == 10081 OR emp_no == 10087 | EVAL x = "def" | EVAL z = 2)
             | KEEP _fork, emp_no, x, y, z
-            | SORT _fork, emp_no""", Set.of("emp_no", "x", "y", "z", "y.*", "x.*", "z.*", "emp_no.*"));
+            | SORT _fork, emp_no""", Set.of("_index", "emp_no", "x", "y", "z", "y.*", "x.*", "z.*", "emp_no.*"));
     }
 
     public void testForkWithStats() {
@@ -2421,7 +2489,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             (STATS x = COUNT(*), y = MAX(emp_no), z = MIN(emp_no))
             (STATS x = COUNT(*), y = MIN(emp_no))
             | KEEP _fork, emp_no, x, y, z
-            | SORT _fork, emp_no""", Set.of("emp_no", "x", "y", "z", "y.*", "x.*", "z.*", "emp_no.*"));
+            | SORT _fork, emp_no""", Set.of("_index", "emp_no", "x", "y", "z", "y.*", "x.*", "z.*", "emp_no.*"));
     }
 
     public void testForkWithDissect() {
@@ -2436,6 +2504,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP _fork, emp_no, x, y, z, w
                 | SORT _fork, emp_no""",
             Set.of(
+                "_index",
                 "emp_no",
                 "x",
                 "y",
@@ -2468,6 +2537,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP _fork, emp_no, x, y, z, a
                 | SORT _fork, emp_no""",
             Set.of(
+                "_index",
                 "emp_no",
                 "x",
                 "y",
@@ -2497,7 +2567,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             (STATS x = COUNT(*), y = MIN(emp_no))
             | WHERE _fork == "fork2" OR a == "y"
             | KEEP _fork, emp_no, x, y, z
-            | SORT _fork, emp_no""", Set.of("emp_no", "a", "a.*", "emp_no.*"));
+            | SORT _fork, emp_no""", Set.of("_index", "emp_no", "a", "a.*", "emp_no.*"));
     }
 
     public void testForkWithUnsupportedAttributes() {
@@ -2509,8 +2579,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkAfterLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2522,6 +2590,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP _fork, emp_no, language_code, language_name
                 | SORT _fork, emp_no""",
             Set.of(
+                "_index",
                 "emp_no",
                 "language_code",
                 "language_name",
@@ -2537,8 +2606,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2550,6 +2617,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP _fork, emp_no, language_code, language_name
                 | SORT _fork, emp_no""",
             Set.of(
+                "_index",
                 "emp_no",
                 "language_code",
                 "language_name",
@@ -2565,8 +2633,6 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -2577,6 +2643,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP _fork, emp_no, language_code, language_name
                 | SORT _fork, emp_no""",
             Set.of(
+                "_index",
                 "emp_no",
                 "language_code",
                 "language_name",
@@ -2603,7 +2670,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
                 ( EVAL x = "abc" | EVAL y = "aaa" )
                 | STATS c = count(*), m = max(_fork)""",
-            Set.of("first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*")
+            Set.of("_index", "first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*")
         );
     }
 
@@ -2618,7 +2685,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
             ( EVAL x = "abc" | EVAL y = "aaa" )
             | STATS a = count(*) WHERE _fork == "fork1",
-            b = max(_fork)""", Set.of("first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+            b = max(_fork)""", Set.of("_index", "first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
     }
 
     public void testForkBeforeStatsByWithWhere() {
@@ -2633,7 +2700,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( EVAL x = "abc" | EVAL y = "aaa" )
             | STATS a = count(*)  WHERE emp_no > 10000,
             b = max(x) WHERE _fork == "fork1" BY _fork
-            | SORT _fork""", Set.of("emp_no", "x", "first_name", "last_name", "last_name.*", "x.*", "first_name.*", "emp_no.*"));
+            | SORT _fork""", Set.of("_index", "emp_no", "x", "first_name", "last_name", "last_name.*", "x.*", "first_name.*", "emp_no.*"));
     }
 
     public void testForkAfterDrop() {
@@ -2646,12 +2713,15 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithDrop() {
-        assertFieldNames("""
-            FROM languages
-            | FORK ( EVAL x = 1 | DROP language_code | WHERE language_name == "English" | DROP x )
-            ( WHERE language_name != "English" )
-            | SORT _fork, language_name
-            | KEEP language_name, language_code, _fork""", Set.of("language_name", "language_code", "language_code.*", "language_name.*"));
+        assertFieldNames(
+            """
+                FROM languages
+                | FORK ( EVAL x = 1 | DROP language_code | WHERE language_name == "English" | DROP x )
+                ( WHERE language_name != "English" )
+                | SORT _fork, language_name
+                | KEEP language_name, language_code, _fork""",
+            Set.of("_index", "language_name", "language_code", "language_code.*", "language_name.*")
+        );
     }
 
     public void testForkBeforeDrop() {
@@ -2668,7 +2738,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             FROM languages
             | FORK ( WHERE language_name == "English" | KEEP language_name, language_code )
             ( WHERE language_name != "English" )
-            | SORT _fork, language_name""", Set.of("language_name", "language_code", "language_code.*", "language_name.*"));
+            | SORT _fork, language_name""", Set.of("_index", "language_name", "language_code", "language_code.*", "language_name.*"));
     }
 
     public void testForkBeforeRename() {
@@ -2681,21 +2751,27 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBranchWithRenameAs() {
-        assertFieldNames("""
-            FROM languages
-            | FORK (RENAME language_code AS code | WHERE code == 1 OR code == 2)
-            (WHERE language_code == 1 | RENAME language_code AS x)
-            | SORT _fork, language_name
-            | KEEP code, language_name, x, _fork""", Set.of("language_name", "language_code", "language_code.*", "language_name.*"));
+        assertFieldNames(
+            """
+                FROM languages
+                | FORK (RENAME language_code AS code | WHERE code == 1 OR code == 2)
+                (WHERE language_code == 1 | RENAME language_code AS x)
+                | SORT _fork, language_name
+                | KEEP code, language_name, x, _fork""",
+            Set.of("_index", "language_name", "language_code", "language_code.*", "language_name.*")
+        );
     }
 
     public void testForkBranchWithRenameEquals() {
-        assertFieldNames("""
-            FROM languages
-            | FORK (RENAME code = language_code | WHERE code == 1 OR code == 2)
-            (WHERE language_code == 1 | RENAME x = language_code)
-            | SORT _fork, language_name
-            | KEEP code, language_name, x, _fork""", Set.of("language_name", "language_code", "language_code.*", "language_name.*"));
+        assertFieldNames(
+            """
+                FROM languages
+                | FORK (RENAME code = language_code | WHERE code == 1 OR code == 2)
+                (WHERE language_code == 1 | RENAME x = language_code)
+                | SORT _fork, language_name
+                | KEEP code, language_name, x, _fork""",
+            Set.of("_index", "language_name", "language_code", "language_code.*", "language_name.*")
+        );
     }
 
     public void testForkAfterRename() {
@@ -2715,7 +2791,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL x = concat(gender, " foobar")
             | DISSECT x "%{a} %{b}"
             | SORT _fork, emp_no
-            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("_index", "emp_no", "gender", "gender.*", "emp_no.*"));
     }
 
     public void testForkBranchWithDissect() {
@@ -2726,7 +2802,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | DISSECT x "%{a} %{b}")
             (WHERE emp_no == 10081 OR emp_no == 10087)
             | SORT _fork, emp_no
-            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("_index", "emp_no", "gender", "gender.*", "emp_no.*"));
     }
 
     public void testForkAfterDissect() {
@@ -2737,7 +2813,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
             | SORT _fork, emp_no
-            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("_index", "emp_no", "gender", "gender.*", "emp_no.*"));
     }
 
     public void testForkAfterEnrich() {
@@ -2751,6 +2827,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 (WHERE city.country.name == "Japan")
                 | SORT _fork, city.name""",
             Set.of(
+                "_index",
                 "city.name",
                 "airport",
                 "city.country.continent.planet.name",
@@ -2773,6 +2850,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 (ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport)
                 | SORT _fork, city.name""",
             Set.of(
+                "_index",
                 "city.name",
                 "airport",
                 "city.country.continent.planet.name",
@@ -2796,6 +2874,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | ENRICH city_names ON city.name WITH city.country.continent.planet.name = airport
                 | SORT _fork, city.name""",
             Set.of(
+                "_index",
                 "city.name",
                 "airport",
                 "city.country.name",
@@ -2815,7 +2894,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
             | MV_EXPAND job_positions
-            | SORT _fork, emp_no, job_positions""", Set.of("emp_no", "job_positions", "job_positions.*", "emp_no.*"));
+            | SORT _fork, emp_no, job_positions""", Set.of("_index", "emp_no", "job_positions", "job_positions.*", "emp_no.*"));
     }
 
     public void testForkBranchWithMvExpand() {
@@ -2824,7 +2903,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | KEEP emp_no, job_positions
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081 | MV_EXPAND job_positions)
             (WHERE emp_no == 10081 OR emp_no == 10087)
-            | SORT _fork, emp_no, job_positions""", Set.of("emp_no", "job_positions", "job_positions.*", "emp_no.*"));
+            | SORT _fork, emp_no, job_positions""", Set.of("_index", "emp_no", "job_positions", "job_positions.*", "emp_no.*"));
     }
 
     public void testForkAfterMvExpand() {
@@ -2834,12 +2913,11 @@ public class FieldNameUtilsTests extends ESTestCase {
             | MV_EXPAND job_positions
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
-            | SORT _fork, emp_no, job_positions""", Set.of("emp_no", "job_positions", "job_positions.*", "emp_no.*"));
+            | SORT _fork, emp_no, job_positions""", Set.of("_index", "emp_no", "job_positions", "job_positions.*", "emp_no.*"));
     }
 
     public void testForkBeforeInlineStatsIgnore() {
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender
@@ -2847,12 +2925,11 @@ public class FieldNameUtilsTests extends ESTestCase {
             (WHERE emp_no == 10081 OR emp_no == 10087)
             | INLINE STATS max_lang = MAX(languages) BY gender
             | SORT emp_no, gender, _fork
-            | LIMIT 5""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
+            | LIMIT 5""", Set.of("_index", "emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
     }
 
     public void testForkBranchWithInlineStatsIgnore() {
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender
@@ -2861,19 +2938,18 @@ public class FieldNameUtilsTests extends ESTestCase {
             (WHERE emp_no == 10081 OR emp_no == 10087
             | INLINE STATS x = MIN(languages))
             (WHERE emp_no == 10012 OR emp_no == 10012)
-            | SORT emp_no, gender, _fork""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
+            | SORT emp_no, gender, _fork""", Set.of("_index", "emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
     }
 
     public void testForkAfterInlineStatsIgnore() {
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees
             | KEEP emp_no, languages, gender
             | INLINE STATS max_lang = MAX(languages) BY gender
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
-            | SORT emp_no, gender, _fork""", Set.of("emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
+            | SORT emp_no, gender, _fork""", Set.of("_index", "emp_no", "gender", "languages", "gender.*", "languages.*", "emp_no.*"));
     }
 
     public void testForkBeforeChangePoint() {
@@ -2885,7 +2961,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             (WHERE emp_no <= 10100)
             | CHANGE_POINT salary ON emp_no
             | STATS COUNT() by type
-            | SORT type""", Set.of("type", "emp_no", "salary", "type.*", "salary.*", "emp_no.*"));
+            | SORT type""", Set.of("_index", "type", "emp_no", "salary", "type.*", "salary.*", "emp_no.*"));
     }
 
     public void testForkBranchWithChangePoint() {
@@ -2897,18 +2973,21 @@ public class FieldNameUtilsTests extends ESTestCase {
             (EVAL salary=CASE(emp_no==10087, 1000000, salary)
             | CHANGE_POINT salary ON emp_no)
             | STATS COUNT() by type, _fork
-            | SORT _fork, type""", Set.of("type", "emp_no", "salary", "type.*", "salary.*", "emp_no.*"));
+            | SORT _fork, type""", Set.of("_index", "type", "emp_no", "salary", "type.*", "salary.*", "emp_no.*"));
     }
 
     public void testForkAfterChangePoint() {
-        assertFieldNames("""
-            FROM employees
-            | KEEP emp_no, salary
-            | EVAL salary = CASE(emp_no==10042, 1000000, salary)
-            | CHANGE_POINT salary ON emp_no
-            | FORK (STATS a = COUNT() by type)
-            (STATS b = VALUES(type))
-            | SORT _fork, a, type, b""", Set.of("a", "type", "b", "emp_no", "salary", "type.*", "a.*", "salary.*", "b.*", "emp_no.*"));
+        assertFieldNames(
+            """
+                FROM employees
+                | KEEP emp_no, salary
+                | EVAL salary = CASE(emp_no==10042, 1000000, salary)
+                | CHANGE_POINT salary ON emp_no
+                | FORK (STATS a = COUNT() by type)
+                (STATS b = VALUES(type))
+                | SORT _fork, a, type, b""",
+            Set.of("_index", "a", "type", "b", "emp_no", "salary", "type.*", "a.*", "salary.*", "b.*", "emp_no.*")
+        );
     }
 
     public void testForkBeforeCompletion() {
@@ -2918,7 +2997,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
             | COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" }
-            | SORT _fork, emp_no""", Set.of("emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+            | SORT _fork, emp_no""", Set.of("_index", "emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
     }
 
     public void testForkBranchWithCompletion() {
@@ -2928,7 +3007,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081
             | COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" })
             (WHERE emp_no == 10081 OR emp_no == 10087)
-            | SORT _fork, emp_no""", Set.of("emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+            | SORT _fork, emp_no""", Set.of("_index", "emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
     }
 
     public void testForkAfterCompletion() {
@@ -2938,7 +3017,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | COMPLETION x=CONCAT(first_name, " ", last_name) WITH { "inference_id" : "test_completion" }
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
-            | SORT _fork, emp_no""", Set.of("emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+            | SORT _fork, emp_no""", Set.of("_index", "emp_no", "first_name", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
     }
 
     public void testForkAfterGrok() {
@@ -2949,7 +3028,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
             (WHERE emp_no == 10081 OR emp_no == 10087)
             | SORT _fork, emp_no
-            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("_index", "emp_no", "gender", "gender.*", "emp_no.*"));
     }
 
     public void testForkBranchWithGrok() {
@@ -2963,7 +3042,21 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | GROK b "%{WORD:x} %{WORD:y} %{WORD:z}" )
                 | KEEP _fork, emp_no, x, y, z
                 | SORT _fork, emp_no""",
-            Set.of("emp_no", "x", "y", "z", "first_name", "last_name", "y.*", "last_name.*", "x.*", "z.*", "first_name.*", "emp_no.*")
+            Set.of(
+                "_index",
+                "emp_no",
+                "x",
+                "y",
+                "z",
+                "first_name",
+                "last_name",
+                "y.*",
+                "last_name.*",
+                "x.*",
+                "z.*",
+                "first_name.*",
+                "emp_no.*"
+            )
         );
     }
 
@@ -2975,13 +3068,13 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL x = concat(gender, " foobar")
             | GROK x "%{WORD:a} %{WORD:b}"
             | SORT _fork, emp_no
-            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("emp_no", "gender", "gender.*", "emp_no.*"));
+            | KEEP emp_no, gender, x, a, b, _fork""", Set.of("_index", "emp_no", "gender", "gender.*", "emp_no.*"));
     }
 
     public void testImplicitFieldNames() {
         assertFieldNames("""
             FROM sample_data
-            | STATS x = 1 year + TBUCKET(1 day) BY b1d = TBUCKET(1 day)""", Set.of("@timestamp", "@timestamp.*"));
+            | STATS x = 1 year + TBUCKET(1 day) BY b1d = TBUCKET(1 day)""", Set.of("_index", "@timestamp", "@timestamp.*"));
     }
 
     public void testKeepTimestampBeforeStats() {
@@ -2991,7 +3084,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP @timestamp, client_ip
                 | STATS count = COUNT(*), avg_dur = AVG(event_duration) BY hour = TBUCKET(1h), client_ip
                 | SORT hour ASC
-            """, Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*"));
+            """, Set.of("_index", "@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*"));
     }
 
     public void testKeepAtWildcardBeforeStats() {
@@ -3001,17 +3094,20 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | KEEP @*, message
                 | STATS errors = COUNT() BY day = TBUCKET(1d), message
                 | SORT day ASC
-            """, Set.of("@timestamp", "@timestamp.*", "@*", "message", "message.*"));
+            """, Set.of("_index", "@timestamp", "@timestamp.*", "@*", "message", "message.*"));
     }
 
     public void testKeepWildcardBeforeStats() {
-        assertFieldNames("""
-            FROM sample_data
-                | WHERE client_ip IS NOT NULL
-                | KEEP *stamp*, client_ip
-                | STATS p95 = PERCENTILE(event_duration, 95) BY ten_min = TBUCKET(10min), client_ip
-                | SORT ten_min ASC
-            """, Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "*stamp*"));
+        assertFieldNames(
+            """
+                FROM sample_data
+                    | WHERE client_ip IS NOT NULL
+                    | KEEP *stamp*, client_ip
+                    | STATS p95 = PERCENTILE(event_duration, 95) BY ten_min = TBUCKET(10min), client_ip
+                    | SORT ten_min ASC
+                """,
+            Set.of("_index", "@timestamp", "@timestamp.*", "client_ip", "client_ip.*", "event_duration", "event_duration.*", "*stamp*")
+        );
     }
 
     public void testStatsChainingWithTimestampCarriedForward() {
@@ -3022,7 +3118,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | WHERE day_count > 0
                 | STATS hour_count = COUNT(), hour_p95 = PERCENTILE(day_p95, 95)  BY hour = TBUCKET(1h), day
                 | SORT day ASC, hour ASC
-            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*"));
+            """, Set.of("_index", "@timestamp", "@timestamp.*", "event_duration", "event_duration.*"));
     }
 
     public void testStatsChainingWithTimestampEval() {
@@ -3033,7 +3129,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | STATS total = COUNT(*), med = MEDIAN(event_duration) BY d = TBUCKET(1d), message, t
                 | WHERE total > 5
                 | STATS day_total = SUM(total), hour_med = MEDIAN(med) BY h = TBUCKET(1h), message
-            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "message", "message.*"));
+            """, Set.of("_index", "@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "message", "message.*"));
     }
 
     public void testStatsChainingWithTimestampCarriedForwardAsByKey() {
@@ -3043,30 +3139,51 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | STATS reqs = COUNT(), max_dur = MAX(event_duration) BY day = TBUCKET(1d), client_ip, @timestamp
                 | WHERE max_dur > 1000
                 | STATS spikes = COUNT() BY hour = TBUCKET(1h), client_ip, day
-            """, Set.of("@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "client_ip", "client_ip.*"));
+            """, Set.of("_index", "@timestamp", "@timestamp.*", "event_duration", "event_duration.*", "client_ip", "client_ip.*"));
+    }
+
+    public void testSubqueryInFrom() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // TODO improve FieldNameUtils to process subqueries better, so that we don't call field-caps with "*"
+        assertFieldNames("""
+            FROM employees, (FROM books | WHERE author:"Faulkner" | KEEP title, author | SORT title | LIMIT 5)
+            | WHERE emp_no == 10000 OR author IS NOT NULL
+            | KEEP emp_no, first_name, last_name, author, title
+            | SORT emp_no, author
+            """, Set.of("*"));
+    }
+
+    public void testSubqueryInFromWithFork() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // nested fork may trigger assertion in FieldNameUtils, defer the check of nested subqueries or subquery with fork
+        // to logical plan optimizer.
+        // TODO Improve FieldNameUtils to process subqueries better, , so that we don't call field-caps with "*"
+        assertFieldNames("""
+            FROM employees, (FROM books | FORK (WHERE author:"Faulkner") (WHERE title:"Ring") | KEEP title, author | SORT title | LIMIT 5)
+            | WHERE emp_no == 10000 OR author IS NOT NULL
+            | KEEP emp_no, first_name, last_name, author, title
+            | SORT emp_no, author
+            """, Set.of("*"));
+
+        assertFieldNames("""
+            FROM books, (FROM employees | WHERE emp_no == 10000)
+            | FORK (WHERE author:"Faulkner") (WHERE title:"Ring")
+            | KEEP emp_no, first_name, last_name, author, title
+            | SORT emp_no, author
+            """, Set.of("*"));
     }
 
     private void assertFieldNames(String query, Set<String> expected) {
-        assertFieldNames(query, new EnrichResolution(), expected, Set.of());
+        assertFieldNames(query, false, expected, Set.of());
     }
 
     private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
-        assertFieldNames(query, new EnrichResolution(), expected, wildCardIndices);
+        assertFieldNames(query, false, expected, wildCardIndices);
     }
 
-    private void assertFieldNames(String query, EnrichResolution enrichResolution, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), enrichResolution);
+    private void assertFieldNames(String query, boolean hasEnriches, Set<String> expected, Set<String> wildCardIndices) {
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query), hasEnriches);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
-    }
-
-    private static EnrichResolution enrichResolutionWith(String enrichPolicyMatchField) {
-        var enrichResolution = new EnrichResolution();
-        enrichResolution.addResolvedPolicy(
-            "policy",
-            Enrich.Mode.ANY,
-            new ResolvedEnrichPolicy(enrichPolicyMatchField, null, List.of(), Map.of(), Map.of())
-        );
-        return enrichResolution;
     }
 }

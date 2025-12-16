@@ -85,6 +85,12 @@ tasks.named("precommit").configure {
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.replaceIsTrue("\\.ml-anomalies-shared.mappings._meta.version", "\\.ml-anomalies-shared-000001.mappings._meta.version")
+  task.replaceKeyInMatch("\\.ml-anomalies-shared.mappings.new_field.mapping.new_field.type", "\\.ml-anomalies-shared-000001.mappings.new_field.mapping.new_field.type")
+  task.replaceValueTextByKeyValue("index", ".ml-anomalies-shared", ".ml-anomalies-shared-000001")
+  task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-1,.ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-1-000001,.ml-anomalies-custom-all-test-2-000001")
+  task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-1", ".ml-anomalies-custom-all-test-1-000001")
+  task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-2-000001")
   task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
   task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
   task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
@@ -125,6 +131,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ml/job_cat_apis/Test cat anomaly detector jobs", "Flush API is deprecated")
   task.skipTest("ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats", "Flush API is deprecated")
   task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")
+  task.skipTest("ml/jobs_get_stats/Test reading v54 data counts and model size stats", "Version 5.4 support removed")
   task.skipTest("ml/inference_crud/Test deprecation of include model definition param", "Query parameter removed")
   task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
   task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")
@@ -142,6 +149,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ml/sparse_vector_search/Search on a sparse_vector field with dots in the field names", "Vectors are no longer returned by default")
   task.skipTest("ml/sparse_vector_search/Search on a nested sparse_vector field with dots in the field names and conflicting child fields", "Vectors are no longer returned by default")
   task.skipTest("esql/190_lookup_join/lookup-no-key-only-key", "Requires the fix")
+  task.skipTest("ml/data_frame_analytics_crud/Test put config with remote source index", "Error message changed")
 })
 
 tasks.named('yamlRestCompatTest').configure {

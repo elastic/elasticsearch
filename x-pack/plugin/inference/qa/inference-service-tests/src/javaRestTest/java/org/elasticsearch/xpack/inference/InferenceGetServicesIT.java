@@ -59,6 +59,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
+                    "contextualai",
                     "deepseek",
                     "elastic",
                     "elasticsearch",
@@ -73,6 +74,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "completion_test_service",
                     "test_reranking_service",
                     "test_service",
+                    "alternate_sparse_embedding_test_service",
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
@@ -134,6 +136,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "alibabacloud-ai-search",
                     "azureaistudio",
                     "cohere",
+                    "contextualai",
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
@@ -207,6 +210,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "hugging_face",
                     "streaming_completion_test_service",
                     "test_service",
+                    "alternate_sparse_embedding_test_service",
                     "amazon_sagemaker"
                 ).toArray()
             )

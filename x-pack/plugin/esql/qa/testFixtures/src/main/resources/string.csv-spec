@@ -2054,7 +2054,7 @@ null       | 0
 ;
 
 mvContains
-required_capability: fn_mv_contains
+required_capability: fn_mv_contains_v1
 // tag::mv_contains[]
 ROW set = ["a", "b", "c"], element = "a"
 | EVAL set_contains_element = mv_contains(set, element)
@@ -2068,7 +2068,7 @@ set:keyword | element:keyword | set_contains_element:boolean
 ;
 
 mvContains_bothsides
-required_capability: fn_mv_contains
+required_capability: fn_mv_contains_v1
 // tag::mv_contains_bothsides[]
 ROW setA = ["a","c"], setB = ["a", "b", "c"]
 | EVAL a_subset_of_b = mv_contains(setB, setA)
@@ -2083,7 +2083,7 @@ setA:keyword | setB:keyword | a_subset_of_b:boolean | b_subset_of_a:boolean
 ;
 
 mvContainsCombinations
-required_capability: fn_mv_contains
+required_capability: fn_mv_contains_v1
 
 ROW a = "a", b = ["a", "b", "c"], n = null
 | EVAL aa = mv_contains(a, a), 
@@ -2100,33 +2100,36 @@ a         | [a, b, c] | null   | true       | true         | false      | true  
 ;
 
 mvContainsCombinations_multirow
-required_capability: fn_mv_contains
+required_capability: fn_mv_contains_v1
 
-ROW row_number = [1,2,3,4,5], element = "e", n = null, setA = ["b","d"], setB = ["a", "c", "e"]
+ROW row_number = [0,1,2,3,4,5], element = "e", n = null, emptyStringSet = [""], setA = ["b","d"], setB = ["a", "c", "e"]
 | MV_EXPAND row_number
 | EVAL superset = CASE(
-                    row_number == 1, ["a","e"],
-                    row_number == 2, ["b","d"],
-                    row_number == 3, null,
-                    row_number == 4, ["a","e","c","b","d"], 
-                    row_number == 5, ["a","d","c","b","e"],
+                    row_number == 0, ["a","e"],
+                    row_number == 1, ["b","d"],
+                    row_number == 2, null,
+                    row_number == 3, ["a","e","c","b","d"], 
+                    row_number == 4, ["a","d","c","b","e"],
+                    row_number == 5, ["a","d","c","b","","e"],
                   null) 
-| EVAL contains_element = mv_contains(superset, element), 
-       contains_null    = mv_contains(superset, n), 
-       contains_setA    = mv_contains(superset, setA), 
-       contains_setB    = mv_contains(superset, setB) 
+| EVAL contains_element         = mv_contains(superset, element), 
+       contains_null            = mv_contains(superset, n), 
+       contains_emptyStringSet  = mv_contains(superset, emptyStringSet), 
+       contains_setA            = mv_contains(superset, setA), 
+       contains_setB            = mv_contains(superset, setB) 
 ;
 
-row_number:INTEGER | element:keyword | n:null | setA:keyword | setB:keyword    | superset:keyword         |contains_element:boolean | contains_null:boolean | contains_setA:boolean | contains_setB:boolean
-1                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","e"]                | true                    | true                  | false                 | false       
-2                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["b","d"]                | false                   | true                  | true                  | false    
-3                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | null                     | false                   | true                  | false                 | false    
-4                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","e","c","b","d"]    | true                    | true                  | true                  | true    
-5                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","e"]    | true                    | true                  | true                  | true    
+row_number:INTEGER | element:keyword | n:null | emptyStringSet:keyword | setA:keyword | setB:keyword    | superset:keyword         |contains_element:boolean | contains_null:boolean | contains_emptyStringSet:boolean | contains_setA:boolean | contains_setB:boolean
+0                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","e"]                | true                    | true                  | false                           | false                 | false       
+1                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["b","d"]                | false                   | true                  | false                           | true                  | false    
+2                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | null                     | false                   | true                  | false                           | false                 | false    
+3                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","e","c","b","d"]    | true                    | true                  | false                           | true                  | true    
+4                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","e"]    | true                    | true                  | false                           | true                  | true    
+5                  | "e"             | null   | [""]                   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","","e"] | true                    | true                  | true                            | true                  | true    
 ;
 
 mvContains_where
-required_capability: fn_mv_contains
+required_capability: fn_mv_contains_v1
 // tag::mv_contains_where[]
 FROM airports
 | WHERE mv_contains(type, ["major","military"]) AND scalerank == 9
@@ -2577,6 +2580,78 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 
     @timestamp:date     | message:text
 2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+;
+
+mvStringEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message == ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvStringNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM mv_text
+| WHERE message != ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvString_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message IN (["Connected to 10.1.0.1", "Banana"])
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message IN ([\"Connected to 10.1.0.1\", \"Banana\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvKeyword_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions IN (["Tech Lead" , "Data Scientist", "Senior Team Lead"])
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions IN ([\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions == ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions == [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM employees
+| WHERE job_positions != ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions != [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
 ;
 
 url_encode sample for docs

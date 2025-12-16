@@ -1,0 +1,5 @@
+pr: 137637
+summary: Fix Bug in `RankDocRetrieverBuilder` when `from` is set to Default (-1)
+area: Search
+type: bug
+issues: []

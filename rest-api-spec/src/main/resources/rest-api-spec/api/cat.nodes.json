@@ -42,6 +42,7 @@
       },
       "full_id": {
         "type": "boolean",
+        "default": false,
         "description": "Return the full node ID instead of the shortened version (default: false)"
       },
       "master_timeout": {
@@ -51,6 +52,7 @@
       },
       "h": {
         "type": "list",
+        "default": "ip,hp,rp,r,m,n,cpu,l",
         "description": "Comma-separated list of column names to display"
       },
       "help": {

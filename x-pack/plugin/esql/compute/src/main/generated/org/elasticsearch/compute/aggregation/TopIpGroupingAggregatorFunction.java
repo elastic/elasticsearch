@@ -162,7 +162,7 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -227,7 +227,7 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -278,7 +278,7 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
       return;
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;

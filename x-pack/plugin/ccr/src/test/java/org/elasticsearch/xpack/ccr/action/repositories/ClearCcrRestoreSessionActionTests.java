@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,21 +57,29 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
     }
 
     public void testActionNames() {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
-        final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
+        final var action = new ClearCcrRestoreSessionAction.TransportAction(
+            actionFilters,
+            transportService,
+            ccrRestoreSourceService,
+            namedWriteableRegistry
+        );
         assertThat(action.actionName, equalTo(ClearCcrRestoreSessionAction.NAME));
 
         final var internalAction = new ClearCcrRestoreSessionAction.InternalTransportAction(
             actionFilters,
             transportService,
-            ccrRestoreSourceService
+            ccrRestoreSourceService,
+            namedWriteableRegistry
         );
         assertThat(internalAction.actionName, equalTo(ClearCcrRestoreSessionAction.INTERNAL_NAME));
     }
 
     public void testRequestedShardIdMustBeConsistentWithSessionShardId() {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
@@ -87,7 +98,12 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
             }
         }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any());
 
-        final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
+        final var action = new ClearCcrRestoreSessionAction.TransportAction(
+            actionFilters,
+            transportService,
+            ccrRestoreSourceService,
+            namedWriteableRegistry
+        );
 
         final String sessionUUID = UUIDs.randomBase64UUID();
 

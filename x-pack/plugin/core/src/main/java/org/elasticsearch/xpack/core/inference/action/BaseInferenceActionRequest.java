@@ -24,6 +24,7 @@ import java.util.Objects;
  */
 public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
     static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName(
         "inference_request_adaptive_rate_limiting_removed"
     );
@@ -37,13 +38,12 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)
             && in.getTransportVersion().supports(INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED) == false) {
             in.readBoolean();
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             this.context = new InferenceContext(in);
         } else {
             this.context = InferenceContext.EMPTY_INSTANCE;
@@ -63,13 +63,12 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)
             && out.getTransportVersion().supports(INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED) == false) {
             out.writeBoolean(true);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (out.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             context.writeTo(out);
         }
     }

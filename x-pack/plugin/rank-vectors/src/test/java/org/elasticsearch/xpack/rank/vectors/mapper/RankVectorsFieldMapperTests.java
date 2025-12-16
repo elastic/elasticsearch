@@ -90,6 +90,11 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     @Override
+    protected Object getSampleValueForDocument(boolean binaryFormat) {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         int numVectors = randomIntBetween(1, 16);
         return Stream.generate(
@@ -136,7 +141,6 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(RankVectorsFieldMapper.RankVectorsFieldType.class));
-        assertFalse(fieldType.isIndexed());
         assertFalse(fieldType.isSearchable());
     }
 
@@ -375,6 +379,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
         SourceToParse source = source(b -> b.field(ft.name(), value));
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
@@ -434,6 +439,7 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 }
                 yield vectors;
             }
+            case BFLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -472,10 +478,9 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         @Override
         public SyntheticSourceExample example(int maxValues) {
             Object value = switch (elementType) {
-                case BYTE, BIT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
-                case FLOAT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BYTE, BIT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
+                case FLOAT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BFLOAT16 -> throw new AssertionError();
             };
             return new SyntheticSourceExample(value, value, this::mapping);
         }

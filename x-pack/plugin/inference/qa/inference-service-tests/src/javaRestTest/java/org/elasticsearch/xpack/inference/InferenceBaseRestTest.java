@@ -171,6 +171,22 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """;
     }
 
+    static String mockDenseServiceModelConfig(int dimensions) {
+        return Strings.format("""
+            {
+              "task_type": "text_embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64",
+                "dimensions": %s
+              },
+              "task_settings": {
+              }
+            }
+            """, dimensions);
+    }
+
     static String mockRerankServiceModelConfig() {
         return """
             {
@@ -331,7 +347,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<String, Object> getModel(String modelId) throws IOException {
+    static Map<String, Object> getModel(String modelId) throws IOException {
         var endpoint = Strings.format("_inference/%s?error_trace", modelId);
         return ((List<Map<String, Object>>) getInternalAsMap(endpoint).get("endpoints")).get(0);
     }

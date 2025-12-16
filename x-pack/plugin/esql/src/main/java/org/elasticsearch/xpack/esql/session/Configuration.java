@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,6 +36,10 @@ public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
     public static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
+
+    private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
+
+    private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
 
     private final String clusterName;
     private final String username;
@@ -106,13 +110,12 @@ public class Configuration implements Writeable {
         this.profile = in.readBoolean();
         this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
         this.queryStartTimeNanos = in.readLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
+        if (in.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
             this.allowPartialResults = in.readBoolean();
         } else {
             this.allowPartialResults = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TIMESERIES_DEFAULT_LIMIT)) {
+        if (in.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
             this.resultTruncationMaxSizeTimeseries = in.readVInt();
             this.resultTruncationDefaultSizeTimeseries = in.readVInt();
         } else {
@@ -137,11 +140,10 @@ public class Configuration implements Writeable {
         out.writeBoolean(profile);
         out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
         out.writeLong(queryStartTimeNanos);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
             out.writeBoolean(allowPartialResults);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TIMESERIES_DEFAULT_LIMIT)) {
+        if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
             out.writeVInt(resultTruncationMaxSizeTimeseries);
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
@@ -200,7 +202,7 @@ public class Configuration implements Writeable {
     /**
      * @return Start time of the ESQL query in nanos
      */
-    public long getQueryStartTimeNanos() {
+    public long queryStartTimeNanos() {
         return queryStartTimeNanos;
     }
 
@@ -331,6 +333,8 @@ public class Configuration implements Writeable {
             + ",timeseries="
             + resultTruncationDefaultSize(true)
             + "]"
+            + ", zoneId="
+            + zoneId
             + ", locale="
             + locale
             + ", query='"

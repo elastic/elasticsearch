@@ -61,7 +61,7 @@ import java.util.Objects;
  */
 public final class LongSwissHash extends SwissHash implements LongHashTable {
 
-    private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
+    static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
 
     private static final int BYTE_VECTOR_LANES = BS.vectorByteSize();
 
@@ -290,10 +290,10 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
         }
 
         void transitionToBigCore() {
-            int oldCapacity = growTracking();
+            growTracking();
             try {
                 bigCore = new BigCore();
-                rehash(oldCapacity);
+                rehash();
             } finally {
                 close();
                 smallCore = null;
@@ -325,15 +325,10 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
             };
         }
 
-        private void rehash(final int oldCapacity) {
-            for (int slot = 0; slot < oldCapacity; slot++) {
-                final int id = id(slot);
-                if (id < 0) {
-                    continue;
-                }
-                final long key = key(id);
-                final int hash = hash(key);
-                bigCore.insert(hash, control(hash), id);
+        private void rehash() {
+            for (int i = 0; i < size; i++) {
+                final int hash = hash(key(i));
+                bigCore.insert(hash, control(hash), i);
             }
         }
 
@@ -504,25 +499,6 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
             }
         }
 
-        /**
-         * Inserts the key into the first empty slot that allows it. Used by {@link #add}
-         * after we verify that the key isn't in the index. And used by {@link #rehash}
-         * because we know all keys are unique.
-         */
-        private void insert(final int hash, final byte control, final int id) {
-            int group = hash & mask;
-            for (;;) {
-                long empty = ByteVector.fromArray(BS, controlData, group).eq(EMPTY).toLong();
-                if (empty != 0) {
-                    final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
-                    insertAtSlot(insertSlot, control, id);
-                    return;
-                }
-                group = slot(group + BYTE_VECTOR_LANES);
-                insertProbes++;
-            }
-        }
-
         private void insertAtSlot(final int insertSlot, final byte control, final int id) {
             final int idOffset = idOffset(insertSlot);
             INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
@@ -566,30 +542,40 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
         }
 
         private void grow() {
-            int oldCapacity = growTracking();
+            growTracking();
             try {
                 var newBigCore = new BigCore();
-                rehash(oldCapacity, newBigCore);
+                rehash(newBigCore);
                 bigCore = newBigCore;
             } finally {
                 close();
             }
         }
 
-        private void rehash(final int oldCapacity, BigCore newBigCore) {
-            int slot = 0;
-            while (slot < oldCapacity) {
-                long empty = ByteVector.fromArray(BS, controlData, slot).eq(EMPTY).toLong();
-                for (int i = 0; i < BYTE_VECTOR_LANES && slot + i < oldCapacity; i++) {
-                    if ((empty & (1L << i)) != 0) {
-                        continue;
+        private void rehash(BigCore newBigCore) {
+            for (int i = 0; i < size; i++) {
+                final int hash = hash(key(i));
+                newBigCore.insert(hash, control(hash), i);
+            }
+        }
+
+        /**
+         * Inserts the key into the first empty slot that allows it. Used
+         * by {@link #rehash} because we know all keys are unique.
+         */
+        private void insert(final int hash, final byte control, final int id) {
+            int group = hash & mask;
+            for (;;) {
+                for (int j = 0; j < BYTE_VECTOR_LANES; j++) {
+                    int idx = group + j;
+                    if (controlData[idx] == EMPTY) {
+                        int insertSlot = slot(group + j);
+                        insertAtSlot(insertSlot, control, id);
+                        return;
                     }
-                    final int actualSlot = slot + i;
-                    final int id = id(actualSlot);
-                    final int hash = hash(key(id));
-                    newBigCore.insert(hash, control(hash), id);
                 }
-                slot += BYTE_VECTOR_LANES;
+                group = (group + BYTE_VECTOR_LANES) & mask;
+                insertProbes++;
             }
         }
 

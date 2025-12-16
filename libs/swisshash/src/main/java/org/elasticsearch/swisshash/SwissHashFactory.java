@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.Locale;
 import java.util.Optional;
 
 public abstract class SwissHashFactory {
@@ -49,6 +50,13 @@ public abstract class SwissHashFactory {
         var vecMod = lookupVectorModule();
         if (vecMod.isPresent()) {
             SwissHashFactory.class.getModule().addReads(vecMod.get());
+            logger.info(
+                String.format(
+                    Locale.ENGLISH,
+                    "SwissHashFactory using the Java vector API; uses preferredBitSize=%d",
+                    LongSwissHash.BS.vectorBitSize()
+                )
+            );
             INSTANCE = new SwissHashFactoryImpl();
         } else {
             logger.warn(

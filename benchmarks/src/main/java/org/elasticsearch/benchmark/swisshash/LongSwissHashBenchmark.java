@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.swisshash.LongSwissHash;
+import org.elasticsearch.swisshash.SwissHashFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
@@ -64,7 +65,7 @@ public class LongSwissHashBenchmark {
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
 
-        hash = new LongSwissHash(recycler, breaker);
+        hash = SwissHashFactory.getInstance().newLongSwissHash(recycler, breaker);
         longHash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         keys = generateKeys(uniqueKeys);
         lookupKeys = keys.clone();
@@ -84,7 +85,7 @@ public class LongSwissHashBenchmark {
     // -----------------------
 
     @Benchmark
-    public int swissHashBenchmark() {
+    public long swissHashBenchmark() {
         return switch (mode) {
             case "insert" -> doInsert();
             case "lookup" -> doLookup();
@@ -93,25 +94,25 @@ public class LongSwissHashBenchmark {
         };
     }
 
-    private int doInsert() {
-        int sum = 0;
+    private long doInsert() {
+        long sum = 0;
         for (long k : keys) {
             sum += hash.add(k);
         }
         return sum;
     }
 
-    private int doLookup() {
-        int sum = 0;
+    private long doLookup() {
+        long sum = 0;
         for (long k : lookupKeys) {
             sum += hash.find(k);
         }
         return sum;
     }
 
-    private int doMixed() {
+    private long doMixed() {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        int sum = 0;
+        long sum = 0;
 
         for (long k : keys) {
             if (r.nextInt(100) < 80) { // 80% lookups

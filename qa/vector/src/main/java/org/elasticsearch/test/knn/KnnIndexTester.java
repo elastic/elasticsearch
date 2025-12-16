@@ -395,7 +395,9 @@ public class KnnIndexTester {
                 "visited",
                 "filter_selectivity",
                 "filter_cached",
-                "oversampling_factor" };
+                "oversampling_factor",
+                "num_candidates",
+                "early_termination" };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -429,7 +431,9 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
                     Boolean.toString(queryResult.filterCached),
-                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor) };
+                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
+                    String.format(Locale.ROOT, "%d", queryResult.numCandidates),
+                    Boolean.toString(queryResult.earlyTermination) };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);
@@ -508,6 +512,8 @@ public class KnnIndexTester {
         double avgCpuCount;
         boolean filterCached;
         double overSamplingFactor;
+        boolean earlyTermination;
+        int numCandidates;
 
         Results(String indexName, String indexType, int numDocs) {
             this.indexName = indexName;

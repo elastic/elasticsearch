@@ -303,6 +303,8 @@ class KnnSearcher {
         finalResults.filterCached = searchParameters.filterCached();
         finalResults.overSamplingFactor = searchParameters.overSamplingFactor();
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
+        finalResults.numCandidates = searchParameters.numCandidates();
+        finalResults.earlyTermination = searchParameters.earlyTermination();
     }
 
     private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached)

@@ -90,8 +90,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // start time for the ESQL query for calculating time spans relative to the beginning of the query
     private final transient TimeSpan.Builder relativeStart;
     private transient TimeSpan overallTimeSpan;
-    private transient TimeSpan parsingTimeSpan; // time elapsed for plan analysis
-    private transient TimeSpan.Builder parsingTimeSpanBuilder; // Builder for analysisTimeSpan
+    private transient TimeSpan parsingTimeSpan; // time elapsed for query parsing
+    private transient TimeSpan.Builder parsingTimeSpanBuilder; // Builder for parsingTimeSpan
     private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
     private transient TimeSpan preAnalysisTimeSpan; // time elapsed for index preanalysis, including lookup indices
     private transient TimeSpan.Builder preAnalysisTimeSpanBuilder; // Builder for preAnalysisTimeSpan
@@ -204,9 +204,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * Call when ES|QL "parsing" phase starts - this includes preanalysis, retrieving field caps information for indices,
-     * resolve enrich policies, and resolve inference IDs.
-     * Both main indices and lookup indices will be included in this phase
+     * Call when ES|QL "parsing" phase starts
      */
     public void markBeginParsing() {
         assert parsingTimeSpanBuilder == null : "markBeginPreAnalysis should only be called once";

@@ -1,0 +1,5 @@
+pr: 139618
+summary: Various fixes to spatial functions (ST_ENVELOPE and ST_NPOINTS)
+area: "ES|QL, Geo"
+type: enhancement
+issues: []

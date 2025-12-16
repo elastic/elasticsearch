@@ -566,22 +566,19 @@ public class TDigestFieldMapper extends FieldMapper {
             return docId -> {
                 if (docValues.advanceExact(docId)) {
                     // we assume the summary sub-
-                    if (minValues != null) {
-                        minValues.advanceExact(docId);
+                    if (minValues != null && minValues.advanceExact(docId)) {
                         min = NumericUtils.sortableLongToDouble(minValues.longValue());
                     } else {
                         min = Double.NaN;
                     }
 
-                    if (maxValues != null) {
-                        maxValues.advanceExact(docId);
+                    if (maxValues != null && maxValues.advanceExact(docId)) {
                         max = NumericUtils.sortableLongToDouble(maxValues.longValue());
                     } else {
                         max = Double.NaN;
                     }
 
-                    if (sumValues != null) {
-                        sumValues.advanceExact(docId);
+                    if (sumValues != null && sumValues.advanceExact(docId)) {
                         sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
                     } else {
                         sum = Double.NaN;

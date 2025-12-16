@@ -36,6 +36,7 @@ public class HighCardinalityKeywordFieldDataTests extends AbstractStringFieldDat
         return 0;
     }
 
+    // Trick to index multi-valued binary doc values fields using AbstractStringFieldDataTestCase:
     private Document current;
     private Map<String, CustomBinaryDocValuesField> fields = new HashMap<>();
 
@@ -47,7 +48,7 @@ public class HighCardinalityKeywordFieldDataTests extends AbstractStringFieldDat
         }
 
         d.add(new StringField(name, value, Field.Store.YES));
-        var field =  fields.get(name);
+        var field = fields.get(name);
         if (field != null) {
             fields.get(name).add(value.getBytes(StandardCharsets.UTF_8));
         } else {
@@ -57,9 +58,7 @@ public class HighCardinalityKeywordFieldDataTests extends AbstractStringFieldDat
         }
     }
 
-
-
-    // Unsupported tests:
+    // Don't run tests that binary doc values based field data doesn't support:
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
         assumeFalse("binary doc values don't support ordinals or global ordinals", true);
     }

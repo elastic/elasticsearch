@@ -35,6 +35,8 @@ public class BinaryDVLeafFieldData implements LeafFieldData {
     @Override
     public SortedBinaryDocValues getBytesValues() {
         try {
+            // Need to return a new instance each time this gets invoked,
+            // otherwise a positioned or exhausted instance can be returned:
             final BinaryDocValues values = DocValues.getBinary(reader, field);
             return FieldData.singleton(values);
         } catch (IOException e) {

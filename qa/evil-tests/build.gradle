@@ -27,11 +27,3 @@ dependencies {
 tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'
 }
-
-if (buildParams.inFipsJvm) {
-  // Disable evil tests in FIPS mode due to jar hell between plugin-cli's
-  // BouncyCastle dependencies and the BC FIPS dependencies added by the FIPS gradle config
-  tasks.named("test").configure {
-    enabled = false
-  }
-}

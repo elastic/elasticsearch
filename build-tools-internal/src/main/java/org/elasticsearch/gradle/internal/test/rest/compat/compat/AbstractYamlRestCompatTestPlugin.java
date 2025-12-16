@@ -96,14 +96,9 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
         // determine the previous rest compatibility version and BWC project path
         int currentMajor = buildParams.getBwcVersions().getCurrentVersion().getMajor();
-        System.out.println("currentMajor = " + currentMajor);
-        System.out.println("currentMinor = " + buildParams.getBwcVersions().getCurrentVersion().getMinor());
-        System.out.println(buildParams.getBwcVersions().getUnreleased());
-
         Optional<String> lastMinorProjectPath = buildParams.getBwcVersions().getUnreleased().stream().filter(v -> {
-            System.out.println(v.getMajor() + " vs " + (currentMajor - 1));
             return (v.getMajor() == currentMajor - 1);
-        }).min(Comparator.reverseOrder()).map(lastMinor -> buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath());
+        }).max(Comparator.naturalOrder()).map(lastMinor -> buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath());
 
         // buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();
 

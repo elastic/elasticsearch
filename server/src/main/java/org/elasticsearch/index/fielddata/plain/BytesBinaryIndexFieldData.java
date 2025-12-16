@@ -19,6 +19,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValuesSeparateCounts;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -82,7 +84,14 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         try {
             NumericDocValues counts = DocValues.getNumeric(context.reader(), fieldName + ".counts");
             BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
-            return new MultiValuedBinaryDVLeafFieldData(values, counts, toScriptFieldFactory);
+
+            final SortedBinaryDocValues sortedBinaryDocValues;
+            if (counts == null) {
+                sortedBinaryDocValues = new MultiValuedSortedBinaryDocValues(values);
+            } else {
+                sortedBinaryDocValues = new MultiValuedSortedBinaryDocValuesSeparateCounts(values, counts);
+            }
+            return new MultiValuedBinaryDVLeafFieldData(sortedBinaryDocValues, toScriptFieldFactory);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

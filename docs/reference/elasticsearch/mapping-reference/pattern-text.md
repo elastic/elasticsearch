@@ -10,7 +10,7 @@ mapped_pages:
 # Pattern text field type [pattern-text-field-type]
 ```{applies_to}
 serverless: ga
-stack: ga 9.3
+stack: preview 9.2, ga 9.3
 ```
 :::{note}
 This feature requires a [subscription](https://www.elastic.co/subscriptions)

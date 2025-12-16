@@ -726,7 +726,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         }
 
         int nextGroupId = tsContext.nextGroupId(group);
-        var nextState = (nextGroupId < states.size()) ? states.get(nextGroupId) : null;
+        var nextState = (nextGroupId >= 0) ? states.get(nextGroupId) : null;
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
                 lastTsSec = state.intervals[0].t1 / dateFactor;

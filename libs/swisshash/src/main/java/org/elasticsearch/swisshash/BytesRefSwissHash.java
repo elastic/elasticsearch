@@ -244,37 +244,30 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         int find(final BytesRef key, final int hash) {
             int slot = slot(hash);
-            for (;;) {
+            for (;; slot = slot(slot + 1)) {
                 long value = (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
                 int id = id(value);
-                if (id < 0) {
-                    return -1; // empty
-                }
-                if (hash(value) == hash && matches(key, id)) {
+                if (id == -1 || (hash(value) == hash && matches(key, id))) {
                     return id;
                 }
-                slot = slot(slot + 1);
             }
         }
 
         int add(final BytesRef key, final int hash) {
             int slot = slot(hash);
-            for (;;) {
+            for (;; slot = slot(slot + 1)) {
                 final int offset = idAndHashOffset(slot);
                 final long value = (long) LONG_HANDLE.get(idAndHashPage, offset);
                 final int id = id(value);
-                if (id >= 0) {
-                    if (hash(value) == hash && matches(key, id)) {
-                        return id;
-                    }
-                    slot = slot(slot + 1);
-                } else {
+                if (id == -1) { // means unset
                     final int nextId = (int) bytesRefs.size();
                     bytesRefs.append(key);
                     final long newValue = ((long) nextId << 32) | Integer.toUnsignedLong(hash);
                     LONG_HANDLE.set(idAndHashPage, offset, newValue);
                     size++;
                     return nextId;
+                } else if (hash(value) == hash && matches(key, id)) {
+                    return id;
                 }
             }
         }

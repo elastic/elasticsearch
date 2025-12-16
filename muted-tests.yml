@@ -478,6 +478,9 @@ tests:
 - class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139624
+- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
+  method: testMinVersionSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/139625
 
 # Examples:
 #

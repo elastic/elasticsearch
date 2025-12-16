@@ -39,18 +39,13 @@ public class ToTDigest extends AbstractConvertFunction {
         Map.entry(DataType.HISTOGRAM, ToTDigestFromHistogramEvaluator.Factory::new)
     );
 
-    @FunctionInfo(
-        returnType = "tdigest",
-        description = "Converts an untyped histogram to a TDigest, assuming the values are centroids"
-        // TODO: examples
+    @FunctionInfo(returnType = "tdigest", description = "Converts an untyped histogram to a TDigest, assuming the values are centroids"
+    // TODO: examples
     )
     public ToTDigest(
         Source source,
-        @Param(
-            name = "field",
-            type = { "histogram" },
-            description = "The histogram value to be converted")
-        Expression field) {
+        @Param(name = "field", type = { "histogram" }, description = "The histogram value to be converted") Expression field
+    ) {
         super(source, field);
     }
 
@@ -83,7 +78,7 @@ public class ToTDigest extends AbstractConvertFunction {
         return ENTRY.name;
     }
 
-    @ConvertEvaluator(extraName = "FromHistogram", warnExceptions =  { IllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromHistogram", warnExceptions = { IllegalArgumentException.class })
     static TDigestHolder fromHistogram(BytesRef in) {
         if (in.length > ByteSizeUnit.MB.toBytes(2)) {
             throw new IllegalArgumentException("Histogram length is greater than 2MB");

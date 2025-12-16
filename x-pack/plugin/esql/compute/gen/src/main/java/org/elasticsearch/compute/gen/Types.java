@@ -246,9 +246,9 @@ public class Types {
         if (resultType.equals(EXPONENTIAL_HISTOGRAM_BLOCK)) {
             return EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER;
         }
-       if (resultType.equals(TDIGEST_BLOCK)) {
-           return TDIGEST_BLOCK_BUILDER;
-       }
+        if (resultType.equals(TDIGEST_BLOCK)) {
+            return TDIGEST_BLOCK_BUILDER;
+        }
 
         throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
     }
@@ -294,7 +294,7 @@ public class Types {
         if (t.equals(EXPONENTIAL_HISTOGRAM_BLOCK) || t.equals(EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER)) {
             return EXPONENTIAL_HISTOGRAM;
         }
-        if  (t.equals(TDIGEST_BLOCK) || t.equals(TDIGEST_BLOCK_BUILDER)) {
+        if (t.equals(TDIGEST_BLOCK) || t.equals(TDIGEST_BLOCK_BUILDER)) {
             return TDIGEST;
         }
         throw new IllegalArgumentException("unknown element type for [" + t + "]");

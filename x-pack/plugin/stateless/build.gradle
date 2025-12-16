@@ -8,6 +8,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
 esplugin {
   name = 'stateless'
   description = 'Elasticsearch Expanded Pack Plugin - Stateless self managed'
@@ -21,6 +24,13 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('blob-cache'))
+  internalClusterTestImplementation project(xpackModule('blob-cache'))
+  clusterPlugins project(xpackModule('stateless'))
+//  testImplementation(testArtifact(project(':x-pack:plugin:blob-cache'), "yamlRestTest"))
+  javaRestTestImplementation(testImplementation(testArtifact(project(xpackModule('blob-cache')))))
+  javaRestTestImplementation project(xpackModule('blob-cache'))
+  clusterPlugins project(xpackModule('blob-cache'))
+  yamlRestTestImplementation project(xpackModule('blob-cache'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('blob-cache'))))
 }

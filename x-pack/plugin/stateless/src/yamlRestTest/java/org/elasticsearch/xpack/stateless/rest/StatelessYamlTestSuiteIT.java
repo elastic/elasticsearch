@@ -1,0 +1,112 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package org.elasticsearch.xpack.stateless.rest;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
+import org.elasticsearch.test.cluster.local.model.User;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
+
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+public class StatelessYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    private static final String OPERATOR_USER = "x_pack_rest_user";
+    private static final String OPERATOR_PASSWORD = "x-pack-test-password";
+    private static final String NOT_OPERATOR_USER = "not_operator";
+    private static final String NOT_OPERATOR_PASSWORD = "not_operator_password";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .plugin("stateless")
+        .plugin("blob-cache")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.security.operator_privileges.enabled", "true")
+        .setting(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, "true")
+        .user(OPERATOR_USER, OPERATOR_PASSWORD, User.ROOT_USER_ROLE, true)
+        .user(NOT_OPERATOR_USER, NOT_OPERATOR_PASSWORD, User.ROOT_USER_ROLE, false)
+        .build();
+
+    private static ElasticsearchCluster createCluster() {
+        LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
+            .setting("xpack.security.enabled", "true")
+            .keystore("bootstrap.password", "x-pack-test-password")
+            .user("x_pack_rest_user", "x-pack-test-password")
+            .feature(FeatureFlag.LOGS_STREAM)
+            .systemProperty("es.queryable_built_in_roles_enabled", "false")
+            .setting("xpack.watcher.enabled", "false")
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.security.operator_privileges.enabled", "true")
+            .setting(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, "true")
+            .user(OPERATOR_USER, OPERATOR_PASSWORD, User.ROOT_USER_ROLE, true)
+            .user(NOT_OPERATOR_USER, NOT_OPERATOR_PASSWORD, User.ROOT_USER_ROLE, false);
+        if (initTestSeed().nextBoolean()) {
+            clusterBuilder.setting("xpack.license.self_generated.type", "trial");
+        }
+        boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
+        if (setNodes) {
+            clusterBuilder.nodes(2);
+        }
+        // We need to disable ILM history based on a setting, to avoid errors in Serverless where the setting is not available.
+        boolean disableILMHistory = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.disable_ilm_history", "true"));
+        if (disableILMHistory) {
+            // disable ILM history, since it disturbs tests
+            clusterBuilder.setting("indices.lifecycle.history_index_enabled", "false");
+        }
+        return clusterBuilder.build();
+    }
+
+    public StatelessYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return createParameters();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(NOT_OPERATOR_USER, new SecureString(NOT_OPERATOR_PASSWORD.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    @Override
+    protected Settings restAdminSettings() {
+        String token = basicAuthHeaderValue(OPERATOR_USER, new SecureString(OPERATOR_PASSWORD.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+}

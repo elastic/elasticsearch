@@ -1,0 +1,37 @@
+---
+"Check failure store index refresh interval":
+  - skip:
+      features: ["allowed_warnings", "headers"]
+
+  - do:
+      headers: { Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # x_pack_rest_user, an operator
+      indices.put_index_template:
+        name: ds-template
+        body:
+          index_patterns: failure-data-stream
+          template:
+            settings:
+              number_of_replicas: 0
+          data_stream:
+            failure_store: true
+      allowed_warnings:
+        - "index template [ds-template] has index patterns [failure-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [ds-template] will take precedence during new index creation"
+  - do:
+      indices.create_data_stream:
+        name: failure-data-stream
+  - do:
+      headers: { Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # x_pack_rest_user, an operator
+      cluster.health:
+        wait_for_status: green
+  # Initialize failure store
+  - do:
+      indices.rollover:
+        alias: failure-data-stream::failures
+  - do:
+      indices.get_data_stream:
+        name: failure-data-stream
+  - set: { data_streams.0.failure_store.indices.0.index_name: failure_index }
+  - do:
+      indices.get_settings:
+        index: $failure_index
+  - match: { $body.$failure_index.settings.index.refresh_interval: '30s' }

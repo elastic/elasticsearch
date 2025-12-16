@@ -6,10 +6,14 @@
  */
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -32,6 +36,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
+import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class StatelessPlugin extends Plugin implements ClusterCoordinationPlugin, ExtensiblePlugin {
 
@@ -49,6 +54,16 @@ public class StatelessPlugin extends Plugin implements ClusterCoordinationPlugin
         false,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> DATA_STREAMS_LIFECYCLE_ONLY_MODE = boolSetting(
+        DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME,
+        true,
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> FAILURE_STORE_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        MetadataCreateDataStreamService.FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME,
+        TimeValue.timeValueSeconds(30),
+        Property.NodeScope
+    );
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
@@ -58,7 +73,7 @@ public class StatelessPlugin extends Plugin implements ClusterCoordinationPlugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(STATELESS_ENABLED);
+        return List.of(STATELESS_ENABLED, DATA_STREAMS_LIFECYCLE_ONLY_MODE, FAILURE_STORE_REFRESH_INTERVAL_SETTING);
     }
 
     public StatelessPlugin(Settings settings) {
@@ -135,6 +150,8 @@ public class StatelessPlugin extends Plugin implements ClusterCoordinationPlugin
             return Settings.builder()
                 .put(super.additionalSettings())
                 .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+                .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
+                .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30))
                 .build();
         } else {
             return super.additionalSettings();

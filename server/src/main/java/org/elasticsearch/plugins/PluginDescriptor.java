@@ -232,7 +232,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     }
 
     private static PluginDescriptor readerInternalDescriptor(Map<String, String> propsMap, String filename) {
-        String name = readNonEmptyString(propsMap, filename, "name");
+        String
+            name = readNonEmptyString(propsMap, filename, "name");
         String desc = readString(propsMap, name, "description");
         String ver = readString(propsMap, name, "version");
         String esVer = readElasticsearchVersion(propsMap, name);

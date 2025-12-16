@@ -28,8 +28,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -192,9 +192,10 @@ public class MultiSearchIT extends ESIntegTestCase {
 
             MultiSearchRequest mreq = parseRequest(body, Map.of("ccs_minimize_roundtrips", "false"));
 
+            List<SearchRequest> searchRequests = mreq.requests();
             assertThat(mreq.requests().size(), Matchers.is(2));
-            assertTrue(mreq.requests().getFirst().isCcsMinimizeRoundtrips());
-            assertFalse(mreq.requests().getLast().isCcsMinimizeRoundtrips());
+            assertTrue(mreq.requests().get(0).isCcsMinimizeRoundtrips());
+            assertFalse(mreq.requests().get(searchRequests.size() - 1).isCcsMinimizeRoundtrips());
         }
     }
 
@@ -211,9 +212,7 @@ public class MultiSearchIT extends ESIntegTestCase {
             mkRequest(body, params),
             true,
             new UsageService().getSearchUsageHolder(),
-            (ignored) -> true,
-            // Disable CPS for these tests.
-            Optional.of(false)
+            (ignored) -> true
         );
     }
 }

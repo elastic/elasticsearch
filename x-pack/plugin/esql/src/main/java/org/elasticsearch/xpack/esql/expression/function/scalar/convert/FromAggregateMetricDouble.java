@@ -165,11 +165,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
                 if (block.areAllValuesNull()) {
                     return blockFactory.newConstantNullBlock(block.getPositionCount());
                 }
-                int actualSubfieldIndex = subFieldIndex;
-                if (subFieldIndex == AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex()) {
-                    actualSubfieldIndex = AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex();
-                }
-                Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(actualSubfieldIndex);
+                Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(subFieldIndex);
                 resultBlock.incRef();
                 return resultBlock;
             } finally {

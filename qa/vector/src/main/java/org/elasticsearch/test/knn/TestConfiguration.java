@@ -373,7 +373,8 @@ record TestConfiguration(
                 numSearchers,
                 filterSelectivity,
                 filterCached,
-                earlyTermination
+                earlyTermination,
+                seed
             );
 
             if (visitPercentages.length > 1 && (searchParams != null && searchParams.isEmpty() == false)) {

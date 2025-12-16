@@ -101,7 +101,6 @@ class KnnSearcher {
     private final Path queryPath;
     private final int numDocs;
     private final int numQueryVectors;
-    private final long randomSeed;
     private final KnnIndexTester.IndexType indexType;
     private int dim;
     private final VectorSimilarityFunction similarityFunction;
@@ -120,13 +119,12 @@ class KnnSearcher {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
         this.indexType = testConfiguration.indexType();
-        this.randomSeed = testConfiguration.seed();
     }
 
     void runSearch(KnnIndexTester.Results finalResults, SearchParameters searchParameters) throws IOException {
         Query filterQuery = searchParameters.filterSelectivity() < 1f
             ? generateRandomQuery(
-                new Random(randomSeed),
+                new Random(searchParameters.seed()),
                 indexPath,
                 numDocs,
                 searchParameters.filterSelectivity(),
@@ -347,8 +345,7 @@ class KnnSearcher {
                 numQueryVectors,
                 searchParameters.topK(),
                 similarityFunction.ordinal(),
-                searchParameters.filterSelectivity(),
-                randomSeed
+                searchParameters.filterSelectivity()
             ),
             36
         );

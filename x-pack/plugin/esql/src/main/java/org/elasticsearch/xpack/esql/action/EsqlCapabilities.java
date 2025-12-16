@@ -1600,7 +1600,7 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
 
-        TDIGEST_FIELD_TYPE_SUPPORT_V3(T_DIGEST_ESQL_SUPPORT),
+        TDIGEST_FIELD_TYPE_SUPPORT_V4(T_DIGEST_ESQL_SUPPORT),
 
         /**
          * Development capability for the histogram field integration

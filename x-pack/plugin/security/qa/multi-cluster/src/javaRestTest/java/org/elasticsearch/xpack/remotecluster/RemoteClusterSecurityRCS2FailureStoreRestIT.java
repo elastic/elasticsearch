@@ -121,8 +121,8 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
         }
 
         // query remote cluster using ::failures selector should fail when missing authorization
-        if (ccsMinimizeRoundtrips == false) {
-            // When not minimizing round trips, we return authentication failures for the index patterns during the query phase
+        {
+            // We return authentication failures for concrete index patterns
             final ResponseException exception = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(
@@ -131,56 +131,34 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                         String.format(
                             Locale.ROOT,
                             "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
-                            randomFrom("test1::failures", "test*::failures", "*::failures"),
+                            "test1::failures",
                             ccsMinimizeRoundtrips
                         )
                     )
                 )
             );
+            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
+            final String privileges = ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all";
             assertActionUnauthorized(
                 exception,
-                "indices:data/read/search[phase/query]",
-                backingFailureIndexName,
-                "read,all" // PRTODO: Should this be "read_failures" instead of "read"?
+                action,
+                "test1::failures",
+                privileges
             );
-        } else {
-            // When minimizing round trips, only the concrete index name returns an auth failure.
-            {
-                final ResponseException exception = expectThrows(
-                    ResponseException.class,
-                    () -> performRequestWithRemoteSearchUser(
-                        new Request(
-                            "GET",
-                            String.format(
-                                Locale.ROOT,
-                                "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
-                                randomFrom("test1::failures"),
-                                ccsMinimizeRoundtrips
-                            )
-                        )
-                    )
-                );
-                assertActionUnauthorized(
-                    exception,
-                    "indices:data/read/search",
-                    "test1::failures",
-                    "read,all" // PRTODO: Should this be "read_failures" instead of "read"?
-                );
-            }
-            // Any wildcard patterns are treated as empty searches when minimizing round trips since they resolve to no visible indices
-            {
-                var request = new Request(
-                    "GET",
-                    String.format(
-                        Locale.ROOT,
-                        "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
-                        randomFrom("test*::failures", "*::failures"),
-                        ccsMinimizeRoundtrips
-                    )
-                );
-                Response response = performRequestWithRemoteSearchUser(request);
-                assertSearchResponseEmpty(response);
-            }
+        }
+        // Any wildcard patterns are treated as empty searches since they resolve to no visible indices
+        {
+            var request = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("test*::failures", "*::failures"),
+                    ccsMinimizeRoundtrips
+                )
+            );
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertSearchResponseEmpty(response);
         }
         {
             // direct access to backing failure index is not allowed - no explicit read privileges over .fs-* indices
@@ -197,8 +175,9 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(failureIndexSearchRequest)
             );
-            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:data/read/search[phase/query]";
-            assertActionUnauthorized(exception, action, backingFailureIndexName, "read,all");
+            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
+            final String privileges = ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all";
+            assertActionUnauthorized(exception, action, backingFailureIndexName, privileges);
         }
     }
 

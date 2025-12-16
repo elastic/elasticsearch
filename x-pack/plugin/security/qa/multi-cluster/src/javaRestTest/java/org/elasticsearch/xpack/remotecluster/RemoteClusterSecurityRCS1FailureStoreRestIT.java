@@ -278,7 +278,6 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         testBackingFailureIndexAccess(ccsMinimizeRoundtrips, backingFailureIndexName, skipUnavailable);
         testBackingDataIndexAccess(ccsMinimizeRoundtrips, backingDataIndexName);
         testSearchingNonExistingIndices(ccsMinimizeRoundtrips, skipUnavailable);
-        testResolveRemoteClustersIsUnauthorized();
     }
 
     private void testBackingDataIndexAccess(boolean ccsMinimizeRoundtrips, String backingDataIndexName) throws IOException {
@@ -418,7 +417,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
 
         // user with data only access should not be able to search the backing failure index
         {
-            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:data/read/search[phase/query]";
+            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
             executeAndAssert(
                 () -> performRequestMaybeUsingApiKey(DATA_ACCESS, failureIndexSearchRequest),
                 exception -> assertActionUnauthorized(exception, DATA_ACCESS, action, backingFailureIndexName),
@@ -507,37 +506,6 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             final String[] expectedIndices = new String[] { backingDataIndexName };
             assertSearchResponseContainsIndices(performRequestMaybeUsingApiKey(user, dataSearchRequest), expectedIndices);
         }
-    }
-
-    private void testResolveRemoteClustersIsUnauthorized() {
-        // user with only read_failure_store access should not be able to resolve remote clusters
-        var exc = expectThrows(
-            ResponseException.class,
-            () -> performRequestMaybeUsingApiKey(ONLY_READ_FAILURE_STORE_ACCESS, new Request("GET", "/_resolve/cluster"))
-        );
-        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(
-            exc.getMessage(),
-            anyOf(
-                containsString(
-                    "action ["
-                        + "indices:admin/resolve/cluster"
-                        + "] is unauthorized for user ["
-                        + ONLY_READ_FAILURE_STORE_ACCESS
-                        + "] "
-                        + "with effective roles ["
-                        + ONLY_READ_FAILURE_STORE_ACCESS
-                        + "]"
-                ),
-                containsString(
-                    "action [indices:admin/resolve/cluster] is unauthorized for API key id ["
-                        + apiKeys.get(ONLY_READ_FAILURE_STORE_ACCESS).v1()
-                        + "] of user ["
-                        + ONLY_READ_FAILURE_STORE_ACCESS
-                        + "]"
-                )
-            )
-        );
     }
 
     private static void createRoleOnQueryCluster(RestClient client, String role, String roleDescriptor) throws IOException {

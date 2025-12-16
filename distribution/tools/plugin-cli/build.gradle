@@ -19,12 +19,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-// Create 'bc' source set for Bouncy Castle code (automatically uses src/bc/java).
-// Main code cannot directly depend on bc classes at compile time.
-sourceSets {
-  bc
-}
-
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:cli")
@@ -35,30 +29,13 @@ dependencies {
   implementation 'org.ow2.asm:asm:9.9'
   implementation 'org.ow2.asm:asm-tree:9.9'
 
-  bcImplementation "org.bouncycastle:bcpg-fips:2.0.12"
-  bcImplementation "org.bouncycastle:bcutil-fips:2.0.5"
-  bcImplementation "org.bouncycastle:bc-fips:2.0.1"
+  // Bouncy Castle subproject for PGP signature verification
+  runtimeOnly project('bc')
+  testImplementation project('bc')
 
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
-  testImplementation sourceSets.bc.output // tests use BcPgpSignatureVerifier
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
-}
-
-jar.from sourceSets.bc.output
-
-configurations {
-  runtimeOnly.extendsFrom bcImplementation  // BC JARs needed at runtime
-  testImplementation.extendsFrom bcImplementation  // tests use BC directly for signature generation
-}
-
-// Add Lucene to forbiddenApis classpath for bc source set (needed to parse signatures)
-tasks.named("forbiddenApisBc").configure {
-  classpath += sourceSets.main.compileClasspath
-}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 tasks.named("test").configure {

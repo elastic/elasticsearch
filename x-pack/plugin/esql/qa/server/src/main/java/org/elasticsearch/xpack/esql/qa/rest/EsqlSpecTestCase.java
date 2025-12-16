@@ -175,16 +175,20 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
-            if (supportsInferenceTestService()) {
+            // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
+            if (supportsInferenceTestServiceOnLocalCluster()) {
                 createInferenceEndpoints(adminClient());
             }
             loadDataSetIntoEs(
                 client(),
                 supportsIndexModeLookup(),
                 supportsSourceFieldMapping(),
-                supportsInferenceTestService(),
+                supportsSemanticTextInference(),
                 false,
-                supportsExponentialHistograms()
+                supportsExponentialHistograms(),
+                supportsTDigestField(),
+                supportsHistogramDataType(),
+                supportsBFloat16ElementType()
             );
             return null;
         });
@@ -235,8 +239,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected void shouldSkipTest(String testName) throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
-        if (requiresInferenceEndpoint()) {
-            assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
+        if (requiresSemanticTextInference()) {
+            assumeTrue("Inference test service needs to be supported", supportsSemanticTextInference());
+        }
+        if (requiresInferenceEndpointOnLocalCluster()) {
+            assumeTrue("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
@@ -251,26 +258,42 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         String testName,
         CsvTestCase testCase
     ) {
-        if (hasCapabilities(client, testCase.requiredCapabilities)) {
+        checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilities);
+    }
+
+    protected static void checkCapabilities(
+        RestClient client,
+        TestFeatureService testFeatureService,
+        String testName,
+        List<String> requiredCapabilities
+    ) {
+        if (hasCapabilities(client, requiredCapabilities)) {
             return;
         }
 
         var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
 
-        for (String feature : testCase.requiredCapabilities) {
+        for (String feature : requiredCapabilities) {
             var esqlFeature = "esql." + feature;
             assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
             assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
         }
     }
 
-    protected boolean supportsInferenceTestService() {
+    protected boolean supportsSemanticTextInference() {
         return true;
     }
 
-    protected boolean requiresInferenceEndpoint() {
+    protected boolean supportsInferenceTestServiceOnLocalCluster() {
+        return true;
+    }
+
+    protected boolean requiresSemanticTextInference() {
+        return testCase.requiredCapabilities.contains(SEMANTIC_TEXT_FIELD_CAPS.capabilityName());
+    }
+
+    protected boolean requiresInferenceEndpointOnLocalCluster() {
         return Stream.of(
-            SEMANTIC_TEXT_FIELD_CAPS.capabilityName(),
             RERANK.capabilityName(),
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),
@@ -289,8 +312,20 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected boolean supportsExponentialHistograms() {
         return RestEsqlTestCase.hasCapabilities(
             client(),
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V4.capabilityName())
+            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
         );
+    }
+
+    protected boolean supportsTDigestField() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V4.capabilityName()));
+    }
+
+    protected boolean supportsHistogramDataType() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_FIELD_SUPPORT_V0.capabilityName()));
+    }
+
+    protected boolean supportsBFloat16ElementType() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()));
     }
 
     protected void doTest() throws Throwable {
@@ -380,6 +415,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (value == null) {
             return "null";
         }
+        if (value instanceof CsvTestUtils.Range) {
+            return value;
+        }
         if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
             // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
             if (value instanceof String wkt) {
@@ -419,6 +457,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
+            }
+        }
+        if (type == CsvTestUtils.Type.DOUBLE || type == CsvTestUtils.Type.INTEGER || type == CsvTestUtils.Type.LONG) {
+            if (value instanceof List<?> vs) {
+                return vs.stream().map(v -> valueMapper(type, v)).toList();
+            } else if (type == CsvTestUtils.Type.DOUBLE) {
+                return ((Number) value).doubleValue();
+            } else if (type == CsvTestUtils.Type.INTEGER) {
+                return ((Number) value).intValue();
+            } else if (type == CsvTestUtils.Type.LONG) {
+                return ((Number) value).longValue();
             }
         }
         return value.toString();

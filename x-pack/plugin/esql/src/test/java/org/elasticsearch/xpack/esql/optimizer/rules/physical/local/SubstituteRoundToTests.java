@@ -7,15 +7,25 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -188,7 +198,34 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         }
     }
 
-    // We do not support count pushdown when there is an ES filter at the moment, even if it's on the same field.
+    public void testDateTruncBucketTransformToQueryAndTagsWithWhereClauseOnSameField() {
+        for (String dateHistogram : dateHistograms) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | where date <= "2023-10-22" and date >= "2023-10-21"
+                | stats count(*) by x = {}
+                """, dateHistogram);
+
+            ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME, List.of("count(*)"));
+
+            var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
+
+            var expectedQueryBuilderAndTags = List.of(
+                new EsQueryExec.QueryBuilderAndTags(
+                    rangeQuery("date").from("2023-10-21T00:00:00.000Z")
+                        .to("2023-10-22T00:00:00.000Z")
+                        .includeUpper(false)
+                        .timeZone("Z")
+                        .format("strict_date_optional_time")
+                        .boost(0),
+                    List.of(dateTimeToLong("2023-10-21"))
+                ),
+                new EsQueryExec.QueryBuilderAndTags(termQuery("date", "2023-10-22T00:00:00.000Z"), List.of(dateTimeToLong("2023-10-22")))
+            );
+            verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+        }
+    }
+
     public void testDateTruncBucketTransformToQueryAndTagsWithEsFilter() {
         for (String dateHistogram : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
@@ -198,25 +235,23 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
             RangeQueryBuilder esFilter = rangeQuery("date").from("2023-10-21T00:00:00.000Z").to("2023-10-22T00:00:00.000Z");
             ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME, List.of("count(*)"), esFilter);
+            var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
 
-            AggregateExec agg = as(exchange.child(), AggregateExec.class);
-            EvalExec evalExec = as(agg.child(), EvalExec.class);
-            List<Alias> aliases = evalExec.fields();
-            assertEquals(1, aliases.size());
-            FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
-            assertEquals("$$date$round_to$datetime", roundToTag.name());
-            EsQueryExec esQueryExec = as(evalExec.child(), EsQueryExec.class);
-
-            List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
-            List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
-                query,
-                "date",
-                List.of(),
-                new Source(2, 24, dateHistogram),
-                esFilter
+            var expectedQueryBuilderAndTags = List.of(
+                new EsQueryExec.QueryBuilderAndTags(
+                    rangeQuery("date").from("2023-10-21T00:00:00.000Z")
+                        .to("2023-10-22T00:00:00.000Z")
+                        .includeUpper(false)
+                        .format("strict_date_optional_time")
+                        .boost(1),
+                    List.of(dateTimeToLong("2023-10-21"))
+                ),
+                new EsQueryExec.QueryBuilderAndTags(
+                    termQuery("date", "2023-10-22T00:00:00.000Z").boost(1),
+                    List.of(dateTimeToLong("2023-10-22"))
+                )
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
-            assertThrows(UnsupportedOperationException.class, esQueryExec::query);
         }
     }
 
@@ -342,24 +377,67 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
 
                 ExchangeExec exchange = validatePlanBeforeExchange(query, DataType.DATETIME);
 
-                AggregateExec agg = as(exchange.child(), AggregateExec.class);
-                EvalExec eval = as(agg.child(), EvalExec.class);
-                List<Alias> aliases = eval.fields();
-                assertEquals(1, aliases.size());
-                FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
-                assertEquals("$$date$round_to$datetime", roundToTag.name());
-                EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
+                if (otherPushDownFunction.getKey().contains("keyword")) {
+                    AggregateExec agg = as(exchange.child(), AggregateExec.class);
+                    EvalExec eval = as(agg.child(), EvalExec.class);
+                    List<Alias> aliases = eval.fields();
+                    assertEquals(1, aliases.size());
+                    FieldAttribute roundToTag = as(aliases.get(0).child(), FieldAttribute.class);
+                    assertEquals("$$date$round_to$datetime", roundToTag.name());
+                    EsQueryExec esQueryExec = as(eval.child(), EsQueryExec.class);
 
-                List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
-                List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
-                    query,
-                    "date",
-                    List.of(),
-                    new Source(3, 24, dateHistogram),
-                    mainQueryBuilder
-                );
-                verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
-                assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+                    List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+                    List<EsQueryExec.QueryBuilderAndTags> expectedQueryBuilderAndTags = expectedQueryBuilderAndTags(
+                        query,
+                        "date",
+                        List.of(),
+                        new Source(3, 24, dateHistogram),
+                        mainQueryBuilder
+                    );
+                    verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+                    assertThrows(UnsupportedOperationException.class, esQueryExec::query);
+                } else {
+                    var queryBuilderAndTags = getBuilderAndTagsFromStats(exchange, DataType.DATETIME);
+
+                    var expectedQueryBuilderAndTags = List.of(
+                        new EsQueryExec.QueryBuilderAndTags(
+                            rangeQuery("date").from("2023-10-19T00:00:00.000Z")
+                                .to("2023-10-21T00:00:00.000Z")
+                                .includeUpper(false)
+                                .timeZone("Z")
+                                .format("strict_date_optional_time")
+                                .boost(0),
+                            List.of(dateTimeToLong("2023-10-20"))
+                        ),
+                        new EsQueryExec.QueryBuilderAndTags(
+                            rangeQuery("date").from("2023-10-21T00:00:00.000Z")
+                                .includeUpper(false)
+                                .to("2023-10-22T00:00:00.000Z")
+                                .timeZone("Z")
+                                .format("strict_date_optional_time")
+                                .boost(0),
+                            List.of(dateTimeToLong("2023-10-21"))
+                        ),
+                        new EsQueryExec.QueryBuilderAndTags(
+                            rangeQuery("date").from("2023-10-22T00:00:00.000Z")
+                                .includeUpper(false)
+                                .to("2023-10-23T00:00:00.000Z")
+                                .timeZone("Z")
+                                .format("strict_date_optional_time")
+                                .boost(0),
+                            List.of(dateTimeToLong("2023-10-22"))
+                        ),
+                        new EsQueryExec.QueryBuilderAndTags(
+                            rangeQuery("date").from("2023-10-23T00:00:00.000Z")
+                                .to("2023-10-24T00:00:00.000Z")
+                                .timeZone("Z")
+                                .format("strict_date_optional_time")
+                                .boost(0),
+                            List.of(dateTimeToLong("2023-10-23"))
+                        )
+                    );
+                    verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
+                }
             }
         }
     }
@@ -701,12 +779,16 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     private static void verifyQueryAndTags(List<EsQueryExec.QueryBuilderAndTags> expected, List<EsQueryExec.QueryBuilderAndTags> actual) {
-        assertEquals(expected.size(), actual.size());
+        assertEquals(
+            Strings.format("Different sizes (%d expected and %d actual):\n%s\n%s", expected.size(), actual.size(), expected, actual),
+            expected.size(),
+            actual.size()
+        );
         for (int i = 0; i < expected.size(); i++) {
             EsQueryExec.QueryBuilderAndTags expectedItem = expected.get(i);
             EsQueryExec.QueryBuilderAndTags actualItem = actual.get(i);
             assertEquals(expectedItem.query().toString(), actualItem.query().toString());
-            assertEquals(expectedItem.tags().getFirst(), actualItem.tags().getFirst());
+            assertEquals(expectedItem.tags(), actualItem.tags());
         }
     }
 
@@ -859,6 +941,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     public void testSubqueryWithCountStarAndDateTrunc() {
+        assumeTrue("requires subqueries in from", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             from test, (from test | stats cnt = count(*) by x = date_trunc(1 day, date))
             | keep x, cnt, date
@@ -900,6 +983,51 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         assertThat(statsQueryExec.stat(), is(instanceOf(EsStatsQueryExec.ByStat.class)));
         EsStatsQueryExec.ByStat byStat = (EsStatsQueryExec.ByStat) statsQueryExec.stat();
         assertThat(byStat.queryBuilderAndTags(), is(not(empty())));
+    }
+
+    public void testRoundToWithTimeSeriesIndices() {
+        Map<String, Object> minValue = Map.of(
+            "@timestamp",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T12:15:03.360Z")
+        );
+        Map<String, Object> maxValue = Map.of(
+            "@timestamp",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-20T14:55:01.543Z")
+        );
+        SearchStats searchStats = new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue) {
+            @Override
+            public Map<ShardId, IndexMetadata> targetShards() {
+                var indexMetadata = IndexMetadata.builder("test_index")
+                    .settings(
+                        ESTestCase.indexSettings(IndexVersion.current(), 1, 1)
+                            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                    )
+                    .build();
+                return Map.of(new ShardId(new Index("id", "n/a"), 1), indexMetadata);
+            }
+        };
+        // enable filter-by-filter for rate aggregations
+        {
+            String q = """
+                TS k8s
+                | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
+                | LIMIT 10
+                """;
+            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            int queryAndTags = plainQueryAndTags(plan);
+            assertThat(queryAndTags, equalTo(4));
+        }
+        // disable filter-by-filter for non-rate aggregations
+        {
+            String q = """
+                TS k8s
+                | STATS max(avg_over_time(network.bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
+                | LIMIT 10
+                """;
+            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+            int queryAndTags = plainQueryAndTags(plan);
+            assertThat(queryAndTags, equalTo(1));
+        }
     }
 
     private static SearchStats searchStats() {

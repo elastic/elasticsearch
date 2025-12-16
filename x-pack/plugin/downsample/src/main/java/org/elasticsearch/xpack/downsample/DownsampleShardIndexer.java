@@ -33,8 +33,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -114,6 +112,7 @@ class DownsampleShardIndexer {
         final String[] metrics,
         final String[] labels,
         final String[] dimensions,
+        final Map<String, String> multiFieldSources,
         final DownsampleShardPersistentTaskState state
     ) {
         this.task = task;
@@ -140,10 +139,12 @@ class DownsampleShardIndexer {
             var samplingMethod = config.getSamplingMethodOrDefault();
 
             List<FieldValueFetcher> fetchers = new ArrayList<>(metrics.length + labels.length + dimensions.length);
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics, samplingMethod));
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics, multiFieldSources, samplingMethod));
             // Labels are downsampled using the last value, they are not influenced by the requested sampling method
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels, DownsampleConfig.SamplingMethod.LAST_VALUE));
-            fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions));
+            fetchers.addAll(
+                FieldValueFetcher.create(searchExecutionContext, labels, multiFieldSources, DownsampleConfig.SamplingMethod.LAST_VALUE)
+            );
+            fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions, multiFieldSources));
             this.fieldValueFetchers = Collections.unmodifiableList(fetchers);
             toClose = null;
         } finally {
@@ -351,7 +352,7 @@ class DownsampleShardIndexer {
 
         TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor, String[] dimensions) {
             this.bulkProcessor = bulkProcessor;
-            AbstractDownsampleFieldProducer[] fieldProducers = fieldValueFetchers.stream()
+            AbstractDownsampleFieldProducer<?>[] fieldProducers = fieldValueFetchers.stream()
                 .map(FieldValueFetcher::fieldProducer)
                 .toArray(AbstractDownsampleFieldProducer[]::new);
             this.downsampleBucketBuilder = new DownsampleBucketBuilder(fieldProducers, dimensions);
@@ -364,30 +365,40 @@ class DownsampleShardIndexer {
             docCountProvider.setLeafReaderContext(ctx);
 
             // For each field, return a tuple with the downsample field producer and the field value leaf
-            final List<AbstractDownsampleFieldProducer> nonMetricProducers = new ArrayList<>();
-            final List<FormattedDocValues> formattedDocValues = new ArrayList<>();
-
-            final List<MetricFieldProducer> metricProducers = new ArrayList<>();
-            final List<SortedNumericDoubleValues> numericDocValues = new ArrayList<>();
-            for (var fieldValueFetcher : fieldValueFetchers) {
+            final LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors = new LeafDownsampleCollector.FieldCollector<
+                ?>[fieldValueFetchers.size()];
+            for (int i = 0; i < fieldValueFetchers.size(); i++) {
+                var fieldValueFetcher = fieldValueFetchers.get(i);
                 var fieldProducer = fieldValueFetcher.fieldProducer();
-                if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
-                    metricProducers.add(metricFieldProducer);
-                    numericDocValues.add(fieldValueFetcher.getNumericLeaf(ctx));
-                } else {
-                    nonMetricProducers.add(fieldProducer);
-                    formattedDocValues.add(fieldValueFetcher.getLeaf(ctx));
+                if (fieldProducer instanceof NumericMetricFieldProducer metricFieldProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        metricFieldProducer,
+                        fieldValueFetcher.getNumericLeaf(ctx)
+                    );
+                } else if (fieldProducer instanceof ExponentialHistogramFieldProducer exponentialHistogramProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        exponentialHistogramProducer,
+                        fieldValueFetcher.getExponentialHistogramLeaf(ctx)
+                    );
+                } else if (fieldProducer instanceof AggregateMetricDoubleFieldProducer numericFieldProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        numericFieldProducer,
+                        fieldValueFetcher.getNumericLeaf(ctx)
+                    );
+                } else if (fieldProducer instanceof LastValueFieldProducer lastValueFieldProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        lastValueFieldProducer,
+                        fieldValueFetcher.getLeaf(ctx)
+                    );
+                } else if (fieldProducer instanceof TDigestHistogramFieldProducer histogramFieldProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        histogramFieldProducer,
+                        fieldValueFetcher.getHistogramLeaf(ctx)
+                    );
                 }
             }
 
-            var leafBucketCollector = new LeafDownsampleCollector(
-                aggCtx,
-                docCountProvider,
-                nonMetricProducers.toArray(new AbstractDownsampleFieldProducer[0]),
-                formattedDocValues.toArray(new FormattedDocValues[0]),
-                metricProducers.toArray(new MetricFieldProducer[0]),
-                numericDocValues.toArray(new SortedNumericDoubleValues[0])
-            );
+            var leafBucketCollector = new LeafDownsampleCollector(aggCtx, docCountProvider, fieldCollectors);
             leafBucketCollectors.add(leafBucketCollector);
             return leafBucketCollector;
         }
@@ -404,11 +415,7 @@ class DownsampleShardIndexer {
 
             final AggregationExecutionContext aggCtx;
             final DocCountProvider docCountProvider;
-            final FormattedDocValues[] formattedDocValues;
-            final AbstractDownsampleFieldProducer[] nonMetricProducers;
-
-            final MetricFieldProducer[] metricProducers;
-            final SortedNumericDoubleValues[] numericDocValues;
+            final LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors;
 
             // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
             long firstTimeStampForBulkCollection;
@@ -418,20 +425,12 @@ class DownsampleShardIndexer {
             LeafDownsampleCollector(
                 AggregationExecutionContext aggCtx,
                 DocCountProvider docCountProvider,
-                AbstractDownsampleFieldProducer[] nonMetricProducers,
-                FormattedDocValues[] formattedDocValues,
-                MetricFieldProducer[] metricProducers,
-                SortedNumericDoubleValues[] numericDocValues
+                LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors
             ) {
-                assert nonMetricProducers.length == formattedDocValues.length;
-                assert metricProducers.length == numericDocValues.length;
 
                 this.aggCtx = aggCtx;
                 this.docCountProvider = docCountProvider;
-                this.nonMetricProducers = nonMetricProducers;
-                this.formattedDocValues = formattedDocValues;
-                this.metricProducers = metricProducers;
-                this.numericDocValues = numericDocValues;
+                this.fieldCollectors = fieldCollectors;
             }
 
             @Override
@@ -500,15 +499,8 @@ class DownsampleShardIndexer {
 
                 downsampleBucketBuilder.collectDocCount(docIdBuffer, docCountProvider);
                 // Iterate over all field values and collect the doc_values for this docId
-                for (int i = 0; i < nonMetricProducers.length; i++) {
-                    AbstractDownsampleFieldProducer fieldProducer = nonMetricProducers[i];
-                    FormattedDocValues docValues = formattedDocValues[i];
-                    fieldProducer.collect(docValues, docIdBuffer);
-                }
-                for (int i = 0; i < metricProducers.length; i++) {
-                    MetricFieldProducer metricFieldProducer = metricProducers[i];
-                    SortedNumericDoubleValues numericDoubleValues = numericDocValues[i];
-                    metricFieldProducer.collect(numericDoubleValues, docIdBuffer);
+                for (int i = 0; i < fieldCollectors.length; i++) {
+                    fieldCollectors[i].collect(docIdBuffer);
                 }
 
                 docsProcessed += docIdBuffer.size();
@@ -516,6 +508,12 @@ class DownsampleShardIndexer {
 
                 // buffer.clean() also overwrites all slots with zeros
                 docIdBuffer.elementsCount = 0;
+            }
+
+            record FieldCollector<T>(AbstractDownsampleFieldProducer<T> fieldProducer, T docValues) {
+                void collect(IntArrayList docIdBuffer) throws IOException {
+                    fieldProducer.collect(docValues, docIdBuffer);
+                }
             }
 
             /**
@@ -589,11 +587,11 @@ class DownsampleShardIndexer {
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
-        private final AbstractDownsampleFieldProducer[] fieldProducers;
+        private final AbstractDownsampleFieldProducer<?>[] fieldProducers;
         private final DownsampleFieldSerializer[] groupedProducers;
         private final String[] dimensions;
 
-        DownsampleBucketBuilder(AbstractDownsampleFieldProducer[] fieldProducers, String[] dimensions) {
+        DownsampleBucketBuilder(AbstractDownsampleFieldProducer<?>[] fieldProducers, String[] dimensions) {
             this.fieldProducers = fieldProducers;
             this.dimensions = dimensions;
             /*
@@ -610,7 +608,7 @@ class DownsampleShardIndexer {
                     if (e.getValue().size() == 1) {
                         return e.getValue().get(0);
                     } else {
-                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
+                        return new AggregateMetricDoubleFieldProducer.Serializer(e.getKey(), e.getValue());
                     }
                 })
                 .toArray(DownsampleFieldSerializer[]::new);
@@ -631,7 +629,7 @@ class DownsampleShardIndexer {
         public void resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            for (AbstractDownsampleFieldProducer producer : fieldProducers) {
+            for (AbstractDownsampleFieldProducer<?> producer : fieldProducers) {
                 producer.reset();
             }
             if (logger.isTraceEnabled()) {

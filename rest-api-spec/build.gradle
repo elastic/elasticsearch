@@ -54,6 +54,15 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
 }
 
+tasks.named("yamlRestTest") {
+  if (buildParams.snapshotBuild == false) {
+    // doc_values.cardinality option not available in snapshots
+    systemProperty 'tests.rest.blacklist', [
+      "search/395_binary_doc_values_search/*"
+    ].join(',')
+  }
+}
+
 tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling")
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
@@ -110,6 +119,7 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("logsdb/10_settings/override sort order settings", "we changed the error message")
   task.skipTest("tsdb/10_settings/set start_time and end_time without timeseries mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
   task.skipTest("tsdb/10_settings/set start_time, end_time and routing_path via put settings api without time_series mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
+  task.skipTest("search/140_pre_filter_search_shards/prefilter on non-indexed date fields", "prefiltering can now use skippers on dv-only fields")
   // Expected deprecation warning to compat yaml tests:
   task.addAllowedWarningRegex("Use of the \\[max_size\\] rollover condition has been deprecated in favour of the \\[max_primary_shard_size\\] condition and will be removed in a later version")
 })

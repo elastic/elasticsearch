@@ -56,7 +56,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 
 public class CrossClusterAccessTransportInterceptor implements RemoteClusterTransportInterceptor {
 
@@ -195,16 +194,6 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                     throw LicenseUtils.newComplianceException(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName());
                 }
                 final String remoteClusterAlias = remoteClusterCredentials.clusterAlias();
-
-                if (connection.getTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
-                    throw illegalArgumentExceptionWithDebugLog(
-                        "Settings for remote cluster ["
-                            + remoteClusterAlias
-                            + "] indicate cross cluster access headers should be sent but target cluster version ["
-                            + connection.getTransportVersion().toReleaseVersion()
-                            + "] does not support receiving them"
-                    );
-                }
 
                 logger.trace(
                     () -> format(

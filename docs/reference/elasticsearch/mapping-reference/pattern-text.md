@@ -9,11 +9,11 @@ mapped_pages:
 
 # Pattern text field type [pattern-text-field-type]
 ```{applies_to}
-serverless: preview
-stack: preview 9.2
+serverless: ga
+stack: ga 9.3
 ```
 :::{note}
-This feature requires an Enterprise subscription.
+This feature requires a [subscription](https://www.elastic.co/subscriptions)
 :::
 
 The `pattern_text` field type is a variant of [`text`](/reference/elasticsearch/mapping-reference/text.md) with improved space efficiency for log data.
@@ -50,8 +50,8 @@ The compression provided by `pattern_text` can be significantly improved if the 
 
 ### Default sorting for LogsDB
 ```{applies_to}
-serverless: preview
-stack: preview 9.3
+serverless: ga
+stack: ga 9.3
 ```
 This index sorting is not applied by default, but can be enabled for the `message` field of LogsDB indices (assuming it is of type `pattern_text`) by setting the index setting `index.logsdb.default_sort_on_message_template` to `true`.
 This will cause the index to be sorted by `host.name` (if present), then `message.template_id`, and finally by `@timestamp`.

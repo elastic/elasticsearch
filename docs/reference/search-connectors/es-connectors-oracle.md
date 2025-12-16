@@ -194,7 +194,7 @@ You can deploy the Oracle connector as a self-managed connector using Docker. Fo
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
 % NOTCONSOLE
 
@@ -323,4 +323,4 @@ This connector is built with the [Elastic connector framework](https://github.co
 
 This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*).
 
-View [additional code specific to this data source](https://github.com/elastic/connectors/tree/main/connectors/sources/oracle.py) (branch *main*, compatible with Elastic *9.0*).
+View [additional code specific to this data source](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/oracle) (branch *main*, compatible with Elastic *9.0*).

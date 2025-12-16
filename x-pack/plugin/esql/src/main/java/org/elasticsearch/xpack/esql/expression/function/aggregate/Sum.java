@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
@@ -63,7 +66,13 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
                 tag = "docsStatsSumNestedExpression"
             ) }
     )
-    public Sum(Source source, @Param(name = "number", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field) {
+    public Sum(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" }
+        ) Expression field
+    ) {
         this(source, field, Literal.TRUE, NO_WINDOW, SummationMode.COMPENSATED_LITERAL);
     }
 
@@ -141,19 +150,26 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         if (supportsDates()) {
             return TypeResolutions.isType(
                 this,
-                e -> e == DataType.DATETIME || e == DataType.AGGREGATE_METRIC_DOUBLE || e.isNumeric() && e != DataType.UNSIGNED_LONG,
+                e -> e == DataType.DATETIME
+                    || e == DataType.AGGREGATE_METRIC_DOUBLE
+                    || e == DataType.EXPONENTIAL_HISTOGRAM
+                    || e == DataType.TDIGEST
+                    || e.isNumeric() && e != DataType.UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
                 "datetime",
-                "aggregate_metric_double or numeric except unsigned_long or counter types"
+                "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
             );
         }
         return isType(
             field(),
-            dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST
+                || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
-            "aggregate_metric_double or numeric except unsigned_long or counter types"
+            "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
         );
     }
 
@@ -165,6 +181,15 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
             return new Sum(
                 s,
                 FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.SUM),
+                filter(),
+                window(),
+                summationMode
+            );
+        }
+        if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
+            return new Sum(
+                s,
+                ExtractHistogramComponent.create(source(), field, HistogramBlock.Component.SUM),
                 filter(),
                 window(),
                 summationMode

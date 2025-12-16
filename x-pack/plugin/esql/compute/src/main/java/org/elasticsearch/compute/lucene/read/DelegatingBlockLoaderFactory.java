@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
@@ -53,6 +54,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     @Override
     public BlockLoader.BytesRefBuilder bytesRefs(int expectedCount) {
         return factory.newBytesRefBlockBuilder(expectedCount);
+    }
+
+    @Override
+    public BlockLoader.SingletonBytesRefBuilder singletonBytesRefs(int expectedCount) {
+        return new SingletonBytesRefBuilder(expectedCount, factory);
     }
 
     @Override
@@ -152,6 +158,21 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.Block buildAggregateMetricDoubleDirect(
+        BlockLoader.Block minBlock,
+        BlockLoader.Block maxBlock,
+        BlockLoader.Block sumBlock,
+        BlockLoader.Block countBlock
+    ) {
+        return factory.newAggregateMetricDoubleBlockFromDocValues(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
+    }
+
+    @Override
     public BlockLoader.ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count) {
         return factory.newExponentialHistogramBlockBuilder(count);
     }
@@ -169,9 +190,31 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (DoubleBlock) minima,
             (DoubleBlock) maxima,
             (DoubleBlock) sums,
-            (LongBlock) valueCounts,
+            (DoubleBlock) valueCounts,
             (DoubleBlock) zeroThresholds,
             (BytesRefBlock) encodedHistograms
         );
+    }
+
+    @Override
+    public BlockLoader.Block buildTDigestBlockDirect(
+        BlockLoader.Block encodedDigests,
+        BlockLoader.Block minima,
+        BlockLoader.Block maxima,
+        BlockLoader.Block sums,
+        BlockLoader.Block valueCounts
+    ) {
+        return factory.newTDigestBlockFromDocValues(
+            (BytesRefBlock) encodedDigests,
+            (DoubleBlock) minima,
+            (DoubleBlock) maxima,
+            (DoubleBlock) sums,
+            (LongBlock) valueCounts
+        );
+    }
+
+    @Override
+    public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
+        return factory.newTDigestBlockBuilder(count);
     }
 }

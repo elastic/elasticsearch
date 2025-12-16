@@ -68,8 +68,8 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -96,9 +96,9 @@ public class FoldNullTests extends ESTestCase {
         assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), Literal.NULL)));
         assertNullLiteral(foldNull(new Round(EMPTY, Literal.NULL, null)));
         assertNullLiteral(foldNull(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(foldNull(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, null)));
+        assertNullLiteral(foldNull(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new DateParse(EMPTY, Literal.NULL, Literal.NULL, NULL)));
-        assertNullLiteral(foldNull(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(foldNull(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
     }
 
@@ -153,7 +153,7 @@ public class FoldNullTests extends ESTestCase {
         // regex
         assertNullLiteral(foldNull(new RLike(EMPTY, NULL, new RLikePattern("123"))));
         // date functions
-        assertNullLiteral(foldNull(new DateExtract(EMPTY, NULL, NULL, configuration(""))));
+        assertNullLiteral(foldNull(new DateExtract(EMPTY, NULL, NULL, TEST_CFG)));
         // math functions
         assertNullLiteral(foldNull(new Cos(EMPTY, NULL)));
         // string functions
@@ -265,7 +265,7 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullBucketGetsFolded() {
-        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL)));
+        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL, TEST_CFG)));
     }
 
     public void testNullCategorizeGroupingNotFolded() {

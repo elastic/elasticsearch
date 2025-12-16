@@ -112,7 +112,9 @@ public final class AggregateMapper {
             case LONG -> DataType.LONG;
             case DOUBLE -> DataType.DOUBLE;
             case DOC -> DataType.DOC_DATA_TYPE;
-            case FLOAT, NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, UNKNOWN -> throw new EsqlIllegalArgumentException(
+            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM;
+            case TDIGEST -> DataType.TDIGEST;
+            case FLOAT, NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
                 "unsupported agg type: " + elementType
             );
         };

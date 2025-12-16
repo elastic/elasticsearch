@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -209,7 +212,13 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error(() -> "error downloading geoip database [" + name + "] for project [" + projectId + "]", e);
+            boolean nodeShuttingDown = e instanceof NodeClosedException
+                || (e instanceof EsRejectedExecutionException rejected && rejected.isExecutorShutdown());
+            logger.log(
+                nodeShuttingDown ? Level.INFO : Level.ERROR,
+                () -> "error downloading geoip database [" + name + "] for project [" + projectId + "]",
+                e
+            );
         }
     }
 

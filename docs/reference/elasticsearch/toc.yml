@@ -38,7 +38,6 @@ toc:
   - file: index-settings/index.md
     children:
         - file: index-settings/serverless.md
-        - file: index-settings/bbq.md
         - file: index-settings/index-modules.md
         - file: index-settings/shard-allocation.md
           children:
@@ -85,6 +84,7 @@ toc:
           children:
             - file: rest-apis/collapse-search-results.md
             - file: rest-apis/create-index-from-source.md
+            - file: rest-apis/explain-lifecycle.md
             - file: rest-apis/filter-search-results.md
             - file: rest-apis/rescore-search-results.md
             - file: rest-apis/find-text-structure-examples.md
@@ -114,6 +114,7 @@ toc:
                 - file: rest-apis/retrievers/rule-retriever.md
                 - file: rest-apis/retrievers/standard-retriever.md
                 - file: rest-apis/retrievers/text-similarity-reranker-retriever.md
+                - file: rest-apis/retrievers/diversify-retriever.md
                 - file: rest-apis/retrievers/retrievers-examples.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md
@@ -171,6 +172,13 @@ toc:
           - file: mapping-reference/rank-vectors.md
           - file: mapping-reference/search-as-you-type.md
           - file: mapping-reference/semantic-text.md
+            children:
+              - file: mapping-reference/semantic-text-reference.md
+              - file: mapping-reference/semantic-text-how-tos.md
+                children:
+                  - file: mapping-reference/semantic-text-setup-configuration.md
+                  - file: mapping-reference/semantic-text-ingestions.md
+                  - file: mapping-reference/semantic-text-search-retrieval.md
           - file: mapping-reference/shape.md
           - file: mapping-reference/sparse-vector.md
           - file: mapping-reference/text-type-family.md
@@ -210,6 +218,7 @@ toc:
           - file: mapping-reference/mapping-store.md
           - file: mapping-reference/subobjects.md
           - file: mapping-reference/term-vector.md
+          - file: mapping-reference/bbq.md
   - file: elasticsearch-audit-events.md
   - file: command-line-tools/index.md
     children:

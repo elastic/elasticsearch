@@ -140,7 +140,8 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes
     ) {
         if (shardsIts.isEmpty()) {
             return SubscribableListener.newSucceeded(List.of());
@@ -151,7 +152,11 @@ final class CanMatchPreFilterSearchPhase {
         listener.addListener(new ActionListener<>() {
             @Override
             public void onResponse(List<SearchShardIterator> shardsIts) {
-                searchResponseMetrics.recordSearchPhaseDuration(PHASE_NAME, System.nanoTime() - phaseStartTimeInNanos);
+                searchResponseMetrics.recordSearchPhaseDuration(
+                    PHASE_NAME,
+                    System.nanoTime() - phaseStartTimeInNanos,
+                    searchRequestAttributes
+                );
             }
 
             @Override
@@ -444,7 +449,7 @@ final class CanMatchPreFilterSearchPhase {
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
             ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex),
-            shardIt.getReshardSplitShardCountSummary()
+            shardIt.getSplitShardCountSummary()
         );
     }
 

@@ -129,9 +129,9 @@ public class SearchResponseMetrics {
         responseCountTotalCounter.incrementBy(1L, attributesWithStatus);
     }
 
-    public void recordSearchPhaseDuration(String phaseName, long tookInNanos) {
+    public void recordSearchPhaseDuration(String phaseName, long tookInNanos, Map<String, Object> attributes) {
         LongHistogram queryPhaseDurationHistogram = phaseNameToDurationHistogram.get(phaseName);
         assert queryPhaseDurationHistogram != null;
-        queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attributes);
     }
 }

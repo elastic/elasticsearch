@@ -215,7 +215,7 @@ public class GetAllSampleConfigurationActionIT extends ESIntegTestCase {
         return new SamplingConfiguration(
             randomDoubleBetween(0.1, 1.0, true),
             randomBoolean() ? randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT) : null,
-            randomBoolean() ? ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)) : null,
+            randomBoolean() ? ByteSizeValue.ofMb(randomLongBetween(1, 100)) : null,
             randomBoolean() ? randomValidTimeValue() : null,
             randomBoolean() ? randomAlphaOfLengthBetween(5, 30) : null
         );

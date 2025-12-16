@@ -338,11 +338,21 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/forcemerge*"
                     )
                     .build(),
-                // Endpoint specific action responses. Kibana reads and writes (for third party
-                // agents) to the index to display action responses to the user.
-                // `create_index`: is necessary in order to ensure that the DOT datastream index is
-                // created by Kibana in order to avoid errors on the Elastic Defend side when streaming
-                // documents to it.
+
+                // Kibana Security Solution EDR workflows team
+                // - `.endpoint-script-file*`:
+                // indexes are used internally within Kibana in support of Elastic Defend scripts library.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".endpoint-script-file-meta-*", ".endpoint-script-file-data-*")
+                    .privileges("auto_configure", "read", "write", "delete", "create_index", "manage")
+                    .build(),
+
+                // Kibana Security Solution EDR workflows team
+                // 1.`.logs-endpoint.action.responses-*`:
+                // Endpoint specific action responses. Kibana reads and writes (for third party agents)
+                // to the index to display action responses to the user. `create_index`: is necessary
+                // in order to ensure that the DOT datastream index is created by Kibana in order to
+                // avoid errors on the Elastic Defend side when streaming documents to it.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.action.responses-*")
                     .privileges("auto_configure", "read", "write", "create_index")
@@ -522,6 +532,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-google_scc.finding-*",
                         "logs-aws.securityhub_findings-*",
                         "logs-aws.securityhub_findings_full_posture-*",
+                        "logs-aws_securityhub.finding-*",
                         "logs-aws.inspector-*",
                         "logs-aws.config-*",
                         "logs-amazon_security_lake.findings-*",
@@ -541,6 +552,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-m365_defender.vulnerability-*",
                         "logs-microsoft_defender_endpoint.vulnerability-*",
                         "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-prisma_cloud.misconfiguration-*",
+                        "logs-prisma_cloud.vulnerability-*",
                         "logs-sentinel_one.application_risk-*"
                     )
                     .privileges(
@@ -550,7 +563,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, SentinelOne, Island Browser and Cyera specific actions.
+                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES and Axonius specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -563,7 +576,9 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-island_browser.device-*",
                         "logs-cyera.classification-*",
                         "logs-cyera.issue-*",
-                        "logs-cyera.datastore-*"
+                        "logs-cyera.datastore-*",
+                        "logs-ironscales.incident-*",
+                        "logs-axonius.adapter-*"
                     )
                     .privileges(
                         "manage",

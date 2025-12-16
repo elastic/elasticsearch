@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -34,7 +34,7 @@ public class FunctionEsFieldTests extends AbstractEsFieldTypeTests<FunctionEsFie
     protected FunctionEsField mutateInstance(FunctionEsField instance) throws IOException {
         EsField esField = instance.getExactField();
         DataType dataType = instance.getDataType();
-        MappedFieldType.BlockLoaderFunctionConfig functionConfig = instance.functionConfig();
+        BlockLoaderFunctionConfig functionConfig = instance.functionConfig();
         switch (between(0, 2)) {
             case 0 -> esField = randomValueOtherThan(esField, () -> randomAnyEsField(4));
             case 1 -> dataType = randomValueOtherThan(dataType, () -> randomFrom(DataType.types()));

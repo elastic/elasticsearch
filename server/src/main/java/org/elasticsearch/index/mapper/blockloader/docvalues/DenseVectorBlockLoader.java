@@ -178,7 +178,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorValuesBlockReader";
+            return "FloatDenseVectorFromDocValues." + processor.name();
         }
     }
 
@@ -216,7 +216,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.FloatDenseVectorNormalizedValuesBlockReader";
+            return "FloatDenseVectorFromDocValues.Normalized." + processor.name();
         }
     }
 
@@ -237,7 +237,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.ByteDenseVectorValuesBlockReader";
+            return "ByteDenseVectorFromDocValues." + processor.name();
         }
     }
 
@@ -255,7 +255,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         public String toString() {
-            return "BlockDocValuesReader.BitDenseVectorValuesBlockReader";
+            return "BitDenseVectorFromDocValues." + processor.name();
         }
     }
 }

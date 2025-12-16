@@ -679,7 +679,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "foo", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "foo", valueSupplier.get(), IndexType.points(true, true), false);
             w.addDocument(doc);
         }
         DirectoryReader reader = DirectoryReader.open(w);
@@ -721,9 +721,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         // Create an index writer configured with the same index sort.
         NumberFieldType fieldType = new NumberFieldType("field", type);
-        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
-            .build(null, null);
-        SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
+        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(
+            FieldDataContext.noRuntimeFields("index", "test")
+        ).build(null, null);
+        SortField sortField = fielddata.indexSort(IndexVersion.current(), null, MultiValueMode.MIN, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
         writerConfig.setIndexSort(new Sort(sortField));
@@ -733,7 +734,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "field", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "field", valueSupplier.get(), IndexType.points(true, true), false);
             w.addDocument(doc);
         }
 

@@ -20,8 +20,8 @@
           ],
           "parts": {
             "repository": {
-              "type": "string",
-              "description": "A repository name"
+              "type": "list",
+              "description": "Comma-separated list of snapshot repository names."
             }
           }
         }

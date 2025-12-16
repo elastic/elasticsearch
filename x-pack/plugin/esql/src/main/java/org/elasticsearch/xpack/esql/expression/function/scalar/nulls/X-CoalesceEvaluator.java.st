@@ -43,7 +43,11 @@ abstract sealed class Coalesce$Type$Evaluator implements EvalOperator.Expression
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new Coalesce$Type$EagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new Coalesce$Type$EagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -55,7 +59,11 @@ abstract sealed class Coalesce$Type$Evaluator implements EvalOperator.Expression
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new Coalesce$Type$LazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new Coalesce$Type$LazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -176,7 +184,10 @@ $endif$
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = ($Type$Block) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try ($Type$Block.Builder result = driverContext.blockFactory().new$Type$BlockBuilder(positionCount)) {
+                try (
+                    $Type$Block.Builder result = driverContext.blockFactory() //
+                        .new$Type$BlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for ($Type$Block f : flatten) {
                             if (false == f.isNull(p)) {
@@ -216,7 +227,10 @@ $if(BytesRef)$
             BytesRef scratch = new BytesRef();
 $endif$
             int positionCount = page.getPositionCount();
-            try ($Type$Block.Builder result = driverContext.blockFactory().new$Type$BlockBuilder(positionCount)) {
+            try (
+                $Type$Block.Builder result = driverContext.blockFactory() //
+                    .new$Type$BlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

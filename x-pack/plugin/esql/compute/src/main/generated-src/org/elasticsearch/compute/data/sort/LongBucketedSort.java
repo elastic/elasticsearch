@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data.sort;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
@@ -21,9 +22,10 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
- * Aggregates the top N long values per bucket.
+ * Aggregates the top N {@code long} values per bucket.
  * See {@link BucketedSort} for more information.
  * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
  */
@@ -162,12 +164,7 @@ public class LongBucketedSort implements Releasable {
      */
     public Block toBlock(BlockFactory blockFactory, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
-        if (IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
-            var bounds = this.getBucketValuesIndexes(bucket);
-            var size = bounds.v2() - bounds.v1();
-
-            return size > 0;
-        })) {
+        if (allSelectedGroupsAreEmpty(selected)) {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
@@ -185,7 +182,7 @@ public class LongBucketedSort implements Releasable {
                 }
 
                 if (size == 1) {
-                    builder.appendLong(values.get(bounds.v1()));
+                    builder.appendLong(values.get(rootIndex));
                     continue;
                 }
 
@@ -197,12 +194,23 @@ public class LongBucketedSort implements Releasable {
 
                 builder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
-                    builder.appendLong(values.get(bounds.v1() + i));
+                    builder.appendLong(values.get(rootIndex + i));
                 }
                 builder.endPositionEntry();
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Checks if the selected groups are all empty.
+     */
+    private boolean allSelectedGroupsAreEmpty(IntVector selected) {
+        return IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
+            var bounds = this.getBucketValuesIndexes(bucket);
+            var size = bounds.v2() - bounds.v1();
+            return size > 0;
+        });
     }
 
     /**
@@ -234,7 +242,8 @@ public class LongBucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan(long lhs, long rhs) {
-        return getOrder().reverseMul() * Long.compare(lhs, rhs) < 0;
+        int res = Long.compare(lhs, rhs);
+        return getOrder().reverseMul() * res < 0;
     }
 
     /**

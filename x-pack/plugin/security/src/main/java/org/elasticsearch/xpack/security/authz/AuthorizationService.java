@@ -51,9 +51,11 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -75,6 +77,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentAct
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -175,7 +178,8 @@ public class AuthorizationService {
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectRoutingResolver projectRoutingResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -184,7 +188,8 @@ public class AuthorizationService {
             settings,
             linkedProjectConfigService,
             resolver,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            projectRoutingResolver
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -570,7 +575,7 @@ public class AuthorizationService {
                 var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
                 return SubscribableListener.newSucceeded(resolvedIndices);
             }
-            final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+            final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request, targetProjects);
             if (resolvedIndices != null) {
                 return SubscribableListener.newSucceeded(resolvedIndices);
             } else {
@@ -619,7 +624,9 @@ public class AuthorizationService {
             return;
         }
         auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-        if (ex instanceof IndexNotFoundException || ex instanceof NoMatchingProjectException) {
+        if (ex instanceof IndexNotFoundException
+            || ex instanceof NoMatchingProjectException
+            || ex instanceof NoSuchRemoteClusterException) {
             listener.onFailure(ex);
         } else {
             listener.onFailure(actionDenied(authentication, authzInfo, action, request, ex));
@@ -726,7 +733,10 @@ public class AuthorizationService {
                                     authzInfo,
                                     action,
                                     request,
-                                    IndexAuthorizationResult.getFailureDescription(List.of(resolved.original()), restrictedIndices),
+                                    IndexAuthorizationResult.getFailureDescription(
+                                        List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER),
+                                        restrictedIndices
+                                    ),
                                     null
                                 )
                             );

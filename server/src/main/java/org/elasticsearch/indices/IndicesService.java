@@ -106,6 +106,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -187,6 +188,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -525,9 +527,13 @@ public class IndicesService extends AbstractLifecycleComponent
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
                 // get the shared ram for this shard id (or zero if there's nothing in the map)
-                long sharedRam = shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L);
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(
+                        indicesService,
+                        indexShard,
+                        flags,
+                        () -> shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L)
+                    );
                     if (indexShardStats == null) {
                         continue;
                     }
@@ -548,7 +554,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndicesService indicesService,
         final IndexShard indexShard,
         final CommonStatsFlags flags,
-        final long precomputedSharedRam
+        final Supplier<Long> precomputedSharedRam
     ) {
         if (indexShard.routingEntry() == null) {
             return null;
@@ -911,7 +917,17 @@ public class IndicesService extends AbstractLifecycleComponent
             mergeMetrics
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
+        // If an IndexService with a DocumentMapper already exists for this index, reuse its DocumentMapper to avoid parsing/merging
+        // mappings again, which can be expensive for large mappings.
+        final DocumentMapper documentMapper = Optional.ofNullable(indexService(indexMetadata.getIndex()))
+            .map(IndexService::mapperService)
+            .map(MapperService::documentMapper)
+            // There's a chance that the mapping from the existing IndexService is different from the one in the provided IndexMetadata,
+            // because both are updated non-atomically when a new cluster state is applied. Since reusing the DocumentMapper is merely an
+            // optimization, we only do so when we are sure they are the same.
+            .filter(dm -> indexMetadata.mapping() != null && dm.mappingSource() == indexMetadata.mapping().source())
+            .orElse(null);
+        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, documentMapper);
     }
 
     /**
@@ -1856,7 +1872,8 @@ public class IndicesService extends AbstractLifecycleComponent
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain,
-        final boolean isProfile
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
         return new QueryRewriteContext(
             parserConfig,
@@ -1869,7 +1886,8 @@ public class IndicesService extends AbstractLifecycleComponent
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
             isExplain,
-            isProfile
+            isProfile,
+            allowPartialSearchResults
         );
     }
 

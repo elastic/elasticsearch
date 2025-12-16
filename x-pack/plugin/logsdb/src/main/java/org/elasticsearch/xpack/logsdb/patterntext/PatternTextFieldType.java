@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -63,8 +64,8 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     private final Analyzer indexAnalyzer;
     private final TextFieldMapper.TextFieldType textFieldType;
     private final boolean hasPositions;
-
     private final boolean disableTemplating;
+    private final boolean useBinaryDocValuesArgs;
 
     PatternTextFieldType(
         String name,
@@ -73,19 +74,21 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         boolean disableTemplating,
         Map<String, String> meta,
         boolean isSyntheticSource,
-        boolean isWithinMultiField
+        boolean isWithinMultiField,
+        boolean useBinaryDocValueArgs
     ) {
         // Though this type is based on doc_values, hasDocValues is set to false as the pattern_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
-        super(name, true, false, false, tsi, meta, isSyntheticSource, isWithinMultiField);
+        super(name, IndexType.terms(true, false), false, tsi, meta, isSyntheticSource, isWithinMultiField);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource, isWithinMultiField);
         this.hasPositions = tsi.hasPositions();
         this.disableTemplating = disableTemplating;
+        this.useBinaryDocValuesArgs = useBinaryDocValueArgs;
     }
 
     // For testing only
-    PatternTextFieldType(String name, boolean hasPositions, boolean syntheticSource) {
+    PatternTextFieldType(String name, boolean hasPositions, boolean syntheticSource, boolean useBinaryDocValueArgs) {
         this(
             name,
             new TextSearchInfo(
@@ -98,7 +101,8 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             false,
             Collections.emptyMap(),
             syntheticSource,
-            false
+            false,
+            useBinaryDocValueArgs
         );
     }
 
@@ -345,6 +349,10 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
     boolean disableTemplating() {
         return disableTemplating;
+    }
+
+    boolean useBinaryDocValuesArgs() {
+        return useBinaryDocValuesArgs;
     }
 
 }

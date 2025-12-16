@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
@@ -40,6 +41,16 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         public float calculateSimilarity(float[] leftVector, float[] rightVector) {
             return VectorUtil.cosine(leftVector, rightVector);
         }
+
+        @Override
+        public BlockLoaderFunctionConfig.Function function() {
+            return BlockLoaderFunctionConfig.Function.V_COSINE;
+        }
+
+        @Override
+        public String toString() {
+            return "V_COSINE";
+        }
     };
 
     @FunctionInfo(
@@ -47,7 +58,7 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         preview = true,
         description = "Calculates the cosine similarity between two dense_vectors.",
         examples = { @Example(file = "vector-cosine-similarity", tag = "vector-cosine-similarity") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public CosineSimilarity(
         Source source,

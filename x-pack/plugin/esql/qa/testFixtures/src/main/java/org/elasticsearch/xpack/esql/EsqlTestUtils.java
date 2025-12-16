@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,8 +25,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -40,24 +43,34 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -101,11 +114,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -115,6 +129,8 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -165,6 +181,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
+import java.util.regex.Pattern;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 
@@ -173,6 +191,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomArray;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -180,6 +199,8 @@ import static org.elasticsearch.test.ESTestCase.randomByte;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomGaussianDouble;
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomIp;
@@ -214,6 +235,8 @@ public final class EsqlTestUtils {
     public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
     public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
     public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
+
+    private static final Logger LOGGER = LogManager.getLogger(EsqlTestUtils.class);
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);
@@ -319,7 +342,7 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation(IndexMode mode) {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), mode);
+        return new EsRelation(EMPTY, randomIdentifier(), mode, Map.of(), Map.of(), Map.of(), List.of());
     }
 
     /**
@@ -346,6 +369,15 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return exists(field);
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return true;
         }
 
         @Override
@@ -381,6 +413,11 @@ public final class EsqlTestUtils {
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            return Map.of();
         }
     }
 
@@ -540,7 +577,7 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        new InferenceService(mock(Client.class)),
+        new InferenceService(mock(Client.class), createMockClusterService()),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
         TEST_PLANNER_SETTINGS,
         new CrossProjectModeDecider(Settings.EMPTY)
@@ -549,6 +586,12 @@ public final class EsqlTestUtils {
     private static ClusterService createMockClusterService() {
         var service = mock(ClusterService.class);
         doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        doReturn(Settings.EMPTY).when(service).getSettings();
+
+        // Create ClusterSettings with the required inference settings
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, new java.util.HashSet<>(InferenceSettings.getSettings()));
+        doReturn(clusterSettings).when(service).getClusterSettings();
+
         return service;
     }
 
@@ -581,7 +624,8 @@ public final class EsqlTestUtils {
             System.nanoTime(),
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            null
         );
     }
 
@@ -1034,17 +1078,20 @@ public final class EsqlTestUtils {
                 }
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
+            case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
+            case TDIGEST -> EsqlTestUtils.randomTDigest();
         }, type);
     }
 
     public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
+        int numBuckets = randomIntBetween(4, 300);
         boolean hasNegativeValues = randomBoolean();
         boolean hasPositiveValues = randomBoolean();
         boolean hasZeroValues = randomBoolean();
@@ -1056,14 +1103,80 @@ public final class EsqlTestUtils {
             hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
         ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
 
-        int numBuckets = randomIntBetween(4, 300);
         ReleasableExponentialHistogram histo = ExponentialHistogram.create(
             numBuckets,
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
+        // Setup a proper zeroThreshold based on a random chance
+        if (histo.zeroBucket().count() > 0 && randomBoolean()) {
+            double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
+            double zeroThreshold = smallestNonZeroValue * randomDouble();
+            try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
+                ZeroBucket zeroBucket = ZeroBucket.create(zeroThreshold, histo.zeroBucket().count());
+                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(zeroBucket);
+                histo = builder.build();
+            }
+        }
         // Make the result histogram writeable to allow usage in Literals for testing
         return new WriteableExponentialHistogram(histo);
+    }
+
+    public static TDigestHolder randomTDigest() {
+        // TODO: This is mostly copied from TDigestFieldMapperTests and BlockTestUtils; refactor it.
+        int size = between(1, 100);
+        // Note - we use TDigestState to build an actual t-digest for realistic values here
+        TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
+        for (int i = 0; i < size; i++) {
+            double sample = randomGaussianDouble();
+            int count = randomIntBetween(1, Integer.MAX_VALUE);
+            digest.add(sample, count);
+        }
+        List<Double> centroids = new ArrayList<>();
+        List<Long> counts = new ArrayList<>();
+        double sum = 0.0;
+        long valueCount = 0L;
+        for (Centroid c : digest.centroids()) {
+            centroids.add(c.mean());
+            counts.add(c.count());
+            sum += c.mean() * c.count();
+            valueCount += c.count();
+        }
+        double min = digest.getMin();
+        double max = digest.getMax();
+
+        TDigestHolder returnValue = null;
+        try {
+            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
+        } catch (IOException e) {
+            // This is a test util, so we're just going to fail the test here
+            fail(e);
+        }
+        return returnValue;
+    }
+
+    public static BytesRef randomHistogram() {
+        List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
+        values.sort(Double::compareTo);
+        // Note - we need the three parameter version of random list here to ensure it's always the same length as values
+        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        try {
+            for (int i = 0; i < values.size(); i++) {
+                long count = counts.get(i);
+                // Presuming I didn't mess up the data generation, we should never generate a zero here, so no need to account for it.
+                assert count > 0;
+                streamOutput.writeVLong(count);
+                streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+            }
+            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            return docValue;
+        } catch (IOException e) {
+            // This is a test util, so we're just going to fail the test here
+            fail(e);
+        }
+        throw new IllegalArgumentException("Unreachable");
     }
 
     static Version randomVersion() {
@@ -1252,5 +1365,197 @@ public final class EsqlTestUtils {
             LogicalPlan ignoredInFragment = ignoreIdsInLogicalPlan(fragment);
             return fragmentExec.withFragment(ignoredInFragment);
         });
+    }
+
+    private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
+
+    public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
+        String[] commands = query.split("\\|");
+        // remove subqueries
+        String first = commands[0].split(",\\s+\\(")[0].trim();
+
+        // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        int lastSetDelimiterPosition = -1;
+        if (setMatcher.find()) {
+            lastSetDelimiterPosition = setMatcher.end();
+        }
+        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition);
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
+
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+
+        String command = commandParts[0].trim();
+        assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
+        if (SourceCommand.isSourceCommand(command)) {
+            String commandArgs = commandParts[1].trim();
+            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
+                .collect(UnresolvedRelation.class)
+                .getFirst()
+                .indexPattern()
+                .indexPattern()
+                .split(",");
+            // This method may be called multiple times on the same testcase when using @Repeat
+            boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
+            if (alreadyConverted == false) {
+                if (Arrays.stream(indices).anyMatch(i -> lookupIndices.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                    // If the query contains lookup indices, use only remotes to avoid duplication
+                    onlyRemotes = true;
+                }
+                int i = 0;
+                for (String index : indices) {
+                    i = commandArgs.indexOf(index, i);
+                    String newIndex = unquoteAndRequoteAsRemote(index.trim(), onlyRemotes);
+                    if (i >= 0) {
+                        commandArgs = commandArgs.substring(0, i) + newIndex + commandArgs.substring(i + index.length());
+                    } else if (command.equalsIgnoreCase("PROMQL")) {
+                        // PROMQL queries may not list indices explicitly, relying on the default value
+                        newIndex = "index=" + newIndex + " ";
+                        commandArgs = newIndex + commandArgs;
+                    } else {
+                        throw new IllegalStateException("Could not find index [" + index + "] in command arguments [" + commandArgs + "]");
+                    }
+                    i += newIndex.length();
+                }
+                String newFirstCommand = command + " " + commandArgs;
+                String finalQuery = (setStatements + newFirstCommand.trim() + query.substring(first.length()));
+                assert query.split("\n").length == finalQuery.split("\n").length
+                    : "the final query should have the same lines for warnings to work";
+                return finalQuery;
+            }
+        }
+        return query;
+    }
+
+    /**
+     * Since partial quoting is prohibited, we need to take the index name, unquote it,
+     * convert it to a remote index, and then requote it. For example, "employees" is unquoted,
+     * turned into the remote index *:employees, and then requoted to get "*:employees".
+     * @param index Name of the index.
+     * @param asRemoteIndexOnly If the return needs to be in the form of "*:idx,idx" or "*:idx".
+     * @return A remote index pattern that's requoted.
+     */
+    private static String unquoteAndRequoteAsRemote(String index, boolean asRemoteIndexOnly) {
+        index = index.trim();
+
+        int numOfQuotes = 0;
+        for (; numOfQuotes < index.length(); numOfQuotes++) {
+            if (index.charAt(numOfQuotes) != '"') {
+                break;
+            }
+        }
+
+        String unquoted = unquote(index, numOfQuotes);
+        if (asRemoteIndexOnly) {
+            return quote("*:" + unquoted, numOfQuotes);
+        } else {
+            return quote("*:" + unquoted + "," + unquoted, numOfQuotes);
+        }
+    }
+
+    private static String quote(String index, int numOfQuotes) {
+        return "\"".repeat(numOfQuotes) + index + "\"".repeat(numOfQuotes);
+    }
+
+    private static String unquote(String index, int numOfQuotes) {
+        return index.substring(numOfQuotes, index.length() - numOfQuotes);
+    }
+
+    /**
+     * Convert index patterns and subqueries in FROM commands to use remote indices.
+     */
+    public static String convertSubqueryToRemoteIndices(String testQuery) {
+        String query = testQuery;
+        // find the main from command, ignoring pipes inside subqueries
+        List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
+        String mainFrom = mainFromCommandAndTheRest.get(0).strip();
+        List<String> theRest = mainFromCommandAndTheRest.size() > 1
+            ? mainFromCommandAndTheRest.subList(1, mainFromCommandAndTheRest.size())
+            : List.of();
+        // check for metadata in the main from command
+        List<String> mainFromCommandWithMetadata = splitIgnoringParentheses(mainFrom, "metadata");
+        mainFrom = mainFromCommandWithMetadata.get(0).strip();
+        // if there is metadata, we need to add it back later
+        String metadata = mainFromCommandWithMetadata.size() > 1 ? " metadata " + mainFromCommandWithMetadata.get(1) : "";
+        // the main from command could be a comma separated list of index patterns, and subqueries
+        List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
+        List<String> transformed = new ArrayList<>();
+        for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
+            // remove the from keyword if it's there
+            indexPatternOrSubquery = indexPatternOrSubquery.strip();
+            if (indexPatternOrSubquery.toLowerCase(Locale.ROOT).startsWith("from ")) {
+                indexPatternOrSubquery = indexPatternOrSubquery.strip().substring(5);
+            }
+            // substitute the index patterns or subquery with remote index patterns
+            if (isSubquery(indexPatternOrSubquery)) {
+                // it's a subquery, we need to process it recursively
+                String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
+                String transformedSubquery = convertSubqueryToRemoteIndices(subquery);
+                transformed.add("(" + transformedSubquery + ")");
+            } else {
+                // It's an index pattern, we need to convert it to remote index pattern.
+                String remoteIndex = unquoteAndRequoteAsRemote(indexPatternOrSubquery, false);
+                transformed.add(remoteIndex);
+            }
+        }
+        // rebuild from command from transformed index patterns and subqueries
+        String transformedFrom = "FROM " + String.join(", ", transformed) + metadata;
+        // rebuild the whole query
+        mainFromCommandAndTheRest.set(0, transformedFrom);
+        testQuery = String.join(" | ", mainFromCommandAndTheRest);
+
+        LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
+        return testQuery;
+    }
+
+    /**
+     * Checks if the given string is a subquery (enclosed in parentheses).
+     */
+    private static boolean isSubquery(String indexPatternOrSubquery) {
+        String trimmed = indexPatternOrSubquery.strip();
+        return trimmed.startsWith("(") && trimmed.endsWith(")");
+    }
+
+    /**
+     * Splits the input string by the given delimiter, ignoring delimiters inside parentheses.
+     */
+    public static List<String> splitIgnoringParentheses(String input, String delimiter) {
+        List<String> results = new ArrayList<>();
+        if (input == null || input.isEmpty()) return results;
+
+        int depth = 0; // parentheses nesting
+        int lastSplit = 0;
+        int delimiterLength = delimiter.length();
+
+        for (int i = 0; i <= input.length() - delimiterLength; i++) {
+            char c = input.charAt(i);
+
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                if (depth > 0) depth--;
+            }
+
+            // check delimiter only outside parentheses
+            if (depth == 0) {
+                boolean match;
+                if (delimiter.length() == 1) {
+                    match = c == delimiter.charAt(0);
+                } else {
+                    match = input.regionMatches(true, i, delimiter, 0, delimiterLength);
+                }
+
+                if (match) {
+                    results.add(input.substring(lastSplit, i).trim());
+                    lastSplit = i + delimiterLength;
+                    i += delimiterLength - 1; // skip the delimiter
+                }
+            }
+        }
+        // add remaining part
+        results.add(input.substring(lastSplit).trim());
+
+        return results;
     }
 }

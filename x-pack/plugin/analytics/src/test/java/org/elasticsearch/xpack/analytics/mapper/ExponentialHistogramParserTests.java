@@ -35,29 +35,31 @@ public class ExponentialHistogramParserTests extends ESTestCase {
     private static final String TEST_FIELD_NAME = "test_field";
 
     public void testParseRandomHistogram() throws IOException {
-        ExponentialHistogram histogram = ExponentialHistogramTestUtils.randomHistogram();
+        for (int i = 0; i < 20; i++) {
+            ExponentialHistogram histogram = ExponentialHistogramTestUtils.randomHistogram();
 
-        ExponentialHistogramParser.ParsedExponentialHistogram parsed;
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ExponentialHistogramXContent.serialize(builder, histogram);
-            String json = Strings.toString(builder);
-            parsed = doParse(json);
+            ExponentialHistogramParser.ParsedExponentialHistogram parsed;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                ExponentialHistogramXContent.serialize(builder, histogram);
+                String json = Strings.toString(builder);
+                parsed = doParse(json);
+            }
+
+            List<IndexWithCount> expectedPositiveBuckets = IndexWithCount.fromIterator(histogram.positiveBuckets().iterator());
+            List<IndexWithCount> expectedNegativeBuckets = IndexWithCount.fromIterator(histogram.negativeBuckets().iterator());
+
+            assertThat(parsed.scale(), equalTo(histogram.scale()));
+
+            assertThat(parsed.zeroThreshold(), equalTo(histogram.zeroBucket().zeroThreshold()));
+            assertThat(parsed.zeroCount(), equalTo(histogram.zeroBucket().count()));
+
+            assertThat(parsed.positiveBuckets(), equalTo(expectedPositiveBuckets));
+            assertThat(parsed.negativeBuckets(), equalTo(expectedNegativeBuckets));
+
+            assertThat(parsed.sum(), equalTo(histogram.valueCount() == 0 ? null : histogram.sum()));
+            assertThat(parsed.min(), equalTo(Double.isNaN(histogram.min()) ? null : histogram.min()));
+            assertThat(parsed.max(), equalTo(Double.isNaN(histogram.max()) ? null : histogram.max()));
         }
-
-        List<IndexWithCount> expectedPositiveBuckets = IndexWithCount.fromIterator(histogram.positiveBuckets().iterator());
-        List<IndexWithCount> expectedNegativeBuckets = IndexWithCount.fromIterator(histogram.negativeBuckets().iterator());
-
-        assertThat(parsed.scale(), equalTo(histogram.scale()));
-
-        assertThat(parsed.zeroThreshold(), equalTo(histogram.zeroBucket().zeroThreshold()));
-        assertThat(parsed.zeroCount(), equalTo(histogram.zeroBucket().count()));
-
-        assertThat(parsed.positiveBuckets(), equalTo(expectedPositiveBuckets));
-        assertThat(parsed.negativeBuckets(), equalTo(expectedNegativeBuckets));
-
-        assertThat(parsed.sum(), equalTo(histogram.sum()));
-        assertThat(parsed.min(), equalTo(Double.isNaN(histogram.min()) ? null : histogram.min()));
-        assertThat(parsed.max(), equalTo(Double.isNaN(histogram.max()) ? null : histogram.max()));
     }
 
     public void testParseScaleMissing() {

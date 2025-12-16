@@ -580,8 +580,8 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
                 var state = flushAndCombineState(group);
-                flushedStates.put(group, state);
                 if (state != null) {
+                    flushedStates.put(group, state);
                     // combine intervals for the final evaluation
                     Interval[] intervals = state.intervals;
                     ArrayUtil.timSort(intervals);

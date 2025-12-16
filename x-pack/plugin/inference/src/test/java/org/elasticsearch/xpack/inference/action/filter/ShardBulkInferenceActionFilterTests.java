@@ -401,7 +401,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             var statusCode = attributes.get("status_code");
             if (statusCode == null) {
                 failed.incrementAndGet();
-                assertThat(attributes.get("error.type"), is("IllegalArgumentException"));
+                assertThat(attributes.get("error_type"), is("IllegalArgumentException"));
             } else {
                 success.incrementAndGet();
                 assertThat(statusCode, is(200));

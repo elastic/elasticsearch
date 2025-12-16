@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
@@ -54,6 +55,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
     public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
+    public static final String ORIGIN_CLUSTER_NAME_REPRESENTATION = "_origin";
 
     public static final ParseField TOTAL_FIELD = new ParseField("total");
     public static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
@@ -67,6 +69,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     private static final TransportVersion ESQL_QUERY_PLANNING_DURATION = TransportVersion.fromName("esql_query_planning_duration");
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
+    public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
 
     // Map key is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
@@ -98,24 +101,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
     private transient boolean inSubplan = false;
-
-    // FOR TESTS ONLY
-    public EsqlExecutionInfo(boolean includeCCSMetadata) {
-        // default all clusters to being skippable on failure
-        this(Predicates.always(), includeCCSMetadata ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER);
-    }
-
-    /**
-     * FOR TESTING use with fromXContent parsing ONLY
-     */
-    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
-        this(
-            clusterInfo,
-            Predicates.always(),
-            includeCCSMetadata ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER,
-            null
-        );
-    }
 
     /**
      * @param skipOnPlanTimeFailurePredicate Decides whether we should skip the cluster that fails during planning phase.
@@ -211,8 +196,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
     }
 
-    // for testing only - use markEndQuery in production code
-    void overallTook(TimeValue took) {
+    public void overallTook(TimeValue took) {
         this.overallTook = took;
     }
 
@@ -278,13 +262,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     /**
      * This creates an initial Cluster object with indexExpression and skipUnavailable.
      */
-    public void initCluster(String clusterAlias, String indexExpression) {
+    public void initCluster(String clusterAlias, String localCusterName, String indexExpression) {
         swapCluster(clusterAlias, (ca, previous) -> {
             var expr = indexExpression;
             if (previous != null) {
                 expr = previous.getIndexExpression() + "," + indexExpression;
             }
-            return new Cluster(clusterAlias, expr, shouldSkipOnFailure(clusterAlias));
+            var displayClusterAlias = Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? localCusterName : null;
+            return new Cluster(clusterAlias, displayClusterAlias, expr, shouldSkipOnFailure(clusterAlias));
         });
     }
 
@@ -442,6 +427,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         public static final ParseField TOOK = new ParseField("took");
 
         private final String clusterAlias;
+        @Nullable
+        private final String displayClusterAlias;
         private final String indexExpression; // original index expression from the user for this cluster
         private final boolean skipUnavailable;
         private final Cluster.Status status;
@@ -468,10 +455,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             }
         }
 
-        public Cluster(String clusterAlias, String indexExpression) {
-            this(clusterAlias, indexExpression, true, Cluster.Status.RUNNING, null, null, null, null, null, null);
-        }
-
         /**
          * Create a Cluster object representing the initial RUNNING state of a Cluster.
          *
@@ -480,8 +463,20 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
          * @param skipUnavailable whether this Cluster is marked as skip_unavailable in remote cluster settings
          */
-        public Cluster(String clusterAlias, String indexExpression, boolean skipUnavailable) {
-            this(clusterAlias, indexExpression, skipUnavailable, Cluster.Status.RUNNING, null, null, null, null, null, null);
+        public Cluster(String clusterAlias, String displayClusterAlias, String indexExpression, boolean skipUnavailable) {
+            this(
+                clusterAlias,
+                displayClusterAlias,
+                indexExpression,
+                skipUnavailable,
+                Cluster.Status.RUNNING,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
         }
 
         /**
@@ -492,12 +487,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          * @param skipUnavailable whether cluster is marked as skip_unavailable in remote cluster settings
          * @param status current status of the search on this Cluster
          */
-        public Cluster(String clusterAlias, String indexExpression, boolean skipUnavailable, Cluster.Status status) {
-            this(clusterAlias, indexExpression, skipUnavailable, status, null, null, null, null, null, null);
-        }
-
         public Cluster(
             String clusterAlias,
+            String displayClusterAlias,
             String indexExpression,
             boolean skipUnavailable,
             Cluster.Status status,
@@ -512,6 +504,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             assert indexExpression != null : "indexExpression of Cluster cannot be null";
             assert status != null : "status of Cluster cannot be null";
             this.clusterAlias = clusterAlias;
+            this.displayClusterAlias = displayClusterAlias;
             this.indexExpression = indexExpression;
             this.skipUnavailable = skipUnavailable;
             this.status = status;
@@ -525,6 +518,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public Cluster(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
+            this.displayClusterAlias = in.getTransportVersion().supports(EXECUTION_CLUSTER_NAME_VERSION) ? in.readOptionalString() : null;
             this.indexExpression = in.readString();
             this.status = Cluster.Status.valueOf(in.readString().toUpperCase(Locale.ROOT));
             this.totalShards = in.readOptionalInt();
@@ -539,6 +533,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterAlias);
+            if (out.getTransportVersion().supports(EXECUTION_CLUSTER_NAME_VERSION)) {
+                out.writeOptionalString(displayClusterAlias);
+            }
             out.writeString(indexExpression);
             out.writeString(status.toString());
             out.writeOptionalInt(totalShards);
@@ -581,6 +578,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             public Cluster build() {
                 return new Cluster(
                     original.getClusterAlias(),
+                    original.getDisplayClusterAlias(),
                     original.getIndexExpression(),
                     original.isSkipUnavailable(),
                     status != null ? status : original.getStatus(),
@@ -637,11 +635,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            String name = clusterAlias;
-            if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                name = LOCAL_CLUSTER_NAME_REPRESENTATION;
-            }
-            builder.startObject(name);
+            builder.startObject(displayClusterAlias != null ? displayClusterAlias : clusterAlias);
             {
                 builder.field(STATUS_FIELD.getPreferredName(), getStatus().toString());
                 builder.field(INDICES_FIELD.getPreferredName(), indexExpression);
@@ -681,6 +675,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public String getClusterAlias() {
             return clusterAlias;
+        }
+
+        public String getDisplayClusterAlias() {
+            return displayClusterAlias;
         }
 
         public String getIndexExpression() {
@@ -738,6 +736,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             if (o == null || getClass() != o.getClass()) return false;
             Cluster cluster = (Cluster) o;
             return Objects.equals(clusterAlias, cluster.clusterAlias)
+                && Objects.equals(displayClusterAlias, cluster.displayClusterAlias)
                 && Objects.equals(indexExpression, cluster.indexExpression)
                 && status == cluster.status
                 && Objects.equals(totalShards, cluster.totalShards)
@@ -749,7 +748,17 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterAlias, indexExpression, status, totalShards, successfulShards, skippedShards, failedShards, took);
+            return Objects.hash(
+                clusterAlias,
+                displayClusterAlias,
+                indexExpression,
+                status,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                failedShards,
+                took
+            );
         }
 
         @Override

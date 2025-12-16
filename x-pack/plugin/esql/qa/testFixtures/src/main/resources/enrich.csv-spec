@@ -762,3 +762,72 @@ FROM sample_data
 message:keyword       | language_code:keyword | first_language_name:keyword | language_name:keyword
 Connected to 10.1.0.1 | 1                     | English                     | English
 ;
+
+
+circularRefEnrichStats
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| RENAME language_name AS message  
+| ENRICH languages_policy ON language_code 
+| STATS a = count(to_lower(language_name)), b = count(language_name)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats2
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| RENAME language_name AS message  
+| ENRICH languages_policy ON language_code 
+| STATS a = count(to_lower(language_name)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats3
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code
+| RENAME language_name AS message
+| STATS a = count(to_lower(message)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats4
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code WITH message=language_name
+| RENAME language_name AS message
+| STATS a = count(to_lower(message)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats5
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code WITH message=language_name
+| STATS a = count(to_lower(language_name)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
+;

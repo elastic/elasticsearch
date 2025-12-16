@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentAct
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -729,7 +730,10 @@ public class AuthorizationService {
                                     authzInfo,
                                     action,
                                     request,
-                                    IndexAuthorizationResult.getFailureDescription(List.of(resolved.original()), restrictedIndices),
+                                    IndexAuthorizationResult.getFailureDescription(
+                                        List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER),
+                                        restrictedIndices
+                                    ),
                                     null
                                 )
                             );

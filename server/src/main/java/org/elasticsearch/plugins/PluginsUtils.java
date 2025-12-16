@@ -61,7 +61,6 @@ public class PluginsUtils {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
                     final String filename = plugin.getFileName().toString();
-                    System.out.println("***** filename: " + filename);
                     if (FileSystemUtils.isDesktopServicesStore(plugin)
                         || filename.startsWith(".removing-")
                         || filename.equals(".elasticsearch-plugins.yml.cache")) {
@@ -233,7 +232,6 @@ public class PluginsUtils {
 
     // searches subdirectories under the given directory for plugin directories
     private static Set<PluginBundle> findBundles(final Path directory, String type) throws IOException {
-        System.out.println("Looking for bundles in " + directory.toAbsolutePath());
         final Set<PluginBundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
             final PluginBundle bundle = readPluginBundle(plugin, type);
@@ -246,7 +244,7 @@ public class PluginsUtils {
             }
         }
 
-        logger.info(() -> "findBundles(" + type + ") returning: " + bundles.stream().map(b -> b.plugin.getName()).sorted().toList());
+        logger.trace(() -> "findBundles(" + type + ") returning: " + bundles.stream().map(b -> b.plugin.getName()).sorted().toList());
 
         return bundles;
     }
@@ -367,7 +365,6 @@ public class PluginsUtils {
      */
     static List<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
         Map<String, PluginBundle> namedBundles = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
-        System.out.println("Bundles: " + namedBundles.keySet().stream().collect(Collectors.joining(", ")));
         LinkedHashSet<PluginBundle> sortedBundles = new LinkedHashSet<>();
         LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
         for (PluginBundle bundle : bundles) {

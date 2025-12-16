@@ -178,7 +178,13 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         private long estimatedRamBytesUsed() {
-            return this.buildersAndLoaders.stream().flatMap(e -> e.values().stream()).mapToLong(bl -> bl.builder.estimatedBytes()).sum();
+            long sum = 0;
+            for (int i = 0; i < buildersAndLoaders.size(); i++) { // Avoid iterator allocation.
+                for (BlockBuilderAndLoader blockBuilderAndLoader : buildersAndLoaders.get(i).values()) {
+                    sum += blockBuilderAndLoader.builder.estimatedBytes();
+                }
+            }
+            return sum;
         }
     }
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -168,21 +167,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                numberOfAllocations = in.readOptionalVInt();
-            } else {
-                numberOfAllocations = in.readVInt();
-            }
+            numberOfAllocations = in.readOptionalVInt();
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.priority = in.readEnum(Priority.class);
             this.deploymentId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-            } else {
-                this.adaptiveAllocationsSettings = null;
-            }
+            this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         }
 
         public final void setModelId(String modelId) {
@@ -286,19 +277,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalVInt(numberOfAllocations);
-            } else {
-                out.writeVInt(numberOfAllocations);
-            }
+            out.writeOptionalVInt(numberOfAllocations);
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
             out.writeOptionalWriteable(cacheSize);
             out.writeEnum(priority);
             out.writeString(deploymentId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalWriteable(adaptiveAllocationsSettings);
-            }
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
 
         @Override

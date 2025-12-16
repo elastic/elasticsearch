@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
@@ -57,6 +56,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -160,7 +160,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
         request.allowPartialResults(false);
-        EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, r) -> fail("this shouldn't happen");
+        EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen");
         IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
             "",
             new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
@@ -172,7 +172,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             TransportVersion.current(),
             queryClusterSettings(),
             enrichResolver,
-            new EsqlExecutionInfo(randomBoolean()),
+            createEsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
@@ -196,14 +196,14 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
         // fix the failing query: foo field does exist
         request.query("from test | stats m = max(foo)");
-        runPhase = (p, configuration, foldContext, r) -> r.onResponse(null);
+        runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(null);
         planExecutor.esql(
             request,
             randomAlphaOfLength(10),
             TransportVersion.current(),
             queryClusterSettings(),
             enrichResolver,
-            new EsqlExecutionInfo(randomBoolean()),
+            createEsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,

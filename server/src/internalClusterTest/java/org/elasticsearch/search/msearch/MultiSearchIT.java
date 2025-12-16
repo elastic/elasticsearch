@@ -29,7 +29,6 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;

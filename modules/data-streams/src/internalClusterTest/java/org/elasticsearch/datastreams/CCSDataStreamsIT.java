@@ -292,14 +292,14 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         reindexRequest.setDestIndex(localIndex);
 
         assertResponse(client(LOCAL_CLUSTER).execute(ReindexAction.INSTANCE, reindexRequest), response -> {
-                assertNotNull(response);
-                assertFalse(response.isTimedOut());
-                assertThat(response.getCreated(), greaterThan(0L));
-                assertThat(response.getDeleted(), equalTo(0L));
-                assertThat(response.getBatches(), greaterThan(0));
-                assertThat(response.getBulkFailures().size(), equalTo(0));
-                assertThat(response.getSearchFailures().size(), equalTo(0));
-                assertThat(response.getTook().millis(), greaterThan(0L));
+            assertNotNull(response);
+            assertFalse(response.isTimedOut());
+            assertThat(response.getCreated(), greaterThan(0L));
+            assertThat(response.getDeleted(), equalTo(0L));
+            assertThat(response.getBatches(), greaterThan(0));
+            assertThat(response.getBulkFailures().size(), equalTo(0));
+            assertThat(response.getSearchFailures().size(), equalTo(0));
+            assertThat(response.getTook().millis(), greaterThan(0L));
         });
     }
 

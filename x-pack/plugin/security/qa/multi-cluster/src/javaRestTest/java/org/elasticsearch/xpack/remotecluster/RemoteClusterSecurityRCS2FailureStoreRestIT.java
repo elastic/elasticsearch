@@ -139,12 +139,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             );
             final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
             final String privileges = ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all";
-            assertActionUnauthorized(
-                exception,
-                action,
-                "test1::failures",
-                privileges
-            );
+            assertActionUnauthorized(exception, action, "test1::failures", privileges);
         }
         // Any wildcard patterns are treated as empty searches since they resolve to no visible indices
         {

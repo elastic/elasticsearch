@@ -330,23 +330,7 @@ public final class InferenceQueryUtils {
 
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();
-
-            queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, threadContext, listener) -> {
-                ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> wrappedListener = listener
-                    .delegateFailureAndWrap((l, m) -> {
-                        gal.onResponse(m);
-                        l.onResponse(null);
-                    });
-
-                client.getConnection(null, wrappedListener.delegateFailureAndWrap((l, c) -> {
-                    l.onResponse(
-                        Map.of(
-                            clusterAlias,
-                            Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), c.getTransportVersion())
-                        )
-                    );
-                }));
-            });
+            queryRewriteContext.registerUniqueAsyncAction(new RemoteTransportVersionAsyncAction(clusterAlias), gal::onResponse);
         }
     }
 
@@ -677,6 +661,39 @@ public final class InferenceQueryUtils {
         @Override
         public boolean doEquals(RemoteInferenceInfoAsyncAction other) {
             return Objects.equals(request, other.request);
+        }
+    }
+
+    private static final class RemoteTransportVersionAsyncAction extends QueryRewriteRemoteAsyncAction<
+        Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>,
+        RemoteTransportVersionAsyncAction> {
+
+        private RemoteTransportVersionAsyncAction(String clusterAlias) {
+            super(clusterAlias);
+        }
+
+        @Override
+        protected void execute(
+            RemoteClusterClient client,
+            ThreadContext threadContext,
+            ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> listener
+        ) {
+            final String clusterAlias = getClusterAlias();
+            client.getConnection(null, listener.delegateFailureAndWrap((l, c) -> {
+                l.onResponse(
+                    Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), c.getTransportVersion()))
+                );
+            }));
+        }
+
+        @Override
+        public int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public boolean doEquals(RemoteTransportVersionAsyncAction other) {
+            return true;
         }
     }
 }

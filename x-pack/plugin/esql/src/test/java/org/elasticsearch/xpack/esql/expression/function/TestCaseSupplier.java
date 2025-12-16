@@ -14,6 +14,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -872,6 +874,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryExponentialHistogram(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<ExponentialHistogram, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            exponentialHistogramCases(),
+            expectedType,
+            v -> expectedValue.apply((ExponentialHistogram) v),
+            warnings
+        );
+    }
+
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -1536,6 +1555,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    /**
+     * Generate cases for {@link DataType#TDIGEST}.
+     */
+    public static List<TypedDataSupplier> tdigestCases() {
+        return List.of(
+            new TypedDataSupplier("<random tdigest>", EsqlTestUtils::randomTDigest, DataType.TDIGEST),
+            new TypedDataSupplier("<empty t-digest>", TDigestHolder::empty, DataType.TDIGEST)
+        );
+    }
+
     public static String getCastEvaluator(String original, DataType current, DataType target) {
         if (current == target) {
             return original;
@@ -1606,7 +1635,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     ) {
         return suppliers.stream()
             .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
-            .toList();
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     public static final class TestCase {
@@ -1820,19 +1849,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Object extra() {
             return extra;
-        }
-
-        /**
-         * Build a new {@link TestCase} with the {@link #TEST_CONFIGURATION}.
-         * <p>
-         *     The source is also set to match the configuration
-         * </p>
-         *
-         * @deprecated Use a custom configuration instead, and test the results.
-         */
-        @Deprecated
-        public TestCase withStaticConfiguration() {
-            return withConfiguration(TEST_SOURCE, TEST_CONFIGURATION);
         }
 
         /**

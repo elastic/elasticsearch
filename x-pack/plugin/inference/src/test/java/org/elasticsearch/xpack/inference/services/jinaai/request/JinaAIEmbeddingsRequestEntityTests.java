@@ -19,6 +19,8 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.is;
 
@@ -27,9 +29,11 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
             InputType.INTERNAL_INGEST,
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
-            "model",
-            JinaAIEmbeddingType.FLOAT
+            new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true),
+            "modelName",
+            JinaAIEmbeddingType.FLOAT,
+            512,
+            true
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -37,7 +41,79 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"float","task":"retrieval.passage"}"""));
+            {"input":["abc"],"model":"modelName","embedding_type":"float",\
+            "task":"retrieval.passage","late_chunking":true,"dimensions":512}"""));
+    }
+
+    public void testXContent_WritesOnlyLateChunkingField_WhenItIsTheOnlyOptionalFieldDefined() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            InputType.INTERNAL_INGEST,
+            new JinaAIEmbeddingsTaskSettings(null, false),
+            "model",
+            null,
+            null,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","task":"retrieval.passage","late_chunking":false}"""));
+    }
+
+    public void testXContent_WritesFalseLateChunkingField_WhenLateChunkingSetToTrueButInputExceedsWordCountLimit() throws IOException {
+        int wordCount = JinaAIEmbeddingsRequestEntity.MAX_WORD_COUNT_FOR_LATE_CHUNKING + 1;
+        var testInput = IntStream.range(0, wordCount / 2).mapToObj(i -> "word" + i).collect(Collectors.joining(" ")) + ".";
+        var testInputs = List.of(testInput, testInput, testInput);
+
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            testInputs,
+            InputType.INTERNAL_INGEST,
+            new JinaAIEmbeddingsTaskSettings(null, true),
+            "model",
+            null,
+            null,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"input":["%s","%s","%s"],"model":"model","task":"retrieval.passage","late_chunking":false}""",
+                    testInput,
+                    testInput,
+                    testInput
+                )
+            )
+        );
+    }
+
+    public void testXContent_WritesInputTypeField_WhenItIsDefinedOnlyInTaskSettings() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            null,
+            new JinaAIEmbeddingsTaskSettings(InputType.SEARCH, null),
+            "model",
+            null,
+            null,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","task":"retrieval.query"}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
@@ -46,7 +122,9 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             null,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.FLOAT
+            null,
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -54,7 +132,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"float"}"""));
+            {"input":["abc"],"model":"model"}"""));
     }
 
     public void testXContent_EmbeddingTypesBit() throws IOException {
@@ -63,7 +141,9 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             InputType.CLUSTERING,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.BIT
+            JinaAIEmbeddingType.BIT,
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -80,7 +160,9 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             InputType.SEARCH,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.BINARY
+            JinaAIEmbeddingType.BINARY,
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -89,5 +171,24 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","embedding_type":"binary","task":"retrieval.query"}"""));
+    }
+
+    public void testXContent_doesNotWriteDimensions_whenDimensionsSetByUserIsFalse() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            null,
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            "modelName",
+            null,
+            512,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"modelName"}"""));
     }
 }

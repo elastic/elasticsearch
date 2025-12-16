@@ -194,7 +194,7 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
     }
 
     private MappedFieldType defaultFieldType(String fieldName) {
-        return new ExponentialHistogramFieldMapper.ExponentialHistogramFieldType(fieldName, Collections.emptyMap());
+        return new ExponentialHistogramFieldMapper.ExponentialHistogramFieldType(fieldName, Collections.emptyMap(), null);
     }
 
     private Map<Double, Long> computeExpectedHistogram(List<ExponentialHistogram> histograms, double interval, double offset) {

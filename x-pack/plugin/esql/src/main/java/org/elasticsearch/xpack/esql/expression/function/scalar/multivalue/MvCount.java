@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
 
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
@@ -79,7 +79,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(field(), sourceText(), DEFAULT);
+        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override

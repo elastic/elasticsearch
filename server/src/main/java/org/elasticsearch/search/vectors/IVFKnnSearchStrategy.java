@@ -19,7 +19,7 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
     private final LongAccumulator accumulator;
 
-    IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator) {
+    public IVFKnnSearchStrategy(float visitRatio, LongAccumulator accumulator) {
         this.visitRatio = visitRatio;
         this.accumulator = accumulator;
     }

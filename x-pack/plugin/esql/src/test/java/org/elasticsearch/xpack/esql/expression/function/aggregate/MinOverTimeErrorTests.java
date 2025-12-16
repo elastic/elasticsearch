@@ -27,7 +27,7 @@ public class MinOverTimeErrorTests extends ErrorsForCasesWithoutExamplesTestCase
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MinOverTime(source, args.get(0));
+        return new MinOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 
     @Override
@@ -38,7 +38,7 @@ public class MinOverTimeErrorTests extends ErrorsForCasesWithoutExamplesTestCase
                 validPerPosition,
                 signature,
                 (v, p) -> "boolean, date, ip, string, version, aggregate_metric_double, "
-                    + "exponential_histogram or numeric except counter types"
+                    + "exponential_histogram, tdigest or numeric except counter types"
             )
         );
     }

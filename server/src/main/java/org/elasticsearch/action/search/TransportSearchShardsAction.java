@@ -211,12 +211,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         List<SearchShardsGroup> groups = new ArrayList<>(shardIts.size());
         for (SearchShardIterator shardIt : shardIts) {
             groups.add(
-                new SearchShardsGroup(
-                    shardIt.shardId(),
-                    shardIt.getTargetNodeIds(),
-                    shardIt.skip(),
-                    shardIt.getReshardSplitShardCountSummary()
-                )
+                new SearchShardsGroup(shardIt.shardId(), shardIt.getTargetNodeIds(), shardIt.skip(), shardIt.getSplitShardCountSummary())
             );
         }
         return groups;

@@ -139,6 +139,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "local",
                 nowInMillis,
                 randomBoolean()
@@ -158,6 +159,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 nowInMillis,
                 randomBoolean()
@@ -205,6 +207,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -216,6 +219,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -231,6 +235,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -279,7 +284,15 @@ public class TransportSearchIT extends ESIntegTestCase {
         {
             SearchRequest searchRequest = randomBoolean()
                 ? originalRequest
-                : SearchRequest.subSearchRequest(taskId, originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
+                : SearchRequest.subSearchRequest(
+                    taskId,
+                    originalRequest,
+                    Strings.EMPTY_ARRAY,
+                    originalRequest.indicesOptions(),
+                    "remote",
+                    nowInMillis,
+                    true
+                );
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value());
                 InternalAggregations aggregations = searchResponse.getAggregations();
@@ -292,6 +305,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 taskId,
                 originalRequest,
                 Strings.EMPTY_ARRAY,
+                originalRequest.indicesOptions(),
                 "remote",
                 nowInMillis,
                 false

@@ -12,7 +12,9 @@ buildscript {
     maven { url = "https://jitpack.io" }
   }
   dependencies {
-    classpath 'com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT'
+    classpath('com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT') {
+      changing = false
+    }
   }
 }
 
@@ -76,6 +78,7 @@ dependencies {
   clusterModules project(xpackModule('analytics'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-aggregate-metric'))
+  clusterModules project(xpackModule('mapper-exponential-histogram'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('mapper-counted-keyword'))
   clusterModules project(xpackModule('stack'))

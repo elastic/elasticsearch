@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.inference.services.elastic.ccm;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -61,7 +62,7 @@ public class CCMAuthenticationApplierFactoryTests extends ESTestCase {
         var applier = new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret);
         var request = new HttpGet("http://localhost");
         applier.apply(request);
-        assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(bearerToken(secret)));
+        assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(apiKey(secret)));
     }
 
     public void testGetAuthenticationApplier_ReturnsNoopWhenConfiguringCCMIsDisabled() {
@@ -99,6 +100,64 @@ public class CCMAuthenticationApplierFactoryTests extends ESTestCase {
                     + "before accessing the Elastic Inference Service."
             )
         );
+    }
+
+    public
+        void
+        testGetAuthenticationApplier_ReturnsFailure_WhenConfiguringCCMIsEnabled_TheClusterStateIndicatesItIsEnabled_ButNotConfiguration() {
+        var ccmFeature = mock(CCMFeature.class);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
+
+        var ccmService = mock(CCMService.class);
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = invocation.getArgument(0);
+            listener.onResponse(true);
+            return Void.TYPE;
+        }).when(ccmService).isEnabled(any());
+
+        doAnswer(invocation -> {
+            ActionListener<CCMModel> listener = invocation.getArgument(0);
+            listener.onFailure(new ResourceNotFoundException("not found"));
+            return Void.TYPE;
+        }).when(ccmService).getConfiguration(any());
+
+        var factory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
+        var listener = new TestPlainActionFuture<CCMAuthenticationApplierFactory.AuthApplier>();
+        factory.getAuthenticationApplier(listener);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "Cloud connected mode configuration is in an inconsistent state. "
+                    + "Please try configuring it again using PUT _inference/_ccm"
+            )
+        );
+    }
+
+    public void testGetAuthenticationApplier_ReturnsFailure_ConfiguringCCMIsEnabled_ClusterStateEnabled_FailureGettingConfiguration() {
+        var ccmFeature = mock(CCMFeature.class);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
+
+        var ccmService = mock(CCMService.class);
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = invocation.getArgument(0);
+            listener.onResponse(true);
+            return Void.TYPE;
+        }).when(ccmService).isEnabled(any());
+
+        doAnswer(invocation -> {
+            ActionListener<CCMModel> listener = invocation.getArgument(0);
+            listener.onFailure(new IllegalArgumentException("not found"));
+            return Void.TYPE;
+        }).when(ccmService).getConfiguration(any());
+
+        var factory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
+        var listener = new TestPlainActionFuture<CCMAuthenticationApplierFactory.AuthApplier>();
+        factory.getAuthenticationApplier(listener);
+
+        var exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TimeValue.THIRTY_SECONDS));
+        assertThat(exception.getMessage(), containsString("not found"));
     }
 
     public void testGetAuthenticationApplier_ReturnsApiKey_WhenConfiguringCCMIsEnabled_AndSet() {

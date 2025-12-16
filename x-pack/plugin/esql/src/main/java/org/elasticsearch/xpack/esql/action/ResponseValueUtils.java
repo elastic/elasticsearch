@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -53,14 +55,18 @@ public final class ResponseValueUtils {
      * Returns an iterator of iterators over the values in the given pages. There is one iterator
      * for each block.
      */
-    public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, List<Page> pages) {
+    public static Iterator<Iterator<Object>> pagesToValues(List<DataType> dataTypes, List<Page> pages, ZoneId zoneId) {
         BytesRef scratch = new BytesRef();
         return Iterators.flatMap(
             pages.iterator(),
             page -> Iterators.forRange(
                 0,
                 page.getPositionCount(),
-                pos -> Iterators.forRange(0, page.getBlockCount(), b -> valueAtPosition(page.getBlock(b), pos, dataTypes.get(b), scratch))
+                pos -> Iterators.forRange(
+                    0,
+                    page.getBlockCount(),
+                    b -> valueAtPosition(page.getBlock(b), pos, dataTypes.get(b), zoneId, scratch)
+                )
             )
         );
     }
@@ -81,7 +87,7 @@ public final class ResponseValueUtils {
         return () -> Iterators.forRange(
             0,
             page.getBlockCount(),
-            blockIdx -> valueAtPosition(page.getBlock(blockIdx), position, dataTypes.get(blockIdx), scratch)
+            blockIdx -> valueAtPosition(page.getBlock(blockIdx), position, dataTypes.get(blockIdx), ZoneOffset.UTC, scratch)
         );
     }
 
@@ -93,30 +99,30 @@ public final class ResponseValueUtils {
             page -> Iterators.forRange(
                 0,
                 page.getPositionCount(),
-                pos -> valueAtPosition(page.getBlock(columnIndex), pos, dataType, scratch)
+                pos -> valueAtPosition(page.getBlock(columnIndex), pos, dataType, ZoneOffset.UTC, scratch)
             )
         );
     }
 
     /** Returns the value that the position and with the given data type, in the block. */
-    static Object valueAtPosition(Block block, int position, DataType dataType, BytesRef scratch) {
+    static Object valueAtPosition(Block block, int position, DataType dataType, ZoneId zoneId, BytesRef scratch) {
         if (block.isNull(position)) {
             return null;
         }
         int count = block.getValueCount(position);
         int start = block.getFirstValueIndex(position);
         if (count == 1) {
-            return valueAt(dataType, block, start, scratch);
+            return valueAt(dataType, block, start, zoneId, scratch);
         }
         List<Object> values = new ArrayList<>(count);
         int end = count + start;
         for (int i = start; i < end; i++) {
-            values.add(valueAt(dataType, block, i, scratch));
+            values.add(valueAt(dataType, block, i, zoneId, scratch));
         }
         return values;
     }
 
-    private static Object valueAt(DataType dataType, Block block, int offset, BytesRef scratch) {
+    private static Object valueAt(DataType dataType, Block block, int offset, ZoneId zoneId, BytesRef scratch) {
         return switch (dataType) {
             case UNSIGNED_LONG -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> ((LongBlock) block).getLong(offset);
@@ -129,11 +135,11 @@ public final class ResponseValueUtils {
             }
             case DATETIME -> {
                 long longVal = ((LongBlock) block).getLong(offset);
-                yield dateTimeToString(longVal);
+                yield dateTimeToString(longVal, zoneId);
             }
             case DATE_NANOS -> {
                 long longVal = ((LongBlock) block).getLong(offset);
-                yield nanoTimeToString(longVal);
+                yield nanoTimeToString(longVal, zoneId);
             }
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
             case VERSION -> versionToString(((BytesRefBlock) block).getBytesRef(offset, scratch));

@@ -652,6 +652,14 @@ public class EsqlDataTypeConverter {
         return DEFAULT_DATE_NANOS_FORMATTER.formatNanos(dateTime);
     }
 
+    public static String dateTimeToString(long dateTime, ZoneId zoneId) {
+        return DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId).formatMillis(dateTime);
+    }
+
+    public static String nanoTimeToString(long dateTime, ZoneId zoneId) {
+        return DEFAULT_DATE_NANOS_FORMATTER.withZone(zoneId).formatNanos(dateTime);
+    }
+
     public static String dateTimeToString(long dateTime, DateFormatter formatter) {
         return formatter == null ? dateTimeToString(dateTime) : formatter.formatMillis(dateTime);
     }

@@ -226,7 +226,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public Iterator<Iterator<Object>> values() {
         List<DataType> dataTypes = columns.stream().map(ColumnInfoImpl::type).toList();
-        return ResponseValueUtils.pagesToValues(dataTypes, pages);
+        return ResponseValueUtils.pagesToValues(dataTypes, pages, zoneId);
     }
 
     public Iterable<Iterable<Object>> rows() {

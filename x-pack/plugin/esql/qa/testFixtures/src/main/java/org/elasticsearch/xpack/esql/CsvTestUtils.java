@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -656,6 +657,7 @@ public final class CsvTestUtils {
     }
 
     record ActualResults(
+        Configuration configuration,
         List<String> columnNames,
         List<Type> columnTypes,
         List<DataType> dataTypes,
@@ -663,7 +665,7 @@ public final class CsvTestUtils {
         Map<String, List<String>> responseHeaders
     ) {
         Iterator<Iterator<Object>> values() {
-            return ResponseValueUtils.pagesToValues(dataTypes(), pages);
+            return ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId());
         }
     }
 

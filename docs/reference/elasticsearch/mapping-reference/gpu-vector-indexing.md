@@ -47,7 +47,7 @@ The node will fail to start if GPU is not detected by {{es}}.
 If the node fails to start, check:
 * Supported NVIDIA GPU is present
 * CUDA runtime libraries and drivers are installed (check with `nvidia-smi`)
-* `LD_LIBRARY_PATH` includes paths to CUDA and cuVS libraries
+* `LD_LIBRARY_PATH` includes paths to the cuVS libraries and to its dependencies (e.g. CUDA)
 * Supported platform: Linux x86_64 with Java 22 or higher
 
 

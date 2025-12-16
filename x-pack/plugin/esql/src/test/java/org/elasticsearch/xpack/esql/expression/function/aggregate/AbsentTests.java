@@ -58,7 +58,8 @@ public class AbsentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
         ).flatMap(List::stream).map(AbsentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -79,11 +80,11 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.LONG,
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
-            DataType.VERSION
+            DataType.VERSION,
+            DataType.EXPONENTIAL_HISTOGRAM
         );
-        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
-            types = new ArrayList<>(types);
-            types.add(DataType.EXPONENTIAL_HISTOGRAM);
+        if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
+            types = Stream.concat(types.stream(), Stream.of(DataType.TDIGEST)).toList();
         }
         for (var dataType : types) {
             suppliers.add(

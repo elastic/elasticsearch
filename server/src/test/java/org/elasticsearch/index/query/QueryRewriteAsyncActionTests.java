@@ -107,7 +107,7 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
         return rewritten;
     }
 
-    public static final class TestQueryRewriteAsyncAction extends QueryRewriteAsyncAction<Integer> {
+    public static final class TestQueryRewriteAsyncAction extends QueryRewriteAsyncAction<Integer, TestQueryRewriteAsyncAction> {
 
         private final Integer label;
         private final SetOnce<Boolean> hasRun = new SetOnce<>();
@@ -134,17 +134,12 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public int hashCode() {
+        public int doHashCode() {
             return Objects.hashCode(label);
         }
 
         @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof TestQueryRewriteAsyncAction == false) {
-                return false;
-            }
-
-            TestQueryRewriteAsyncAction other = (TestQueryRewriteAsyncAction) obj;
+        public boolean doEquals(TestQueryRewriteAsyncAction other) {
             return Objects.equals(label, other.label);
         }
     }

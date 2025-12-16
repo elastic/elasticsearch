@@ -83,7 +83,7 @@ public class QueryRewriteContext {
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
     private final Map<String, List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>>> remoteAsyncActions =
         new HashMap<>();
-    private final Map<QueryRewriteAsyncAction<?>, List<Consumer<?>>> uniqueRewriteActions = new HashMap<>();
+    private final Map<QueryRewriteAsyncAction<?, ?>, List<Consumer<?>>> uniqueRewriteActions = new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
@@ -733,7 +733,10 @@ public class QueryRewriteContext {
      * After the async action is executed, all consumers associated with it will be executed and receive as argument
      * the result of the async action.
      */
-    public <T> void registerUniqueAsyncAction(QueryRewriteAsyncAction<T> action, Consumer<T> consumer) {
+    public <T, U extends QueryRewriteAsyncAction<T, U>> void registerUniqueAsyncAction(
+        QueryRewriteAsyncAction<T, U> action,
+        Consumer<T> consumer
+    ) {
         uniqueRewriteActions.computeIfAbsent(action, k -> new ArrayList<>()).add(consumer);
     }
 }

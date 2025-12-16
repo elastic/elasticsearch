@@ -18,7 +18,7 @@ GPU vector indexing requires the following:
 * An [Enterprise subscription](https://www.elastic.co/subscriptions)
 * A supported NVIDIA GPU (Ampere architecture or better, compute capability >= 8.0) with a minimum 8GB of GPU memory
 * GPU driver, CUDA and cuVS runtime libraries installed on the node
-* `LD_LIBRARY_PATH` environment variable configured to include CUDA library paths
+* `LD_LIBRARY_PATH` environment variable configured to include the cuVS libraries path and its dependencies (CUDA, rmm, etc.)
 * Supported platform: Linux x86_64 only, Java 22 or higher
 * Supported dense vector configurations: `hnsw` and `int8_hnsw`; `float` element type only
 

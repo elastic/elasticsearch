@@ -78,6 +78,16 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     @Deprecated(forRemoval = true)
+    public boolean before(TransportVersion version) {
+        throw new UnsupportedOperationException("use TransportVersion.supports(...) == false instead");
+    }
+
+    @Deprecated(forRemoval = true)
+    public boolean onOrBefore(TransportVersion version) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Deprecated(forRemoval = true)
     public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
         throw new UnsupportedOperationException("use TransportVersion.supports(...) && TransportVersion.supports(...) == false instead");
     }

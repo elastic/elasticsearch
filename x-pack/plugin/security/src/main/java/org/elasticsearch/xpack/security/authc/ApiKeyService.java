@@ -402,7 +402,8 @@ public class ApiKeyService implements Closeable {
                 return;
             }
 
-            if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+            if (transportVersion.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS) == false
+                && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have version ["
@@ -433,7 +434,7 @@ public class ApiKeyService implements Closeable {
         final List<RoleDescriptor> roleDescriptors,
         final TransportVersion transportVersion
     ) {
-        if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && hasRemoteIndices(roleDescriptors)) {
+        if (transportVersion.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && hasRemoteIndices(roleDescriptors) == false) {
             // API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
@@ -444,7 +445,7 @@ public class ApiKeyService implements Closeable {
             );
             return false;
         }
-        if (transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS) && hasRemoteCluster(roleDescriptors)) {
+        if (transportVersion.supports(ROLE_REMOTE_CLUSTER_PRIVS) && hasRemoteCluster(roleDescriptors) == false) {
             // API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
@@ -455,7 +456,7 @@ public class ApiKeyService implements Closeable {
             );
             return false;
         }
-        if (transportVersion.before(MANAGE_ROLES_PRIVILEGE) && hasGlobalManageRolesPrivilege(roleDescriptors)) {
+        if (transportVersion.supports(MANAGE_ROLES_PRIVILEGE) && hasGlobalManageRolesPrivilege(roleDescriptors) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["

@@ -58,7 +58,7 @@ public class TransportVersionUtils {
         @Nullable TransportVersion minVersion,
         @Nullable TransportVersion maxVersion
     ) {
-        if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
+        if (minVersion != null && maxVersion != null && maxVersion.supports(minVersion) == false) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
 
@@ -81,7 +81,7 @@ public class TransportVersionUtils {
 
     public static TransportVersion getPreviousVersion() {
         TransportVersion version = getPreviousVersion(TransportVersion.current());
-        assert version.before(TransportVersion.current());
+        assert version.supports(TransportVersion.current()) == false;
         return version;
     }
 

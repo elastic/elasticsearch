@@ -481,7 +481,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             .map(CompatibilityVersions::transportVersion)
             .min(Comparator.naturalOrder())
             .orElse(TransportVersion.current());
-        if (joiningCompatibilityVersions.transportVersion().before(minClusterTransportVersion)) {
+        if (minClusterTransportVersion.supports(joiningCompatibilityVersions.transportVersion()) == false) {
             throw new IllegalStateException(
                 "node with transport version ["
                     + joiningCompatibilityVersions.transportVersion().toReleaseVersion()

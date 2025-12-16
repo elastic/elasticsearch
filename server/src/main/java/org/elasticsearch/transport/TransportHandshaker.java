@@ -315,7 +315,8 @@ final class TransportHandshaker {
                         response.getReleaseVersion(),
                         channel
                     );
-                    assert TransportVersion.current().before(version) // simulating a newer-version transport service for test purposes
+                    assert version.supports(TransportVersion.current()) == false // simulating a newer-version transport service for test
+                                                                                 // purposes
                         || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;
                     return resultVersion;
                 });

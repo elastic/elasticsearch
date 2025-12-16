@@ -187,6 +187,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 false,
                 supportsExponentialHistograms(),
                 supportsTDigestField(),
+                supportsHistogramDataType(),
                 supportsBFloat16ElementType()
             );
             return null;
@@ -316,7 +317,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsTDigestField() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V3.capabilityName()));
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V4.capabilityName()));
+    }
+
+    protected boolean supportsHistogramDataType() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_FIELD_SUPPORT_V0.capabilityName()));
     }
 
     protected boolean supportsBFloat16ElementType() {

@@ -1283,13 +1283,20 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testKnnOptionsPushDown() {
-        String query =
-            """
-                from test
-                | where KNN(dense_vector, [0.1, 0.2, 0.3],
-                    {"k": 10, "min_candidates": 20, "rescore_oversample": 1.5, "similarity": 0.5, "boost": 2.0, "visit_percentage": 0.25, "post_filtering_threshold": 0.7})
-                | limit 50
-                """;
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3],
+                {
+                    "k": 10,
+                    "min_candidates": 20,
+                    "rescore_oversample": 1.5,
+                    "similarity": 0.5,
+                    "boost": 2.0,
+                    "visit_percentage": 0.25,
+                    "post_filtering_threshold": 0.42
+                })
+            | limit 50
+            """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
 
@@ -1304,7 +1311,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             0.25f,
             new RescoreVectorBuilder(1.5f),
             0.5f,
-            0.7f
+            0.42f
         ).boost(2.0f);
         assertEquals(expectedQuery.toString(), planStr.get());
     }

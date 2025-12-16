@@ -77,7 +77,7 @@ public class KnnSearchIT extends ESIntegTestCase {
         // test top level knn search
         {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null)));
+            sourceBuilder.knnSearch(List.of(new KnnSearchBuilder(VECTOR_FIELD, new float[] { 0, 0 }, k, 100, 10f, null, null, null)));
             executeScrollSearch(client, sourceBuilder, k);
         }
         // test top level knn search + another query

@@ -469,9 +469,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/139482
-- class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
-  method: test {p0=search/500_date_range/test range query for all docs with year uuuu}
-  issue: https://github.com/elastic/elasticsearch/issues/139534
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testMultipleSnapshotAndRollback
   issue: https://github.com/elastic/elasticsearch/issues/139556

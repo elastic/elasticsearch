@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -32,78 +33,95 @@ public final class VectorScoringUtils {
      *
      * @param knnCollector the collector to collect scored vectors
      * @param acceptDocs   the accept docs to filter vectors
+     * @param vectorValues the vector values for iteration
      * @param scorer       the vector scorer
      * @throws IOException if an I/O error occurs
      */
-    public static void scoreAndCollectAll(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer) throws IOException {
-        if (knnCollector.k() == 0 || scorer == null) {
+    public static void scoreAndCollectAll(KnnCollector knnCollector, AcceptDocs acceptDocs, KnnVectorValues vectorValues, RandomVectorScorer scorer) throws IOException {
+        if (knnCollector.k() == 0 || scorer == null || vectorValues == null) {
             return;
         }
 
         DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
 
         if (acceptDocsIterator == null) {
-            for (int i = 0; i < scorer.maxOrd(); i++) {
-                knnCollector.collect(scorer.ordToDoc(i), scorer.score(i));
-                knnCollector.incVisitedCount(1);
-            }
+            bulkScoreAllOrdinals(knnCollector, scorer);
         } else {
-            DocIdSetIterator vectorIterator = new OrdinalToDocIterator(scorer);
-            var conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIterator, acceptDocsIterator));
-
-            int doc;
-            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                int ord = ((OrdinalToDocIterator) vectorIterator).currentOrd();
-                knnCollector.collect(doc, scorer.score(ord));
-                knnCollector.incVisitedCount(1);
-            }
+            bulkScoreWithFilter(knnCollector, acceptDocsIterator, vectorValues, scorer);
         }
-        assert knnCollector.earlyTerminated() == false;
     }
 
     /**
-     * Iterator that converts ordinals to document IDs for use with ConjunctionUtils
+     * Bulk score all vector ordinals without doc filtering.
+     * Assumes all ordinals map to live docs.
      */
-    private static class OrdinalToDocIterator extends DocIdSetIterator {
-        private final RandomVectorScorer scorer;
-        private int currentOrd = -1;
-        private int currentDoc = -1;
-
-        OrdinalToDocIterator(RandomVectorScorer scorer) {
-            this.scorer = scorer;
-        }
-
-        @Override
-        public int docID() {
-            return currentDoc;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            currentOrd++;
-            if (currentOrd >= scorer.maxOrd()) {
-                currentDoc = NO_MORE_DOCS;
-            } else {
-                currentDoc = scorer.ordToDoc(currentOrd);
+    private static void bulkScoreAllOrdinals(KnnCollector knnCollector, RandomVectorScorer scorer) throws IOException {
+        int[] ords = new int[BULK_SCORE_BLOCKS];
+        float[] scores = new float[BULK_SCORE_BLOCKS];
+        int count = 0;
+        int maxOrd = scorer.maxOrd();
+        
+        for (int i = 0; i < maxOrd; i++) {
+            if (knnCollector.earlyTerminated()) {
+                break;
             }
-            return currentDoc;
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            while (currentDoc < target && currentDoc != NO_MORE_DOCS) {
-                nextDoc();
+            
+            ords[count] = i;
+            count++;
+            
+            if (count == BULK_SCORE_BLOCKS) {
+                scorer.bulkScore(ords, scores, count);
+                for (int j = 0; j < count; j++) {
+                    knnCollector.collect(scorer.ordToDoc(ords[j]), scores[j]);
+                }
+                knnCollector.incVisitedCount(count);
+                count = 0;
             }
-            return currentDoc;
         }
-
-        @Override
-        public long cost() {
-            return scorer.maxOrd();
-        }
-
-        int currentOrd() {
-            return currentOrd;
+        
+        if (count > 0) {
+            scorer.bulkScore(ords, scores, count);
+            for (int j = 0; j < count; j++) {
+                knnCollector.collect(scorer.ordToDoc(ords[j]), scores[j]);
+            }
+            knnCollector.incVisitedCount(count);
         }
     }
+
+    private static void bulkScoreWithFilter(KnnCollector knnCollector, DocIdSetIterator acceptDocsIterator, KnnVectorValues vectorValues, RandomVectorScorer scorer) throws IOException {
+        int[] ords = new int[BULK_SCORE_BLOCKS];
+        int[] docs = new int[BULK_SCORE_BLOCKS];
+        float[] scores = new float[BULK_SCORE_BLOCKS];
+        int count = 0;
+        
+        var conjunction = ConjunctionUtils.intersectIterators(List.of(vectorValues, acceptDocsIterator));
+        
+        int doc;
+        while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            if (knnCollector.earlyTerminated()) {
+                break;
+            }
+            
+            int ord = vectorValues.ordValue();
+            ords[count] = ord;
+            docs[count] = doc;
+            count++;
+            
+            if (count == BULK_SCORE_BLOCKS) {
+                scorer.bulkScore(ords, scores, count);
+                for (int j = 0; j < count; j++) {
+                    knnCollector.collect(docs[j], scores[j]);
+                }
+                knnCollector.incVisitedCount(count);
+                count = 0;
+            }
+        }
+        
+        if (count > 0) {
+            scorer.bulkScore(ords, scores, count);
+            for (int j = 0; j < count; j++) {
+                knnCollector.collect(docs[j], scores[j]);
+            }
+            knnCollector.incVisitedCount(count);
+        }
 }

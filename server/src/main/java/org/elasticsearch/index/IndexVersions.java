@@ -207,6 +207,7 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID = def(9_055_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion AGG_METRIC_DOUBLE_REMOVE_POINTS = def(9_056_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STATELESS_SKIPPERS_ENABLED_FOR_TSDB = def(9_057_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STATELESS_SKIPPERS_DISABLED_BY_DEFAULT = def(9_058_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

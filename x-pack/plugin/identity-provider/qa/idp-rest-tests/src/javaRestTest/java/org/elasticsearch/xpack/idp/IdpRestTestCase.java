@@ -17,6 +17,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
+import org.junit.ClassRule;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,6 +42,47 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class IdpRestTestCase extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.idp.enabled", "true")
+        .setting("xpack.idp.entity_id", "https://idp.test.es.elasticsearch.org/")
+        .setting("xpack.idp.sso_endpoint.redirect", "http://idp.test.es.elasticsearch.org/test/saml/redirect")
+        .setting("xpack.idp.signing.certificate", "idp-sign.crt")
+        .setting("xpack.idp.signing.key", "idp-sign.key")
+        .setting("xpack.idp.privileges.application", "elastic-cloud")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.authc.realms.file.file.order", "0")
+        .setting("xpack.security.authc.realms.native.native.order", "1")
+        .setting("xpack.security.authc.realms.saml.cloud-saml.order", "2")
+        .setting("xpack.security.authc.realms.saml.cloud-saml.idp.entity_id", "https://idp.test.es.elasticsearch.org/")
+        .setting("xpack.security.authc.realms.saml.cloud-saml.idp.metadata.path", "idp-metadata.xml")
+        .setting("xpack.security.authc.realms.saml.cloud-saml.sp.entity_id", "ec:123456:abcdefg")
+        // This is a dummy one, we simulate the browser and a web app in our tests
+        .setting("xpack.security.authc.realms.saml.cloud-saml.sp.acs", "https://sp1.test.es.elasticsearch.org/saml/acs")
+        .setting("xpack.security.authc.realms.saml.cloud-saml.attributes.principal", "https://idp.test.es.elasticsearch.org/attribute/principal")
+        .setting("xpack.security.authc.realms.saml.cloud-saml.attributes.name", "https://idp.test.es.elasticsearch.org/attribute/name")
+        .setting("logger.org.elasticsearch.xpack.security.authc.saml", "TRACE")
+        .setting("logger.org.elasticsearch.xpack.idp", "TRACE")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .configFile("idp-sign.crt", Resource.fromClasspath("idp-sign.crt"))
+        .configFile("idp-sign.key", Resource.fromClasspath("idp-sign.key"))
+        .configFile("wildcard_services.json", Resource.fromClasspath("wildcard_services.json"))
+        // The SAML SP is preconfigured with the metadata of the IDP
+        .configFile("idp-metadata.xml", Resource.fromClasspath("idp-metadata.xml"))
+        .user("admin_user", "admin-password")
+        .user("idp_admin", "idp-password", "idp_admin", false)
+        .user("idp_user", "idp-password", "idp_user", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restAdminSettings() {

@@ -1,5 +1,5 @@
 pr: 139540
-summary: ES|QL - Add analysis and preanalysis timing information to profile
+summary: ES|QL - Add parsing, preanalysis and analysis timing information to profile
 area: ES|QL
 type: enhancement
 issues: []

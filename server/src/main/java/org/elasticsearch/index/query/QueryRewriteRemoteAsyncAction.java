@@ -30,6 +30,10 @@ public abstract class QueryRewriteRemoteAsyncAction<T, U extends QueryRewriteRem
         this.clusterAlias = Objects.requireNonNull(clusterAlias);
     }
 
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
     @Override
     protected final void execute(Client client, ActionListener<T> listener) {
         ThreadPool threadPool = client.threadPool();

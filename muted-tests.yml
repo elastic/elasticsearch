@@ -463,9 +463,6 @@ tests:
 - class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139625
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupByNothing
-  issue: https://github.com/elastic/elasticsearch/issues/139639
 
 # Examples:
 #

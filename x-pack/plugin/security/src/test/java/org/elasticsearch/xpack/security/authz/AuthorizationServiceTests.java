@@ -3925,7 +3925,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             notAccessibleIndexExpression.localExpressions().exception().getMessage(),
             equalTo(
                 "action [indices:data/read/search] is unauthorized for user [user]"
-                    + " with effective roles [partial-access-role] on indices [not-accessible-index], "
+                    + " with effective roles [partial-access-role] on indices [-*], "
                     + "this action is granted by the index privileges [read,all]"
             )
         );

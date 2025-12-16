@@ -33,13 +33,12 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         new MockElasticInferenceServiceAuthorizationServer();
 
     static {
-        // Ensure that the mock EIS server has an authorized response prior to the cluster starting
-        mockEISServer.enqueueAuthorizeAllModelsResponse();
+        mockEISServer.init(1);
     }
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "basic")
+        .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         // Adding both settings unless one feature flag is disabled in a particular environment
         .setting("xpack.inference.elastic.url", mockEISServer::getUrl)

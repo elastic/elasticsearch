@@ -9,7 +9,6 @@
 package org.elasticsearch.action.datastreams;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -47,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.cluster.metadata.DataStream.AUTO_SHARDING_FIELD;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
@@ -125,11 +123,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             this.includeDefaults = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.verbose = in.readBoolean();
-            } else {
-                this.verbose = false;
-            }
+            this.verbose = in.readBoolean();
         }
 
         @Override
@@ -340,13 +334,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeOptionalWriteable(timeSeries);
-                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-                    out.writeMap(indexSettingsValues);
-                    out.writeBoolean(templatePreferIlmValue);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                    out.writeOptionalVLong(maximumTimestamp);
-                }
+                out.writeMap(indexSettingsValues);
+                out.writeBoolean(templatePreferIlmValue);
+                out.writeOptionalVLong(maximumTimestamp);
                 if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }
@@ -663,7 +653,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failuresGlobalRetention == null ? null : failuresGlobalRetention.defaultRetention());
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            } else {
                 out.writeOptionalWriteable(dataGlobalRetention);
             }
         }

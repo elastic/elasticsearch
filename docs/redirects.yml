@@ -1,4 +1,7 @@
 redirects:
+  # Redirect for bbq.md move
+  'reference/elasticsearch/index-settings/bbq.md': 'reference/elasticsearch/mapping-reference/bbq.md'
+
   # Related to https://github.com/elastic/elasticsearch/pull/130716/
   'reference/query-languages/eql/eql-ex-threat-detection.md': 'docs-content://explore-analyze/query-filter/languages/example-detect-threats-with-eql.md'
 
@@ -112,3 +115,17 @@ redirects:
     many:
       - to: 'reference/elasticsearch/mapping-reference/match-only-text.md'
         anchors: { 'match-only-text-field-type', 'match-only-text-params' }
+
+  # semantic_text documentation restructuring - anchors moved to new pages
+  'reference/elasticsearch/mapping-reference/semantic-text.md':
+    to: 'reference/elasticsearch/mapping-reference/semantic-text.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md'
+        anchors: { 'using-elser-on-eis', 'default-and-preconfigured-endpoints', 'using-custom-endpoint', 'dedicated-endpoints-for-ingestion-and-search', 'configure-inference-endpoints' }
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-ingestions.md'
+        anchors: { 'pre-chunking', 'use-copy-to-with-semantic-text', 'updates-and-partial-updates', 'scripted-updates' }
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-search-retrieval.md'
+        anchors: { 'querying-semantic-text-fields', 'retrieving-indexed-chunks', 'returning-semantic-field-embeddings', 'returning-semantic-field-embeddings-in-_source', 'reindex-while-preserving-embeddings', 'troubleshooting-semantic-text-fields', 'returning-semantic-field-embeddings-using-fields', 'highlighting-fragments', 'cross-cluster-search' }
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-reference.md'
+        anchors: { 'semantic-text-params', 'configuring-inference-endpoints', 'chunking-behavior', 'limitations', 'document-count-discrepancy' }

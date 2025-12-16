@@ -414,7 +414,8 @@ public final class TextFieldMapper extends FieldMapper {
                     SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),
-                    indexPhrases.getValue()
+                    indexPhrases.getValue(),
+                    indexCreatedVersion
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -694,6 +695,7 @@ public final class TextFieldMapper extends FieldMapper {
         private PrefixFieldType prefixFieldType;
         private final boolean indexPhrases;
         private final boolean eagerGlobalOrdinals;
+        private final IndexVersion indexCreatedVersion;
         /**
          * In some configurations text fields use a sub-keyword field to provide
          * their values for synthetic source. This is that field. Or empty if we're
@@ -711,7 +713,8 @@ public final class TextFieldMapper extends FieldMapper {
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta,
             boolean eagerGlobalOrdinals,
-            boolean indexPhrases
+            boolean indexPhrases,
+            IndexVersion indexCreatedVersion
         ) {
             super(name, indexed ? IndexType.terms(true, false) : IndexType.NONE, stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             fielddata = false;
@@ -719,6 +722,34 @@ public final class TextFieldMapper extends FieldMapper {
             this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
+            this.indexCreatedVersion = indexCreatedVersion;
+        }
+
+        public TextFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            TextSearchInfo tsi,
+            boolean isSyntheticSource,
+            boolean isWithinMultiField,
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
+            Map<String, String> meta,
+            boolean eagerGlobalOrdinals,
+            boolean indexPhrases
+        ) {
+            this(
+                name,
+                indexed,
+                stored,
+                tsi,
+                isSyntheticSource,
+                isWithinMultiField,
+                syntheticSourceDelegate,
+                meta,
+                eagerGlobalOrdinals,
+                indexPhrases,
+                IndexVersion.current()
+            );
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
@@ -735,6 +766,7 @@ public final class TextFieldMapper extends FieldMapper {
             syntheticSourceDelegate = null;
             eagerGlobalOrdinals = false;
             indexPhrases = false;
+            indexCreatedVersion = IndexVersion.current();
         }
 
         public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
@@ -748,7 +780,8 @@ public final class TextFieldMapper extends FieldMapper {
                 null,
                 Collections.emptyMap(),
                 false,
-                false
+                false,
+                IndexVersion.current()
             );
         }
 
@@ -768,7 +801,8 @@ public final class TextFieldMapper extends FieldMapper {
                 syntheticSourceDelegate,
                 Collections.emptyMap(),
                 false,
-                false
+                false,
+                IndexVersion.current()
             );
         }
 
@@ -1080,6 +1114,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // 1. check if we can load from a synthetic source delegate
             if (canUseSyntheticSourceDelegateForLoading()) {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.get().blockLoader(blContext)) {
                     @Override
@@ -1088,6 +1123,8 @@ public final class TextFieldMapper extends FieldMapper {
                     }
                 };
             }
+
+            // 2. check if we can load from a parent field
             /*
              * If this is a sub-text field try and return the parent's loader. Text
              * fields will always be slow to load and if the parent is exact then we
@@ -1108,22 +1145,37 @@ public final class TextFieldMapper extends FieldMapper {
                     }
                 }
             }
+
+            // 3. bwc - check if we need to load from ignored source (aka fallback synthetic source)
+            if (wasIndexCreatedWhenTextFieldsWereStoredInIgnoredSource()) {
+                if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null && isStored() == false) {
+                    return fallbackSyntheticSourceBlockLoader(blContext);
+                }
+            }
+
+            // 4. check if we can load from a stored field
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // _ignored_source field will contain entries for this field if it is not stored
-            // and there is no syntheticSourceDelegate.
-            // See #syntheticSourceSupport().
-            // But if a text field is a multi field it won't have an entry in _ignored_source.
-            // The parent might, but we don't have enough context here to figure this out.
-            // So we bail.
+            // 5. check if we can load from a fallback stored field
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
-                return fallbackSyntheticSourceBlockLoader(blContext);
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(syntheticSourceFallbackFieldName());
             }
-            // otherwise, load values from _source (synthetic or not)
+
+            // 6. load directly from _source (synthetic or not)
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+        }
+
+        /**
+         * There was an unintended change that resulted in some text fields being stored in ignored source.
+         */
+        private boolean wasIndexCreatedWhenTextFieldsWereStoredInIgnoredSource() {
+            return indexCreatedVersion.between(
+                IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+                IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX
+            );
         }
 
         FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(BlockLoaderContext blContext) {
@@ -1265,7 +1317,7 @@ public final class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, false, null, meta, false, false);
+            super(name, indexed, stored, tsi, false, false, null, meta, false, false, IndexVersion.current());
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1473,22 +1525,17 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
-        // if the field isn't stored, yet we need it stored for synthetic source, then attempt to use the synthetic source delegate
-        if (fieldType().storeFieldForSyntheticSource(indexCreatedVersion)
-            && fieldType.stored() == false
-            && fieldType().syntheticSourceDelegate.isPresent()) {
-
-            // check if the delegate can even handle storing for us
+        // if we need to support synthetic source, yet the field isn't stored, then we need an alternative way of loading the field
+        if (fieldType().storeFieldForSyntheticSource(indexCreatedVersion) && fieldType.stored() == false) {
+            // rely on the delegate field if we can
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
             }
 
-            // if not, then store the field ourselves
+            // otherwise, just store the field ourselves
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
             context.doc().add(new StoredField(fieldName, value));
         }
-
-        // if we get to this point and synthetic source is enabled, then the field will be stored in ignored source
     }
 
     /**
@@ -1684,8 +1731,9 @@ public final class TextFieldMapper extends FieldMapper {
             });
         }
 
-        // if there is no synthetic source delegate, then fall back to ignored source
-        if (fieldType().syntheticSourceDelegate.isEmpty()) {
+        // this check exists for BWC purposes - there was a bug that resulted in some text fields being stored in ignored source
+        if (fieldType().syntheticSourceDelegate.isEmpty()
+            && indexCreatedVersion.before(IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX)) {
             return super.syntheticSourceSupport();
         }
 

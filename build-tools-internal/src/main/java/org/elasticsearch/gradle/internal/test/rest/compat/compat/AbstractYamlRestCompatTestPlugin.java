@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
@@ -44,6 +43,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.inject.Inject;
 
@@ -96,127 +96,148 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
         // determine the previous rest compatibility version and BWC project path
         int currentMajor = buildParams.getBwcVersions().getCurrentVersion().getMajor();
-        Version lastMinor = buildParams.getBwcVersions()
-            .getUnreleased()
-            .stream()
-            .filter(v -> v.getMajor() == currentMajor - 1)
-            .min(Comparator.reverseOrder())
-            .get();
-        String lastMinorProjectPath = buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();
+        System.out.println("currentMajor = " + currentMajor);
+        System.out.println("currentMinor = " + buildParams.getBwcVersions().getCurrentVersion().getMinor());
+        System.out.println(buildParams.getBwcVersions().getUnreleased());
+
+        Optional<String> lastMinorProjectPath = buildParams.getBwcVersions().getUnreleased().stream().filter(v -> {
+            System.out.println(v.getMajor() + " vs " + (currentMajor - 1));
+            return (v.getMajor() == currentMajor - 1);
+        }).min(Comparator.reverseOrder()).map(lastMinor -> buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath());
+
+        // buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();
 
         // copy compatible rest specs
-        Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
-        Dependency bwcMinor = project.getDependencies().project(Map.of("path", lastMinorProjectPath, "configuration", "checkout"));
-        project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
-
+        Optional<Configuration> bwcMinorConfig = lastMinorProjectPath.map(p -> project.getConfigurations().create(BWC_MINOR_CONFIG_NAME));
+        Optional<Dependency> bwcMinor = lastMinorProjectPath.map(
+            p -> project.getDependencies().project(Map.of("path", p, "configuration", "checkout"))
+        );
+        bwcMinorConfig.ifPresent(c -> project.getDependencies().add(c.getName(), bwcMinor.get()));
         String projectPath = project.getPath();
+
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
             .register("copyRestCompatApiTask", CopyRestApiTask.class, task -> {
-                task.dependsOn(bwcMinorConfig);
-                task.setConfig(bwcMinorConfig);
-                task.setAdditionalConfig(bwcMinorConfig);
-                task.getInclude().set(extension.getRestApi().getInclude());
-                task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatSpecsDir.toString()));
-                task.setSourceResourceDir(
-                    yamlCompatTestSourceSet.getResources()
-                        .getSrcDirs()
-                        .stream()
-                        .filter(f -> f.isDirectory() && f.getName().equals("resources"))
-                        .findFirst()
-                        .orElse(null)
-                );
-                task.setSkipHasRestTestCheck(true);
-                task.setConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
-                    )
-                );
-                task.setAdditionalConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                            .resolve(RELATIVE_API_PATH)
-                    )
-                );
-                onlyIfBwcEnabled(task, extraProperties);
-                // task.onlyIf(t -> isEnabled(extraProperties));
+                task.onlyIf(t -> bwcMinorConfig.isPresent());
+                if (bwcMinorConfig.isPresent()) {
+                    task.dependsOn(bwcMinorConfig.get());
+                    task.setConfig(bwcMinorConfig.get());
+                    task.setAdditionalConfig(bwcMinorConfig.get());
+                    task.getInclude().set(extension.getRestApi().getInclude());
+                    task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatSpecsDir.toString()));
+                    task.setSourceResourceDir(
+                        yamlCompatTestSourceSet.getResources()
+                            .getSrcDirs()
+                            .stream()
+                            .filter(f -> f.isDirectory() && f.getName().equals("resources"))
+                            .findFirst()
+                            .orElse(null)
+                    );
+                    task.setSkipHasRestTestCheck(true);
+                    task.setConfigToFileTree(
+                        config -> fileOperations.fileTree(
+                            config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
+                        )
+                    );
+                    task.setAdditionalConfigToFileTree(
+                        config -> fileOperations.fileTree(
+                            getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                                .resolve(RELATIVE_API_PATH)
+                        )
+                    );
+                    onlyIfBwcEnabled(task, extraProperties);
+                }
             });
 
         // copy compatible rest tests
         Provider<CopyRestTestsTask> copyCompatYamlTestTask = project.getTasks()
             .register("copyRestCompatTestTask", CopyRestTestsTask.class, task -> {
-                task.dependsOn(bwcMinorConfig);
-                task.setCoreConfig(bwcMinorConfig);
-                task.setXpackConfig(bwcMinorConfig);
-                task.setAdditionalConfig(bwcMinorConfig);
-                task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
-                task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
-                task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatTestsDir.resolve("original").toString()));
-                task.setCoreConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        config.getSingleFile()
-                            .toPath()
-                            .resolve(RELATIVE_REST_CORE)
-                            .resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                            .resolve(RELATIVE_TEST_PATH)
-                    )
-                );
-                task.setXpackConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        config.getSingleFile()
-                            .toPath()
-                            .resolve(RELATIVE_REST_XPACK)
-                            .resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                            .resolve(RELATIVE_TEST_PATH)
-                    )
-                );
-                task.setAdditionalConfigToFileTree(
-                    config -> fileOperations.fileTree(
-                        getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                            .resolve(RELATIVE_TEST_PATH)
-                    )
-                );
-                task.dependsOn(copyCompatYamlSpecTask);
-                onlyIfBwcEnabled(task, extraProperties);
+                task.onlyIf("lastminor version available", t -> bwcMinorConfig.isPresent());
+                if (bwcMinorConfig.isPresent()) {
+                    task.dependsOn(bwcMinorConfig.get());
+                    task.setCoreConfig(bwcMinorConfig.get());
+                    task.setXpackConfig(bwcMinorConfig.get());
+                    task.setAdditionalConfig(bwcMinorConfig.get());
+                    task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
+                    task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
+                    task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatTestsDir.resolve("original").toString()));
+                    task.setCoreConfigToFileTree(
+                        config -> fileOperations.fileTree(
+                            config.getSingleFile()
+                                .toPath()
+                                .resolve(RELATIVE_REST_CORE)
+                                .resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                                .resolve(RELATIVE_TEST_PATH)
+                        )
+                    );
+                    task.setXpackConfigToFileTree(
+                        config -> fileOperations.fileTree(
+                            config.getSingleFile()
+                                .toPath()
+                                .resolve(RELATIVE_REST_XPACK)
+                                .resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                                .resolve(RELATIVE_TEST_PATH)
+                        )
+                    );
+                    task.setAdditionalConfigToFileTree(
+                        config -> fileOperations.fileTree(
+                            getCompatProjectPath(projectPath, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                                .resolve(RELATIVE_TEST_PATH)
+                        )
+                    );
+                    task.dependsOn(copyCompatYamlSpecTask);
+                    onlyIfBwcEnabled(task, extraProperties);
+                }
             });
 
         // copy both local source set apis and compat apis to a single location to be exported as an artifact
         TaskProvider<Sync> bundleRestCompatApis = project.getTasks().register("bundleRestCompatApis", Sync.class, task -> {
-            task.setDestinationDir(projectLayout.getBuildDirectory().dir("bundledCompatApis").get().getAsFile());
-            task.setIncludeEmptyDirs(false);
-            task.from(copyCompatYamlSpecTask.flatMap(t -> t.getOutputResourceDir().map(d -> d.dir(RELATIVE_API_PATH.toString()))));
-            task.from(yamlCompatTestSourceSet.getProcessResourcesTaskName(), s -> {
-                s.include(RELATIVE_API_PATH + "/*");
-                s.eachFile(
-                    details -> details.setRelativePath(
-                        new RelativePath(true, Arrays.stream(details.getRelativePath().getSegments()).skip(2).toArray(String[]::new))
-                    )
-                );
-            });
+            task.onlyIf("lastminor version available", t -> bwcMinorConfig.isPresent());
+            if (bwcMinorConfig.isPresent()) {
+                task.setDestinationDir(projectLayout.getBuildDirectory().dir("bundledCompatApis").get().getAsFile());
+                task.setIncludeEmptyDirs(false);
+                task.from(copyCompatYamlSpecTask.flatMap(t -> t.getOutputResourceDir().map(d -> d.dir(RELATIVE_API_PATH.toString()))));
+                task.from(yamlCompatTestSourceSet.getProcessResourcesTaskName(), s -> {
+                    s.include(RELATIVE_API_PATH + "/*");
+                    s.eachFile(
+                        details -> details.setRelativePath(
+                            new RelativePath(true, Arrays.stream(details.getRelativePath().getSegments()).skip(2).toArray(String[]::new))
+                        )
+                    );
+                });
+            }
+
         });
 
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
             .register("yamlRestCompatTestTransform", RestCompatTestTransformTask.class, task -> {
-                task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
-                task.getOutputDirectory()
-                    .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));
-                onlyIfBwcEnabled(task, extraProperties);
+                task.onlyIf("lastminor version available", t -> bwcMinorConfig.isPresent());
+                if (bwcMinorConfig.isPresent()) {
+                    task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
+                    task.getOutputDirectory()
+                        .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));
+                    onlyIfBwcEnabled(task, extraProperties);
+                }
             });
 
-        // Register compat rest resources with source set
-        yamlCompatTestSourceSet.getOutput().dir(copyCompatYamlSpecTask.map(CopyRestApiTask::getOutputResourceDir));
-        yamlCompatTestSourceSet.getOutput().dir(transformCompatTestTask.map(RestCompatTestTransformTask::getOutputDirectory));
+        if (bwcMinorConfig.isPresent()) {
 
-        // Register artifact for transformed compatibility apis and tests
-        Configuration compatRestSpecs = project.getConfigurations().create(COMPATIBILITY_APIS_CONFIGURATION);
-        Configuration compatRestTests = project.getConfigurations().create(COMPATIBILITY_TESTS_CONFIGURATION);
-        project.getArtifacts().add(compatRestSpecs.getName(), bundleRestCompatApis.map(Sync::getDestinationDir));
-        project.getArtifacts()
-            .add(
-                compatRestTests.getName(),
-                transformCompatTestTask.flatMap(t -> t.getOutputDirectory().dir(RELATIVE_TEST_PATH.toString()))
-            );
+            // Register compat rest resources with source set
+            yamlCompatTestSourceSet.getOutput().dir(copyCompatYamlSpecTask.map(CopyRestApiTask::getOutputResourceDir));
+            yamlCompatTestSourceSet.getOutput().dir(transformCompatTestTask.map(RestCompatTestTransformTask::getOutputDirectory));
+
+            // Register artifact for transformed compatibility apis and tests
+            Configuration compatRestSpecs = project.getConfigurations().create(COMPATIBILITY_APIS_CONFIGURATION);
+            Configuration compatRestTests = project.getConfigurations().create(COMPATIBILITY_TESTS_CONFIGURATION);
+            project.getArtifacts().add(compatRestSpecs.getName(), bundleRestCompatApis.map(Sync::getDestinationDir));
+            project.getArtifacts()
+                .add(
+                    compatRestTests.getName(),
+                    transformCompatTestTask.flatMap(t -> t.getOutputDirectory().dir(RELATIVE_TEST_PATH.toString()))
+                );
+
+        }
 
         // Grab the original rest resources locations so we can omit them from the compatibility testing classpath down below
         Provider<Directory> originalYamlSpecsDir = project.getTasks()
@@ -242,6 +263,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         // setup the test task
         TaskProvider<? extends Test> yamlRestCompatTestTask = registerTestTask(project, yamlCompatTestSourceSet);
         yamlRestCompatTestTask.configure(testTask -> {
+            testTask.onlyIf("lastminor version available", t -> bwcMinorConfig.isPresent());
             testTask.systemProperty("tests.restCompat", true);
             // Use test runner and classpath from "normal" yaml source set
             FileCollection outputFileCollection = yamlCompatTestSourceSet.getOutput();

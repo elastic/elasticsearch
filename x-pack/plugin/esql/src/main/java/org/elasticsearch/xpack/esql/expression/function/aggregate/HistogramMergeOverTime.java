@@ -38,10 +38,10 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction implemen
         HistogramMergeOverTime::new
     );
 
-    @FunctionInfo(returnType = "exponential_histogram", type = FunctionType.TIME_SERIES_AGGREGATE)
+    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.TIME_SERIES_AGGREGATE)
     public HistogramMergeOverTime(
         Source source,
-        @Param(name = "histogram", type = "exponential_histogram") Expression field,
+        @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,
         @Param(name = "window", type = "time_duration", optional = true) Expression window
     ) {
         this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));

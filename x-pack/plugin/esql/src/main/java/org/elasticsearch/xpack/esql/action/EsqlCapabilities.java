@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT;
 
 /**
@@ -1109,6 +1108,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for views in cluster state (and REST API).
+         */
+        VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -1352,7 +1356,7 @@ public class EsqlCapabilities {
         /**
          * Cosine vector similarity function
          */
-        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        COSINE_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Fixed some profile serialization issues
@@ -1366,17 +1370,17 @@ public class EsqlCapabilities {
         /**
          * Dot product vector similarity function
          */
-        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * l1 norm vector similarity function
          */
-        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * l2 norm vector similarity function
          */
-        L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L2_NORM_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Support for the options field of CATEGORIZE.
@@ -1415,6 +1419,11 @@ public class EsqlCapabilities {
         DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS,
 
         /**
+         * Support directIO rescoring and `bfloat16` for `bbq_hnsw` and `bbq_disk`, and `bfloat16` for `hnsw` ans `bbq_flat` index types.
+         */
+        GENERIC_VECTOR_FORMAT,
+
+        /**
          * Support null elements on vector similarity functions
          */
         VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,
@@ -1422,7 +1431,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector Hamming distance.
          */
-        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        HAMMING_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Support for tbucket function
@@ -1465,7 +1474,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+        ENABLE_FORK_FOR_REMOTE_INDICES_V2(Build.current().isSnapshot()),
 
         /**
          * Support for the Present function
@@ -1527,6 +1536,12 @@ public class EsqlCapabilities {
         TS_RATE_DATENANOS,
         TS_RATE_DATENANOS_2,
         TS_DERIV_DATENANOS,
+
+        /**
+         * Rate and increase calculations use interpolation at the boundaries between time buckets
+         */
+        RATE_WITH_INTERPOLATION,
+
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1582,13 +1597,16 @@ public class EsqlCapabilities {
         PACK_DIMENSIONS_IN_TS,
 
         /**
-         * Support for exponential_histogram type, before it is released into tech preview.
-         * When implementing changes on this type, we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
+         * Support for exponential_histogram fields in the state of when it first was released into tech preview.
          */
-        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+        EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
 
-        TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY(T_DIGEST_ESQL_SUPPORT),
+        TDIGEST_FIELD_TYPE_SUPPORT_V4(T_DIGEST_ESQL_SUPPORT),
+
+        /**
+         * Development capability for the histogram field integration
+         */
+        HISTOGRAM_FIELD_SUPPORT_V0,
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1668,6 +1686,11 @@ public class EsqlCapabilities {
         FIX_MV_CONSTANT_EQUALS_FIELD,
 
         /**
+         * Support for base conversion in TO_LONG and TO_INTEGER
+         */
+        BASE_CONVERSION,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
          * https://github.com/elastic/elasticsearch/issues/137019.
          */
@@ -1681,7 +1704,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector similarity functtions pushdown
          */
-        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot()),
+        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN,
 
         FIX_MV_CONSTANT_COMPARISON_FIELD,
 
@@ -1730,9 +1753,28 @@ public class EsqlCapabilities {
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 
         /**
+         * Fix for circular reference in alias chains during PushDownEnrich and aggregate deduplication.
+         * Prevents "Potential cycle detected" errors when aliases reference each other.
+         * https://github.com/elastic/elasticsearch/issues/138346
+         */
+        FIX_ENRICH_ALIAS_CYCLE_IN_DEDUPLICATE_AGGS,
+
+        /**
          * Returns the top snippets for given text content and associated query.
          */
-        TOP_SNIPPETS_FUNCTION(Build.current().isSnapshot()),
+        TOP_SNIPPETS_FUNCTION,
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/138283
+         */
+        FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
+
+        /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval} replaced a stats
+         * with false filter with null with {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Present} or
+         * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
+         */
+        FIX_PRESENT_AND_ABSENT_ON_STATS_WITH_FALSE_FILTER,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
@@ -1790,7 +1832,7 @@ public class EsqlCapabilities {
      * capability.
      */
     public static String cap(NodeFeature feature) {
-        assert feature.id().startsWith("esql.");
+        assert feature.id().startsWith("esql.") : "node feature must start with 'esql.' but was " + feature.id();
         return feature.id().substring("esql.".length());
     }
 }

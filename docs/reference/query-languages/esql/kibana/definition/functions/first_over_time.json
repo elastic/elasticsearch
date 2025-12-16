@@ -80,6 +80,24 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the first over time value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "exponential_histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "the metric field to calculate the value for"

@@ -68,6 +68,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -75,6 +76,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
@@ -249,6 +251,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == AGGREGATE_METRIC_DOUBLE  // need special handling for loads at the moment
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
+                        || type == TDIGEST
+                        || type == HISTOGRAM
                         || type == GEOHASH
                         || type == GEOTILE
                         || type == GEOHEX

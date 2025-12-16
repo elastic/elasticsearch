@@ -69,7 +69,8 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" },
+                "exponential_histogram",
+                "tdigest" },
             description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(

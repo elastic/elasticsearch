@@ -92,6 +92,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "geo_point",
           "optional" : false,
           "description" : "the metric field to calculate the value for"

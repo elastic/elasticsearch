@@ -37,8 +37,8 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "double", "integer", "long", "exponential_histogram" },
-            description = "the metric field to calculate the value for"
+            type = { "double", "integer", "long", "exponential_histogram", "tdigest" },
+            description = "Expression that outputs values to calculate the percentile of."
         ) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {

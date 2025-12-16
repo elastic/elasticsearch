@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -3578,7 +3580,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
 
-        if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+        if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2.isEnabled() == false) {
             var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
             expectError(
                 "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",
@@ -3643,6 +3645,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankEmptyOptions() {
@@ -3653,6 +3656,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankInferenceId() {
@@ -3663,6 +3667,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankScoreAttribute() {
@@ -3673,6 +3678,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankInferenceIdAnddScoreAttribute() {
@@ -3683,6 +3689,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankSingleField() {
@@ -3693,6 +3700,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankMultipleFields() {
@@ -3714,6 +3722,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankComputedFields() {
@@ -3734,6 +3743,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankComputedFieldsWithoutName() {
@@ -3755,6 +3765,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankWithNamedParameters() {
@@ -3770,6 +3781,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
+    }
+
+    public void testRerankRowLimitOverride() {
+        int customRowLimit = between(1, 10_000);
+        Settings settings = Settings.builder().put(InferenceSettings.RERANK_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+
+        var plan = as(
+            processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceID\" }", new QueryParams(), settings),
+            Rerank.class
+        );
+
+        assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
+    }
+
+    public void testRerankCommandDisabled() {
+        Settings settings = Settings.builder().put(InferenceSettings.RERANK_ENABLED_SETTING.getKey(), false).build();
+
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> processingCommand("RERANK \"query text\" ON title", new QueryParams(), settings)
+        );
+        assertThat(pe.getMessage(), containsString("RERANK command is disabled"));
     }
 
     public void testInvalidRerank() {
@@ -3783,12 +3817,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
-
-        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-        expectError(
-            "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH { \"inference_id\" : \"inference_id\" }",
-            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
-        );
 
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": { \"a\": 123 } }",
@@ -3816,6 +3844,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("targetField")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
@@ -3827,6 +3857,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("targetField")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
     }
 
     public void testCompletionDefaultFieldName() {
@@ -3835,6 +3866,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
     }
 
     public void testCompletionWithPositionalParameters() {
@@ -3847,6 +3879,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
     }
 
     public void testCompletionWithNamedParameters() {
@@ -3859,6 +3892,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("completion")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+    }
+
+    public void testCompletionRowLimitOverride() {
+        int customRowLimit = between(1, 10_000);
+        Settings settings = Settings.builder().put(InferenceSettings.COMPLETION_ROW_LIMIT_SETTING.getKey(), customRowLimit).build();
+
+        var plan = as(
+            processingCommand("COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }", new QueryParams(), settings),
+            Completion.class
+        );
+
+        assertThat(plan.rowLimit(), equalTo(Literal.integer(EMPTY, customRowLimit)));
+    }
+
+    public void testCompletionCommandDisabled() {
+        Settings settings = Settings.builder().put(InferenceSettings.COMPLETION_ENABLED_SETTING.getKey(), false).build();
+
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> processingCommand("COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }", new QueryParams(), settings)
+        );
+        assertThat(pe.getMessage(), containsString("COMPLETION command is disabled"));
     }
 
     public void testInvalidCompletion() {
@@ -3874,12 +3930,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
 
         expectError("FROM foo* | COMPLETION completion=prompt WITH", "ine 1:46: mismatched input '<EOF>' expecting '{'");
-
-        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-        expectError(
-            "FROM " + fromPatterns + " | COMPLETION prompt_field WITH { \"inference_id\" : \"inference_id\" }",
-            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with COMPLETION"
-        );
 
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",

@@ -2,12 +2,12 @@
 * [`AVG_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-avg_over_time) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`COUNT_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-count_over_time) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`COUNT_DISTINCT_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-count_distinct_over_time) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
-* [`DELTA`](../../functions-operators/time-series-aggregation-functions.md#esql-rate) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* [`DELTA`](../../functions-operators/time-series-aggregation-functions.md#esql-delta) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`DERIV`](../../functions-operators/time-series-aggregation-functions.md#esql-deriv) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 * [`FIRST_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-first_over_time) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
-* [`IDELTA`](../../functions-operators/time-series-aggregation-functions.md#esql-rate) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
-* [`INCREASE`](../../functions-operators/time-series-aggregation-functions.md#esql-rate) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
-* [`IRATE`](../../functions-operators/time-series-aggregation-functions.md#esql-rate) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* [`IDELTA`](../../functions-operators/time-series-aggregation-functions.md#esql-idelta) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* [`INCREASE`](../../functions-operators/time-series-aggregation-functions.md#esql-increase) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* [`IRATE`](../../functions-operators/time-series-aggregation-functions.md#esql-irate) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`LAST_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-last_over_time) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`MAX_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-max_over_time) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`MIN_OVER_TIME`](../../functions-operators/time-series-aggregation-functions.md#esql-min_over_time) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`

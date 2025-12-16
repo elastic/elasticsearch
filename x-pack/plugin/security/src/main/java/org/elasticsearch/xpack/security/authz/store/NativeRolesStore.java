@@ -661,10 +661,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
 
         if (role.hasRemoteClusterPermissions() == false
-            && clusterService.state().getMinTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            && clusterService.state().getMinTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS)) {
             builder.array(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName(), NONE);
         }
-        if (role.hasDescription() == false && clusterService.state().getMinTransportVersion().onOrAfter(SECURITY_ROLE_DESCRIPTION)) {
+        if (role.hasDescription() == false && clusterService.state().getMinTransportVersion().supports(SECURITY_ROLE_DESCRIPTION)) {
             builder.field(RoleDescriptor.Fields.DESCRIPTION.getPreferredName(), "");
         }
 

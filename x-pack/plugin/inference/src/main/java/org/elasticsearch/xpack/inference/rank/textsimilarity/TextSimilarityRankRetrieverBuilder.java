@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -22,9 +24,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 
 import java.io.IOException;
@@ -254,14 +253,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             SetOnce<Integer> supplier = new SetOnce<>();
             ctx.registerAsyncAction((client, listener) -> {
                 GetRerankerWindowSizeAction.Request request = new GetRerankerWindowSizeAction.Request(inferenceId);
-                client.execute(
-                    GetRerankerWindowSizeAction.INSTANCE,
-                    request,
-                    listener.delegateFailureAndWrap((l, response) -> {
-                        supplier.set(response.getWindowSize());
-                        l.onResponse(null);
-                    })
-                );
+                client.execute(GetRerankerWindowSizeAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> {
+                    supplier.set(response.getWindowSize());
+                    l.onResponse(null);
+                }));
             });
             return new TextSimilarityRankRetrieverBuilder(
                 innerRetrievers,

@@ -230,6 +230,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
         final List<String[]> expressionsList = List.of(
             new String[] { "" },
+            new String[] { "", "_all" },
             new String[] { "*", "" },
             new String[] { "test1", "" },
             new String[] { "*", "", "test1" }
@@ -247,7 +248,12 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             new String[] { "-" },
             new String[] { "*", "-" },
             new String[] { "test1", "-" },
-            new String[] { "*", "-", "test1" }
+            new String[] { "*", "-", "test1" },
+            new String[] { "-", "_all" },
+            new String[] { "_all", "-" },
+            new String[] { "-", "-" },
+            new String[] { "-testXXX", "-" },
+            new String[] { "*", "-testXXX", "-" }
         );
         for (var expressions : expressionsList) {
             final var e = expectThrows(InvalidIndexNameException.class, () -> trySearch(expressions).get());

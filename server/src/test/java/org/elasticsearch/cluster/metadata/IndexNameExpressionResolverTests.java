@@ -1062,7 +1062,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             new String[] { "-" },
             new String[] { "*", "-" },
             new String[] { "testXXX", "-" },
-            new String[] { "*", "-", "testXXX" }
+            new String[] { "*", "-", "testXXX" },
+            new String[] { "-", "-" },
+            new String[] { "-", "_all" },
+            new String[] { "-testXXX", "-" },
+            new String[] { "*", "-testXXX", "-" }
         );
 
         for (var expressions : expressionsList) {
@@ -1072,6 +1076,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 () -> indexNameExpressionResolver.concreteIndexNames(context, expressions)
             );
         }
+
+        // _all is special only when it is used on its own. If combined with other expressions, it becomes invalid
+        // because we don't allow index name begin with '_'.
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("Invalid index name [_all], must not start with '_'."),
+            () -> indexNameExpressionResolver.concreteIndexNames(context, "_all", "-")
+        );
     }
 
     public void testConcreteIndicesWildcardAndAliases() {

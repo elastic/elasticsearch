@@ -3599,3 +3599,36 @@ from airports
 a:double | b:double | c:long
 6.0      | 6.0      | 8
 ;
+
+fixStatsValuesOnReferenceToNullUncasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null
+| STATS VALUES(x)
+;
+
+VALUES(x):null
+null
+;
+
+fixStatsValuesOnReferenceToNullCasted
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = null::long
+| STATS VALUES(x)
+;
+
+VALUES(x):long
+null
+;
+
+fixStatsValuesOnLiteralNull
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+ROW x = 1
+| STATS y = VALUES(null)
+;
+
+y:null
+null
+;

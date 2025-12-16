@@ -214,9 +214,7 @@ public class MetadataMappingService {
 
         private void logMappingResult(Index index, CompressedXContent existingSource, CompressedXContent updatedSource, String type) {
             if (existingSource != null) {
-                if (existingSource.equals(updatedSource)) {
-                    // same source, no changes, ignore it
-                } else {
+                if (existingSource.equals(updatedSource) == false) { // source has changed
                     if (logger.isDebugEnabled()) {
                         logger.debug("{} update_mapping [{}] with source [{}]", index, type, updatedSource);
                     } else if (logger.isInfoEnabled()) {

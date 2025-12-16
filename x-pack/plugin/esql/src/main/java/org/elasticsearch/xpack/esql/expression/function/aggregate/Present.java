@@ -83,7 +83,8 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" },
+                "exponential_histogram",
+                "tdigest" },
             description = "Expression that outputs values to be checked for presence."
         ) Expression field
     ) {

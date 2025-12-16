@@ -64,7 +64,8 @@ public class MaxOverTime extends TimeSeriesAggregateFunction implements Optional
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" }
+                "exponential_histogram",
+                "tdigest" }
         ) Expression field,
         @Param(
             name = "window",

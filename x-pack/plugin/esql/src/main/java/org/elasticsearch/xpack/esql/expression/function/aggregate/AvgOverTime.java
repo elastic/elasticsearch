@@ -51,7 +51,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
         Source source,
         @Param(
             name = "number",
-            type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram" },
+            type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram", "tdigest" },
             description = "Expression that outputs values to average."
         ) Expression field,
         @Param(

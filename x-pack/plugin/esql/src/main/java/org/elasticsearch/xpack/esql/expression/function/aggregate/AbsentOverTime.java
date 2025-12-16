@@ -68,7 +68,8 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" }
+                "exponential_histogram",
+                "tdigest" }
         ) Expression field,
         @Param(
             name = "window",

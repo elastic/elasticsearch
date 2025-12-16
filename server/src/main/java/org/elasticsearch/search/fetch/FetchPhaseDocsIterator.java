@@ -25,11 +25,13 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Given a set of doc ids and an index reader, sorts the docs by id (when not streaming),
@@ -110,7 +112,9 @@ abstract class FetchPhaseDocsIterator {
         QuerySearchResult querySearchResult,
         FetchPhaseResponseChunk.Writer chunkWriter,
         int chunkSize,
-        List<CompletableFuture<Void>> pendingChunks
+        ArrayDeque<CompletableFuture<Void>> pendingChunks,
+        int maxInFlightChunks,
+        AtomicReference<Throwable> sendFailure
     ) {
         SearchHit[] searchHits = new SearchHit[docIds.length];
         DocIdToIndex[] docs = new DocIdToIndex[docIds.length];
@@ -172,7 +176,6 @@ abstract class FetchPhaseDocsIterator {
                         if (chunkBuffer.isEmpty()) {
                             currentChunkSequenceStart = hitSequenceCounter.get();
                         }
-
                         // Assign sequence to this hit and increment counter
                         hitSequenceCounter.getAndIncrement();
 
@@ -180,9 +183,14 @@ abstract class FetchPhaseDocsIterator {
 
                         // Send intermediate chunks - not when it's the last iteration
                         if (chunkBuffer.size() >= chunkSize && i < docs.length - 1) {
+                            // fail fast if any earlier send already failed
+                            Throwable knownFailure = sendFailure.get();
+                            if (knownFailure != null) {
+                                throw new RuntimeException("Fetch chunk failed", knownFailure);
+                            }
+
                             // Send chunk with sequence information
-                            pendingChunks.add(
-                                sendChunk(
+                            CompletableFuture<Void> chunkFuture = sendChunk(
                                     chunkWriter,
                                     chunkBuffer,
                                     shardId,
@@ -190,8 +198,22 @@ abstract class FetchPhaseDocsIterator {
                                     i - chunkBuffer.size() + 1,
                                     docIds.length,
                                     Float.NaN
-                                )
-                            );
+                                );
+
+                            // record failures as soon as they happen
+                            chunkFuture.whenComplete((ok, ex) -> {
+                                if (ex != null) {
+                                    sendFailure.compareAndSet(null, ex);
+                                }
+                            });
+
+                            pendingChunks.addLast(chunkFuture);
+
+                            // Backpressure: bound in-flight
+                            if (pendingChunks.size() >= maxInFlightChunks) {
+                                awaitOldestOrFail(pendingChunks, sendFailure);
+                            }
+
                             chunkBuffer.clear();
                         }
                     } else {
@@ -244,6 +266,16 @@ abstract class FetchPhaseDocsIterator {
         }
 
         return new IterateResult(searchHits, lastChunk, lastChunkSequenceStart);
+    }
+
+    private static void awaitOldestOrFail(ArrayDeque<CompletableFuture<Void>> inFlight, AtomicReference<Throwable> sendFailure) {
+        final CompletableFuture<Void> oldest = inFlight.removeFirst();
+        try {
+            oldest.get();
+        } catch (Exception e) {
+            sendFailure.compareAndSet(null, e);
+            throw new RuntimeException("Failed to send fetch chunk", e);
+        }
     }
 
     /**

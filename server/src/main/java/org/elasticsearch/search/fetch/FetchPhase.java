@@ -45,11 +45,13 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -97,8 +99,18 @@ public final class FetchPhase {
         SearchHits hits = null;
         try {
             // Collect all pending chunk futures
-            final List<CompletableFuture<Void>> pendingChunks = new ArrayList<>();
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, writer, pendingChunks);
+            final int maxInFlightChunks = 1; // TODO make configurable
+            final ArrayDeque<CompletableFuture<Void>> pendingChunks = new ArrayDeque<>();
+            final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+            hits = buildSearchHits(context,
+                docIdsToLoad,
+                profiler,
+                rankDocs,
+                memoryChecker,
+                writer,
+                pendingChunks,
+                maxInFlightChunks,
+                sendFailure);
 
             // Wait for all chunks to be ACKed before setting final result
             if (writer != null && pendingChunks.isEmpty() == false) {
@@ -152,7 +164,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, null, null);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, null, null, 0, null);
         } finally {
             try {
                 // Always finish profiling
@@ -187,7 +199,10 @@ public final class FetchPhase {
         RankDocShardInfo rankDocs,
         IntConsumer memoryChecker,
         FetchPhaseResponseChunk.Writer writer,
-        List<CompletableFuture<Void>> pendingChunks
+        ArrayDeque<CompletableFuture<Void>> pendingChunks,
+        int maxInFlightChunks,
+        AtomicReference<Throwable> sendFailure
+
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -333,7 +348,9 @@ public final class FetchPhase {
                 context.queryResult(),
                 writer,
                 5, // TODO set a proper number
-                pendingChunks
+                pendingChunks,
+                maxInFlightChunks,
+                sendFailure
             );
 
             if (context.isCancelled()) {

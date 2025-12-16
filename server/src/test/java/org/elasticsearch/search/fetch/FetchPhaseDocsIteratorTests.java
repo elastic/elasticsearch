@@ -86,6 +86,8 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             new QuerySearchResult(),
             null,
             0,
+            null,
+            0,
             null
         );
 
@@ -137,7 +139,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         Exception e = expectThrows(
             FetchPhaseExecutionException.class,
-            () -> it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult(), null, 0, null)
+            () -> it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult(), null, 0, null, 0, null)
         );
         assertThat(e.getMessage(), containsString("Error running fetch phase for doc [" + badDoc + "]"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));

@@ -71,6 +71,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -509,8 +510,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {
             return docValuesParameters.getValue().enabled()
-                && IndexSettings.USE_DOC_VALUES_SKIPPER.get(indexSettings.getSettings())
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
+                && indexSettings.useDocValuesSkipperForHostName()
                 && IndexMode.LOGSDB.equals(indexSettings.getMode())
                 && HOST_NAME.equals(fullFieldName)
                 && indexSortConfigByHostName(indexSettings.getIndexSortConfig());
@@ -636,13 +636,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else if (storedInBinaryDocValues()) {
-                return new StringScriptFieldTermQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
-                    false
-                );
+                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }

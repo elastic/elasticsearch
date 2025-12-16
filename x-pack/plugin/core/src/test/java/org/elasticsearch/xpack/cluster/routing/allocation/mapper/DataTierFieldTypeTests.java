@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -40,7 +40,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
     public void testPrefixQuery() throws IOException {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("data_w", null, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("noSuchRole", null, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.prefixQuery("noSuchRole", null, createContext()));
     }
 
     public void testWildcardQuery() {
@@ -48,36 +48,36 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_w*", null, createContext()));
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_warm", null, createContext()));
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("Data_Warm", null, true, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Data_Warm", null, false, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("noSuchRole", null, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("Data_Warm", null, false, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("noSuchRole", null, createContext()));
 
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("data_*", null, createContextWithoutSetting()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("*", null, createContextWithoutSetting()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("data_*", null, createContextWithoutSetting()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("*", null, createContextWithoutSetting()));
     }
 
     public void testTermQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.termQuery("data_warm", createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("data_hot", createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("noSuchRole", createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("data_hot", createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("noSuchRole", createContext()));
 
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("data_warm", createContextWithoutSetting()));
-        assertEquals(new MatchNoDocsQuery(), ft.termQuery("", createContextWithoutSetting()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("data_warm", createContextWithoutSetting()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("", createContextWithoutSetting()));
     }
 
     public void testTermsQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("data_warm"), createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList("data_cold", "data_frozen"), createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(Arrays.asList("data_cold", "data_frozen"), createContext()));
 
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList("data_warm"), createContextWithoutSetting()));
-        assertEquals(new MatchNoDocsQuery(), ft.termsQuery(Arrays.asList(""), createContextWithoutSetting()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(Arrays.asList("data_warm"), createContextWithoutSetting()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(Arrays.asList(""), createContextWithoutSetting()));
     }
 
     public void testExistsQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.existsQuery(createContextWithoutSetting()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.existsQuery(createContextWithoutSetting()));
     }
 
     public void testRegexpQuery() {

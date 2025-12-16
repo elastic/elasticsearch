@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -57,11 +59,15 @@ import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticI
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
@@ -91,9 +97,20 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_CHAT_COMPLETION_MODEL_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_ELSER_2_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_ELSER_ENDPOINT_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_MULTILINGUAL_EMBED_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_RERANK_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_RERANK_MODEL_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -1298,8 +1315,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                             ".jina-embeddings-v3",
                             MinimalServiceSettings.textEmbedding(
                                 ElasticInferenceService.NAME,
-                                ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
-                                ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
+                                DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                                defaultDenseTextEmbeddingsSimilarity(),
                                 DenseVectorFieldMapper.ElementType.FLOAT
                             ),
                             service
@@ -1325,6 +1342,93 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
             assertThat(models.get(2).getConfigurations().getInferenceEntityId(), is(".jina-embeddings-v3"));
             assertThat(models.get(3).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+        }
+    }
+
+    public void testDefaultConfigs_Returns_DefaultEndpointsModels() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "rainbow-sprinkles",
+                      "task_types": ["chat"]
+                    },
+                    {
+                      "model_name": "elser_model_2",
+                      "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "jina-embeddings-v3",
+                      "task_types": ["embed/text/dense"]
+                    },
+                    {
+                      "model_name": "elastic-rerank-v1",
+                      "task_types": ["rerank/text/text-similarity"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            ensureAuthorizationCallFinished(service);
+            var listener = new TestPlainActionFuture<List<Model>>();
+
+            service.defaultConfigs(listener);
+            var models = listener.actionGet(TIMEOUT);
+
+            var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(getUrl(webServer));
+
+            assertThat(
+                models,
+                containsInAnyOrder(
+                    new ElasticInferenceServiceCompletionModel(
+                        DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
+                        TaskType.CHAT_COMPLETION,
+                        ElasticInferenceService.NAME,
+                        new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1),
+                        EmptyTaskSettings.INSTANCE,
+                        EmptySecretSettings.INSTANCE,
+                        elasticInferenceServiceComponents
+                    ),
+                    new ElasticInferenceServiceSparseEmbeddingsModel(
+                        DEFAULT_ELSER_ENDPOINT_ID_V2,
+                        TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
+                        new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null),
+                        EmptyTaskSettings.INSTANCE,
+                        EmptySecretSettings.INSTANCE,
+                        elasticInferenceServiceComponents,
+                        ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    ),
+                    new ElasticInferenceServiceDenseTextEmbeddingsModel(
+                        DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
+                        TaskType.TEXT_EMBEDDING,
+                        ElasticInferenceService.NAME,
+                        new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                            DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+                            defaultDenseTextEmbeddingsSimilarity(),
+                            DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                            null
+                        ),
+                        EmptyTaskSettings.INSTANCE,
+                        EmptySecretSettings.INSTANCE,
+                        elasticInferenceServiceComponents,
+                        ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    ),
+                    new ElasticInferenceServiceRerankModel(
+                        DEFAULT_RERANK_ENDPOINT_ID_V1,
+                        TaskType.RERANK,
+                        ElasticInferenceService.NAME,
+                        new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1),
+                        EmptyTaskSettings.INSTANCE,
+                        EmptySecretSettings.INSTANCE,
+                        elasticInferenceServiceComponents
+                    )
+                )
+            );
         }
     }
 

@@ -108,10 +108,8 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
         BytesRef tsid1 = new BytesRef("tsid1");
         BytesRef tsid2 = new BytesRef("tsid2");
 
-        // Create two different time buckets to ensure we have 2 different groups
-        // This ensures both positions are processed (different groupIds)
         long timestamp1 = timeBucket.round(START_TIME);
-        long timestamp2 = timeBucket.round(START_TIME + 2 * 60 * 1000); // 2 minutes later
+        long timestamp2 = timeBucket.round(START_TIME + 2 * 60 * 1000);
 
         List<RowData> rows = new ArrayList<>();
         Map<Integer, RefCounted> shardRefs = new HashMap<>();

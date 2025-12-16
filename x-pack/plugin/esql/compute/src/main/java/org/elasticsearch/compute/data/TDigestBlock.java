@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
 
-public sealed interface TDigestBlock extends Block permits ConstantNullBlock, TDigestArrayBlock {
+public sealed interface TDigestBlock extends HistogramBlock permits ConstantNullBlock, TDigestArrayBlock {
 
     static boolean equals(TDigestBlock blockA, TDigestBlock blockB) {
         if (blockA == blockB) {

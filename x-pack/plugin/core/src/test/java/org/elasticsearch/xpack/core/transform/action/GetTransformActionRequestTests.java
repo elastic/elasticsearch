@@ -38,6 +38,6 @@ public class GetTransformActionRequestTests extends AbstractBWCWireSerialization
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
-        return version.onOrAfter(DANGLING_TASKS) ? instance : new Request(instance.getId(), true, TimeValue.MAX_VALUE);
+        return version.supports(DANGLING_TASKS) ? instance : new Request(instance.getId(), true, TimeValue.MAX_VALUE);
     }
 }

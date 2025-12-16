@@ -1356,7 +1356,7 @@ public class EsqlCapabilities {
         /**
          * Cosine vector similarity function
          */
-        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        COSINE_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Fixed some profile serialization issues
@@ -1370,17 +1370,17 @@ public class EsqlCapabilities {
         /**
          * Dot product vector similarity function
          */
-        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * l1 norm vector similarity function
          */
-        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * l2 norm vector similarity function
          */
-        L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        L2_NORM_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Support for the options field of CATEGORIZE.
@@ -1419,6 +1419,11 @@ public class EsqlCapabilities {
         DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS,
 
         /**
+         * Support directIO rescoring and `bfloat16` for `bbq_hnsw` and `bbq_disk`, and `bfloat16` for `hnsw` ans `bbq_flat` index types.
+         */
+        GENERIC_VECTOR_FORMAT,
+
+        /**
          * Support null elements on vector similarity functions
          */
         VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,
@@ -1426,7 +1431,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector Hamming distance.
          */
-        HAMMING_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+        HAMMING_VECTOR_SIMILARITY_FUNCTION,
 
         /**
          * Support for tbucket function
@@ -1590,7 +1595,12 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
 
-        TDIGEST_FIELD_TYPE_SUPPORT_V1(T_DIGEST_ESQL_SUPPORT),
+        TDIGEST_FIELD_TYPE_SUPPORT_V4(T_DIGEST_ESQL_SUPPORT),
+
+        /**
+         * Development capability for the histogram field integration
+         */
+        HISTOGRAM_FIELD_SUPPORT_V0,
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1688,7 +1698,7 @@ public class EsqlCapabilities {
         /**
          * Support for vector similarity functtions pushdown
          */
-        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN(Build.current().isSnapshot()),
+        VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN,
 
         FIX_MV_CONSTANT_COMPARISON_FIELD,
 
@@ -1740,6 +1750,11 @@ public class EsqlCapabilities {
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/138283
+         */
+        FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

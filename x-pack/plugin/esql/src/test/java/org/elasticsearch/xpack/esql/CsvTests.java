@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -134,6 +133,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -404,7 +404,7 @@ public class CsvTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         var actualResults = executePlan(bigArrays);
         try {
-            var expected = loadCsvSpecValues(testCase.expectedResults);
+            ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
 
             var log = logResults() ? LOGGER : null;
             assertResults(expected, actualResults, testCase.ignoreOrder, log);
@@ -699,7 +699,7 @@ public class CsvTests extends ESTestCase {
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
-                new EsqlExecutionInfo(randomBoolean()),
+                createEsqlExecutionInfo(randomBoolean()),
                 planRunner(bigArrays, physicalOperationProviders),
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),
                 configuration,

@@ -17,7 +17,7 @@ import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -91,7 +91,8 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" }
+                "exponential_histogram",
+                "tdigest" }
         ) Expression field
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW);
@@ -129,7 +130,10 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE || dt == DataType.EXPONENTIAL_HISTOGRAM,
+            dt -> SUPPLIERS.containsKey(dt)
+                || dt == DataType.AGGREGATE_METRIC_DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "boolean",
@@ -139,13 +143,16 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             "version",
             "aggregate_metric_double",
             "exponential_histogram",
+            "tdigest",
             "numeric except counter types"
         );
     }
 
     @Override
     public DataType dataType() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE
+            || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM
+            || field().dataType() == DataType.TDIGEST) {
             return DataType.DOUBLE;
         }
         return field().dataType().noText();
@@ -171,13 +178,8 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 window()
             );
         }
-        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
-            return new Max(
-                source(),
-                ExtractHistogramComponent.create(source(), field(), ExponentialHistogramBlock.Component.MAX),
-                filter(),
-                window()
-            );
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            return new Max(source(), ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX), filter(), window());
         }
         return field().foldable() ? new MvMax(source(), field()) : null;
     }

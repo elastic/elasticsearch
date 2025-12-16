@@ -55,10 +55,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     }
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig) {
-        this(source, left, right, joinConfig, false);
+        this(source, left, right, joinConfig, null);
     }
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, Boolean isRemote) {
         super(source, left, right, joinConfig, isRemote);
     }
 

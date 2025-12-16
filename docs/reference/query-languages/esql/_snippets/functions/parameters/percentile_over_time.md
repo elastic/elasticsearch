@@ -6,5 +6,5 @@
 :   the metric field to calculate the value for
 
 `percentile`
-:   
+:   the percentile value to compute (between 0 and 100)
 

@@ -82,7 +82,7 @@
           "name" : "field",
           "type" : "exponential_histogram",
           "optional" : false,
-          "description" : "the field to calculate the latest value for"
+          "description" : "the metric field to calculate the latest value for"
         },
         {
           "name" : "window",

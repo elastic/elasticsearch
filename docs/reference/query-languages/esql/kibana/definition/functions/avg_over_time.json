@@ -44,10 +44,9 @@
       "params" : [
         {
           "name" : "field",
-          "name" : "number",
           "type" : "exponential_histogram",
           "optional" : false,
-          "description" : "Expression that outputs values to average."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -62,7 +61,7 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "the metric field to calculate the value for"

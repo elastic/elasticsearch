@@ -100,7 +100,7 @@
           "name" : "field",
           "type" : "exponential_histogram",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",

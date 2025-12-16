@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
@@ -38,9 +39,13 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
         @Param(
             name = "field",
             type = { "double", "integer", "long", "exponential_histogram", "tdigest" },
-            description = "Expression that outputs values to calculate the percentile of."
+            description = "the metric field to calculate the value for"
         ) Expression field,
-        @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
+        @Param(
+            name = "percentile",
+            type = { "double", "integer", "long" },
+            description = "the percentile value to compute (between 0 and 100)"
+        ) Expression percentile
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, percentile);
     }

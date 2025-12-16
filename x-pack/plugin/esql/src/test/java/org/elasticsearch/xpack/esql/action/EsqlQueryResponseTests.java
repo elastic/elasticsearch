@@ -41,6 +41,7 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Types;
@@ -92,6 +93,7 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXConte
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -169,11 +171,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     EsqlExecutionInfo createExecutionInfo() {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
         executionInfo.overallTook(new TimeValue(5000));
         executionInfo.swapCluster(
             "",
             (k, v) -> new EsqlExecutionInfo.Cluster(
+                "",
                 "",
                 "logs-1",
                 false,
@@ -189,6 +192,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         executionInfo.swapCluster(
             "remote1",
             (k, v) -> new EsqlExecutionInfo.Cluster(
+                "remote1",
                 "remote1",
                 "remote1:logs-1",
                 true,
@@ -512,9 +516,14 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 }
             }
             if (clusterInfoMap.isEmpty()) {
-                return new EsqlExecutionInfo(true);
+                return createEsqlExecutionInfo(true);
             } else {
-                return new EsqlExecutionInfo(clusterInfoMap, true);
+                return new EsqlExecutionInfo(
+                    clusterInfoMap,
+                    Predicates.always(),
+                    EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY,
+                    null
+                );
             }
         }
 
@@ -576,6 +585,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             Integer failedShardsFinal = failedShards == -1 ? null : failedShards;
             TimeValue tookTimeValue = took == -1L ? null : new TimeValue(took);
             return new EsqlExecutionInfo.Cluster(
+                clusterAlias,
                 clusterAlias,
                 indexExpression,
                 true,

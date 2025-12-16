@@ -466,6 +466,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testRateGroupByNothing
   issue: https://github.com/elastic/elasticsearch/issues/139639
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/139645
 
 # Examples:
 #

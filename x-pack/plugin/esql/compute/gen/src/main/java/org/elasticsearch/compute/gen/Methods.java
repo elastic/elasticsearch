@@ -231,6 +231,9 @@ public class Methods {
         if (t.equals(TypeName.FLOAT) || t.equals(FLOAT_BLOCK_BUILDER)) {
             return "appendFloat";
         }
+        if (t.equals(Types.TDIGEST) || t.equals(Types.TDIGEST_BLOCK)) {
+            return "appendTDigest";
+        }
         throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 

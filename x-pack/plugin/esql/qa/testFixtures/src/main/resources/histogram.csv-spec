@@ -10,7 +10,7 @@ FROM histogram_standard_index ;
 Convert histogram into tdigest
 required_capability: histogram_to_tdigest_cast
 
-FROM histogram_standard_index | EVAL tdigest = toTDigest(responseTime) | KEEP responseTime, tdigest ;
+FROM histogram_standard_index | EVAL tdigest = to_tdigest(responseTime) | KEEP responseTime, tdigest ;
 
 
 responseTime:histogram                                         | tdigest:tdigest

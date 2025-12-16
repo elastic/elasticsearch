@@ -27,9 +27,10 @@ import java.util.List;
 import java.util.Map;
 
 public class ToTDigest extends AbstractConvertFunction {
+
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DataType.TDIGEST, (source, field) -> field),
-        Map.entry(DataType.HISTOGRAM, ToTDigestFromHistogramEvaluator::new)
+        Map.entry(DataType.HISTOGRAM, ToTDigestFromHistogramEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -37,7 +38,7 @@ public class ToTDigest extends AbstractConvertFunction {
         description = "Converts an untyped histogram to a TDigest, assuming the values are centroids"
         // TODO: examples
     )
-    protected ToTDigest(
+    public ToTDigest(
         Source source,
         @Param(
             name = "field",
@@ -77,8 +78,8 @@ public class ToTDigest extends AbstractConvertFunction {
         return "";
     }
 
-    @ConvertEvaluator(extraName = "FromHistogram", warnExceptions =  { IllegalArgumentException.class, IOException.class })
-    static TDigestHolder fromHistogram(BytesRef in) throws IOException {
+    @ConvertEvaluator(extraName = "FromHistogram", warnExceptions =  { IllegalArgumentException.class })
+    static TDigestHolder fromHistogram(BytesRef in) {
         if (in.length > ByteSizeUnit.MB.toBytes(2)) {
             throw new IllegalArgumentException("Histogram length is greater than 2MB");
         }
@@ -91,17 +92,21 @@ public class ToTDigest extends AbstractConvertFunction {
         double max = Double.MIN_VALUE;
         double sum = 0;
         long totalCount = 0;
-        while (streamInput.available() > 0) {
-            long count = streamInput.readVLong();
-            double value = Double.longBitsToDouble(streamInput.readLong());
-            min = Math.min(min, value);
-            max = Math.max(max, value);
-            sum += value * count;
-            totalCount += count;
-            centroids.add(value);
-            counts.add(count);
+        try {
+            while (streamInput.available() > 0) {
+                long count = streamInput.readVLong();
+                double value = Double.longBitsToDouble(streamInput.readLong());
+                min = Math.min(min, value);
+                max = Math.max(max, value);
+                sum += value * count;
+                totalCount += count;
+                centroids.add(value);
+                counts.add(count);
+            }
+            return new TDigestHolder(centroids, counts, min, max, sum, totalCount);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e.getMessage());
         }
-        return new TDigestHolder(centroids, counts, min, max, sum, totalCount);
     }
 
 }

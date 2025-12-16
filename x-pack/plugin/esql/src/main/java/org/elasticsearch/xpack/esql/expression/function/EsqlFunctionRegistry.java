@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBas
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -503,6 +504,7 @@ public class EsqlFunctionRegistry {
                 def(ToLongSurrogate.class, ToLongSurrogate::new, "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),
+                def(ToTDigest.class, ToTDigest::new, "to_tdigest"),
                 def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
                 def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
                 def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },

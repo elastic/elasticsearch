@@ -240,7 +240,7 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
                 // pick a random consumer that we should fail if needed
                 int failedConsumerLabel = randomFrom(consumerLabels);
 
-                QueryRewriteAsyncAction<Integer, ?> action = createAsyncAction(actionLabel, failedConsumerLabel);
+                QueryRewriteAsyncAction<Integer, ?> action = createAsyncAction(actionLabel, failedActionStep);
                 consumerLabels.forEach(consumerLabel -> {
                     SetOnce<Boolean> hasRun = new SetOnce<>();
                     ctx.registerUniqueAsyncAction(

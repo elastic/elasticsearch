@@ -282,11 +282,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
     }
 
     private GetReindexRequest createGetReindexRequest(TaskId taskId, boolean waitForCompletion, TimeValue timeout) {
-        GetReindexRequest request = new GetReindexRequest();
-        request.setTaskId(taskId);
-        request.setWaitForCompletion(waitForCompletion);
-        request.setTimeout(timeout);
-        return request;
+        return new GetReindexRequest(taskId, waitForCompletion, timeout);
     }
 
     private Client setupMockClient(ClusterAdminClient clusterAdminClient) {

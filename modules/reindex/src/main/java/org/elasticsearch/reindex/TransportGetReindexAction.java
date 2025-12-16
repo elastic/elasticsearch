@@ -72,33 +72,34 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
                     return;
                 }
 
-                // If waiting for uncompleted task, we reissue the get request to wait for the reindex task to complete
-                if (taskResult.isCompleted() == false && request.getWaitForCompletion()) {
-                    GetTaskRequest waitForTaskRequest = new GetTaskRequest().setTaskId(taskId)
-                        .setWaitForCompletion(true)
-                        .setTimeout(request.getTimeout());
-
-                    client.admin().cluster().getTask(waitForTaskRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(GetTaskResponse waitForTaskResponse) {
-                            listener.onResponse(new GetReindexResponse(waitForTaskResponse.getTask()));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (e instanceof ResourceNotFoundException) {
-                                // Wraps the task not found exception to hide task details
-                                logger.debug("task [{}] not found, returning as reindex not found", taskId);
-                                // TODO: Add searching for reallocated running reindex task on other nodes after relocation is added
-                                listener.onFailure(notFoundException(taskId));
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        }
-                    });
+                if (taskResult.isCompleted() || request.getWaitForCompletion() == false) {
+                    listener.onResponse(new GetReindexResponse(taskResult));
                     return;
                 }
-                listener.onResponse(new GetReindexResponse(taskResult));
+
+                // If waiting for uncompleted task, we reissue the get request to wait for the reindex task to complete
+                GetTaskRequest waitForTaskRequest = new GetTaskRequest().setTaskId(taskId)
+                    .setWaitForCompletion(true)
+                    .setTimeout(request.getTimeout());
+
+                client.admin().cluster().getTask(waitForTaskRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(GetTaskResponse waitForTaskResponse) {
+                        listener.onResponse(new GetReindexResponse(waitForTaskResponse.getTask()));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof ResourceNotFoundException) {
+                            // Wraps the task not found exception to hide task details
+                            logger.debug("task [{}] not found, returning as reindex not found", taskId);
+                            // TODO: Add searching for reallocated running reindex task on other nodes after relocation is added
+                            listener.onFailure(notFoundException(taskId));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                });
             }
 
             @Override

@@ -17,18 +17,20 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- * Request to get a reindex task. This ensures that the task is validated as a reindex task.
- */
 public class GetReindexRequest extends ActionRequest {
-    private TaskId taskId = TaskId.EMPTY_TASK_ID;
-    private boolean waitForCompletion = false;
-    private TimeValue timeout = null;
+    private final TaskId taskId;
+    private final boolean waitForCompletion;
+    private final TimeValue timeout;
 
-    public GetReindexRequest() {}
+    public GetReindexRequest(TaskId taskId, boolean waitForCompletion, TimeValue timeout) {
+        this.taskId = Objects.requireNonNull(taskId, "id cannot be null");
+        this.waitForCompletion = waitForCompletion;
+        this.timeout = timeout;
+    }
 
     public GetReindexRequest(StreamInput in) throws IOException {
         super(in);
@@ -41,30 +43,18 @@ public class GetReindexRequest extends ActionRequest {
         return taskId;
     }
 
-    public void setTaskId(TaskId taskId) {
-        this.taskId = taskId;
-    }
-
     public boolean getWaitForCompletion() {
         return waitForCompletion;
-    }
-
-    public void setWaitForCompletion(boolean waitForCompletion) {
-        this.waitForCompletion = waitForCompletion;
     }
 
     public TimeValue getTimeout() {
         return timeout;
     }
 
-    public void setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (taskId == null || taskId.isSet() == false) {
+        if (taskId.isSet() == false) {
             validationException = addValidationError("id is required", validationException);
         }
         return validationException;

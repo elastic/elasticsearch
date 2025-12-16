@@ -18,17 +18,12 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNull;
 
-/**
- * Response for getting a reindex operation.
- */
 public class GetReindexResponse extends ActionResponse implements ToXContentObject {
 
     private final TaskResult task;
@@ -58,23 +53,19 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         TaskInfo taskInfo = task.getTask();
         builder.startObject();
         builder.field("completed", task.isCompleted());
-        if (taskInfo.description() != null) {
-            builder.field("description", taskInfo.description());
-        }
+        builder.field("description", taskInfo.description());
         builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
         if (builder.humanReadable()) {
-            builder.field("running_time", new TimeValue(taskInfo.runningTimeNanos(), TimeUnit.NANOSECONDS).toString());
+            builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());
         }
         builder.field("running_time_in_nanos", taskInfo.runningTimeNanos());
         builder.field("cancelled", taskInfo.cancelled());
-        if (taskInfo.status() != null) {
-            builder.field("status", taskInfo.status(), params);
-        }
+        builder.field("status", taskInfo.status(), params);
         if (task.getError() != null) {
-            XContentHelper.writeRawField("error", task.getError(), XContentType.JSON, builder, params);
+            XContentHelper.writeRawField("error", task.getError(), builder.contentType(), builder, params);
         }
         if (task.getResponse() != null) {
-            XContentHelper.writeRawField("response", task.getResponse(), XContentType.JSON, builder, params);
+            XContentHelper.writeRawField("response", task.getResponse(), builder.contentType(), builder, params);
         }
         builder.endObject();
         return builder;

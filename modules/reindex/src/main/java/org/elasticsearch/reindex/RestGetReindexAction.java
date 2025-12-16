@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
@@ -41,22 +42,10 @@ public class RestGetReindexAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         TaskId taskId = new TaskId(request.param("task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
-        TimeValue timeout = getTimeout(request);
-
-        GetReindexRequest getReindexRequest = new GetReindexRequest();
-        getReindexRequest.setTaskId(taskId);
-        getReindexRequest.setWaitForCompletion(waitForCompletion);
-        getReindexRequest.setTimeout(timeout);
+        TimeValue timeout = RestUtils.getTimeout(request);
+        GetReindexRequest getReindexRequest = new GetReindexRequest(taskId, waitForCompletion, timeout);
 
         return channel -> client.execute(TransportGetReindexAction.TYPE, getReindexRequest, new RestToXContentListener<>(channel));
-    }
-
-    private static TimeValue getTimeout(RestRequest request) {
-        String timeoutString = request.param("timeout");
-        if (timeoutString == null) {
-            return null;
-        }
-        return TimeValue.parseTimeValue(timeoutString, "timeout");
     }
 
     @Override

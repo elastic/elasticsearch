@@ -43,12 +43,10 @@ record TestConfiguration(
     int indexThreads,
     boolean reindex,
     boolean forceMerge,
-    long seed,
     VectorSimilarityFunction vectorSpace,
     int quantizeBits,
     VectorEncoding vectorEncoding,
     int dimensions,
-    boolean earlyTermination,
     KnnIndexTester.MergePolicyType mergePolicy,
     double writerBufferSizeInMb,
     int writerMaxBufferedDocs,
@@ -110,16 +108,15 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setNumDocs, NUM_DOCS_FIELD);
         PARSER.declareInt(Builder::setNumQueries, NUM_QUERIES_FIELD);
         PARSER.declareString(Builder::setIndexType, INDEX_TYPE_FIELD);
-        PARSER.declareInt(Builder::setNumCandidates, NUM_CANDIDATES_FIELD);
-        PARSER.declareInt(Builder::setK, K_FIELD);
-        // PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
+        PARSER.declareIntArray(Builder::setNumCandidates, NUM_CANDIDATES_FIELD);
+        PARSER.declareIntArray(Builder::setK, K_FIELD);
         PARSER.declareDoubleArray(Builder::setVisitPercentages, VISIT_PERCENTAGE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
-        PARSER.declareFloat(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
+        PARSER.declareFloatArray(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
         PARSER.declareInt(Builder::setHnswEfConstruction, HNSW_EF_CONSTRUCTION_FIELD);
-        PARSER.declareInt(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
-        PARSER.declareInt(Builder::setNumSearchers, NUM_SEARCHERS_FIELD);
+        PARSER.declareIntArray(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
+        PARSER.declareIntArray(Builder::setNumSearchers, NUM_SEARCHERS_FIELD);
         PARSER.declareInt(Builder::setIndexThreads, INDEX_THREADS_FIELD);
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
@@ -127,15 +124,20 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setQuantizeBits, QUANTIZE_BITS_FIELD);
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
-        PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
-        PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
-        PARSER.declareLong(Builder::setSeed, SEED_FIELD);
+        PARSER.declareFieldArray(
+            Builder::setEarlyTermination,
+            (p, c) -> p.booleanValue(),
+            EARLY_TERMINATION_FIELD,
+            ObjectParser.ValueType.VALUE_ARRAY
+        );
+        PARSER.declareFloatArray(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
+        PARSER.declareLongArray(Builder::setSeed, SEED_FIELD);
         PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
         PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_MB_FIELD);
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
-        PARSER.declareBoolean(Builder::setFilterCached, FILTER_CACHED);
+        PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
     }
 
@@ -163,15 +165,15 @@ record TestConfiguration(
         private int numDocs = 1000;
         private int numQueries = 100;
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
-        private int numCandidates = 1000;
-        private int k = 10;
-        private double[] visitPercentages = new double[] { 1.0 };
+        private List<Integer> numCandidates = List.of(1000);
+        private List<Integer> k = List.of(10);
+        private List<Double> visitPercentages = List.of(1.0);
         private int ivfClusterSize = 1000;
-        private float overSamplingFactor = 0;
+        private List<Float> overSamplingFactor = List.of(0f);
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
-        private int searchThreads = 1;
-        private int numSearchers = 1;
+        private List<Integer> searchThreads = List.of(1);
+        private List<Integer> numSearchers = List.of(1);
         private int indexThreads = 1;
         private boolean reindex = false;
         private boolean forceMerge = false;
@@ -180,13 +182,13 @@ record TestConfiguration(
         private int quantizeBits = 8;
         private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
         private int dimensions;
-        private boolean earlyTermination;
-        private float filterSelectivity = 1f;
-        private long seed = 1751900822751L;
+        private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
+        private List<Float> filterSelectivity = List.of(1f);
+        private List<Long> seed = List.of(1751900822751L);
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
-        private boolean filterCached = true;
+        private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
 
         /**
@@ -224,18 +226,18 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setNumCandidates(int numCandidates) {
+        public Builder setNumCandidates(List<Integer> numCandidates) {
             this.numCandidates = numCandidates;
             return this;
         }
 
-        public Builder setK(int k) {
+        public Builder setK(List<Integer> k) {
             this.k = k;
             return this;
         }
 
         public Builder setVisitPercentages(List<Double> visitPercentages) {
-            this.visitPercentages = visitPercentages.stream().mapToDouble(Double::doubleValue).toArray();
+            this.visitPercentages = visitPercentages;
             return this;
         }
 
@@ -244,7 +246,7 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setOverSamplingFactor(float overSamplingFactor) {
+        public Builder setOverSamplingFactor(List<Float> overSamplingFactor) {
             this.overSamplingFactor = overSamplingFactor;
             return this;
         }
@@ -259,12 +261,12 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setSearchThreads(int searchThreads) {
+        public Builder setSearchThreads(List<Integer> searchThreads) {
             this.searchThreads = searchThreads;
             return this;
         }
 
-        public Builder setNumSearchers(int numSearchers) {
+        public Builder setNumSearchers(List<Integer> numSearchers) {
             this.numSearchers = numSearchers;
             return this;
         }
@@ -304,17 +306,17 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setEarlyTermination(Boolean patience) {
+        public Builder setEarlyTermination(List<Boolean> patience) {
             this.earlyTermination = patience;
             return this;
         }
 
-        public Builder setFilterSelectivity(float filterSelectivity) {
+        public Builder setFilterSelectivity(List<Float> filterSelectivity) {
             this.filterSelectivity = filterSelectivity;
             return this;
         }
 
-        public Builder setSeed(long seed) {
+        public Builder setSeed(List<Long> seed) {
             this.seed = seed;
             return this;
         }
@@ -344,7 +346,7 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setFilterCached(boolean filterCached) {
+        public Builder setFilterCached(List<Boolean> filterCached) {
             this.filterCached = filterCached;
             return this;
         }
@@ -365,19 +367,20 @@ record TestConfiguration(
             }
 
             var baseSearchParams = new SearchParameters(
-                numCandidates,
-                k,
-                visitPercentages[0],
-                overSamplingFactor,
-                searchThreads,
-                numSearchers,
-                filterSelectivity,
-                filterCached,
-                earlyTermination,
-                seed
+                numCandidates.getFirst(),
+                k.getFirst(),
+                visitPercentages.getFirst(),
+                overSamplingFactor.getFirst(),
+                searchThreads.getFirst(),
+                numSearchers.getFirst(),
+                filterSelectivity.getFirst(),
+                filterCached.getFirst(),
+                earlyTermination.getFirst(),
+                seed.getFirst()
             );
 
-            if (visitPercentages.length > 1 && (searchParams != null && searchParams.isEmpty() == false)) {
+            int longestParam = longestParameter();
+            if (longestParam > 1 && (searchParams != null && searchParams.isEmpty() == false)) {
                 throw new IllegalArgumentException(
                     Strings.format(
                         "The %1$s option is incompatible with setting multiple values of %2$s. Use %1$s to control %2$s",
@@ -388,16 +391,15 @@ record TestConfiguration(
             }
 
             List<SearchParameters> searchRuns = new ArrayList<>();
+            searchRuns.add(baseSearchParams);
 
             if (searchParams == null || searchParams.isEmpty()) {
-                // single base case
-                searchRuns.add(baseSearchParams);
-
-                // Convert any extra values in the list of visit percentages to the
-                // search params format. This is for backwards compatibility where multiple
-                // values of visit percentage would equate to multiple searches
-                for (int i = 1; i < visitPercentages.length; i++) {
-                    searchRuns.add(SearchParameters.builder().setVisitPercentage(visitPercentages[i]).buildWithDefaults(baseSearchParams));
+                // TODO
+                // Build the search runs from the parameter arrays.
+                // There will be longestParam search runs. If the parameter arrays
+                // are of unequal length then the last items in the shorter arrays are used.
+                for (int i = 1; i < longestParam; i++) {
+                    searchRuns.add(settingsAtIndex(i));
                 }
             } else {
                 for (var so : searchParams) {
@@ -417,12 +419,10 @@ record TestConfiguration(
                 indexThreads,
                 reindex,
                 forceMerge,
-                seed,
                 vectorSpace,
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
-                earlyTermination,
                 mergePolicy,
                 writerBufferSizeInMb,
                 writerMaxBufferedDocs,
@@ -445,10 +445,16 @@ record TestConfiguration(
             builder.field(NUM_DOCS_FIELD.getPreferredName(), numDocs);
             builder.field(NUM_QUERIES_FIELD.getPreferredName(), numQueries);
             builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
+            builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
+            builder.field(K_FIELD.getPreferredName(), k);
             // builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
+            builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentages);
             builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
+            builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
             builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
             builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
+            builder.field(SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
+            builder.field(NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
             builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
             builder.field(REINDEX_FIELD.getPreferredName(), reindex);
             builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
@@ -457,11 +463,13 @@ record TestConfiguration(
             builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
             builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
             builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
+            builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
             builder.field(SEED_FIELD.getPreferredName(), seed);
             builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
             builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
             builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
             builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
+            builder.field(FILTER_CACHED.getPreferredName(), filterCached);
             if (mergePolicy != null) {
                 builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
             }
@@ -471,5 +479,43 @@ record TestConfiguration(
             return builder.endObject();
         }
 
+        int longestParameter() {
+            var lengths = List.of(
+                numCandidates.size(),
+                k.size(),
+                visitPercentages.size(),
+                overSamplingFactor.size(),
+                searchThreads.size(),
+                numSearchers.size(),
+                filterSelectivity.size(),
+                filterCached.size(),
+                earlyTermination.size(),
+                seed.size()
+            );
+            return lengths.stream().max(Integer::compareTo).get();
+        }
+
+        SearchParameters settingsAtIndex(int n) {
+            return new SearchParameters(
+                nthOrLastItem(numCandidates, n),
+                nthOrLastItem(k, n),
+                nthOrLastItem(visitPercentages, n),
+                nthOrLastItem(overSamplingFactor, n),
+                nthOrLastItem(searchThreads, n),
+                nthOrLastItem(numSearchers, n),
+                nthOrLastItem(filterSelectivity, n),
+                nthOrLastItem(filterCached, n),
+                nthOrLastItem(earlyTermination, n),
+                nthOrLastItem(seed, n)
+            );
+        }
+
+        <T> T nthOrLastItem(List<T> list, int n) {
+            if (list.size() > n) {
+                return list.get(n);
+            } else {
+                return list.getLast();
+            }
+        }
     }
 }

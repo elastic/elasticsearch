@@ -50,8 +50,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
-import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -136,8 +134,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     public static final int BBQ_MIN_DIMS = 64;
 
-    private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
-
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
      */
@@ -185,7 +181,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final Setting<Boolean> HNSW_EARLY_TERMINATION = Setting.boolSetting(
         "index.dense_vector.hnsw_enable_early_termination",
-        DEFAULT_HNSW_EARLY_TERMINATION,
+        s -> {
+            IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(s);
+            return String.valueOf(version.onOrAfter(IndexVersions.DEFAULT_HNSW_EARLY_TERMINATION));
+        },
         Setting.Property.IndexScope,
         Setting.Property.ServerlessPublic,
         Setting.Property.Dynamic
@@ -1856,9 +1855,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            if (elementType.equals(ElementType.BIT)) {
-                return new ES815BitFlatVectorFormat();
-            }
             return new ES93FlatVectorFormat(elementType);
         }
 
@@ -3240,8 +3236,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
      */
     public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat, IndexSettings indexSettings) {
         final KnnVectorsFormat format;
+        ElementType elementType = fieldType().element.elementType();
         if (indexOptions == null) {
-            format = fieldType().element.elementType() == ElementType.BIT ? new ES815HnswBitVectorsFormat() : defaultFormat;
+            format = switch (elementType) {
+                case BYTE, FLOAT -> defaultFormat;
+                case BIT, BFLOAT16 -> new ES93HnswVectorsFormat(elementType);
+            };
         } else {
             // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
             KnnVectorsFormat extraKnnFormat = null;
@@ -3250,13 +3250,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexSettings,
                     indexOptions,
                     fieldType().similarity(),
-                    fieldType().element.elementType()
+                    elementType
                 );
                 if (extraKnnFormat != null) {
                     break;
                 }
             }
-            format = extraKnnFormat != null ? extraKnnFormat : indexOptions.getVectorsFormat(fieldType().element.elementType());
+            format = extraKnnFormat != null ? extraKnnFormat : indexOptions.getVectorsFormat(elementType);
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

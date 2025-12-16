@@ -606,7 +606,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
-            return new Completion(p.source(), p.child(), p.inferenceId(), prompt, targetField);
+            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -776,7 +776,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return comp.swapLeftAndRight(); // Swapped orientation
                 }
             }
-            if (context.minimumVersion().onOrAfter(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION) == false) {
+            if (context.minimumVersion().supports(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION) == false) {
                 return new UnresolvedAttribute(
                     condition.source(),
                     "unsupported",

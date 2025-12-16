@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGridFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -158,10 +157,10 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 }
             }
         });
-        // Search for spatial grid functions in EVALs
+        // Search in EVALs for functions that can take doc values, namely St_Simplify, St_Geotile, St_Geohex, St_Geohash
         exec.forEachDown(EvalExec.class, evalExec -> {
             for (Alias field : evalExec.fields()) {
-                field.forEachDown(SpatialGridFunction.class, spatialAggFunc -> {
+                field.forEachDown(SpatialDocValuesFunction.class, spatialAggFunc -> {
                     if (spatialAggFunc.spatialField() instanceof FieldAttribute fieldAttribute
                         && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes)) {
                         foundAttributes.add(fieldAttribute);

@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIn
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -4242,6 +4243,54 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     assertThat(Expressions.names(fieldExtract.docValuesAttributes()), is(withDocValues ? List.of("location") : List.of()));
                     assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
                 }
+            }
+        }
+    }
+
+    public void testStSimplifyUsesDocValues() {
+        for (boolean keepLocation : new boolean[] { false, true }) {
+            String query = """
+                FROM airport_city_boundaries
+                | EVAL simplified_city_location = ST_SIMPLIFY(city_location, 0.05)
+                | SORT airport
+                """ + (keepLocation
+                ? "| KEEP airport, simplified_city_location, city_location"
+                : "| KEEP airport, simplified_city_location");
+            for (boolean withDocValues : new boolean[] { true, false }) {
+                withDocValues &= keepLocation == false; // if we keep location, we cannot use doc-values
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+                var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var project = as(optimized, ProjectExec.class);
+                var topNExec = as(project.child(), TopNExec.class);
+                var exchange = as(topNExec.child(), ExchangeExec.class);
+                project = as(exchange.child(), ProjectExec.class);
+                if (keepLocation) {
+                    assertThat(Expressions.names(project.projections()), hasItems("airport", "simplified_city_location", "city_location"));
+                } else {
+                    assertThat(
+                        Expressions.names(project.projections()),
+                        allOf(hasItems("airport", "simplified_city_location"), not(hasItems("city_location")))
+                    );
+                }
+
+                var topNExecDataNode = as(project.child(), TopNExec.class);
+                var fieldExtract = as(topNExecDataNode.child(), FieldExtractExec.class);
+                assertThat(
+                    Expressions.names(fieldExtract.attributesToExtract()),
+                    allOf(hasItems("airport"), not(hasItems("city_location")))
+                );
+                var evalExec = as(fieldExtract.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getLast(), Alias.class);
+                assertThat(alias.name(), equalTo("simplified_city_location"));
+                var stSimplifyFunction = as(alias.child(), StSimplify.class);
+                var spatialField = as(stSimplifyFunction.spatialField(), FieldAttribute.class);
+                assertThat(spatialField.name(), equalTo("city_location"));
+                assertThat(spatialField.dataType(), equalTo(GEO_POINT));
+                fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("city_location")));
+                assertChildIsGeoPointExtract(evalExec, fieldExtractPreference);
             }
         }
     }

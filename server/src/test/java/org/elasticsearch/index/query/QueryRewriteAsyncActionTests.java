@@ -165,7 +165,10 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
         }
     }
 
-    public static final class TestQueryRewriteRemoteAsyncAction extends QueryRewriteRemoteAsyncAction<Integer, TestQueryRewriteRemoteAsyncAction> {
+    public static final class TestQueryRewriteRemoteAsyncAction extends QueryRewriteRemoteAsyncAction<
+        Integer,
+        TestQueryRewriteRemoteAsyncAction> {
+
         private final Integer label;
         private final SetOnce<Boolean> hasRun = new SetOnce<>();
         private final AtomicInteger execCounter;
@@ -277,9 +280,14 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
         }
 
         private QueryRewriteAsyncAction<Integer, ?> createAsyncAction(int actionLabel, int failedActionStep) {
-            return randomBoolean() ?
-                new TestQueryRewriteAsyncAction(actionLabel, execCounter, failAction && failedActionStep == actionLabel) :
-                new TestQueryRewriteRemoteAsyncAction(randomAlphaOfLengthBetween(5, 10), actionLabel, execCounter, failAction && failedActionStep == actionLabel);
+            return randomBoolean()
+                ? new TestQueryRewriteAsyncAction(actionLabel, execCounter, failAction && failedActionStep == actionLabel)
+                : new TestQueryRewriteRemoteAsyncAction(
+                    randomAlphaOfLengthBetween(5, 10),
+                    actionLabel,
+                    execCounter,
+                    failAction && failedActionStep == actionLabel
+                );
         }
     }
 }

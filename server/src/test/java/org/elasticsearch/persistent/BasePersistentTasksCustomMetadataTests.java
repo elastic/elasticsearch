@@ -201,7 +201,7 @@ public abstract class BasePersistentTasksCustomMetadataTests<T extends Metadata.
     public void testMinVersionSerialization() throws IOException {
         PersistentTasks.Builder<?> tasks = builder();
 
-        TransportVersion minVersion = getFirstVersion();
+        TransportVersion minVersion = TransportVersion.minimumCompatible();
         TransportVersion streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(TransportVersion.current()));
         tasks.addTask(
             "test_compatible_version",

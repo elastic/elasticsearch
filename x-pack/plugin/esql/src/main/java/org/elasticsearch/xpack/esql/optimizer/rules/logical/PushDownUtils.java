@@ -13,12 +13,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -113,18 +110,6 @@ class PushDownUtils {
             // Any generated attributes that had to be renamed need to be re-renamed to their original names.
             List<NamedExpression> generatedAttributesRenamedToOriginal = new ArrayList<>(generatedAttributes.size());
             List<Attribute> renamedGeneratedAttributes = generatingPlanWithRenamedAttributes.generatedAttributes();
-
-            // For Enrich, update alias child IDs to avoid circular reference issues in later deduplication
-            UnaryPlan finalGeneratingPlan = generatingPlanWithRenamedAttributes;
-            if (finalGeneratingPlan instanceof Enrich enrich && renameGeneratedAttributeTo.isEmpty() == false) {
-                finalGeneratingPlan = (UnaryPlan) enrich.transformExpressionsOnly(Alias.class, alias -> {
-                    if (alias.child() instanceof ReferenceAttribute ra && renameGeneratedAttributeTo.containsKey(ra.name())) {
-                        return alias.replaceChild(ra.withId(new NameId()));
-                    }
-                    return alias;
-                });
-            }
-
             for (int i = 0; i < generatedAttributes.size(); i++) {
                 Attribute originalAttribute = generatedAttributes.get(i);
                 Attribute renamedAttribute = renamedGeneratedAttributes.get(i);
@@ -143,7 +128,7 @@ class PushDownUtils {
                 }
             }
 
-            Project projectWithGeneratingChild = project.replaceChild(finalGeneratingPlan.replaceChild(project.child()));
+            Project projectWithGeneratingChild = project.replaceChild(generatingPlanWithRenamedAttributes.replaceChild(project.child()));
             return projectWithGeneratingChild.withProjections(
                 mergeOutputExpressions(generatedAttributesRenamedToOriginal, projectWithGeneratingChild.projections())
             );

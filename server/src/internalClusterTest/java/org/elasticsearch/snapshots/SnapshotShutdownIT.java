@@ -784,7 +784,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             putShutdownForRemovalMetadata(nodeName, clusterService);
 
             // Wait for log expectation to be matched
-            mockLog.awaitAllExpectationsMatched();
+            mockLog.awaitAllExpectationsMatchedShort();
             resetMockLog();
         }
     }
@@ -800,11 +800,11 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         );
 
         mockLog.addExpectation(
-            new MockLog.UnseenEventExpectation(
+            new MockLog.PatternNotSeenEventExpectation(
                 "Expect SnapshotShutdownProgressTracker to not run",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "*Shard snapshot completion stats since shutdown began*"
+                "Shard snapshot completion stats since shutdown began*"
             )
         );
 
@@ -813,7 +813,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         putShutdownForRemovalMetadata(nodeName, clusterService);
 
         // Wait for log expectation to be matched
-        mockLog.awaitAllExpectationsMatched();
+        mockLog.awaitAllExpectationsMatchedShort();
         resetMockLog();
     }
 

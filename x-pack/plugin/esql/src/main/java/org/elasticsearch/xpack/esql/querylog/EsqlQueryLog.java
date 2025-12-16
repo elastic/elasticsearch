@@ -149,13 +149,13 @@ public final class EsqlQueryLog {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK, esqlResult.executionInfo().planningTookTime().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS, esqlResult.executionInfo().planningTookTime().millis());
-            TimeSpan parsingTimeSpan = esqlResult.executionInfo().preAnalysisTimeSpan();
+            TimeSpan parsingTimeSpan = esqlResult.executionInfo().parsingTimeSpan();
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PARSING_TOOK, parsingTimeSpan.toTimeValue().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PARSING_TOOK_MILLIS, parsingTimeSpan.toTimeValue().millis());
             TimeSpan preAnalysisTimeSpan = esqlResult.executionInfo().preAnalysisTimeSpan();
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK, preAnalysisTimeSpan.toTimeValue().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS, preAnalysisTimeSpan.toTimeValue().millis());
-            TimeSpan analysisTimeSpan = esqlResult.executionInfo().preAnalysisTimeSpan();
+            TimeSpan analysisTimeSpan = esqlResult.executionInfo().analysisTimeSpan();
             fieldMap.put(ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK, analysisTimeSpan.toTimeValue().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK_MILLIS, analysisTimeSpan.toTimeValue().millis());
         }

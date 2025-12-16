@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PARSING_TOOK_MILLIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS;
@@ -195,6 +196,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(tookMillis, is(tookMillisExpected));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK), is(nullValue()));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS), is(nullValue()));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PARSING_TOOK_MILLIS), is(nullValue()));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS), is(nullValue()));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK_MILLIS), is(nullValue()));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
@@ -218,12 +220,17 @@ public class EsqlQueryLogTests extends ESTestCase {
             }
 
             @Override
-            public TimeSpan analysisTimeSpan() {
+            public TimeSpan parsingTimeSpan() {
                 return TimeSpan.start().stop();
             }
 
             @Override
             public TimeSpan preAnalysisTimeSpan() {
+                return TimeSpan.start().stop();
+            }
+
+            @Override
+            public TimeSpan analysisTimeSpan() {
                 return TimeSpan.start().stop();
             }
         };

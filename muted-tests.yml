@@ -475,6 +475,9 @@ tests:
 - class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/139562
+- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
+  method: testMinVersionSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/139624
 
 # Examples:
 #

@@ -225,8 +225,6 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
     }
 
     public void testInvalidClusterAlias() {
-        // TODO: Enable this test for all cases when bug is fixed
-        assumeFalse("Test is currently broken when security is enabled due to unrelated bug", securityEnabled);
         SearchRequestBuilder request = buildSearchRequest(
             List.of(INDEX_1, INDEX_2),
             List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B, "missing-cluster-alias"),

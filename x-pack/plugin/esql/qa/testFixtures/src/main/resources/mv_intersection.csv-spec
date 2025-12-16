@@ -145,6 +145,42 @@ finalValue:integer
 4
 ;
 
+testMvIntersectionWithSingleValueParam
+required_capability: fn_mv_intersection
+
+ROW a = 4, b = [4, 5, 6, 7]
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+4
+;
+
+testMvIntersectionWithSecondSingleValueParam
+required_capability: fn_mv_intersection
+
+ROW a = [1, 2, 3, 4], b = 4
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+4
+;
+
+testMvIntersectionAgainstAnIndex
+required_capability: fn_mv_intersection
+
+FROM employees
+| WHERE MV_COUNT(MV_INTERSECTION(salary_change, [-7.26, 12.09])) > 0
+| SORT emp_no
+| LIMIT 5
+| KEEP emp_no, hire_date, salary_change;
+
+emp_no:integer | hire_date:datetime       | salary_change:double
+10019          | 1999-04-30T00:00:00.000Z | [-7.26, -6.84, 8.42]
+10022          | 1995-08-22T00:00:00.000Z | [2.85, 12.09]
+;
+
 testMvIntersectionNullReturnedWhenFirstArgIsNull
 required_capability: fn_mv_intersection
 

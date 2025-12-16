@@ -425,7 +425,7 @@ public class IndexNameExpressionResolver {
             baseExpression = DateMathExpressionResolver.resolveExpression(baseExpression, context::getStartTime);
 
             // Validate base expression
-            validateResourceExpression(context, baseExpression, expressions);
+            validateResourceExpression(context, isExclusion, baseExpression, expressions);
 
             // Check if it's wildcard
             boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(baseExpression);
@@ -457,15 +457,23 @@ public class IndexNameExpressionResolver {
         return resources;
     }
 
+    public static InvalidIndexNameException invalidExpression() {
+        return new InvalidIndexNameException("", "expression cannot be empty");
+    }
+
+    public static InvalidIndexNameException invalidExclusion() {
+        return new InvalidIndexNameException("", "exclusion cannot be empty");
+    }
+
     /**
      * Validates the requested expression by performing the following checks:
      * - Ensure it's not empty
      * - Ensure it doesn't start with `_`
      * - Ensure it's not a remote expression unless remotes are allowed by the context.
      */
-    private static void validateResourceExpression(Context context, String current, String[] expressions) {
+    private static void validateResourceExpression(Context context, boolean isExclusion, String current, String[] expressions) {
         if (Strings.isEmpty(current)) {
-            throw notFoundException(current);
+            throw isExclusion ? invalidExclusion() : invalidExpression();
         }
         // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
         // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,

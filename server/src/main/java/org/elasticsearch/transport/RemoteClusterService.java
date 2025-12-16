@@ -107,11 +107,8 @@ public final class RemoteClusterService extends RemoteClusterAware
         // See observability-dev issue #3042.
         transportService.getTelemetryProvider()
             .getMeterRegistry()
-            .registerLongUpDownCounter(
-                CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME,
-                "linked project connection attempt failure count",
-                "count"
-            ).add(0);
+            .registerLongUpDownCounter(CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME, "linked project connection attempt failure count", "count")
+            .add(0);
     }
 
     public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {

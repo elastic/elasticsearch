@@ -118,6 +118,12 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         return PARSER.apply(parser, context);
     }
 
+    private static void validateChunkScorerConfig(ChunkScorerConfig chunkScorerConfig) {
+        if (chunkScorerConfig != null && chunkScorerConfig.size() != null && chunkScorerConfig.size() < 1) {
+            throw new IllegalArgumentException("size must be greater than 0, was: " + chunkScorerConfig.size());
+        }
+    }
+
     private final String inferenceId;
     private final String inferenceText;
     private final String field;
@@ -135,9 +141,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         ChunkScorerConfig chunkScorerConfig
     ) {
         super(List.of(RetrieverSource.from(retrieverBuilder)), rankWindowSize);
-        if (chunkScorerConfig != null && chunkScorerConfig.size() != null && chunkScorerConfig.size() < 1) {
-            throw new IllegalArgumentException("size must be greater than 0, was: " + chunkScorerConfig.size());
-        }
+        validateChunkScorerConfig(chunkScorerConfig);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
@@ -162,9 +166,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         if (retrieverSource.size() != 1) {
             throw new IllegalArgumentException("[" + getName() + "] retriever should have exactly one inner retriever");
         }
-        if (chunkScorerConfig != null && chunkScorerConfig.size() != null && chunkScorerConfig.size() < 1) {
-            throw new IllegalArgumentException("size must be greater than 0, was: " + chunkScorerConfig.size());
-        }
+        validateChunkScorerConfig(chunkScorerConfig);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;

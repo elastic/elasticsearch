@@ -19,6 +19,9 @@
 
 package org.elasticsearch.lz4;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+
 import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG;
 import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG_64K;
 import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG_HC;
@@ -43,6 +46,46 @@ enum LZ4Utils {
             throw new IllegalArgumentException("length must be < " + MAX_INPUT_SIZE);
         }
         return length + length / 255 + 16;
+    }
+
+    /**
+     * Returns {@code true} if {@code available < required}.
+     * <p>
+     * Should be used like this:
+     * <pre>
+     * if (notEnoughSpace(end - off, <i>required</i>)) ...
+     * </pre>
+     */
+    static boolean notEnoughSpace(int available, int required) {
+        if (required < 0) {
+            // Overflow; so not enough space
+            return true;
+        }
+        return available < required;
+    }
+
+    /**
+     * Zero out a buffer.
+     *
+     * @param array The input array
+     * @param start The start index
+     * @param end   The end index (exclusive)
+     */
+    static void zero(byte[] array, int start, int end) {
+        Arrays.fill(array, start, end, (byte) 0);
+    }
+
+    /**
+     * Zero out a buffer.
+     *
+     * @param bb    The input buffer
+     * @param start The start index
+     * @param end   The end index (exclusive)
+     */
+    static void zero(ByteBuffer bb, int start, int end) {
+        for (int i = start; i < end; i++) {
+            bb.put(i, (byte) 0);
+        }
     }
 
     static int hash(int i) {

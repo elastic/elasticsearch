@@ -139,7 +139,8 @@ public class ESLZ4DecompressorTests extends ESTestCase {
 
         byte[] emptySource = new byte[0];
         expectThrows(
-            ArrayIndexOutOfBoundsException.class,
+            LZ4Exception.class,
+            Matchers.containsString("Malformed input"),
             () -> ESLZ4Decompressor.INSTANCE.decompress(emptySource, 0, output, 0, output.length)
         );
 

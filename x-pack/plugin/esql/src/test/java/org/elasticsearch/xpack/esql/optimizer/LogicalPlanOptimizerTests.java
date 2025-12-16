@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -9088,5 +9089,80 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // EsRelation[test]
         EsRelation relation = as(filter.child(), EsRelation.class);
         assertEquals("test", relation.indexPattern());
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT($$TO_LOWER(langua>$COUNT$0{r$}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS a#12, COUNT($$language_name$t
+     * emp_name$23{r}#25,true[BOOLEAN],PT0S[TIME_DURATION]) AS b#15]]
+     *   \_Eval[[TOLOWER($$language_name$temp_name$23{r}#25) AS $$TO_LOWER(langua>$COUNT$0#22]]
+     *     \_Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,{"match":{"indices":[],"match_field":"id","enrich_fields":["langua
+     * ge_code","language_name"]}},{=languages_idx},[language_code{r}#20, language_name{r}#24 AS $$language_name$temp_n
+     * ame$23#25]]
+     *       \_Join[LEFT,[language_code{r}#4],[language_code{f}#16],null]
+     *         |_LocalRelation[[language_code{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     * }</pre>
+     */
+    public void testCircularRefEnrichStats() {
+        var query = """
+            ROW language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | RENAME language_name AS message
+            | ENRICH languages_idx ON message
+            | STATS a = COUNT(TO_LOWER(language_name)), b = COUNT(language_name)
+            """;
+        var plan = optimizedPlan(query);
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit(), is(new Literal(Source.EMPTY, 1000, DataType.INTEGER)));
+
+        // Aggregate[[],[COUNT(...) AS a, COUNT(...) AS b]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(0));
+        assertThat(aggregate.aggregates(), hasSize(2));
+
+        var agg1 = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(agg1.name(), is("a"));
+        var count1 = as(agg1.child(), Count.class);
+        var field1 = as(count1.field(), ReferenceAttribute.class);
+        assertThat(field1.name(), is("$$TO_LOWER(langua>$COUNT$0"));
+
+        var agg2 = as(aggregate.aggregates().get(1), Alias.class);
+        assertThat(agg2.name(), is("b"));
+        var count2 = as(agg2.child(), Count.class);
+        var field2 = as(count2.field(), ReferenceAttribute.class);
+        assertThat(field2.name(), startsWith("$$language_name$temp_name$"));
+
+        // Eval[[TOLOWER($$language_name$temp_name$23{r}#25) AS $$TO_LOWER(langua>$COUNT$0#22]]
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var evalFieldAlias = as(eval.fields().get(0), Alias.class);
+        var evalField = as(evalFieldAlias.child(), ToLower.class);
+
+        assertThat(evalFieldAlias.name(), is("$$TO_LOWER(langua>$COUNT$0"));
+        assertThat(count1.field(), is(evalFieldAlias.toAttribute()));
+        assertThat(evalField.source().text(), is("TO_LOWER(language_name)"));
+
+        // Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,...]
+        var enrich = as(eval.child(), Enrich.class);
+        assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef("languages_idx")));
+        assertThat(enrich.enrichFields(), hasSize(2));
+
+        // Join[LEFT,[language_code{r}#4],[language_code{f}#16],null]
+        var join = as(enrich.child(), Join.class);
+        assertThat(join.config().type(), is(JoinTypes.LEFT));
+
+        // LocalRelation[[language_code{r}#4],Page{blocks=[IntVectorBlock[...]]}]
+        var localRelation = as(join.left(), LocalRelation.class);
+        assertThat(localRelation.output(), hasSize(1));
+        assertThat(localRelation.output().get(0).name(), is("language_code"));
+
+        // EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+        var esRelation = as(join.right(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), is("languages_lookup"));
+        assertThat(esRelation.indexMode(), is(IndexMode.LOOKUP));
     }
 }

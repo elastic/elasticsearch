@@ -103,13 +103,13 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
             if (logger.isTraceEnabled()) {
                 logger.info(
-                        "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                        chunk.hits() == null ? 0 : chunk.hits().getHits().length,
-                        shardIndex,
-                        queue.size(),
-                        expectedDocs,
-                        totalBreakerBytes.get(),
-                        circuitBreaker.getUsed()
+                    "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
+                    chunk.hits() == null ? 0 : chunk.hits().getHits().length,
+                    shardIndex,
+                    queue.size(),
+                    expectedDocs,
+                    totalBreakerBytes.get(),
+                    circuitBreaker.getUsed()
                 );
             }
             success = true;
@@ -159,9 +159,9 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         ownershipTransferred = true;
 
         SearchHits searchHits = new SearchHits(
-                orderedHits.toArray(SearchHit[]::new),
-                new TotalHits(orderedHits.size(), TotalHits.Relation.EQUAL_TO),
-                maxScore
+            orderedHits.toArray(SearchHit[]::new),
+            new TotalHits(orderedHits.size(), TotalHits.Relation.EQUAL_TO),
+            maxScore
         );
 
         FetchSearchResult result = new FetchSearchResult(ctxId, shardTarget);
@@ -201,10 +201,10 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     protected void closeInternal() {
         if (logger.isTraceEnabled()) {
             logger.info(
-                    "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
-                    shardIndex,
-                    queue.size(),
-                    totalBreakerBytes.get()
+                "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
+                shardIndex,
+                queue.size(),
+                totalBreakerBytes.get()
             );
         }
 
@@ -220,10 +220,10 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
             if (logger.isTraceEnabled()) {
                 logger.info(
-                        "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
-                        totalBreakerBytes.get(),
-                        shardIndex,
-                        circuitBreaker.getUsed()
+                    "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
+                    totalBreakerBytes.get(),
+                    shardIndex,
+                    circuitBreaker.getUsed()
                 );
             }
             totalBreakerBytes.set(0);

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;

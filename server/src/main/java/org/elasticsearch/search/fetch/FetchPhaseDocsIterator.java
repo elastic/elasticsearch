@@ -224,11 +224,7 @@ abstract class FetchPhaseDocsIterator {
                     hit.decRef();
                 }
 
-                lastChunk = new SearchHits(
-                    lastHitsArray,
-                    new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO),
-                    Float.NaN
-                );
+                lastChunk = new SearchHits(lastHitsArray, new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO), Float.NaN);
                 chunkBuffer.clear();
             }
         } catch (SearchTimeoutException e) {
@@ -279,11 +275,7 @@ abstract class FetchPhaseDocsIterator {
 
         SearchHits chunkHits = null;
         try {
-            chunkHits = new SearchHits(
-                hitsArray,
-                new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO),
-                maxScore
-            );
+            chunkHits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), maxScore);
             final SearchHits finalChunkHits = chunkHits;
 
             FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
@@ -298,18 +290,15 @@ abstract class FetchPhaseDocsIterator {
             );
 
             // Send the chunk - coordinator will take ownership of the hits
-            writer.writeResponseChunk(chunk, ActionListener.wrap(
-                ack -> {
-                    // Coordinator now owns the hits, decRef to release local reference
-                    finalChunkHits.decRef();
-                    future.complete(null);
-                },
-                ex -> {
-                    // Failed to send - we still own the hits, must clean up
-                    finalChunkHits.decRef();
-                    future.completeExceptionally(ex);
-                }
-            ));
+            writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
+                // Coordinator now owns the hits, decRef to release local reference
+                finalChunkHits.decRef();
+                future.complete(null);
+            }, ex -> {
+                // Failed to send - we still own the hits, must clean up
+                finalChunkHits.decRef();
+                future.completeExceptionally(ex);
+            }));
         } catch (Exception e) {
             future.completeExceptionally(e);
             // If chunk creation failed after SearchHits was created, clean up

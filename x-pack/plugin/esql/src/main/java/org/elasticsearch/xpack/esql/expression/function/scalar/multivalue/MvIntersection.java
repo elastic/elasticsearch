@@ -85,11 +85,11 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
         description = "Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
         preview = true,
         examples = {
-            @Example(file = "mv_intersection", tag = "testMvIntersectWithIntValues"),
-            @Example(file = "mv_intersection", tag = "testMvIntersectWithLongValues"),
-            @Example(file = "mv_intersection", tag = "testMvIntersectWithBooleanValues"),
-            @Example(file = "mv_intersection", tag = "testMvIntersectWithDoubleValues"),
-            @Example(file = "mv_intersection", tag = "testMvIntersectWithBytesRefValues") },
+            @Example(file = "mv_intersection", tag = "testMvIntersectionWithIntValues"),
+            @Example(file = "mv_intersection", tag = "testMvIntersectionWithLongValues"),
+            @Example(file = "mv_intersection", tag = "testMvIntersectionWithBooleanValues"),
+            @Example(file = "mv_intersection", tag = "testMvIntersectionWithDoubleValues"),
+            @Example(file = "mv_intersection", tag = "testMvIntersectionWithBytesRefValues") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public MvIntersection(

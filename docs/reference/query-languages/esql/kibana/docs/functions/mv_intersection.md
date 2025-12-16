@@ -4,5 +4,7 @@
 Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.
 
 ```esql
-null
+ROW a = [1, 2, 3, 4, 5], b = [2, 3, 4, 5, 6]
+| EVAL finalValue = MV_INTERSECTION(a, b)
+| KEEP finalValue
 ```

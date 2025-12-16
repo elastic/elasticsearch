@@ -366,11 +366,11 @@
     }
   ],
   "examples" : [
-    null,
-    null,
-    null,
-    null,
-    null
+    "ROW a = [1, 2, 3, 4, 5], b = [2, 3, 4, 5, 6]\n| EVAL finalValue = MV_INTERSECTION(a, b)\n| KEEP finalValue",
+    "ROW a = [1, 2, 3, 4, 5]::long, b = [2, 3, 4, 5, 6]::long\n| EVAL finalValue = MV_INTERSECTION(a, b)\n| KEEP finalValue",
+    "ROW a = [true, false, false, false], b = [false]\n| EVAL finalValue = MV_INTERSECTION(a, b)\n| KEEP finalValue",
+    "ROW a = [5.2, 10.5, 1.12345, 2.6928], b = [10.5, 2.6928]\n| EVAL finalValue = MV_INTERSECTION(a, b)\n| KEEP finalValue",
+    "ROW a = [\"one\", \"two\", \"three\", \"four\", \"five\"], b = [\"one\", \"four\"]\n| EVAL finalValue = MV_INTERSECTION(a, b)\n| KEEP finalValue"
   ],
   "preview" : true,
   "snapshot_only" : false

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.bootstrap;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
@@ -184,50 +183,52 @@ class HardcodedEntitlements {
             )
         );
 
-        // conditionally add FIPS entitlements if FIPS only functionality is enforced
-        if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
-            // From the JSSE reference guide:
-            // - If the javax.net.ssl.trustStore property is defined, then the TrustManagerFactory attempts to find a file using
-            //   the file name specified by that system property, and uses that file for the KeyStore parameter
-            // - If the javax.net.ssl.trustStore property is defined but the specified file does not exist, then a default TrustManager
-            //   using an empty keystore is created.
-            // - If the javax.net.ssl.trustStore system property was not specified, then:
-            //   - if the file java-home/lib/security/jssecacerts exists, that file is used;
-            //   - if the file java-home/lib/security/cacerts exists, that file is used;
-            //   - if neither of these files exists, then the TLS cipher suite is anonymous, does not perform any authentication,
-            //     and thus does not need a truststore.
-            String trustStore = System.getProperty("javax.net.ssl.trustStore");
-            final List<FilesEntitlement.FileData> trustStoreFiles;
-            if (trustStore != null) {
-                trustStoreFiles = List.of(FilesEntitlement.FileData.ofPath(Path.of(trustStore), READ));
-            } else {
-                Path javaHome = Path.of(System.getProperty("java.home"));
-                trustStoreFiles = List.of(
-                    FilesEntitlement.FileData.ofPath(javaHome.resolve("lib/security/jssecacerts"), READ),
-                    FilesEntitlement.FileData.ofPath(javaHome.resolve("lib/security/cacerts"), READ)
-                );
-            }
+        // Add entitlements to allow BouncyCastle to access default trust stores when it is used as a JSSE TrustManager.
+        // BouncyCastle is our tested FIPS implementation
+        // (see https://www.elastic.co/docs/deploy-manage/security/fips-es#java-security-provider).
 
-            Collections.addAll(
-                serverScopes,
-                new Scope(
-                    "org.bouncycastle.fips.tls",
-                    List.of(
-                        new FilesEntitlement(trustStoreFiles),
-                        new ManageThreadsEntitlement(),
-                        new OutboundNetworkEntitlement()
-                    )
-                ),
-                new Scope(
-                    "org.bouncycastle.fips.core",
-                    // read to lib dir is required for checksum validation
-                    List.of(
-                        new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(LIB, READ))),
-                        new ManageThreadsEntitlement()
-                    )
-                )
+        // From the JSSE reference guide:
+        // - If the javax.net.ssl.trustStore property is defined, then the TrustManagerFactory attempts to find a file using
+        //   the file name specified by that system property, and uses that file for the KeyStore parameter
+        // - If the javax.net.ssl.trustStore property is defined but the specified file does not exist, then a default TrustManager
+        //   using an empty keystore is created.
+        // - If the javax.net.ssl.trustStore system property was not specified, then:
+        //   - if the file java-home/lib/security/jssecacerts exists, that file is used;
+        //   - if the file java-home/lib/security/cacerts exists, that file is used;
+        //   - if neither of these files exists, then the TLS cipher suite is anonymous, does not perform any authentication,
+        //     and thus does not need a truststore.
+        String trustStore = System.getProperty("javax.net.ssl.trustStore");
+        final List<FilesEntitlement.FileData> trustStoreFiles;
+        if (trustStore != null) {
+            trustStoreFiles = List.of(FilesEntitlement.FileData.ofPath(Path.of(trustStore), READ));
+        } else {
+            Path javaHome = Path.of(System.getProperty("java.home"));
+            trustStoreFiles = List.of(
+                FilesEntitlement.FileData.ofPath(javaHome.resolve("lib/security/jssecacerts"), READ),
+                FilesEntitlement.FileData.ofPath(javaHome.resolve("lib/security/cacerts"), READ)
             );
         }
+
+        Collections.addAll(
+            serverScopes,
+            new Scope(
+                "org.bouncycastle.fips.tls",
+                List.of(
+                    new FilesEntitlement(trustStoreFiles),
+                    new ManageThreadsEntitlement(),
+                    new OutboundNetworkEntitlement()
+                )
+            ),
+            new Scope(
+                "org.bouncycastle.fips.core",
+                // read to lib dir is required for checksum validation
+                List.of(
+                    new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(LIB, READ))),
+                    new ManageThreadsEntitlement()
+                )
+            )
+        );
+
         return serverScopes;
     }
 

@@ -1,0 +1,6 @@
+pr: 138647
+summary: Run aggregations on `agg_metric` with default metric
+area: ES|QL
+type: feature
+issues:
+ - 136297

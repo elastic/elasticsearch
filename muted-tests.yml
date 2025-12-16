@@ -448,9 +448,6 @@ tests:
 - class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/139376
-- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
-  method: testDownsampleDatastream
-  issue: https://github.com/elastic/elasticsearch/issues/139438
 - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
   method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
   issue: https://github.com/elastic/elasticsearch/issues/139490
@@ -475,6 +472,12 @@ tests:
 - class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/139562
+- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
+  method: testMinVersionSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/139624
+- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
+  method: testMinVersionSerialization
+  issue: https://github.com/elastic/elasticsearch/issues/139625
 
 # Examples:
 #

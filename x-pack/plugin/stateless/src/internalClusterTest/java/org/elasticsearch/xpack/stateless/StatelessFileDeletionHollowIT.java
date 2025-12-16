@@ -30,7 +30,6 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
@@ -40,6 +39,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -488,7 +488,7 @@ public class StatelessFileDeletionHollowIT extends AbstractServerlessStatelessPl
         var hollowEngine = asInstanceOf(HollowIndexEngine.class, indexShard.getEngineOrNull());
 
         // Test that searcher is working and can execute searches
-        var top = searcher.search(new MatchAllDocsQuery(), 100);
+        var top = searcher.search(Queries.ALL_DOCS_INSTANCE, 100);
         assertThat(top.totalHits.value(), equalTo(20L));
 
         // Test that searcher can access .fdt file during searches
@@ -609,7 +609,7 @@ public class StatelessFileDeletionHollowIT extends AbstractServerlessStatelessPl
     }
 
     private static void ensureSearcherCanAccessStoredFieldFile(Engine.Searcher searcher) throws IOException {
-        searcher.search(new MatchAllDocsQuery(), new Collector() {
+        searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
             @Override
             public ScoreMode scoreMode() {
                 return ScoreMode.COMPLETE_NO_SCORES;

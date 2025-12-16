@@ -146,11 +146,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
-            left(),
-            sourceText(),
-            FIRST
-        );
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }

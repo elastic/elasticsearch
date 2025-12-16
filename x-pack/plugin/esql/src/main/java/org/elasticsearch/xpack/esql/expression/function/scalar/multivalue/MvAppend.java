@@ -148,11 +148,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
-            field1,
-            sourceText(),
-            FIRST
-        );
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field1, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }

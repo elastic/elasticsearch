@@ -34,9 +34,7 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         String supportTypeNames = ToString.supportedTypesNames(new ToString(Source.EMPTY, Literal.NULL).supportedTypes());
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) ->
-            supportTypeNames
-        ));
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> supportTypeNames));
     }
 
     @Override
@@ -45,8 +43,10 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
          * In general ToString should support all signatures. While building a
          * new type you may we to temporarily relax this.
          */
-        assertThat("all signatures except for TDigest should be supported", invalidSignatureSamples, equalTo(Set.of(
-            List.of(DataType.TDIGEST)
-        )));
+        assertThat(
+            "all signatures except for TDigest should be supported",
+            invalidSignatureSamples,
+            equalTo(Set.of(List.of(DataType.TDIGEST)))
+        );
     }
 }

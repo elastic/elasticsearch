@@ -122,12 +122,9 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        var typeResolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
-            field(),
-            sourceText(),
-            FIRST
-        ).and(isNotNull(limitField(), sourceText(), SECOND))
-            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
+        var typeResolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), FIRST).and(
+            isNotNull(limitField(), sourceText(), SECOND)
+        ).and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
         if (typeResolution.unresolved()) {
             return typeResolution;
         }

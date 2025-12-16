@@ -33,7 +33,12 @@ public class MvAppendErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        var unsupportedTypes = List.of(DataType.AGGREGATE_METRIC_DOUBLE, DataType.DENSE_VECTOR, DataType.EXPONENTIAL_HISTOGRAM, DataType.TDIGEST);
+        var unsupportedTypes = List.of(
+            DataType.AGGREGATE_METRIC_DOUBLE,
+            DataType.DENSE_VECTOR,
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
+        );
         if (unsupportedTypes.contains(signature.getFirst())
             || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
             return containsString(

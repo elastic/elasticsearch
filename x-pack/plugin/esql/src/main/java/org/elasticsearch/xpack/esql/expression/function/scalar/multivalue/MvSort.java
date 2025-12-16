@@ -127,11 +127,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
-            field,
-            sourceText(),
-            FIRST
-        );
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field, sourceText(), FIRST);
 
         if (resolution.unresolved()) {
             return resolution;

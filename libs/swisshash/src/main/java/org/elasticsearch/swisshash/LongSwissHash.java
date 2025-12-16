@@ -49,7 +49,7 @@ import java.util.Objects;
  * slot. We use the widest SIMD instruction the CPU supports, meaning 64 or 32
  * bytes. If any of those match we check the actual key. So instead of scanning
  * one slot at a time "small core", we effectively scan a whole bunch at once.
- * This allows us to run a much higher load factor (85%) without any performance
+ * This allows us to run a much higher load factor (87.5%) without any performance
  * penalty so the extra byte feels super worth it.
  *
  * <p> When a "big core" fills it's table to the fill factor, we build a new
@@ -61,7 +61,7 @@ import java.util.Objects;
  */
 public final class LongSwissHash extends SwissHash implements LongHashTable {
 
-    static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
+    static final VectorSpecies<Byte> BS = ByteVector.SPECIES_128;
 
     private static final int BYTE_VECTOR_LANES = BS.vectorByteSize();
 
@@ -354,7 +354,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
      * shifts.
      */
     final class BigCore extends Core {
-        static final float FILL_FACTOR = 0.85F;
+        static final float FILL_FACTOR = 0.875F;
 
         private static final byte EMPTY = (byte) 0x80; // empty slot
 

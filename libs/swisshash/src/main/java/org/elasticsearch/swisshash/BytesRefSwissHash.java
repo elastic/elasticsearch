@@ -50,7 +50,7 @@ import java.util.Objects;
  * slot. We use the widest SIMD instruction the CPU supports, meaning 64 or 32
  * bytes. If any of those match we check the actual key. So instead of scanning
  * one slot at a time "small core", we effectively scan a whole bunch at once.
- * This allows us to run a much higher load factor (85%) without any performance
+ * This allows us to run a much higher load factor (87.5%) without any performance
  * penalty so the extra byte feels super worth it.
  *
  * <p> When a "big core" fills it's table to the fill factor, we build a new
@@ -67,7 +67,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         // spare BytesRef
         + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
 
-    private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_128;
 
     private static final int BYTE_VECTOR_LANES = BS.vectorByteSize();
 
@@ -250,7 +250,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 if (id < 0) {
                     return -1; // empty
                 }
-                if (matches(key, id)) {
+                if (hash(value) == hash && matches(key, id)) {
                     return id;
                 }
                 slot = slot(slot + 1);
@@ -339,7 +339,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * arrays.
      */
     final class BigCore extends Core {
-        static final float FILL_FACTOR = 0.85F;
+        static final float FILL_FACTOR = 0.875F;
 
         private static final byte EMPTY = (byte) 0x80; // empty slot
 
@@ -437,25 +437,6 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
-        /**
-         * Insert the key into the first empty slot that allows it. Used by {@link #add}
-         * after we verify that the key isn't in the index. And used by {@link #rehash}
-         * because we know all keys are unique.
-         */
-        private void insert(final int hash, final byte control, final int id) {
-            int group = slot(hash);
-            for (;;) {
-                long empty = ByteVector.fromArray(BS, controlData, group).eq(EMPTY).toLong();
-                if (empty != 0L) {
-                    final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
-                    insertAtSlot(insertSlot, hash, control, id);
-                    return;
-                }
-                group = slot(group + BYTE_VECTOR_LANES);
-                insertProbes++;
-            }
-        }
-
         private void insertAtSlot(final int insertSlot, final int hash, final byte control, final int id) {
             final long value = ((long) id << 32) | Integer.toUnsignedLong(hash);
             final int offset = idAndHashOffset(insertSlot);
@@ -502,29 +483,43 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         private void grow() {
             int oldCapacity = growTracking();
             try {
-                bigCore = new BigCore();
-                rehash(oldCapacity);
+                BigCore newBigCore = new BigCore();
+                rehash(oldCapacity, newBigCore);
+                bigCore = newBigCore;
             } finally {
                 close();
             }
         }
 
-        private void rehash(final int oldCapacity) {
-            int slot = 0;
-            while (slot < oldCapacity) {
-                long empty = ByteVector.fromArray(BS, controlData, slot).eq(EMPTY).toLong();
-                for (int i = 0; i < BYTE_VECTOR_LANES && slot + i < oldCapacity; i++) {
-                    if ((empty & (1L << i)) != 0L) {
-                        continue;
-                    }
-                    final int actualSlot = slot + i;
-                    final long value = idAndHash(actualSlot);
-                    final int hash = hash(value);
-                    final int id = id(value);
-                    bytesRefs.get(id, scratch);
-                    bigCore.insert(hash, control(hash), id);
+        private void rehash(int oldCapacity, BigCore newBigCore) {
+            for (int i = 0; i < oldCapacity; i++) {
+                if (controlData[i] == EMPTY) {
+                    continue;
                 }
-                slot += BYTE_VECTOR_LANES;
+                final long value = idAndHash(i);
+                final int hash = hash(value);
+                final int id = id(value);
+                newBigCore.insert(hash, control(hash), id);
+            }
+        }
+
+        /**
+         * Inserts the key into the first empty slot that allows it. Used
+         * by {@link #rehash} because we know all keys are unique.
+         */
+        private void insert(final int hash, final byte control, final int id) {
+            int group = hash & mask;
+            for (;;) {
+                for (int j = 0; j < BYTE_VECTOR_LANES; j++) {
+                    int idx = group + j;
+                    if (controlData[idx] == EMPTY) {
+                        int insertSlot = slot(group + j);
+                        insertAtSlot(insertSlot, hash, control, id);
+                        return;
+                    }
+                }
+                group = (group + BYTE_VECTOR_LANES) & mask;
+                insertProbes++;
             }
         }
 

@@ -93,7 +93,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 @ESTestCase.WithoutEntitlements
-public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTestCase {
+public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_A = "cluster-a";
     private static final String REMOTE_CLUSTER_B = "cluster-b";
 
@@ -157,7 +157,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         }
     }
 
-    public QueryRewriteContextMultiClustersIT(boolean securityEnabled) {
+    public QueryRewriteRemoteAsyncActionIT(boolean securityEnabled) {
         this.securityEnabled = securityEnabled;
     }
 

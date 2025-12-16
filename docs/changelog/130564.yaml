@@ -1,0 +1,5 @@
+pr: 130564
+summary: Enable early termination for HNSW by default
+area: Vector Search
+type: enhancement
+issues: []

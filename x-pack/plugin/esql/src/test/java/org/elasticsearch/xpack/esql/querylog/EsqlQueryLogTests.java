@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SlowLogFieldProvider;
@@ -208,7 +209,7 @@ public class EsqlQueryLogTests extends ESTestCase {
     }
 
     private static EsqlExecutionInfo getEsqlExecutionInfo(long tookNanos, long planningTookNanos) {
-        EsqlExecutionInfo info = new EsqlExecutionInfo(false) {
+        return new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY) {
             @Override
             public TimeValue overallTook() {
                 return new TimeValue(tookNanos, TimeUnit.NANOSECONDS);
@@ -234,6 +235,5 @@ public class EsqlQueryLogTests extends ESTestCase {
                 return TimeSpan.start().stop();
             }
         };
-        return info;
     }
 }

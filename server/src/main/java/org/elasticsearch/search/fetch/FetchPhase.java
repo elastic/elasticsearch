@@ -102,7 +102,8 @@ public final class FetchPhase {
             final int maxInFlightChunks = 1; // TODO make configurable
             final ArrayDeque<CompletableFuture<Void>> pendingChunks = new ArrayDeque<>();
             final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
-            hits = buildSearchHits(context,
+            hits = buildSearchHits(
+                context,
                 docIdsToLoad,
                 profiler,
                 rankDocs,
@@ -110,7 +111,8 @@ public final class FetchPhase {
                 writer,
                 pendingChunks,
                 maxInFlightChunks,
-                sendFailure);
+                sendFailure
+            );
 
             // Wait for all chunks to be ACKed before setting final result
             if (writer != null && pendingChunks.isEmpty() == false) {

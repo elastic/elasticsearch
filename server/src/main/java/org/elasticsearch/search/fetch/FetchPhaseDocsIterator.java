@@ -191,14 +191,14 @@ abstract class FetchPhaseDocsIterator {
 
                             // Send chunk with sequence information
                             CompletableFuture<Void> chunkFuture = sendChunk(
-                                    chunkWriter,
-                                    chunkBuffer,
-                                    shardId,
-                                    currentChunkSequenceStart,
-                                    i - chunkBuffer.size() + 1,
-                                    docIds.length,
-                                    Float.NaN
-                                );
+                                chunkWriter,
+                                chunkBuffer,
+                                shardId,
+                                currentChunkSequenceStart,
+                                i - chunkBuffer.size() + 1,
+                                docIds.length,
+                                Float.NaN
+                            );
 
                             // record failures as soon as they happen
                             chunkFuture.whenComplete((ok, ex) -> {

@@ -16,7 +16,6 @@ import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -42,7 +41,9 @@ import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomFiniteRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.test.NeverMatcher.never;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -293,14 +294,6 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
     protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
         return equalTo(maxRetries);
-    }
-
-    protected OperationPurpose randomRetryingPurpose() {
-        return randomPurpose();
-    }
-
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return randomPurpose();
     }
 
     public void testReadBlobWithNoHttpResponse() {

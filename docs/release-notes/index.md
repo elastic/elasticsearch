@@ -20,6 +20,45 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.1.9 [elasticsearch-9.1.9-release-notes]
+```{applies_to}
+stack: ga 9.1.9
+```
+
+### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
+
+Infra/Core:
+* Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
+
+Infra/Logging:
+* Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
+
+Security:
+* Improve security migration resilience by handling version conflicts [#137558](https://github.com/elastic/elasticsearch/pull/137558)
+
+
+### Fixes [elasticsearch-9.1.9-fixes]
+
+Downsampling:
+* Fix multi fields in downsampling [#138869](https://github.com/elastic/elasticsearch/pull/138869)
+
+ES|QL:
+* [ES|QL] Compare query builders using identity [#139080](https://github.com/elastic/elasticsearch/pull/139080)
+
+Infra/Core:
+* GET /_migration/deprecations doesn't check disk watermarks against correct settings values [#138115](https://github.com/elastic/elasticsearch/pull/138115) (issue: [#137005](https://github.com/elastic/elasticsearch/issues/137005))
+
+Ingest Node:
+* Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
+
+Machine Learning:
+* Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
+
+Security:
+* More reliable trigger for security index migration [#139028](https://github.com/elastic/elasticsearch/pull/139028)
+
+
+
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.2-features-enhancements]
@@ -113,6 +152,8 @@ Vector Search:
 * Fixing sorted indices for GPU built indices [#138138](https://github.com/elastic/elasticsearch/pull/138138)
 * Update to Lucene 10.3.2 [#138230](https://github.com/elastic/elasticsearch/pull/138230) (issue: [#135718](https://github.com/elastic/elasticsearch/issues/135718))
 * [Vector Search] Fix  wrong vector docvalue_fields [#137862](https://github.com/elastic/elasticsearch/pull/137862)
+
+
 
 ## 9.1.8 [elasticsearch-9.1.8-release-notes]
 

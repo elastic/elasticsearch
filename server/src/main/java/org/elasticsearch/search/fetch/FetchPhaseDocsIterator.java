@@ -29,17 +29,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Given a set of doc ids and an index reader, sorts the docs by id, splits the sorted
- * docs by leaf reader, and iterates through them calling abstract methods
+ * Given a set of doc ids and an index reader, sorts the docs by id (when not streaming),
+ * splits the sorted docs by leaf reader, and iterates through them calling abstract methods
  * {@link #setNextReader(LeafReaderContext, int[])} for each new leaf reader and
  * {@link #nextDoc(int)} for each document; then collects the resulting {@link SearchHit}s
  * into an array and returns them in the order of the original doc ids.
  * <p>
  * Optionally supports streaming hits in chunks if a {@link FetchPhaseResponseChunk.Writer}
  * is provided, reducing memory footprint for large result sets.
+ * <p>
+ * ORDERING: When streaming is disabled, docs are sorted by doc ID for efficient index access,
+ * but the original score-based order is restored via index mapping. When streaming is enabled,
+ * docs are NOT sorted to preserve score order, and sequence numbers track ordering across chunks.
  */
 abstract class FetchPhaseDocsIterator {
 
@@ -49,6 +53,13 @@ abstract class FetchPhaseDocsIterator {
      */
     private long requestBreakerBytes;
 
+    /**
+     * Sequence counter for tracking hit order in streaming mode.
+     * Each hit gets a unique sequence number allowing the coordinator to restore correct order
+     * even if chunks arrive out of order.
+     */
+    private final AtomicLong hitSequenceCounter = new AtomicLong(0);
+
     public void addRequestBreakerBytes(long delta) {
         requestBreakerBytes += delta;
     }
@@ -56,8 +67,6 @@ abstract class FetchPhaseDocsIterator {
     public long getRequestBreakerBytes() {
         return requestBreakerBytes;
     }
-
-    private static AtomicInteger counter = new AtomicInteger(0);
 
     /**
      * Called when a new leaf reader is reached
@@ -75,26 +84,13 @@ abstract class FetchPhaseDocsIterator {
 
     /**
      * Iterate over a set of docsIds within a particular shard and index reader.
-     */
-    /*    public final SearchHit[] iterate(
-        SearchShardTarget shardTarget,
-        IndexReader indexReader,
-        int[] docIds,
-        boolean allowPartialResults,
-        QuerySearchResult querySearchResult
-    ) {
-        // Delegate to new method with null writer to maintain backward compatibility
-        // When writer is null, no streaming chunks are sent (original behavior)
-        return iterate(shardTarget, indexReader, docIds, allowPartialResults, querySearchResult, null, 0, null);
-    }*/
-
-    /**
-     * Iterate over a set of docsIds within a particular shard and index reader.
-     * If a writer is provided, hits are sent in chunks as they are produced (streaming mode).
+     *
      * Streaming mode: When {@code chunkWriter} is non-null, hits are buffered and sent
-     * in chunks of size {@code chunkSize}. This reduces memory footprint for large result sets
-     * by streaming results to the coordinator as they are produced.
-     * Legacy mode: When {@code chunkWriter} is null, behaves exactly like the original
+     * in chunks. Docs are kept in original order (score-based) and sequence numbers track
+     * position to handle out-of-order chunk arrival.
+     *
+     * Non-streaming mode: Docs are sorted by doc ID for efficiency, and original order
+     * is restored via index mapping.
      *
      * @param shardTarget         the shard being fetched from
      * @param indexReader         the index reader
@@ -103,7 +99,8 @@ abstract class FetchPhaseDocsIterator {
      * @param querySearchResult   the query result
      * @param chunkWriter         if non-null, enables streaming mode and sends hits in chunks
      * @param chunkSize           number of hits per chunk (only used if chunkWriter is non-null)
-     * @return array of SearchHits in the order of the original docIds
+     * @param pendingChunks       list to track pending chunk acknowledgments
+     * @return IterateResult containing hits array and optional last chunk with sequence info
      */
     public final IterateResult iterate(
         SearchShardTarget shardTarget,
@@ -123,24 +120,37 @@ abstract class FetchPhaseDocsIterator {
         ShardId shardId = streamingEnabled ? shardTarget.getShardId() : null;
         SearchHits lastChunk = null;
 
+        // Track sequence numbers for ordering
+        long currentChunkSequenceStart = -1;
+        long lastChunkSequenceStart = -1;
+
         for (int index = 0; index < docIds.length; index++) {
             docs[index] = new DocIdToIndex(docIds[index], index);
         }
-        // make sure that we iterate in doc id order
-        Arrays.sort(docs);
+
+        // Only sort by doc ID if NOT streaming
+        // Sorting by doc ID is an optimization for sequential index access,
+        // but streaming mode needs to preserve score order from query phase
+        if (streamingEnabled == false) {
+            Arrays.sort(docs);
+        }
+
         int currentDoc = docs[0].docId;
+
         try {
             int leafOrd = ReaderUtil.subIndex(docs[0].docId, indexReader.leaves());
             LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
             int endReaderIdx = endReaderIdx(ctx, 0, docs);
             int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
+
             try {
                 setNextReader(ctx, docsInLeaf);
             } catch (ContextIndexSearcher.TimeExceededException e) {
                 SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                 assert allowPartialResults;
-                return new IterateResult(SearchHits.EMPTY, lastChunk);
+                return new IterateResult(SearchHits.EMPTY, lastChunk, lastChunkSequenceStart);
             }
+
             for (int i = 0; i < docs.length; i++) {
                 try {
                     if (i >= endReaderIdx) {
@@ -150,25 +160,36 @@ abstract class FetchPhaseDocsIterator {
                         docsInLeaf = docIdsInLeaf(i, endReaderIdx, docs, ctx.docBase);
                         setNextReader(ctx, docsInLeaf);
                     }
+
                     currentDoc = docs[i].docId;
                     assert searchHits[docs[i].index] == null;
                     SearchHit hit = nextDoc(docs[i].docId);
 
                     if (streamingEnabled) {
                         hit.incRef();
+
+                        // Mark sequence start when starting new chunk
+                        if (chunkBuffer.isEmpty()) {
+                            currentChunkSequenceStart = hitSequenceCounter.get();
+                        }
+
+                        // Assign sequence to this hit and increment counter
+                        hitSequenceCounter.getAndIncrement();
+
                         chunkBuffer.add(hit);
 
-                        // Send intermediate chunks -not when it's the last iteration
+                        // Send intermediate chunks - not when it's the last iteration
                         if (chunkBuffer.size() >= chunkSize && i < docs.length - 1) {
-                            // Send HIT chunk
+                            // Send chunk with sequence information
                             pendingChunks.add(
                                 sendChunk(
                                     chunkWriter,
                                     chunkBuffer,
                                     shardId,
+                                    currentChunkSequenceStart,  // Pass sequence start for ordering
                                     i - chunkBuffer.size() + 1,
                                     docIds.length,
-                                    Float.NaN  // maxScore not meaningful for individual chunks
+                                    Float.NaN
                                 )
                             );
                             chunkBuffer.clear();
@@ -187,12 +208,15 @@ abstract class FetchPhaseDocsIterator {
                     assert allowPartialResults;
                     SearchHit[] partialSearchHits = new SearchHit[i];
                     System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
-                    return new IterateResult(partialSearchHits, lastChunk);
+                    return new IterateResult(partialSearchHits, lastChunk, lastChunkSequenceStart);
                 }
             }
 
             // Return the final partial chunk if streaming is enabled and buffer has remaining hits
             if (streamingEnabled && chunkBuffer.isEmpty() == false) {
+                // Remember the sequence start for the last chunk
+                lastChunkSequenceStart = currentChunkSequenceStart;
+
                 SearchHit[] lastHitsArray = chunkBuffer.toArray(new SearchHit[0]);
 
                 // DecRef for SearchHits constructor (will increment)
@@ -200,7 +224,11 @@ abstract class FetchPhaseDocsIterator {
                     hit.decRef();
                 }
 
-                lastChunk = new SearchHits(lastHitsArray, new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                lastChunk = new SearchHits(
+                    lastHitsArray,
+                    new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO),
+                    Float.NaN
+                );
                 chunkBuffer.clear();
             }
         } catch (SearchTimeoutException e) {
@@ -218,16 +246,18 @@ abstract class FetchPhaseDocsIterator {
             }
             throw new FetchPhaseExecutionException(shardTarget, "Error running fetch phase for doc [" + currentDoc + "]", e);
         }
-        return new IterateResult(searchHits, lastChunk);
+
+        return new IterateResult(searchHits, lastChunk, lastChunkSequenceStart);
     }
 
     /**
-     * Sends a chunk of hits to the coordinator.
+     * Sends a chunk of hits to the coordinator with sequence information for ordering.
      */
     private static CompletableFuture<Void> sendChunk(
         FetchPhaseResponseChunk.Writer writer,
         List<SearchHit> buffer,
         ShardId shardId,
+        long sequenceStart,
         int fromIndex,
         int totalDocs,
         float maxScore
@@ -249,30 +279,37 @@ abstract class FetchPhaseDocsIterator {
 
         SearchHits chunkHits = null;
         try {
-            chunkHits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), maxScore);
+            chunkHits = new SearchHits(
+                hitsArray,
+                new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO),
+                maxScore
+            );
             final SearchHits finalChunkHits = chunkHits;
 
             FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
-                counter.get(),
+                System.currentTimeMillis(),
                 FetchPhaseResponseChunk.Type.HITS,
                 shardId,
                 chunkHits,
                 fromIndex,
                 hitsArray.length,
-                totalDocs
+                totalDocs,
+                sequenceStart  // Include sequence start in chunk metadata
             );
-            counter.incrementAndGet();
 
             // Send the chunk - coordinator will take ownership of the hits
-            writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
-                // Coordinator now owns the hits, decRef to release local reference
-                finalChunkHits.decRef();
-                future.complete(null);
-            }, ex -> {
-                // Failed to send - we still own the hits, must clean up
-                finalChunkHits.decRef();
-                future.completeExceptionally(ex);
-            }));
+            writer.writeResponseChunk(chunk, ActionListener.wrap(
+                ack -> {
+                    // Coordinator now owns the hits, decRef to release local reference
+                    finalChunkHits.decRef();
+                    future.complete(null);
+                },
+                ex -> {
+                    // Failed to send - we still own the hits, must clean up
+                    finalChunkHits.decRef();
+                    future.completeExceptionally(ex);
+                }
+            ));
         } catch (Exception e) {
             future.completeExceptionally(e);
             // If chunk creation failed after SearchHits was created, clean up
@@ -342,16 +379,18 @@ abstract class FetchPhaseDocsIterator {
     }
 
     /**
-     * Add result class to carry both hits array and last chunk for streaming version
+     * Result class that carries hits array, last chunk, and sequence information.
+     * The lastChunkSequenceStart is used by the coordinator to properly order the last chunk's hits.
      */
     static class IterateResult {
-
         final SearchHit[] hits;
         final SearchHits lastChunk;  // null for non-streaming mode
+        final long lastChunkSequenceStart;  // -1 if no last chunk
 
-        IterateResult(SearchHit[] hits, SearchHits lastChunk) {
+        IterateResult(SearchHit[] hits, SearchHits lastChunk, long lastChunkSequenceStart) {
             this.hits = hits;
             this.lastChunk = lastChunk;
+            this.lastChunkSequenceStart = lastChunkSequenceStart;
         }
     }
 }

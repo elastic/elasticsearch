@@ -19,7 +19,8 @@ import org.elasticsearch.search.SearchHits;
 import java.io.IOException;
 
 /**
- * A single chunk of fetch results streamed from a data node to the coordinator
+ * A single chunk of fetch results streamed from a data node to the coordinator.
+ * Contains sequence information to maintain correct ordering when chunks arrive out of order.
  **/
 public record FetchPhaseResponseChunk(
     long timestampMillis,
@@ -28,7 +29,8 @@ public record FetchPhaseResponseChunk(
     SearchHits hits,
     int from,
     int size,
-    int expectedDocs
+    int expectedDocs,
+    long sequenceStart  // Sequence number of first hit in this chunk
 ) implements Writeable {
 
     /**
@@ -60,7 +62,16 @@ public record FetchPhaseResponseChunk(
      * @throws IOException if deserialization fails
      */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readEnum(Type.class), new ShardId(in), readOptionalHits(in), in.readVInt(), in.readVInt(), in.readVInt());
+        this(
+            in.readVLong(),
+            in.readEnum(Type.class),
+            new ShardId(in),
+            readOptionalHits(in),
+            in.readVInt(),
+            in.readVInt(),
+            in.readVInt(),
+            in.readVLong()
+        );
     }
 
     private static SearchHits readOptionalHits(StreamInput in) throws IOException {
@@ -85,6 +96,7 @@ public record FetchPhaseResponseChunk(
         out.writeVInt(from);
         out.writeVInt(size);
         out.writeVInt(expectedDocs);
+        out.writeVLong(sequenceStart);
     }
 
     /**

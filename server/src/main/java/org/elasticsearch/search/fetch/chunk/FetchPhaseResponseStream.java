@@ -25,6 +25,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -35,6 +36,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * Runs on the coordinator node and maintains an in-memory buffer of hits received
  * from a single shard on a data node. The data node sends hits in small chunks to
  * avoid large network messages and memory pressure.
+ *
+ * Uses sequence numbers to maintain correct ordering when chunks arrive out of order.
  **/
 class FetchPhaseResponseStream extends AbstractRefCounted {
 
@@ -43,8 +46,8 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     private final int shardIndex;
     private final int expectedDocs;
 
-    // Accumulate hits
-    private final Queue<SearchHit> queue = new ConcurrentLinkedQueue<>();
+    // Accumulate hits with sequence numbers for ordering
+    private final Queue<SequencedHit> queue = new ConcurrentLinkedQueue<>();
     private volatile boolean ownershipTransferred = false;
 
     // Circuit breaker accounting
@@ -76,11 +79,17 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
         boolean success = false;
         try {
-
             if (chunk.hits() != null) {
-                for (SearchHit hit : chunk.hits().getHits()) {
+                SearchHit[] chunkHits = chunk.hits().getHits();
+                long sequenceStart = chunk.sequenceStart();
+
+                for (int i = 0; i < chunkHits.length; i++) {
+                    SearchHit hit = chunkHits[i];
                     hit.incRef();
-                    queue.add(hit);
+
+                    // Calculate sequence: chunk start + index within chunk
+                    long hitSequence = sequenceStart + i;
+                    queue.add(new SequencedHit(hit, hitSequence));
 
                     // Estimate memory usage from source size
                     BytesReference sourceRef = hit.getSourceRef();
@@ -94,13 +103,13 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
             if (logger.isTraceEnabled()) {
                 logger.info(
-                    "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                    chunk.hits().getHits().length,
-                    shardIndex,
-                    queue.size(),
-                    expectedDocs,
-                    totalBreakerBytes.get(),
-                    circuitBreaker.getUsed()
+                        "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
+                        chunk.hits() == null ? 0 : chunk.hits().getHits().length,
+                        shardIndex,
+                        queue.size(),
+                        expectedDocs,
+                        totalBreakerBytes.get(),
+                        circuitBreaker.getUsed()
                 );
             }
             success = true;
@@ -113,23 +122,35 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
     /**
      * Builds the final {@link FetchSearchResult} from all accumulated hits.
+     * Sorts hits by sequence number to restore correct order.
      *
      * @param ctxId the shard search context ID
      * @param shardTarget the shard target information
      * @param profileResult the profile result from the data node (may be null)
-     * @return a complete {@link FetchSearchResult} containing all accumulated hits
+     * @return a complete {@link FetchSearchResult} containing all accumulated hits in correct order
      */
     FetchSearchResult buildFinalResult(ShardSearchContextId ctxId, SearchShardTarget shardTarget, @Nullable ProfileResult profileResult) {
         if (logger.isTraceEnabled()) {
             logger.info("Building final result for shard [{}] with [{}] hits", shardIndex, queue.size());
         }
 
+        // Convert queue to list and sort by sequence number to restore correct order
+        List<SequencedHit> sequencedHits = new ArrayList<>(queue);
+        sequencedHits.sort(Comparator.comparingLong(sh -> sh.sequence));
+
+        // Extract hits in correct order and calculate maxScore
+        List<SearchHit> orderedHits = new ArrayList<>(sequencedHits.size());
         float maxScore = Float.NEGATIVE_INFINITY;
-        for (SearchHit hit : queue) {
+
+        for (SequencedHit sequencedHit : sequencedHits) {
+            SearchHit hit = sequencedHit.hit;
+            orderedHits.add(hit);
+
             if (Float.isNaN(hit.getScore()) == false) {
                 maxScore = Math.max(maxScore, hit.getScore());
             }
         }
+
         if (maxScore == Float.NEGATIVE_INFINITY) {
             maxScore = Float.NaN;
         }
@@ -137,11 +158,10 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         // Hits have refCount=1, SearchHits constructor will increment to 2
         ownershipTransferred = true;
 
-        List<SearchHit> hits = new ArrayList<>(queue);
         SearchHits searchHits = new SearchHits(
-            hits.toArray(SearchHit[]::new),
-            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO),
-            maxScore
+                orderedHits.toArray(SearchHit[]::new),
+                new TotalHits(orderedHits.size(), TotalHits.Relation.EQUAL_TO),
+                maxScore
         );
 
         FetchSearchResult result = new FetchSearchResult(ctxId, shardTarget);
@@ -150,10 +170,14 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
-     * Adds a single hit to the accumulated result. Used for processing the last chunk embedded in FetchSearchResult.
+     * Adds a single hit with explicit sequence number to the accumulated result.
+     * Used for processing the last chunk embedded in FetchSearchResult where sequence is known.
+     *
+     * @param hit the hit to add
+     * @param sequence the sequence number for this hit
      */
-    void addHit(SearchHit hit) {
-        queue.add(hit);
+    void addHitWithSequence(SearchHit hit, long sequence) {
+        queue.add(new SequencedHit(hit, sequence));
     }
 
     /**
@@ -164,22 +188,29 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
+     * Gets the current size of the queue. Used for debugging and monitoring.
+     */
+    int getCurrentQueueSize() {
+        return queue.size();
+    }
+
+    /**
      * Releases accumulated hits and circuit breaker bytes when hits are released from memory.
      */
     @Override
     protected void closeInternal() {
         if (logger.isTraceEnabled()) {
             logger.info(
-                "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
-                shardIndex,
-                queue.size(),
-                totalBreakerBytes.get()
+                    "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
+                    shardIndex,
+                    queue.size(),
+                    totalBreakerBytes.get()
             );
         }
 
         if (ownershipTransferred == false) {
-            for (SearchHit hit : queue) {
-                hit.decRef();
+            for (SequencedHit sequencedHit : queue) {
+                sequencedHit.hit.decRef();
             }
         }
         queue.clear();
@@ -189,13 +220,27 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
             if (logger.isTraceEnabled()) {
                 logger.info(
-                    "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
-                    totalBreakerBytes.get(),
-                    shardIndex,
-                    circuitBreaker.getUsed()
+                        "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
+                        totalBreakerBytes.get(),
+                        shardIndex,
+                        circuitBreaker.getUsed()
                 );
             }
             totalBreakerBytes.set(0);
+        }
+    }
+
+    /**
+     * Wrapper class that pairs a SearchHit with its sequence number.
+     * This ensures we can restore the correct order even if chunks arrive out of order.
+     */
+    private static class SequencedHit {
+        final SearchHit hit;
+        final long sequence;
+
+        SequencedHit(SearchHit hit, long sequence) {
+            this.hit = hit;
+            this.sequence = sequence;
         }
     }
 }

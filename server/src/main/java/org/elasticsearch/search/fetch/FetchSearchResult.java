@@ -31,6 +31,13 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private ProfileResult profileResult;
 
+    /**
+     * Sequence number of the first hit in the last chunk (embedded in this result).
+     * Used by the coordinator to maintain correct ordering when processing the last chunk.
+     * Value of -1 indicates no last chunk or sequence tracking not applicable.
+     */
+    private long lastChunkSequenceStart = -1;
+
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public FetchSearchResult() {}
@@ -44,6 +51,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId = new ShardSearchContextId(in);
         hits = SearchHits.readFrom(in, true);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
+        lastChunkSequenceStart = in.readLong();
     }
 
     @Override
@@ -52,6 +60,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
+        out.writeLong(lastChunkSequenceStart);
     }
 
     @Override
@@ -125,5 +134,25 @@ public final class FetchSearchResult extends SearchPhaseResult {
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
+    }
+
+    /**
+     * Sets the sequence start for the last chunk embedded in this result.
+     * Called on the data node after iterating fetch phase results.
+     *
+     * @param sequenceStart the sequence number of the first hit in the last chunk
+     */
+    public void setLastChunkSequenceStart(long sequenceStart) {
+        this.lastChunkSequenceStart = sequenceStart;
+    }
+
+    /**
+     * Gets the sequence start for the last chunk embedded in this result.
+     * Used by the coordinator to properly order last chunk hits with other chunks.
+     *
+     * @return the sequence number of the first hit in the last chunk, or -1 if not set
+     */
+    public long getLastChunkSequenceStart() {
+        return lastChunkSequenceStart;
     }
 }

@@ -299,6 +299,7 @@ public final class FetchPhase {
                     leafIdLoader,
                     rankDocs == null ? null : rankDocs.get(doc)
                 );
+
                 boolean success = false;
                 try {
                     sourceProvider.source = hit.source();
@@ -362,6 +363,12 @@ public final class FetchPhase {
                         hit.decRef();
                     }
                 }
+
+                // Store sequence info in the context result for coordinator
+                if (result.lastChunk != null && result.lastChunkSequenceStart >= 0) {
+                    context.fetchResult().setLastChunkSequenceStart(result.lastChunkSequenceStart);
+                }
+
                 // Return last chunk or empty
                 if (result.lastChunk != null) {
                     return result.lastChunk;

@@ -44,6 +44,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
     /*
      * Transport action that coordinates chunked fetch operations from the coordinator node.
+     * Handles receiving chunks, accumulating them in order, and building the final result.
      * <p>
      * This action orchestrates the chunked fetch flow by:
      * <ol>
@@ -178,6 +179,9 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 SearchHits lastChunk = dataNodeResult.hits();
                 if (lastChunk != null && lastChunk.getHits().length > 0) {
 
+                    // Get sequence start for last chunk from the result metadata
+                    long lastChunkSequenceStart = dataNodeResult.getLastChunkSequenceStart();
+
                     if (logger.isTraceEnabled()) {
                         logger.info(
                             "Received final chunk [{}] for shard [{}]",
@@ -186,10 +190,14 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                         );
                     }
 
-                    // Add last chunk hits to the stream
-                    for (SearchHit hit : lastChunk.getHits()) {
+                    // Add last chunk hits to the stream with sequence numbers
+                    for (int i = 0; i < lastChunk.getHits().length; i++) {
+                        SearchHit hit = lastChunk.getHits()[i];
                         hit.incRef();
-                        responseStream.addHit(hit);
+
+                        // Add with explicit sequence number
+                        long hitSequence = lastChunkSequenceStart + i;
+                        responseStream.addHitWithSequence(hit, hitSequence);
 
                         // Track circuit breaker for last chunk
                         BytesReference sourceRef = hit.getSourceRef();

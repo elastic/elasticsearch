@@ -51,6 +51,8 @@ import static org.elasticsearch.compute.gen.Types.LONG_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
+import static org.elasticsearch.compute.gen.Types.TDIGEST_BLOCK;
+import static org.elasticsearch.compute.gen.Types.TDIGEST_BLOCK_BUILDER;
 
 /**
  * Finds declared methods for the code generator.
@@ -287,6 +289,9 @@ public class Methods {
         }
         if (t.equals(FLOAT_VECTOR_FIXED_BUILDER)) {
             return "newFloatVectorFixedBuilder";
+        }
+        if (t.equals(TDIGEST_BLOCK_BUILDER)){
+            return "newTDigestBlockBuilder";
         }
         throw new IllegalArgumentException("unknown build method for [" + t + "]");
     }

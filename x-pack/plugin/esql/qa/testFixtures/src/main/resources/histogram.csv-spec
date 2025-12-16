@@ -6,3 +6,13 @@ FROM histogram_standard_index ;
 @timestamp:date      | instance:keyword  | responseTime:histogram
 2025-01-01T00:00:00Z | hand-rolled       | "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
 ;
+
+Convert histogram into tdigest
+required_capability: histogram_to_tdigest_cast
+
+FROM histogram_standard_index | EVAL tdigest = toTDigest(responseTime) | KEEP responseTime, tdigest ;
+
+
+responseTime:histogram                                         | tdigest:tdigest
+"{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+;

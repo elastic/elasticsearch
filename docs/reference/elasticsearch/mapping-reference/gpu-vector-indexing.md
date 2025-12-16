@@ -16,7 +16,7 @@ stack: preview 9.3
 GPU vector indexing requires the following:
 
 * An [Enterprise subscription](https://www.elastic.co/subscriptions)
-* NVIDIA GPU with CUDA support and minimum 8GB GPU memory
+* A supported NVIDIA GPU (Ampere architecture or better, compute capability >= 8.0) with a minimum 8GB of GPU memory
 * GPU driver, CUDA and cuVS runtime libraries installed on the node
 * `LD_LIBRARY_PATH` environment variable configured to include CUDA library paths
 * Supported platform: Linux x86_64 only, Java 22 or higher

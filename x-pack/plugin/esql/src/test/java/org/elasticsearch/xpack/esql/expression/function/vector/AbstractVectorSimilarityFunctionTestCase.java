@@ -11,10 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,17 +28,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
         this.testCase = testCaseSupplier.get();
     }
 
-    @Before
-    public void checkCapability() {
-        assumeTrue("Similarity function is not enabled", capability().isEnabled());
-    }
-
     public abstract String getBaseEvaluatorName();
-
-    /**
-     * Get the capability of the vector similarity function to check
-     */
-    protected abstract EsqlCapabilities.Cap capability();
 
     protected static Iterable<Object[]> similarityParameters(
         String className,

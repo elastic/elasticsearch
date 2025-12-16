@@ -1359,7 +1359,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
             @Override
             public void handle(HttpExchange exchange) throws IOException {
-                if (parseRequest(exchange).isUploadPartRequest()) {
+                final var s3request = parseRequest(exchange);
+                if (s3request.isUploadPartRequest() || s3request.isPutObjectRequest()) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     super.handle(exchange);

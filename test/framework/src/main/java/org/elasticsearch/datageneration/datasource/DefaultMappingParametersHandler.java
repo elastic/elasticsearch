@@ -280,7 +280,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return map;
     }
 
-    public static Object extendedDocValuesParams() {
+    protected Object extendedDocValuesParams() {
         // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
         if (Build.current().isSnapshot() == false) {
             return ESTestCase.randomBoolean();

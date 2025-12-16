@@ -192,7 +192,7 @@ The `dense_vector` type supports quantization to reduce the memory footprint req
 
 * `int8` - Quantizes each dimension of the vector to 1-byte integers. This reduces the memory footprint by 75% (or 4x) at the cost of some accuracy.
 * `int4` - Quantizes each dimension of the vector to half-byte integers. This reduces the memory footprint by 87% (or 8x) at the cost of accuracy.
-* `bbq` - Better binary quantization which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
+* `bbq` - [Better binary quantization](/reference/elasticsearch/mapping-reference/bbq.md) which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
 
 When using a quantized format, you may want to oversample and rescore the results to improve accuracy. See [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for more information.
 
@@ -365,7 +365,7 @@ $$$dense-vector-index-options$$$
     * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatic scalar quantization. Only supports `element_type` of `float` or `bfloat16`.
     * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatic half-byte scalar quantization. Only supports `element_type` of `float` or `bfloat16`.
     * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatic binary quantization. Only supports `element_type` of `float` or `bfloat16`.
-    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces rather than an entire graph structure as in with HNSW. Only supports `element_type` of `float` or `bfloat16`.  This combines the benefits of BBQ quantization with partitioning to further reduces the required memory overhead when compared with HNSW and can effectively be run at the smallest possible RAM and heap sizes when HNSW would otherwise cause swapping and grind to a halt.  DiskBBQ largely scales linearly with the total RAM.  And search performance is enhanced at scale as a subset of the total vector space is loaded. This requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces that may be more memory friendly in comparison to HNSW. Only supports `element_type` of `float` or `bfloat16`.  To learn more, refer to [bbq_disk](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk). This requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 
 `m`
 :   (Optional, integer) The number of neighbors each node will be connected to in the HNSW graph. Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.

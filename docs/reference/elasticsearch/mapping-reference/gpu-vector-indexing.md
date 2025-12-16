@@ -31,7 +31,7 @@ GPU vector indexing is controlled by the [`vectors.indexing.use_gpu`](/reference
 By default, {{es}} uses GPU indexing for supported vector types if a compatible GPU and required libraries are detected.
 Check server logs for messages indicating whether {{es}} has detected GPU.
 
-If you see a message like the following, GPU was successfully detected and GPU indexing will be used:
+If you see a message like the following, a GPU was successfully detected and GPU indexing will be used:
 ```
 [o.e.x.g.GPUSupport ] [elasticsearch-0] Found compatible GPU [NVIDIA L4] (id: [0])
 ```

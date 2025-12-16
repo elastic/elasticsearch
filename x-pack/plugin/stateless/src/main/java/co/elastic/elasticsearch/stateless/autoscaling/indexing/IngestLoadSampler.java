@@ -126,6 +126,15 @@ public class IngestLoadSampler extends AbstractLifecycleComponent implements Clu
                     return stats == null ? List.of() : List.of(new DoubleWithAttributes(stats.averageTaskExecutionNanosEWMA()));
                 }
             );
+            meterRegistry.registerDoublesGauge(
+                "es.autoscaling.indexing.thread_pool." + executor + ".last_stable.average_task_execution_time.current",
+                "The last stable moving average task execution time for the executor",
+                "nanoseconds",
+                () -> {
+                    var value = ingestionLoad.lastStableAvgTaskExecutionTimes().get(executor);
+                    return value == null ? List.of() : List.of(new DoubleWithAttributes(value));
+                }
+            );
             meterRegistry.registerLongsGauge(
                 "es.autoscaling.indexing.thread_pool." + executor + ".queue_size.current",
                 "The queue size for the executor",

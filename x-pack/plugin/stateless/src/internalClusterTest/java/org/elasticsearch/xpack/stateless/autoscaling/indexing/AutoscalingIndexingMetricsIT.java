@@ -508,8 +508,9 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
     }
 
     public void testAutoscalingExecutorIngestionLoadMetrics() throws Exception {
-        startMasterOnlyNode();
-        var indexNode = startIndexNode();
+        var indexNode = startMasterAndIndexNode(
+            Settings.builder().put(INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE.getKey(), TimeValue.ZERO).build()
+        );
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
@@ -522,6 +523,11 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
             assertFalse(
                 plugin.getDoubleGaugeMeasurement("es.autoscaling.indexing.thread_pool." + executor + ".average_write_load.current")
                     .isEmpty()
+            );
+            assertFalse(
+                plugin.getDoubleGaugeMeasurement(
+                    "es.autoscaling.indexing.thread_pool." + executor + ".last_stable.average_task_execution_time.current"
+                ).isEmpty()
             );
             assertFalse(
                 plugin.getDoubleGaugeMeasurement("es.autoscaling.indexing.thread_pool." + executor + ".average_task_execution_time.current")
@@ -552,6 +558,11 @@ public class AutoscalingIndexingMetricsIT extends AbstractServerlessStatelessPlu
             assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
             measurements = plugin.getDoubleGaugeMeasurement(
                 "es.autoscaling.indexing.thread_pool.write.average_task_execution_time.current"
+            );
+            assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));
+            measurements = plugin.getDoubleGaugeMeasurement(
+                "es.autoscaling.indexing.thread_pool.write.last_stable.average_task_execution_time.current"
             );
             assertThat(measurements.size(), equalTo(1));
             assertThat(measurements.get(0).value().doubleValue(), greaterThan(0.0));

@@ -21,6 +21,7 @@
 | ip | boolean |
 | keyword | boolean |
 | long | boolean |
+| tdigest | boolean |
 | text | boolean |
 | unsigned_long | boolean |
 | version | boolean |

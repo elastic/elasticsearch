@@ -7,10 +7,10 @@
     {
       "params" : [
         {
-          "name" : "datePattern",
+          "name" : "dateString",
           "type" : "keyword",
-          "optional" : true,
-          "description" : "The date format. Refer to the {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`, the function returns `null`."
+          "optional" : false,
+          "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -42,6 +42,25 @@
           "optional" : true,
           "description" : "The date format. Refer to the {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`, the function returns `null`."
         },
+        {
+          "name" : "dateString",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.'}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.'}",
+          "optional" : true,
+          "description" : "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
         {
           "name" : "dateString",
           "type" : "keyword",
@@ -69,24 +88,6 @@
         },
         {
           "name" : "dateString",
-          "type" : "object",
-          "optional" : false,
-          "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "date"
-    },
-    {
-      "params" : [
-        {
-          "name" : "datePattern",
-          "type" : "keyword",
-          "optional" : true,
-          "description" : "The date format. Refer to the {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`, the function returns `null`."
-        },
-        {
-          "name" : "dateString",
           "type" : "text",
           "optional" : false,
           "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
@@ -123,10 +124,10 @@
     {
       "params" : [
         {
-          "name" : "datePattern",
+          "name" : "dateString",
           "type" : "text",
-          "optional" : true,
-          "description" : "The date format. Refer to the {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`, the function returns `null`."
+          "optional" : false,
+          "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -178,16 +179,17 @@
     {
       "params" : [
         {
-          "name" : "datePattern",
-          "type" : "text",
-          "optional" : true,
-          "description" : "The date format. Refer to the {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`, the function returns `null`."
-        },
-        {
           "name" : "dateString",
-          "type" : "object",
+          "type" : "text",
           "optional" : false,
           "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.'}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.'}",
+          "optional" : true,
+          "description" : "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>."
         }
       ],
       "variadic" : false,

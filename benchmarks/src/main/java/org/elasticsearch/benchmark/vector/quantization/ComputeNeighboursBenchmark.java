@@ -78,17 +78,17 @@ public class ComputeNeighboursBenchmark {
         executorService.close();
     }
 
-    // @Benchmark
-    // @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    // public void bruteForce(Blackhole bh) {
-    // bh.consume(NeighborHood.computeNeighborhoodsBruteForce(vectors, clusterPerNeighbour));
-    // }
-    //
-    // @Benchmark
-    // @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    // public void graph(Blackhole bh) throws IOException {
-    // bh.consume(NeighborHood.computeNeighborhoodsGraph(vectors, clusterPerNeighbour));
-    // }
+     @Benchmark
+     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+     public void bruteForce(Blackhole bh) {
+     bh.consume(NeighborHood.computeNeighborhoodsBruteForce(vectors, clusterPerNeighbour));
+     }
+
+     @Benchmark
+     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+     public void graph(Blackhole bh) throws IOException {
+     bh.consume(NeighborHood.computeNeighborhoodsGraph(vectors, clusterPerNeighbour));
+     }
 
     @Benchmark
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })

@@ -24,10 +24,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -378,11 +380,12 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             String clientId = exchange.getRequestHeaders().getFirst(CLIENT_ID_HEADER);
             if (clientId == null) {
                 if (exchange.getRequestURI().toString().startsWith("/batch/") == false) {
-                    logger.warn(
-                        "Missing {} on non-batch request, this may cause issues with fault injection: {}",
+                    final String message = Strings.format(
+                        "Missing %s on non-batch request, this may cause issues with fault injection: %s",
                         CLIENT_ID_HEADER,
                         exchange.getRequestURI()
                     );
+                    ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(message));
                 }
                 clientId = exchange.getRemoteAddress().toString();
             }

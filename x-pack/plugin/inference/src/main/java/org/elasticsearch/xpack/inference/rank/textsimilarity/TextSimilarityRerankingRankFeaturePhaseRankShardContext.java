@@ -34,9 +34,10 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
         super(field);
         this.chunkScorerConfig = chunkScorerConfig;
         if (chunkScorerConfig != null) {
-            this.chunkingSettings = (chunkScorerConfig.chunkingSettings() != null)
-                ? chunkScorerConfig.chunkingSettings()
-                : ChunkScorerConfig.defaultChunkingSettings(ChunkScorerConfig.DEFAULT_CHUNK_SIZE);
+            if (chunkScorerConfig.chunkingSettings() == null) {
+                throw new IllegalStateException("Chunking settings must be resolved before shard execution");
+            }
+            this.chunkingSettings = chunkScorerConfig.chunkingSettings();
 
             this.chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
         } else {

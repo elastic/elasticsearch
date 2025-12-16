@@ -1,6 +1,5 @@
 pr: 137397
-summary: Update `text_similarity_rank_retriever` to support inference ID as an argument
-  when reranking on chunks
+summary: Update `text_similarity_rank_retriever` to default to chunking settings optimal for inference ID
 area: Search
 type: enhancement
 issues: []

@@ -983,6 +983,7 @@ setup:
 
   - contains: { profile.shards.0.searches.0.query.0.description: "+RankDocsQuery{rank_docs:[TextSimilarityRankDoc" }
   - contains: { profile.shards.0.searches.0.query.0.description: "inferenceId=my-rerank-model, field=semantic_text_field, chunkScorerConfig=ChunkScorerConfig{size=1, inferenceText=[null], chunkingSettings=" }
+  - contains: { profile.shards.0.searches.0.query.0.description: "\"max_chunk_size\":333" }
 
 ---
 "Test chunk rescorer auto-resolves from parent inference_id":
@@ -1016,7 +1017,7 @@ setup:
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
   - contains: { profile.shards.0.searches.0.query.0.description: "chunkScorerConfig=ChunkScorerConfig{size=3" }
-  - contains: { profile.shards.0.searches.0.query.0.description: "chunkingSettings=" }
+  - contains: { profile.shards.0.searches.0.query.0.description: "\"max_chunk_size\":333" }
 
 ---
 "Test explicit chunking_settings override inference endpoint window size":
@@ -1085,6 +1086,7 @@ setup:
   - match: { hits.total.value: 2 }
   - length: { hits.hits: 2 }
   - contains: { profile.shards.0.searches.0.query.0.description: "chunkScorerConfig=ChunkScorerConfig{size=3" }
+  - contains: { profile.shards.0.searches.0.query.0.description: "\"max_chunk_size\":333" }
 
 ---
 "Test NPE regression - chunk rescorer with null chunking_settings does not throw":
@@ -1186,3 +1188,4 @@ setup:
 
   - match: { hits.total.value: 3 }
   - contains: { profile.shards.0.searches.0.query.0.description: "chunkScorerConfig=ChunkScorerConfig{size=1" }
+  - contains: { profile.shards.0.searches.0.query.0.description: "\"max_chunk_size\":333" }

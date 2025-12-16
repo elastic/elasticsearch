@@ -46,11 +46,10 @@ public class ChunkScorerConfigTests extends ESTestCase {
         assertEquals("sentence", settings.asMap().get("strategy"));
     }
 
-    public void testDefaultChunkingSettingsWithNull() {
-        ChunkingSettings settings = ChunkScorerConfig.defaultChunkingSettings(null);
-
-        assertNotNull(settings);
-        assertEquals(ChunkScorerConfig.DEFAULT_CHUNK_SIZE, settings.asMap().get("max_chunk_size"));
+    public void testChunkingSettingsFromMapWithNullMaxChunkSizeThrows() {
+        Map<String, Object> map = new java.util.HashMap<>();
+        map.put("max_chunk_size", null);
+        expectThrows(IllegalArgumentException.class, () -> ChunkScorerConfig.chunkingSettingsFromMap(map));
     }
 
     public void testSerializationRoundTripWithChunkingSettings() throws IOException {

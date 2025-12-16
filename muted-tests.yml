@@ -457,12 +457,6 @@ tests:
 - class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/139562
-- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/139624
-- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/139625
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testRateGroupByNothing
   issue: https://github.com/elastic/elasticsearch/issues/139639

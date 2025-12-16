@@ -1536,6 +1536,12 @@ public class EsqlCapabilities {
         TS_RATE_DATENANOS,
         TS_RATE_DATENANOS_2,
         TS_DERIV_DATENANOS,
+
+        /**
+         * Rate and increase calculations use interpolation at the boundaries between time buckets
+         */
+        RATE_WITH_INTERPOLATION,
+
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011

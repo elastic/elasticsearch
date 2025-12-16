@@ -1,5 +1,5 @@
 {
-  "project.routing.get": {
+  "project_routing.get": {
     "documentation": {
       "url": null,
       "description": "Get named project routing expression"

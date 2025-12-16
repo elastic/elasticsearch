@@ -1,5 +1,5 @@
 {
-  "project.routing.create": {
+  "project_routing.create": {
     "documentation": {
       "url": null,
       "description": "Create or update named project routing expression"

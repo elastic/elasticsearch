@@ -1,5 +1,5 @@
 {
-  "project.routing.delete": {
+  "project_routing.delete": {
     "documentation": {
       "url": null,
       "description": "Delete named project routing expression"

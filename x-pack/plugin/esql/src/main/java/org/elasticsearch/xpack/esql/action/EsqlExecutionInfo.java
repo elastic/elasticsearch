@@ -203,7 +203,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return planningTimeSpan != null ? planningTimeSpan.toTimeValue() : null;
     }
 
-
     /**
      * Call when ES|QL "parsing" phase starts - this includes preanalysis, retrieving field caps information for indices,
      * resolve enrich policies, and resolve inference IDs.

@@ -307,6 +307,11 @@ null                 | qa              | 2024-05-10T00:22:00.000Z
 10.525               | staging         | 2024-05-10T00:18:00.000Z
 ;
 
+bare_rate_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+required_capability: metrics_group_by_all_with_ts_dimensions
+
 TS k8s
 | STATS rate=rate(network.total_bytes_in)
 | SORT rate DESC
@@ -323,7 +328,6 @@ rate:double        | _timeseries:keyword
 9.485643970467596  | "{""cluster"":""qa"",""pod"":""three""}"
 10.649149922720246 | "{""cluster"":""qa"",""pod"":""one""}"
 13.17372515125324  | "{""cluster"":""qa"",""pod"":""two""}"
-
 ;
 
 bare_rate_with_tbucket_outputs_dimensions

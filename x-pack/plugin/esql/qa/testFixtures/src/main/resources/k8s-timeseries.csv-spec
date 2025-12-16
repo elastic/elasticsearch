@@ -884,12 +884,6 @@ sum:double | _timeseries:keyword                                                
 210.625    | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
 ;
 
-bare_rate_outputs_dimensions
-required_capability: ts_command_v0
-required_capability: metrics_group_by_all
-required_capability: metrics_group_by_all_with_ts_dimensions
-
-
 oneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 TS k8s

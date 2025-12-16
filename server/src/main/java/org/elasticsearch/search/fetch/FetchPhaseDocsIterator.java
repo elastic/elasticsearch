@@ -186,7 +186,7 @@ abstract class FetchPhaseDocsIterator {
                                     chunkWriter,
                                     chunkBuffer,
                                     shardId,
-                                    currentChunkSequenceStart,  // Pass sequence start for ordering
+                                    currentChunkSequenceStart,
                                     i - chunkBuffer.size() + 1,
                                     docIds.length,
                                     Float.NaN

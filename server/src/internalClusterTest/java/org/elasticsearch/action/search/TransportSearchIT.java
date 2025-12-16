@@ -459,7 +459,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         );
     }
 
-    public void testCircuitBreakerRxeduceFail() throws Exception {
+    public void testCircuitBreakerReduceFail() throws Exception {
         updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         int numShards = randomIntBetween(1, 10);
         indexSomeDocs("test", numShards, numShards * 3);

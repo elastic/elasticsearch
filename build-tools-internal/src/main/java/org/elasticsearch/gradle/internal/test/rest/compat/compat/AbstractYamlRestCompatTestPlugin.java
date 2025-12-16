@@ -99,7 +99,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         Optional<String> lastMinorProjectPath = buildParams.getBwcVersions().getUnreleased().stream().filter(v -> {
             return (v.getMajor() == currentMajor - 1);
         }).max(Comparator.naturalOrder()).map(lastMinor -> buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath());
-        
+
         // copy compatible rest specs
         Optional<Configuration> bwcMinorConfig = lastMinorProjectPath.map(p -> project.getConfigurations().create(BWC_MINOR_CONFIG_NAME));
         Optional<Dependency> bwcMinor = lastMinorProjectPath.map(

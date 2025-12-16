@@ -797,7 +797,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             p,
             right,
             joinInfo.joinFields(),
-            false, // this will be set later, during analysis
             Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
         );
     }

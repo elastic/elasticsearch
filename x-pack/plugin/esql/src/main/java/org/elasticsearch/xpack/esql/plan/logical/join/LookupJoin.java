@@ -35,10 +35,9 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
         LogicalPlan left,
         LogicalPlan right,
         List<Attribute> joinFields,
-        boolean isRemote,
         @Nullable Expression joinOnConditions
     ) {
-        this(source, left, right, LEFT, joinFields, joinFields, isRemote, joinOnConditions);
+        this(source, left, right, LEFT, joinFields, joinFields, null, joinOnConditions);
     }
 
     public LookupJoin(
@@ -48,7 +47,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
         JoinType type,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        boolean isRemote,
+        Boolean isRemote,
         Expression joinOnConditions
     ) {
         this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote);

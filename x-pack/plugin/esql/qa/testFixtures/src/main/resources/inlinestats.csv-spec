@@ -5350,3 +5350,76 @@ emp_no:integer | hire_date:datetime       | format:keyword | count:long | year_m
 ;
 
 
+
+doubleInlineStatsPrunning_With_MV_Functions
+required_capability: fix_inline_stats_incorrect_prunning
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages
+| INLINE STATS languages2 = SUM(languages1), avg = AVG(salary)
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   |  languages1:d |   languages:i |  languages2:d |      avg:d      
+25324          |5.0            |5              |281.0          |48248.55       
+25945          |5.0            |5              |281.0          |48248.55       
+25976          |1.0            |1              |281.0          |48248.55       
+26436          |3.0            |3              |281.0          |48248.55       
+27215          |4.0            |4              |281.0          |48248.55       
+28035          |1.0            |1              |281.0          |48248.55       
+28336          |null           |null           |281.0          |48248.55       
+28941          |3.0            |3              |281.0          |48248.55       
+29175          |2.0            |2              |281.0          |48248.55       
+30404          |3.0            |3              |281.0          |48248.55       
+;
+
+doubleInlineStatsPrunning_With_MV_Functions2
+required_capability: fix_inline_stats_incorrect_prunning
+
+FROM employees
+| KEEP languages, salary, gender
+| INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages, gender
+| INLINE STATS languages2 = SUM(languages1), avg = ROUND(AVG(salary)) BY languages, gender
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   |  languages1:d |  languages2:d |      avg:d    |   languages:i |    gender:s     
+25324          |5.0            |20.0           |35631.0        |5              |null           
+25945          |5.0            |40.0           |39053.0        |5              |M              
+25976          |1.0            |4.0            |47073.0        |1              |F              
+26436          |3.0            |33.0           |51742.0        |3              |M              
+27215          |4.0            |24.0           |49292.0        |4              |F              
+28035          |1.0            |9.0            |49767.0        |1              |M              
+28336          |null           |null           |48396.0        |null           |M              
+28941          |3.0            |33.0           |51742.0        |3              |M              
+29175          |2.0            |22.0           |44104.0        |2              |M              
+30404          |3.0            |18.0           |53660.0        |3              |F              
+;
+
+doubleInlineStatsPrunning_With_MV_Functions3
+required_capability: fix_inline_stats_incorrect_prunning
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages
+| INLINE STATS languages2 = SUM(languages1), avg = AVG(salary)
+| DROP languages
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   |  languages1:d |  languages2:d |      avg:d      
+25324          |5.0            |281.0          |48248.55       
+25945          |5.0            |281.0          |48248.55       
+25976          |1.0            |281.0          |48248.55       
+26436          |3.0            |281.0          |48248.55       
+27215          |4.0            |281.0          |48248.55       
+28035          |1.0            |281.0          |48248.55       
+28336          |null           |281.0          |48248.55       
+28941          |3.0            |281.0          |48248.55       
+29175          |2.0            |281.0          |48248.55       
+30404          |3.0            |281.0          |48248.55       
+;

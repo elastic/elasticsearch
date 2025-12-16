@@ -149,12 +149,7 @@ record TestConfiguration(
         var b = new TestConfiguration.Builder().setDimensions(64)
             .setDocVectors(List.of("/doc/vectors/path"))
             .setQueryVectors("/query/vectors/path")
-            .setSearchParams(
-                List.of(
-                    SearchParameters.builder().setEarlyTermination(true).setTopK(100),
-                    SearchParameters.builder().setEarlyTermination(false).setTopK(10)
-                )
-            );
+            .setNumCandidates(List.of(100, 1000));
 
         return Strings.toString(b, true, false);
     }
@@ -379,6 +374,7 @@ record TestConfiguration(
                 seed.getFirst()
             );
 
+            // length of the longest array parameter
             int longestParam = longestParameter();
             if (longestParam > 1 && (searchParams != null && searchParams.isEmpty() == false)) {
                 throw new IllegalArgumentException(
@@ -394,12 +390,11 @@ record TestConfiguration(
             searchRuns.add(baseSearchParams);
 
             if (searchParams == null || searchParams.isEmpty()) {
-                // TODO
-                // Build the search runs from the parameter arrays.
+                // Build the search runs from the array parameters.
                 // There will be longestParam search runs. If the parameter arrays
-                // are of unequal length then the last items in the shorter arrays are used.
+                // are of unequal lengths, then the last items in the shorter arrays are used.
                 for (int i = 1; i < longestParam; i++) {
-                    searchRuns.add(settingsAtIndex(i));
+                    searchRuns.add(searchParamsAtIndex(i));
                 }
             } else {
                 for (var so : searchParams) {
@@ -495,7 +490,7 @@ record TestConfiguration(
             return lengths.stream().max(Integer::compareTo).get();
         }
 
-        SearchParameters settingsAtIndex(int n) {
+        SearchParameters searchParamsAtIndex(int n) {
             return new SearchParameters(
                 nthOrLastItem(numCandidates, n),
                 nthOrLastItem(k, n),

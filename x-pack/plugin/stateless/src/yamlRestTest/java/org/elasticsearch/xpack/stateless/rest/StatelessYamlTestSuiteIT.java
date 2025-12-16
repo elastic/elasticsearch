@@ -44,6 +44,8 @@ public class StatelessYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("blob-cache")
         .module("stateless")
+        .module("data-streams")
+        .module("mapper-extras")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.security.operator_privileges.enabled", "true")

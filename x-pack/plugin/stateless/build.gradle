@@ -23,4 +23,6 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('blob-cache'))
+  clusterModules project(":modules:data-streams")
+  clusterModules project(":modules:mapper-extras")
 }

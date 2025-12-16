@@ -30,7 +30,6 @@ import static org.elasticsearch.lz4.LZ4Constants.ML_BITS;
 import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
 import static org.elasticsearch.lz4.LZ4Utils.notEnoughSpace;
 
-
 /**
  * This file is forked from https://github.com/yawkat/lz4-java. In particular, it forks the following file
  * net.jpountz.lz4.LZ4JavaSafeFastDecompressor.
@@ -95,8 +94,7 @@ public class ESLZ4Decompressor extends LZ4FastDecompressor {
                 throw new LZ4Exception("Too large literalLen");
             }
 
-            if (notEnoughSpace(destEnd - literalCopyEnd, COPY_LENGTH)
-                || notEnoughSpace(srcEnd - sOff, COPY_LENGTH + literalLen)) {
+            if (notEnoughSpace(destEnd - literalCopyEnd, COPY_LENGTH) || notEnoughSpace(srcEnd - sOff, COPY_LENGTH + literalLen)) {
 
                 if (literalCopyEnd != destEnd) {
                     throw new LZ4Exception("Malformed input at " + sOff);

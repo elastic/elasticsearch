@@ -116,6 +116,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
         });
     }
 
+    // visible for testing
     static ResourceNotFoundException notFoundException(TaskId taskId) {
         return new ResourceNotFoundException("Reindex operation [{}] not found", taskId);
     }

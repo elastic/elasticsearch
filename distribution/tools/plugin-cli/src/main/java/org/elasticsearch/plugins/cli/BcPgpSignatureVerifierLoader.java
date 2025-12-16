@@ -14,10 +14,14 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * A PGP signature verifier that delegates to Bouncy Castle implementation loaded in an isolated classloader.
@@ -49,15 +53,34 @@ class BcPgpSignatureVerifierLoader implements Supplier<BiConsumer<Path, InputStr
         }
     }
 
-    private static URLClassLoader classLoader() {
+    private static URLClassLoader classLoader() throws IOException {
         return new URLClassLoader(urls(), ClassLoader.getPlatformClassLoader());
     }
 
-    private static URL[] urls() {
-        if (BcPgpSignatureVerifierLoader.class.getClassLoader() instanceof URLClassLoader ucl) {
-            return ucl.getURLs();
+    private static URL[] urls() throws IOException {
+        String esHome = System.getProperty("es.path.home");
+        if (esHome == null) {
+            throw new IllegalStateException("es.path.home system property is required");
         }
-        throw new IllegalStateException("URLClassLoader required");
+        String cliLibs = System.getProperty("cli.libs");
+        if (cliLibs == null || cliLibs.isBlank()) {
+            throw new IllegalStateException("cli.libs system property is required");
+        }
+        return urls(esHome, cliLibs);
+    }
+
+    private static URL[] urls(String esHome, String cliLibs) throws IOException {
+        Path homeDir = Path.of(esHome);
+        List<URL> urls = new ArrayList<>();
+        for (String lib : cliLibs.split(",")) {
+            Path libDir = homeDir.resolve(lib);
+            try (Stream<Path> jarFiles = Files.list(libDir)) {
+                for (Path p : jarFiles.filter(p -> p.getFileName().toString().endsWith(".jar")).toList()) {
+                    urls.add(p.toUri().toURL());
+                }
+            }
+        }
+        return urls.toArray(URL[]::new);
     }
 
 }

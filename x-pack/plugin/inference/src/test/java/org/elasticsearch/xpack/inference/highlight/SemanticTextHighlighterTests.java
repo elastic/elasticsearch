@@ -107,6 +107,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             10,
             10f,
             null,
+            null,
             null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
@@ -223,7 +224,8 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             10,
             10f,
             null,
-            0.85f
+            0.85f,
+            null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
         var shardRequest = createShardSearchRequest(nestedQueryBuilder);
@@ -256,7 +258,8 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             10,
             10f,
             null,
-            0.85f
+            0.85f,
+            null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
         var shardRequest = createShardSearchRequest(nestedQueryBuilder);
@@ -288,6 +291,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
             10,
             10,
             10f,
+            null,
             null,
             null
         );

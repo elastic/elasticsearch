@@ -94,7 +94,15 @@ public class ManyInferenceQueryClausesIT extends ESIntegTestCase {
         int clauseCount = randomIntBetween(18, 24);
         manyQueryClausesTestCase(
             clauseCount,
-            (f, q) -> new KnnVectorQueryBuilder(f, new TextEmbeddingQueryVectorBuilder(null, q), clauseCount, clauseCount * 10, null, null),
+            (f, q) -> new KnnVectorQueryBuilder(
+                f,
+                new TextEmbeddingQueryVectorBuilder(null, q),
+                clauseCount,
+                clauseCount * 10,
+                null,
+                null,
+                null
+            ),
             TaskType.TEXT_EMBEDDING
         );
     }

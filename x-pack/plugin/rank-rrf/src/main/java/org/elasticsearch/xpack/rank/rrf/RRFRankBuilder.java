@@ -213,7 +213,8 @@ public class RRFRankBuilder extends RankBuilder {
                 knnSearchBuilder.getNumCands(),
                 knnSearchBuilder.getVisitPercentage(),
                 knnSearchBuilder.getRescoreVectorBuilder(),
-                knnSearchBuilder.getSimilarity()
+                knnSearchBuilder.getSimilarity(),
+                knnSearchBuilder.getPostFilteringThreshold()
             );
             knnRetriever.retrieverName(knnSearchBuilder.queryName());
             retrieverSources.add(CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever));

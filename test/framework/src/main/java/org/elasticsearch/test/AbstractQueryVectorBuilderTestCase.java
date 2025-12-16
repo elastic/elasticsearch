@@ -101,6 +101,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 10,
                 10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
+                randomBoolean() ? null : randomFloat(),
                 randomBoolean() ? null : randomFloat()
             );
             searchBuilder.queryName(randomAlphaOfLengthBetween(5, 10));
@@ -126,6 +127,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 10,
                 10f,
                 randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
+                randomBoolean() ? null : randomFloat(),
                 randomBoolean() ? null : randomFloat()
             );
             KnnSearchBuilder serialized = copyWriteable(

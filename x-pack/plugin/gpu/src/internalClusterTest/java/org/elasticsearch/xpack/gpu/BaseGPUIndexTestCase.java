@@ -162,13 +162,13 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         var searchResponse1 = prepareSearch(indexName1).setSize(k)
             .setFetchSource(false)
             .addFetchField("my_keyword")
-            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null, null)))
             .get();
 
         var searchResponse2 = prepareSearch(indexName2).setSize(k)
             .setFetchSource(false)
             .addFetchField("my_keyword")
-            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null, null)))
             .get();
 
         try {
@@ -211,13 +211,13 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         var searchResponse3 = prepareSearch(indexName1).setSize(k)
             .setFetchSource(false)
             .addFetchField("my_keyword")
-            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null, null)))
             .get();
 
         var searchResponse4 = prepareSearch(indexName2).setSize(k)
             .setFetchSource(false)
             .addFetchField("my_keyword")
-            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null, null)))
             .get();
 
         try {
@@ -286,7 +286,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
         var approxSearchResponse = prepareSearch(indexName).setSize(k)
             .setFetchSource(false)
-            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null, null)))
             .get();
 
         var exactSearchResponse = prepareSearch(indexName).setSize(k)
@@ -396,7 +396,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
             prepareSearch(indexName).setSize(k)
                 .setFetchSource(false)
                 .addFetchField("my_keyword")
-                .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null))),
+                .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null, null))),
             response -> assertEquals("Expected k hits to be returned", k, response.getHits().getHits().length)
         );
     }

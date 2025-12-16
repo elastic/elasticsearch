@@ -116,7 +116,7 @@ public class DiskBBQLicensingIT extends ESIntegTestCase {
               }
             """, XContentType.JSON).get();
 
-        final var ksb = new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null);
+        final var ksb = new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f, 0.4f }, 10, 10, null, null, null, null);
         // valid license, should not throw
         assertNoFailures(client().prepareSearch("diskbbq-index").setKnnSearch(List.of(ksb)));
         disableLicensing();

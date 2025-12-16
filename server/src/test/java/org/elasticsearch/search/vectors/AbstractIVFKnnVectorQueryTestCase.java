@@ -83,6 +83,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD;
 
 /** Test cases for AbstractIVFKnnVectorQuery objects. */
 abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
@@ -101,10 +102,17 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         format = new ES920DiskBBQVectorsFormat(128, 4);
     }
 
-    abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio);
+    abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        Query queryFilter,
+        float visitRatio,
+        float postFilteringThreshold
+    );
 
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter) {
-        return getKnnVectorQuery(field, query, k, queryFilter, 0.05f);
+        return getKnnVectorQuery(field, query, k, queryFilter, 0.05f, BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD);
     }
 
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k) {
@@ -275,8 +283,8 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     /** Test bad parameters */
     public void testIllegalArguments() throws IOException {
         expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 0));
-        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, -1));
-        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, 2));
+        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, -1, -1));
+        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, 2, 10));
     }
 
     public void testDifferentReader() throws IOException {

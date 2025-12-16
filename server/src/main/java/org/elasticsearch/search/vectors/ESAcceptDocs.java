@@ -240,4 +240,44 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             return Optional.of(acceptBitSet);
         }
     }
+
+    /**
+     * An {code ESAcceptDocs} implementation that defers all filtering until after the search.
+     */
+    public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
+
+        private final ScorerSupplier scorerSupplier;
+        private final Bits liveDocs;
+
+        PostFilterEsAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs) throws IOException {
+            this.scorerSupplier = scorerSupplier;
+            this.liveDocs = liveDocs;
+        }
+
+        @Override
+        public Bits bits() throws IOException {
+            // return just live docs - no filter during search
+            return liveDocs;
+        }
+
+        @Override
+        public DocIdSetIterator iterator() throws IOException {
+            return scorerSupplier.get(NO_MORE_DOCS).iterator();
+        }
+
+        @Override
+        public int cost() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int approximateCost() throws IOException {
+            return Math.toIntExact(scorerSupplier.cost());
+        }
+
+        @Override
+        public Optional<BitSet> getBitSet() throws IOException {
+            return null;
+        }
+    }
 }

@@ -233,6 +233,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
     public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
     public static final int BBQ_DIMS_DEFAULT_THRESHOLD = 384; // Lower bound for dimensions for using bbq_hnsw as default index options
+    public static final float BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD = 0.7f; // Default threshold for IVF post filtering in BBQ
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -2672,7 +2673,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             FilterHeuristic heuristic,
-            boolean hnswEarlyTermination
+            boolean hnswEarlyTermination,
+            Float postFilteringThreshold
         ) {
             if (indexType.hasVectors() == false) {
                 throw new IllegalArgumentException(
@@ -2705,7 +2707,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     parentFilter,
                     knnSearchStrategy,
-                    hnswEarlyTermination
+                    hnswEarlyTermination,
+                    postFilteringThreshold
                 );
                 case BIT -> createKnnBitQuery(
                     queryVector.asByteVector(),
@@ -2840,7 +2843,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             KnnSearchStrategy knnSearchStrategy,
-            boolean hnswEarlyTermination
+            boolean hnswEarlyTermination,
+            Float postFilteringThreshold
         ) {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
@@ -2884,6 +2888,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                float filterThreshold = postFilteringThreshold == null ? BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD : postFilteringThreshold;
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -2892,9 +2897,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         parentFilter,
-                        visitRatio
+                        visitRatio,
+                        filterThreshold
                     )
-                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, visitRatio);
+                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, visitRatio, filterThreshold);
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

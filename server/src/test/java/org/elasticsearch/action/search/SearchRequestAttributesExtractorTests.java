@@ -167,7 +167,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchRequest.source(searchSourceBuilder);
-        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, 10f, null, null)));
+        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, 10f, null, null, null)));
         Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest, searchRequest.indices());
         assertAttributes(stringObjectMap, "user", "_score", "hits_only", true, false, false, null);
     }
@@ -176,7 +176,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchRequest.source(searchSourceBuilder);
-        searchSourceBuilder.query(new KnnVectorQueryBuilder("field", new float[] {}, 2, 5, 10f, null, null));
+        searchSourceBuilder.query(new KnnVectorQueryBuilder("field", new float[] {}, 2, 5, 10f, null, null, null));
         Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest, searchRequest.indices());
         assertAttributes(stringObjectMap, "user", "_score", "hits_only", true, false, false, null);
     }
@@ -185,7 +185,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchRequest.source(searchSourceBuilder);
-        searchSourceBuilder.retriever(new KnnRetrieverBuilder("field", new float[] {}, null, 2, 5, 10f, null, null));
+        searchSourceBuilder.retriever(new KnnRetrieverBuilder("field", new float[] {}, null, 2, 5, 10f, null, null, null));
         Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(searchRequest, searchRequest.indices());
         assertAttributes(stringObjectMap, "user", "_score", "hits_only", true, false, false, null);
     }

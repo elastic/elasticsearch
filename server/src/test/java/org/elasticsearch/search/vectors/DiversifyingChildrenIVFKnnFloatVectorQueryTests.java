@@ -14,11 +14,22 @@ import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD;
+
 public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase {
 
     @Override
     Query getDiversifyingChildrenKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
-        return new DiversifyingChildrenIVFKnnFloatVectorQuery(fieldName, queryVector, k, k, childFilter, parentBitSet, 0);
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
+            fieldName,
+            queryVector,
+            k,
+            k,
+            childFilter,
+            parentBitSet,
+            0,
+            BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD
+        );
     }
 
     @Override

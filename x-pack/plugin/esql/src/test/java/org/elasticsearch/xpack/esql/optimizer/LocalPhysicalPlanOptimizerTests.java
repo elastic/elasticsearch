@@ -1286,7 +1286,15 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         String query = """
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
-                {"k": 10, "min_candidates": 20, "rescore_oversample": 1.5, "similarity": 0.5, "boost": 2.0, "visit_percentage": 0.25})
+                {
+                    "k": 10,
+                    "min_candidates": 20,
+                    "rescore_oversample": 1.5,
+                    "similarity": 0.5,
+                    "boost": 2.0,
+                    "visit_percentage": 0.25,
+                    "post_filtering_threshold": 0.42
+                })
             | limit 50
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
@@ -1302,7 +1310,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             20,
             0.25f,
             new RescoreVectorBuilder(1.5f),
-            0.5f
+            0.5f,
+            0.42f
         ).boost(2.0f);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
@@ -1319,7 +1328,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, null, null, null, null);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, null, null, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1335,7 +1344,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 20, null, null, null, null);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 20, null, null, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1805,6 +1814,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             null,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
         var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
@@ -1840,6 +1850,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             null,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
         var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(integerFilter).must(keywordFilter);
@@ -1871,6 +1882,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             "dense_vector",
             new float[] { 0, 1, 2 },
             1000,
+            null,
             null,
             null,
             null,
@@ -1910,6 +1922,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             null,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
 
@@ -1936,6 +1949,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             "dense_vector",
             new float[] { 0, 1, 2 },
             1000,
+            null,
             null,
             null,
             null,
@@ -2019,8 +2033,26 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             new Source(2, 42, "NOT integer > 10")
         );
 
-        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null, null);
-        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 1000, null, null, null, null);
+        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 4, 5, 6 },
+            1000,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         firstKnn.addFilterQuery(notKeywordFilter);
         secondKnn.addFilterQuery(notIntegerGt10);
@@ -2053,6 +2085,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             null,
             null,
             null,
+            null,
             null
         );
         // Integer range query (right side of first OR)
@@ -2068,6 +2101,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             "dense_vector",
             new float[] { 4, 5, 6 },
             1000,
+            null,
             null,
             null,
             null,
@@ -2605,7 +2639,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         @Override
         public QueryBuilder queryBuilder() {
-            return new KnnVectorQueryBuilder(fieldName(), (float[]) queryString(), k, null, null, null, null);
+            return new KnnVectorQueryBuilder(fieldName(), (float[]) queryString(), k, null, null, null, null, null);
         }
 
         @Override

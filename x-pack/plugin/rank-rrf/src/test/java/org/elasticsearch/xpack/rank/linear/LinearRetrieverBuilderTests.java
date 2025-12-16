@@ -584,6 +584,7 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
             100,
             10f,
             null,
+            null,
             null
         );
 
@@ -613,6 +614,7 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
             10,
             100,
             10f,
+            null,
             null,
             null
         );

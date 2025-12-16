@@ -136,7 +136,7 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
         for (int i = 0; i < queryVector.length; i++) {
             queryVector[i] = randomFloatBetween(-1, 1, true);
         }
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, null, null, null, null, null);
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, null, null, null, null, null, null);
         assertNoFailuresAndResponse(
             client().prepareSearch(INDEX_NAME).setQuery(queryBuilder).setTrackTotalHits(true).setSize(expectedDocs),
             response -> {

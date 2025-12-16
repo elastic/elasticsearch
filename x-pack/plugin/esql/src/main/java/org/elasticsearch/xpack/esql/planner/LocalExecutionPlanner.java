@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.evaluator.command.IpLookupEvaluator;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -116,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLookupExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -286,6 +288,8 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
+        } else if (node instanceof IpLookupExec ipLookup) {
+            return planIpLookup(ipLookup, context);
         }
 
         // source nodes
@@ -935,6 +939,27 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(rsx.child(), context);
         var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
         return source.with(new SampleOperator.Factory(probability), source.layout);
+    }
+
+    private PhysicalOperation planIpLookup(IpLookupExec ipLookup, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(ipLookup.child(), context);
+
+        ElementType[] outputElementTypes = ipLookup.resolvedGeoLocationFields()
+            .stream()
+            .map(Attribute::dataType)
+            .map(PlannerUtils::toElementType) // Use the helper method
+            .toArray(ElementType[]::new);
+
+        Layout layout = source.layout.builder().append(ipLookup.resolvedGeoLocationFields()).build();
+
+        return source.with(
+            new ColumnExtractOperator.Factory(
+                outputElementTypes,
+                EvalMapper.toEvaluator(context.foldCtx(), ipLookup.ipAddress(), source.layout, context.shardContexts),
+                () -> new IpLookupEvaluator(ipLookup.databaseFile(), ipLookup.geoLocationFieldTemplates(), ipLookup.ipAddress().dataType())
+            ),
+            layout
+        );
     }
 
     /**

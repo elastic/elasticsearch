@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
 import org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -28,6 +29,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -175,7 +177,7 @@ public class CommandLicenseTests extends ESTestCase {
         InstantiationException, IllegalAccessException {
         Source source = Source.EMPTY;
 
-        // hard coded cases where the first two parameters are not Source and child LogicalPlan
+        // hard coded cases where specific constructor arguments are needed
         switch (clazz.getSimpleName()) {
             case "Grok" -> {
                 return new Grok(source, child, null, null, List.of());
@@ -191,6 +193,17 @@ public class CommandLicenseTests extends ESTestCase {
             }
             case "Limit" -> {
                 return new Limit(source, null, child);
+            }
+            case "IpLookup" -> {
+                return new IpLookup(
+                    source,
+                    child,
+                    null,
+                    new UnresolvedAttribute(source, "geo"),
+                    null,
+                    Collections.emptyMap(),
+                    Collections.emptyList()
+                );
             }
         }
 

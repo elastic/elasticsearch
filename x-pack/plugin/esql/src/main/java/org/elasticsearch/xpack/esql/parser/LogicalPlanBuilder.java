@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.evaluator.command.IpLookupEvaluator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -71,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -1174,6 +1177,78 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
 
         return p -> applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
+    }
+
+    @Override
+    public PlanFactory visitIpLookupCommand(EsqlBaseParser.IpLookupCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute targetField = visitQualifiedName(ctx.qualifiedName());
+        if (targetField == null) {
+            throw new ParsingException(source(ctx), "Missing target field in IP_LOOKUP command");
+        }
+
+        Expression ipAddress = expression(ctx.primaryExpression());
+
+        String tmpDatabaseName = null;
+        EsqlBaseParser.CommandNamedParametersContext namedParamsCtx = ctx.commandNamedParameters();
+
+        if (namedParamsCtx != null) {
+            MapExpression parsedOptions = visitCommandNamedParameters(namedParamsCtx);
+            if (parsedOptions != null) {
+                Map<String, Expression> tmpOptions = new HashMap<>(parsedOptions.keyFoldedMap());
+                Expression databaseFileExpr = tmpOptions.remove(IpLookupEvaluator.DATABASE_FILE_OPTION);
+                if (databaseFileExpr != null) {
+                    if (databaseFileExpr instanceof Literal == false || DataType.isString(databaseFileExpr.dataType()) == false) {
+                        throw new ParsingException(
+                            databaseFileExpr.source(),
+                            "Option {} for IP_LOOKUP must be a string literal, found [{}]",
+                            IpLookupEvaluator.DATABASE_FILE_OPTION,
+                            databaseFileExpr.dataType().typeName()
+                        );
+                    }
+                    // the toString() method of Literal should be correct here
+                    tmpDatabaseName = databaseFileExpr.toString();
+                }
+
+                // check for unrecognized options
+                if (tmpOptions.isEmpty() == false) {
+                    throw new ParsingException(
+                        source(namedParamsCtx),
+                        "Invalid option(s) [{}] in IP_LOOKUP. Valid options: [{}].",
+                        String.join(", ", tmpOptions.keySet()),
+                        IpLookupEvaluator.DATABASE_FILE_OPTION
+                    );
+                }
+            }
+        }
+        final String databaseName = (tmpDatabaseName == null || tmpDatabaseName.isBlank())
+            ? IpLookupEvaluator.DEFAULT_DATABASE_FILE
+            : tmpDatabaseName;
+
+        // TODO - verify databaseFile exists and is accessible
+
+        // Ensuring unmodifiable map for geolocation field templates
+        Map<String, DataType> geolocationFieldTemplates = Collections.unmodifiableMap(
+            IpLookupEvaluator.getGeoLocationFieldTemplates(databaseName)
+        );
+        // Creating unmodifiable list for resolved geolocation fields
+        List<Attribute> resolvedGeoLocationFields = geolocationFieldTemplates.entrySet()
+            .stream()
+            .map(
+                entry -> (Attribute) new ReferenceAttribute(
+                    source,
+                    null,
+                    targetField.name() + "." + entry.getKey(),
+                    entry.getValue(),
+                    Nullability.TRUE,
+                    null,
+                    false
+                )
+            )
+            .toList();
+
+        return p -> new IpLookup(source, p, ipAddress, targetField, databaseName, geolocationFieldTemplates, resolvedGeoLocationFields);
     }
 
     private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {

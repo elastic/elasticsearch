@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -154,6 +155,9 @@ public class FieldNameUtils {
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
                 referencesBuilder.get().addAll(re.input().references());
+            } else if (p instanceof IpLookup il) {
+                // keep the inputs needed by IpLookup
+                referencesBuilder.get().addAll(il.ipAddress().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
@@ -282,7 +286,7 @@ public class FieldNameUtils {
      * Examples are JOIN and ENRICH, that _could_ produce fields with the same
      * name of an existing alias, based on their index mapping.
      * Here we just have to consider commands where this information is not available before index resolution,
-     * eg. EVAL, GROK, DISSECT can override an alias, but we know it in advance, ie. we don't need to resolve indices to know.
+     * eg. EVAL, GROK, DISSECT, IP_LOOKUP can override an alias, but we know it in advance, ie. we don't need to resolve indices to know.
      */
     private static boolean couldOverrideAliases(LogicalPlan p) {
         return (p instanceof Aggregate
@@ -299,6 +303,7 @@ public class FieldNameUtils {
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract
+            || p instanceof IpLookup
             || p instanceof Rename
             || p instanceof TopN
             || p instanceof UnresolvedRelation) == false;

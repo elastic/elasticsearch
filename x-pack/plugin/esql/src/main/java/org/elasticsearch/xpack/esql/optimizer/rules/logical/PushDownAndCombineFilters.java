@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -39,7 +40,7 @@ import java.util.function.Predicate;
 
 /**
  * Perform filters as early as possible in the logical plan by pushing them past certain plan nodes (like {@link Eval},
- * {@link RegexExtract}, {@link Enrich}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
+ * {@link RegexExtract}, {@link IpLookup}, {@link Enrich}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
  * Ideally, the filter ends up all the way down at the data source and can be turned into a Lucene query.
  * When pushing down past nodes, only conditions that do not depend on fields created by those nodes are pushed down; if the condition
  * consists of {@code AND}s, we split out the parts that do not depend on the previous node.
@@ -91,6 +92,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // Push down filters that do not rely on attributes created by RegexExtract
             var attributes = AttributeSet.of(Expressions.asAttributes(re.extractedFields()));
             plan = maybePushDownPastUnary(filter, re, attributes::contains, NO_OP);
+        } else if (child instanceof IpLookup il) {
+            // Push down filters that do not rely on attributes created by IpLookup
+            var attributes = AttributeSet.of(Expressions.asAttributes(il.generatedAttributes()));
+            plan = maybePushDownPastUnary(filter, il, attributes::contains, NO_OP);
         } else if (child instanceof InferencePlan<?> inferencePlan) {
             // Push down filters that do not rely on attributes created by Completion
             var attributes = AttributeSet.of(inferencePlan.generatedAttributes());

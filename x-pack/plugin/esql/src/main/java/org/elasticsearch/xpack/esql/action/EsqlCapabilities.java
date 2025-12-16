@@ -1747,6 +1747,11 @@ public class EsqlCapabilities {
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 
         /**
+         * Support IP_LOOKUP command to get geo information from IP address.
+         */
+        IP_LOOKUP(Build.current().isSnapshot()),
+
+        /**
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,

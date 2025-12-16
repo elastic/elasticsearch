@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -520,6 +521,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case Insist i -> resolveInsist(i, childrenOutput, context);
+                case IpLookup il -> resolveIpLookup(il, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
@@ -607,6 +609,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField);
+        }
+
+        private LogicalPlan resolveIpLookup(IpLookup il, List<Attribute> childrenOutput) {
+            Attribute targetField = il.targetField();
+            Expression ipAddress = il.ipAddress();
+
+            if (targetField instanceof UnresolvedAttribute ua) {
+                targetField = new ReferenceAttribute(ua.source(), null, ua.name(), KEYWORD);
+            }
+
+            if (ipAddress.resolved() == false) {
+                ipAddress = ipAddress.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            }
+
+            return new IpLookup(
+                il.source(),
+                il.child(),
+                ipAddress,
+                targetField,
+                il.databaseFile(),
+                il.geoLocationFieldTemplates(),
+                il.resolvedGeoLocationFields()
+            );
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

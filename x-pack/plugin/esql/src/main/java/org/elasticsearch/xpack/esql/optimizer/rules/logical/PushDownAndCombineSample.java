@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -40,7 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  *  <ul>
  *      <li>
  *          one row to one row (e.g. <code>DISSECT</code>, <code>DROP</code>, <code>ENRICH</code>,
- *          <code>EVAL</code>, <code>GROK</code>, <code>KEEP</code>, <code>RENAME</code>)
+ *          <code>EVAL</code>, <code>GROK</code>, <code>IP_LOOKUP</code>, <code>KEEP</code>, <code>RENAME</code>)
  *      </li>
  *      <li>
  *          one row to zero or one row (<code>WHERE</code>)
@@ -67,6 +68,7 @@ public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimi
             || child instanceof Eval
             || child instanceof Filter
             || child instanceof Insist
+            || child instanceof IpLookup
             || child instanceof OrderBy
             || child instanceof Project
             || child instanceof RegexExtract) {

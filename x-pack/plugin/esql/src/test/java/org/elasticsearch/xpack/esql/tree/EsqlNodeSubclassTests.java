@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -351,11 +352,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
     }
 
+    private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+        return makeArg(toBuildClass, argType, true);
+    }
+
     /**
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
     @SuppressWarnings("unchecked")
-    private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+    private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType, boolean allowNull) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
@@ -427,6 +432,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 }
                 return b.toString();
             }
+        } else if (toBuildClass == IpLookup.class && argClass == String.class && allowNull) {
+            // databaseFile should be null. Random string will fail.
+            return null;
         } else if (argClass == Dissect.Parser.class) {
             // Dissect.Parser is a record / final, cannot be mocked
             String pattern = randomDissectPattern();
@@ -540,7 +548,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
+            list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0], false));
         }
         return list;
     }
@@ -552,7 +560,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         Set<Object> list = new HashSet<>();
         for (int i = 0; i < size; i++) {
-            list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
+            list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0], false));
         }
         return list;
     }
@@ -561,8 +569,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         Map<Object, Object> map = new HashMap<>();
         int size = randomSizeForCollection(toBuildClass);
         while (map.size() < size) {
-            Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
-            Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1]);
+            Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0], false);
+            Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1], false);
             map.put(key, value);
         }
         return map;

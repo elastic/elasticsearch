@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -112,6 +113,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
+            || plan instanceof IpLookup
             || plan instanceof TopN) {
             return plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {
                 if (attrToConstant.containsKey(f)) {// handle constant values field and use the value itself instead

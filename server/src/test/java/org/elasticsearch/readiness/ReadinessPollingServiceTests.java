@@ -76,13 +76,16 @@ public class ReadinessPollingServiceTests extends ESTestCase {
     public void testReadinessSucceedsImmediately() throws Exception {
         registerReadinessAction(() -> true);
 
-        ReadinessPollingService poll = new ReadinessPollingService(clusterService, transport, threadPool, LONG_TIMEOUT_MILLIS, QUICK_RETRY_MILLIS);
+        ReadinessPollingService poll = new ReadinessPollingService(
+            clusterService,
+            transport,
+            threadPool,
+            LONG_TIMEOUT_MILLIS,
+            QUICK_RETRY_MILLIS
+        );
         AtomicBoolean readiness = new AtomicBoolean(false);
 
-        poll.execute(
-            n -> true,
-            ActionListener.wrap(readiness::set, e -> fail(e.toString()))
-        );
+        poll.execute(n -> true, ActionListener.wrap(readiness::set, e -> fail(e.toString())));
 
         assertBusy(() -> assertTrue("Node was ready", readiness.get()));
     }
@@ -91,13 +94,16 @@ public class ReadinessPollingServiceTests extends ESTestCase {
         AtomicInteger remainingFailures = new AtomicInteger(2); // fails twice before success
         registerReadinessAction(() -> remainingFailures.getAndDecrement() <= 0);
 
-        ReadinessPollingService poll = new ReadinessPollingService(clusterService, transport, threadPool, LONG_TIMEOUT_MILLIS, QUICK_RETRY_MILLIS);
+        ReadinessPollingService poll = new ReadinessPollingService(
+            clusterService,
+            transport,
+            threadPool,
+            LONG_TIMEOUT_MILLIS,
+            QUICK_RETRY_MILLIS
+        );
         AtomicBoolean readiness = new AtomicBoolean(false);
 
-        poll.execute(
-            n -> true,
-            ActionListener.wrap(readiness::set, e -> fail(e.toString()))
-        );
+        poll.execute(n -> true, ActionListener.wrap(readiness::set, e -> fail(e.toString())));
 
         assertBusy(() -> assertTrue("Node was ready", readiness.get()));
     }

@@ -65,13 +65,7 @@ class ReadinessPollingService {
         ThreadPool threadPool,
         Environment environment
     ) {
-        this(
-            clusterService,
-            transportService,
-            threadPool,
-            TIMEOUT.get(environment.settings()),
-            INITIAL_DELAY.get(environment.settings())
-        );
+        this(clusterService, transportService, threadPool, TIMEOUT.get(environment.settings()), INITIAL_DELAY.get(environment.settings()));
     }
 
     /**
@@ -84,10 +78,7 @@ class ReadinessPollingService {
      * @param nodeFilter predicate to select which nodes to poll
      * @param listener invoked with true if any node reports ready, false if timeout expires
      */
-    public void execute(
-        Predicate<DiscoveryNode> nodeFilter,
-        ActionListener<Boolean> listener
-    ) {
+    public void execute(Predicate<DiscoveryNode> nodeFilter, ActionListener<Boolean> listener) {
         final long deadline = System.currentTimeMillis() + timeoutMillis;
 
         Runnable attempt = new Runnable() {

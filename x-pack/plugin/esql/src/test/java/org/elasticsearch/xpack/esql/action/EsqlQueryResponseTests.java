@@ -69,6 +69,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -318,7 +319,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     expBuilder.append(histo);
                 }
                 case TDIGEST -> ((TDigestBlockBuilder) builder).append(EsqlTestUtils.randomTDigest());
-                // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
+                case HISTOGRAM -> ((BytesRefBlock.Builder) builder).appendBytesRef(EsqlTestUtils.randomHistogram());
+                default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
             return builder.build();
         }).toArray(Block[]::new));
@@ -1348,6 +1350,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         } catch (UnsupportedOperationException | IOException e) {
                             fail("Unable to parse TDigestBlockBuilder: " + e.getMessage());
                         }
+                    }
+                    case HISTOGRAM -> {
+                        BytesRefBlock.Builder bytesRefBuilder = (BytesRefBlock.Builder) builder;
+                        String json = Types.forciblyCast(value);
+                        // This parser doesn't return null; it throws on error, so we don't need to handle a null return
+                        bytesRefBuilder.appendBytesRef(CsvTestUtils.parseHistogram(json));
                     }
                 }
             }

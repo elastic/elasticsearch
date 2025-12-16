@@ -560,8 +560,13 @@ public class EsqlFunctionRegistry {
                 defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
                 defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
-                // dense vector function
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
+                // dense vector functions
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
+                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
+                def(DotProduct.class, DotProduct::new, "v_dot_product"),
+                def(L1Norm.class, L1Norm::new, "v_l1_norm"),
+                def(L2Norm.class, L2Norm::new, "v_l2_norm"),
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -575,12 +580,8 @@ public class EsqlFunctionRegistry {
                 def(AllLast.class, bi(AllLast::new), "all_last"),
                 def(Last.class, bi(Last::new), "last"),
                 def(Term.class, bi(Term::new), "term"),
-                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
-                def(DotProduct.class, DotProduct::new, "v_dot_product"),
-                def(L1Norm.class, L1Norm::new, "v_l1_norm"),
-                def(L2Norm.class, L2Norm::new, "v_l2_norm"),
+                // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming"),
                 def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
     }
 
@@ -612,24 +613,45 @@ public class EsqlFunctionRegistry {
     }
 
     public static class ArgSignature {
+
+        public record Hint(String entityType, Map<String, String> constraints) {}
+
         protected final String name;
         protected final String[] type;
         protected final String description;
         protected final boolean optional;
         protected final boolean variadic;
         protected final DataType targetDataType;
+        protected final Hint hint;
 
-        public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic, DataType targetDataType) {
+        public ArgSignature(
+            String name,
+            String[] type,
+            String description,
+            boolean optional,
+            boolean variadic,
+            Hint hint,
+            DataType targetDataType
+        ) {
             this.name = name;
             this.type = type;
             this.description = description;
             this.optional = optional;
             this.variadic = variadic;
             this.targetDataType = targetDataType;
+            this.hint = hint;
+        }
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, Hint hint, boolean variadic) {
+            this(name, type, description, optional, variadic, hint, UNSUPPORTED);
+        }
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic, DataType targetDataType) {
+            this(name, type, description, optional, variadic, null, targetDataType);
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic) {
-            this(name, type, description, optional, variadic, UNSUPPORTED);
+            this(name, type, description, optional, variadic, null, UNSUPPORTED);
         }
 
         public String name() {
@@ -812,7 +834,14 @@ public class EsqlFunctionRegistry {
         String[] type = removeUnderConstruction(param.type());
         String desc = param.description().replace('\n', ' ');
         DataType targetDataType = getTargetType(type);
-        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, targetDataType);
+        ArgSignature.Hint hint = null;
+        if (param.hint() != null && param.hint().entityType() != Param.Hint.ENTITY_TYPE.NONE) {
+            Map<String, String> constraints = Arrays.stream(param.hint().constraints())
+                .collect(Collectors.toMap(Param.Hint.Constraint::name, Param.Hint.Constraint::value));
+            hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT), constraints);
+        }
+
+        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, hint, targetDataType);
     }
 
     public static ArgSignature mapParam(MapParam mapParam) {

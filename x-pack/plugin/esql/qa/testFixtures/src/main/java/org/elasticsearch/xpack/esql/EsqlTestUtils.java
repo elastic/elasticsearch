@@ -25,6 +25,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -1084,6 +1085,7 @@ public final class EsqlTestUtils {
                 }
             }
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
+            case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE -> throw new IllegalArgumentException(
@@ -1159,6 +1161,29 @@ public final class EsqlTestUtils {
             fail(e);
         }
         return returnValue;
+    }
+
+    public static BytesRef randomHistogram() {
+        List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
+        values.sort(Double::compareTo);
+        // Note - we need the three parameter version of random list here to ensure it's always the same length as values
+        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        try {
+            for (int i = 0; i < values.size(); i++) {
+                long count = counts.get(i);
+                // Presuming I didn't mess up the data generation, we should never generate a zero here, so no need to account for it.
+                assert count > 0;
+                streamOutput.writeVLong(count);
+                streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+            }
+            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            return docValue;
+        } catch (IOException e) {
+            // This is a test util, so we're just going to fail the test here
+            fail(e);
+        }
+        throw new IllegalArgumentException("Unreachable");
     }
 
     static Version randomVersion() {

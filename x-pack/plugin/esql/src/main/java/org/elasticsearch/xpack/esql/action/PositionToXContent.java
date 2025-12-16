@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateM
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
@@ -180,6 +181,13 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     return builder.value(tDigestBlockToString((TDigestBlock) block, valueIndex));
+                }
+            };
+            case HISTOGRAM -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    return builder.value(histogramBlockToString((BytesRefBlock) block, valueIndex));
                 }
             };
             case EXPONENTIAL_HISTOGRAM -> new PositionToXContent(block) {

@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -151,6 +152,7 @@ public final class ResponseValueUtils {
                 yield dateRangeToString(from, to);
             }
             case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(offset);
+            case HISTOGRAM -> EsqlDataTypeConverter.histogramToString(((BytesRefBlock) block).getBytesRef(offset, scratch));
             case UNSUPPORTED -> (String) null;
             case SOURCE -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);

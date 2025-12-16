@@ -836,6 +836,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramXContent.serialize(doc, EXPONENTIAL_HISTOGRAM_VALUE);
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
+                case HISTOGRAM -> {
+                    doc.startObject();
+                    doc.startArray("values");
+                    doc.value(0.1);
+                    doc.value(0.2);
+                    doc.value(0.3);
+                    doc.endArray();
+                    doc.startArray("counts");
+                    doc.value(3);
+                    doc.value(7);
+                    doc.value(23);
+                    doc.endArray();
+                    doc.endObject();
+                }
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
         }

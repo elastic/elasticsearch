@@ -11,6 +11,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.tdigest.parsing.TDigestParser;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -70,6 +72,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
@@ -517,6 +520,7 @@ public final class CsvTestUtils {
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
         EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
         TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
+        HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -623,6 +627,7 @@ public final class CsvTestUtils {
             return switch (actualType) {
                 case NULL -> NULL;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
+                case HISTOGRAM -> HISTOGRAM;
                 default -> KEYWORD;
             };
         }
@@ -757,6 +762,90 @@ public final class CsvTestUtils {
                 XContentParserUtils::parsingException
             );
             return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    public static BytesRef parseHistogram(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
+            }
+            parser.nextToken();
+            // TODO: This is striaght up copied from HistogramParser. There are even fewer good places to put that for resue than
+            // for TDigest, but maybe we can do some sensible refactoring down the road
+            ArrayList<Double> values = null;
+            ArrayList<Long> counts = null;
+            XContentParser.Token token = parser.currentToken();
+            while (token != XContentParser.Token.END_OBJECT) {
+                // should be a field
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                String fieldName = parser.currentName();
+                if (fieldName.equals("values")) {
+                    token = parser.nextToken();
+                    // should be an array
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+                    values = new ArrayList<>();
+                    token = parser.nextToken();
+                    double previousVal = -Double.MAX_VALUE;
+                    while (token != XContentParser.Token.END_ARRAY) {
+                        // should be a number
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        double val = parser.doubleValue();
+                        if (val < previousVal) {
+                            // values must be in increasing order
+                            ESTestCase.fail("Error parsing CSV histogram data, values out of order");
+                        }
+                        values.add(val);
+                        previousVal = val;
+                        token = parser.nextToken();
+                    }
+                } else if (fieldName.equals("counts")) {
+                    token = parser.nextToken();
+                    // should be an array
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+                    counts = new ArrayList<>();
+                    token = parser.nextToken();
+                    while (token != XContentParser.Token.END_ARRAY) {
+                        // should be a number
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        long count = parser.longValue();
+                        if (count < 0) {
+                            ESTestCase.fail("Error parsing CSV histogram data, negative count");
+                        }
+                        counts.add(count);
+                        token = parser.nextToken();
+                    }
+                } else {
+                    ESTestCase.fail("Error parsing CSV histogram data, unknown field: " + fieldName);
+                }
+                token = parser.nextToken();
+            }
+            if (values == null) {
+                ESTestCase.fail("Error parsing CSV histogram data, no values field");
+            }
+            if (counts == null) {
+                ESTestCase.fail("Error parsing CSV histogram data, no counts field");
+            }
+            if (values.size() != counts.size()) {
+                ESTestCase.fail("expected counts and values to be same length but got [" + values.size() + " != " + counts.size() + "]");
+            }
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
+            for (int i = 0; i < values.size(); i++) {
+                long count = counts.get(i);
+                assert count >= 0;
+                // we do not add elements with count == 0
+                if (count > 0) {
+                    streamOutput.writeVLong(count);
+                    streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+                }
+            }
+            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            return docValue;
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }

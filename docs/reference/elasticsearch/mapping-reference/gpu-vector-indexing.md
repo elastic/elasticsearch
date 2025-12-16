@@ -42,7 +42,7 @@ indexing is not being used, such as not supported environment, missing libraries
 ### Node fails to start with `vectors.indexing.use_gpu: true`
 
 To enforce GPU indexing, set `vectors.indexing.use_gpu: true` in `elasticsearch.yml`.
-The node will fail to start if GPU is not detected by {{es}}.
+The node will fail to start if GPU indexing will not be available, e.g. if a GPU is not detected by {{es}}, or if the runtime is not supported, or if the necessary dependencies are not correctly configured, etc.
 
 If the node fails to start, check:
 * Supported NVIDIA GPU is present

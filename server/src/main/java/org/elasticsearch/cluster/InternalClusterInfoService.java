@@ -621,9 +621,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
             final IndexingStats indexingStats = s.getStats().getIndexing();
             if (indexingStats != null) {
-                final double shardWriteLoad = (shardWriteLoadType == WriteLoadDeciderShardWriteLoadType.PEAK)
-                    ? indexingStats.getTotal().getPeakWriteLoad()
-                    : indexingStats.getTotal().getRecentWriteLoad();
+                final double shardWriteLoad = shardWriteLoadType.getWriteLoad(indexingStats);
                 if (shardWriteLoad > shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
                     shardWriteLoads.put(shardRouting.shardId(), shardWriteLoad);
                 }

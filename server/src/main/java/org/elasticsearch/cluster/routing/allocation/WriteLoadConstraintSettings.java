@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IndexingStats;
 
 /**
  * Settings definitions for the write load allocation decider and associated infrastructure
@@ -58,9 +59,18 @@ public class WriteLoadConstraintSettings {
         }
     }
 
+    /**
+     * Controls what type of shard-level write load estimate value the write load decider will use.
+     */
     public enum WriteLoadDeciderShardWriteLoadType {
+        /** Max recent write load value seen for the life of the shard on a node */
         PEAK,
-        RECENT
+        /** The recent write load value */
+        RECENT;
+
+        public double getWriteLoad(IndexingStats indexingStats) {
+            return this == PEAK ? indexingStats.getTotal().getPeakWriteLoad() : indexingStats.getTotal().getRecentWriteLoad();
+        }
     }
 
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(

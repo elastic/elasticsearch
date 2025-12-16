@@ -84,11 +84,11 @@ public class IndexMetadataVerifier {
     }
 
     /**
-     * Checks that the index can be upgraded to the current version of the master node.
+     * Checks that the index can be upgraded to the current version as provided.
      *
      * <p>
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
-     * cannot be updated the method throws an exception. Also archived unsupported settings.
+     * cannot be updated the method throws an exception. Also archives or deletes unsupported settings.
      */
     public IndexMetadata verifyIndexMetadata(
         IndexMetadata indexMetadata,
@@ -99,8 +99,12 @@ public class IndexMetadataVerifier {
     }
 
     /**
-     * See {@link #verifyIndexMetadata(IndexMetadata, IndexVersion, IndexVersion)}.
-     * Skips the archive or delete of broken index settings if {@code archiveOrDeleteBrokenIndexSettings} is {@code false}.
+     * Checks that the index can be upgraded to the current version as provided.
+     *
+     * <p>
+     * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
+     * cannot be updated the method throws an exception. If {@code archiveOrDeleteBrokenIndexSettings} is {@code true},
+     * unsupported settings will be either archived or deleted.
      */
     public IndexMetadata verifyIndexMetadata(
         IndexMetadata indexMetadata,

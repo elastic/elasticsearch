@@ -67,7 +67,8 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
 
                     @Override
                     public float matchCost() {
-                        return 10; // because one comparison
+                        return 100; // because involves scanning values of all candidate matches and depending on codec also includes
+                                    // decompressing binary doc values.
                     }
                 };
 
@@ -83,7 +84,12 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.utf8ToString() + ")";
+        if (this.fieldName.equals(field)) {
+            // If field is default then don't include it in string representation as per api contract:
+            return "SlowCustomBinaryDocValuesTermQuery(term=" + term.utf8ToString() + ")";
+        } else {
+            return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + fieldName + ",term=" + term.utf8ToString() + ")";
+        }
     }
 
     @Override

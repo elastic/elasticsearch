@@ -271,9 +271,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/134853
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/134865
@@ -448,9 +445,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.saml.SamlRedirectTests
   method: testRedirectUrlWithRelayStateAndSigning
   issue: https://github.com/elastic/elasticsearch/issues/139389
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testOptionalColumnAtATimeReaderBinary
-  issue: https://github.com/elastic/elasticsearch/issues/139432
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012
@@ -463,15 +457,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testIntegerDocValuesConflict {null}
   issue: https://github.com/elastic/elasticsearch/issues/139450
-- class: org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapperTests
-  method: testIndexTypes
-  issue: https://github.com/elastic/elasticsearch/issues/139455
-- class: org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapperTests
-  method: testSortShortcuts
-  issue: https://github.com/elastic/elasticsearch/issues/139456
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/139482
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testIntegerDocValuesConflict {STORED}
   issue: https://github.com/elastic/elasticsearch/issues/139487
@@ -490,6 +475,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testReductionPlanForTopNWithPushedDownFunctions
   issue: https://github.com/elastic/elasticsearch/issues/139493
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139527
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139482
+- class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
+  method: test {p0=search/500_date_range/test range query for all docs with year uuuu}
+  issue: https://github.com/elastic/elasticsearch/issues/139534
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testMultipleSnapshotAndRollback
+  issue: https://github.com/elastic/elasticsearch/issues/139556
+- class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/139562
 
 # Examples:
 #

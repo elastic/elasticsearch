@@ -1748,6 +1748,13 @@ public class EsqlCapabilities {
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 
         /**
+         * Fix for circular reference in alias chains during PushDownEnrich and aggregate deduplication.
+         * Prevents "Potential cycle detected" errors when aliases reference each other.
+         * https://github.com/elastic/elasticsearch/issues/138346
+         */
+        FIX_ENRICH_ALIAS_CYCLE_IN_DEDUPLICATE_AGGS,
+
+        /**
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,

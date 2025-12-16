@@ -229,9 +229,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
             );
             assertEquals(expected, values);
-
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -253,12 +251,26 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
             );
             assertEquals(expected, values);
-
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
 
-        // If there is no subquery with matching index pattern, Analyzer's verifier fails on the query.
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM missing*,
+                (FROM c*:missing* metadata _index),
+                (FROM r*:missing* metadata _index)
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(0));
+        }
+
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM
+                (FROM c*:missing* metadata _index),
+                (FROM r*:missing* metadata _index)
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(0));
+        }
+
+        // If there is no subquery with a valid index pattern, the query should fail.
         expectThrows(VerificationException.class, containsString("Unknown index [cluster-a:missing,cluster-a:remote]"), () -> runQuery("""
             FROM (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
             | STATS c = count(*) by _index

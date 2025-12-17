@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -16,9 +17,11 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
@@ -820,6 +823,47 @@ public class EsqlDataTypeConverter {
 
     public static String tDigestToString(TDigestHolder digest) {
         return digest.toString();
+    }
+
+    public static String histogramBlockToString(BytesRefBlock histogramBlock, int index) {
+        // TODO: should we be creating a new bytesref here?
+        return histogramToString(histogramBlock.getBytesRef(index, new BytesRef()));
+    }
+
+    public static String histogramToString(BytesRef histogram) {
+        if (histogram.length > ByteSizeUnit.MB.toBytes(2)) {
+            throw new IllegalArgumentException("Histogram length is greater than 2MB");
+        }
+        // TODO: reuse the nearly identical code from HistogramFieldMapper
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            ByteArrayStreamInput streamInput = new ByteArrayStreamInput();
+
+            // write values field
+            builder.startArray("values");
+            streamInput.reset(histogram.bytes, histogram.offset, histogram.length);
+            while (streamInput.available() > 0) {
+                long count = streamInput.readVLong();
+                double value = Double.longBitsToDouble(streamInput.readLong());
+                builder.value(value);
+            }
+            builder.endArray();
+
+            // write counts field
+            builder.startArray("counts");
+            streamInput.reset(histogram.bytes, histogram.offset, histogram.length);
+            while (streamInput.available() > 0) {
+                long count = streamInput.readVLong();
+                double value = Double.longBitsToDouble(streamInput.readLong());
+                builder.value(count);
+            }
+            builder.endArray();
+            builder.endObject();
+
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering histogram", e);
+        }
     }
 
     public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {

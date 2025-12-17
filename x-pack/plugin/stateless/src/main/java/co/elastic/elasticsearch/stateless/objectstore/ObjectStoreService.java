@@ -27,7 +27,6 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
@@ -739,10 +738,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Read a batched compound commit blob identified by a term/generation from the object store, fetching bytes using a prewarming instance
-     * from the provided {@link IndexBlobStoreCacheDirectory} and therefore populating the cache for every region that contains a compound
+     * from the provided {@link BlobStoreCacheDirectory} and therefore populating the cache for every region that contains a compound
      * commit header.
      *
-     * @param directory         the {@link IndexBlobStoreCacheDirectory} used to read the blob in the object store
+     * @param directory         the {@link BlobStoreCacheDirectory} used to read the blob in the object store
      * @param blobTermAndGen    the term/generation of the blob to read
      * @param maxBlobLength     the blob's maximum length to read
      * @param exactBlobLength   a flag indicating that the max. blob length is equal to the real blob length in the object store (flag is
@@ -752,7 +751,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      * @throws IOException      if an I/O error occurs
      */
     private static BatchedCompoundCommit readBatchedCompoundCommitUsingCache(
-        IndexBlobStoreCacheDirectory directory,
+        BlobStoreCacheDirectory directory,
         IOContext context,
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength,
@@ -766,16 +765,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     /**
      * Creates an iterator that incrementally reads {@link StatelessCompoundCommit} header from a batched compound commit blob
      * identified by a term/generation from the object store, fetching bytes using a prewarming instance from the provided
-     * {@link IndexBlobStoreCacheDirectory} and therefore populating the cache for every region that contains a compound commit header.
+     * {@link BlobStoreCacheDirectory} and therefore populating the cache for every region that contains a compound commit header.
      *
-     * @param directory         the {@link IndexBlobStoreCacheDirectory} used to read the blob in the object store
+     * @param directory         the {@link BlobStoreCacheDirectory} used to read the blob in the object store
      * @param blobFile          the blob to read
      * @param maxBlobLength     the blob's maximum length to read
      * @return                  an iterator over {@link StatelessCompoundCommit} objects that lazily reads compound commits
      *                          from the blob store with caching support
      */
     private static Iterator<StatelessCompoundCommit> readBatchedCompoundCommitIncrementallyUsingCache(
-        IndexBlobStoreCacheDirectory directory,
+        BlobStoreCacheDirectory directory,
         IOContext context,
         BlobFile blobFile,
         long maxBlobLength
@@ -785,7 +784,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     private static BatchedCompoundCommit.BlobReader getBlobReader(
-        IndexBlobStoreCacheDirectory directory,
+        BlobStoreCacheDirectory directory,
         IOContext context,
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
@@ -826,16 +825,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Find the latest batched compound commit in the provided map and read it using
-     * {@link #readBatchedCompoundCommitUsingCache(IndexBlobStoreCacheDirectory, IOContext, PrimaryTermAndGeneration, long, boolean)}
+     * {@link #readBatchedCompoundCommitUsingCache(BlobStoreCacheDirectory, IOContext, PrimaryTermAndGeneration, long, boolean)}
      *
-     * @param directory the {@link IndexBlobStoreCacheDirectory} to use for reading the blob
+     * @param directory the {@link BlobStoreCacheDirectory} to use for reading the blob
      * @param blobs     a sorted map of batched compound commit blobs
      * @return          a {@link BatchedCompoundCommit}
      * @throws IOException if an I/O exception occurs while reading the blob using the cache
      */
     // package private for testing
-    static BatchedCompoundCommit readLatestBcc(
-        IndexBlobStoreCacheDirectory directory,
+    static BatchedCompoundCommit readLatestBccUsingCache(
+        BlobStoreCacheDirectory directory,
         IOContext context,
         NavigableMap<PrimaryTermAndGeneration, BlobMetadata> blobs
     ) throws IOException {
@@ -908,7 +907,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     public static void readIndexingShardState(
-        IndexBlobStoreCacheDirectory directory,
+        BlobStoreCacheDirectory directory,
         IOContext context,
         BlobContainer shardContainer,
         long primaryTerm,
@@ -963,7 +962,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
                 // Find the most recent batched compound commit and read its headers using cache
-                var latestBcc = ObjectStoreService.readLatestBcc(directory, context, blobs);
+                var latestBcc = ObjectStoreService.readLatestBccUsingCache(directory, context, blobs);
                 if (latestBcc == null) {
                     logger.trace(() -> format("%s no blob found for recovery", directory.getShardId()));
                     ActionListener.completeWith(l, () -> IndexingShardState.EMPTY);
@@ -1013,13 +1012,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
                     });
                 } else {
-                    readReferencedCompoundCommits(
+                    readReferencedCompoundCommitsUsingCache(
                         latestBcc.lastCompoundCommit(),
+                        latestBcc,
+                        directory,
+                        context,
                         bccHeaderReadExecutor,
-                        (referencedBlob, maxBlobOffset) -> referencedBlob.termAndGeneration()
-                            .equals(latestBcc.primaryTermAndGeneration()) == false
-                                ? readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset)
-                                : latestBcc.compoundCommits().iterator(),
                         l.map(referencedCompoundCommitsByBlob -> {
                             Map<String, BlobFileRanges> blobFileRanges = new HashMap<>();
                             for (var referencedCompoundCommitsList : referencedCompoundCommitsByBlob.values()) {
@@ -1150,7 +1148,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     /**
      * Starting from the passed-in {@param compoundCommit}, this finds all the referenced BCC blobs, then all the CCs in those
      * BCCs. It returns all the referenced internal files in these referenced CCs, grouped by the containing BCC blob file.
+     * The optional param {@param bcc} is passed-in in order to avoid re-reading it from the blobstore (usually one gets a {@code
+     * compoundCommit} from a {@code bcc}).
      */
+    public static void readReferencedCompoundCommitsUsingCache(
+        StatelessCompoundCommit compoundCommit,
+        @Nullable BatchedCompoundCommit bcc,
+        BlobStoreCacheDirectory directory,
+        IOContext context,
+        Executor bccHeaderReadExecutor,
+        ActionListener<Map<BlobFile, List<StatelessCompoundCommitReferenceWithInternalFiles>>> listener
+    ) {
+        readReferencedCompoundCommits(
+            compoundCommit,
+            bccHeaderReadExecutor,
+            (referencedBlob, maxBlobOffset) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
+                ? bcc.compoundCommits().iterator()
+                : readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset),
+            listener
+        );
+    }
+
     public static void readReferencedCompoundCommits(
         StatelessCompoundCommit compoundCommit,
         Executor bccHeaderReadExecutor,

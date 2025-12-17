@@ -164,6 +164,16 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         throw exception;
     }
 
+    public void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+        assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+        try {
+            currentMetadata = metadata;
+            currentDataSetSizeInBytes = dataSetSizeInBytes;
+        } finally {
+            assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+        }
+    }
+
     protected boolean assertCompareAndSetUpdatingCommitThread(Thread current, Thread updated) {
         final Thread witness = updatingCommitThread.compareAndExchange(current, updated);
         assert witness == current

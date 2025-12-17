@@ -39,7 +39,8 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     private static final int MAX_SUBQUERIES = 8;
 
     /*
-     * only 10 unique keyword values do not trigger CBE
+     * The index's size is 1MB * 500, with only 10 unique keyword values. and these queries don't have aggregation or sort.
+     * CBE is not expected to be triggered here.
      */
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResults() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
@@ -55,7 +56,8 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     /*
-     * Make sure large intermediate results from subqueries trigger CBE and do not cause OOM
+     * The index's size is 1MB * 500, each field has 500 unique/random keyword values, and these queries don't have aggregation or sort.
+     * CBE is not expected to be triggered here.
      */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResults() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
@@ -65,6 +67,10 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         assertCircuitBreaks(attempt -> buildSubqueries(DEFAULT_SUBQUERIES, "manybigfields"));
     }
 
+    /*
+     * The index's size is 1MB * 500, with only 10 unique keyword values. and these queries have aggregation without grouping.
+     * CBE is not expected to be triggered here.
+     */
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         int docs = 500; // 10 unique keyword values do not trigger CBE
@@ -80,6 +86,10 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
     }
 
+    /*
+     * The index's size is 1MB * 500, each field has 500 unique/random keyword values, and these queries have aggregation without grouping.
+     * CBE is not expected to be triggered here.
+     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         int docs = 500; // 500MB random/unique keyword values
@@ -95,6 +105,11 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
     }
 
+    /*
+     * The index's size is 1MB * 500, each field has 500 unique/random keyword values.
+     * And these queries have aggregation with grouping by one field, there are 500 buckets.
+     * This is mainly to test HashAggregationOperator, CBE is not expected to be triggered here.
+     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggWithGrouping500Buckets() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         int docs = 500; // 500MB random/unique keyword values
@@ -109,6 +124,11 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
     }
 
+    /*
+     * The index's size is 1MB * 500, each field has 500 unique/random keyword values.
+     * And these queries have aggregation with grouping by 999 fields, there are 500 * 999 buckets.
+     * This is mainly to test HashAggregationOperator, CBE is not expected to be triggered here.
+     */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggWithLargeGrouping() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         int docs = 500; // 500MB random/unique keyword values
@@ -119,34 +139,65 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         for (int f = 1; f < 999; f++) {
             grouping.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
-        assertCircuitBreaks(
-            attempt -> buildSubqueriesWithAgg(DEFAULT_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString())
-        );
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            if (subquery == MAX_SUBQUERIES) {
+                continue; // TODO 8 subqueries cause OOM, investigation needed
+            }
+            assertCircuitBreaks(
+                attempt -> buildSubqueriesWithAgg(subquery, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString())
+            );
+        }
     }
 
-    // TODO more subqueries trigger OOM, needs investigation
-    public void testManySubqueriesWithManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggWithLargeGrouping() throws IOException {
-        assumeTrue("skip this test for now, it triggers OOM, needs investigation", false);
+    /*
+     * The index's size is 1MB * 500, each field has 500 unique/random keyword values.
+     * And these queries have sort on one field, there are 500 distinct values, each value is 1KB.
+     * This is mainly to test TopNOperator, CBE is not expected to be triggered here.
+     */
+    public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         int docs = 500; // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        // grouping by 500 * 999 unique buckets/values
-        StringBuilder grouping = new StringBuilder();
-        grouping.append("f000");
-        for (int f = 1; f < 999; f++) {
-            grouping.append(", f").append(String.format(Locale.ROOT, "%03d", f));
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            if (subquery == MAX_SUBQUERIES) {
+                continue; // TODO 8 subqueries cause OOM, investigation needed
+            }
+            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", " f000 ", docs));
         }
-        assertCircuitBreaks(
-            attempt -> buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString())
-        );
+    }
+
+    /*
+     * The index's size is 1MB * 500, each field has 500 unique/random keyword values.
+     * And these queries have sort on 999 fields, there are 500 * 999 distinct values, each value is 1KB.
+     * This is mainly to test TopNOperator, CBE is not expected to be triggered here.
+     */
+    public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSort500Fields() throws IOException {
+        assumeTrue("skip this test for now, it OOM", false);
+        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
+        int docs = 500; // 500MB random/unique keyword values
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        // order by 500 * 999 unique values
+        StringBuilder sortKeys = new StringBuilder();
+        sortKeys.append("f000");
+        for (int f = 1; f < 999; f++) {
+            sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
+        }
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            if (subquery == MAX_SUBQUERIES) {
+                continue; // TODO even 2 subqueries cause OOM, investigation needed
+            }
+            assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", sortKeys.toString(), docs));
+        }
+
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
-        assumeTrue("skip this test for now, it OOM around SourceFilter", false);
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        // TODO this query causes OOM even with LIMIT 5 in the main query, should we CBE instead
         heapAttackIT.initGiantTextField(100);
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            if (subquery == MAX_SUBQUERIES) {
+                continue; // TODO 8 subqueries cause OOM, investigation needed
+            }
             Map<?, ?> response = buildSubqueries(subquery, "bigtext");
             ListMatcher columns = matchesList().item(matchesMap().entry("name", "f").entry("type", "text"));
             assertMap(response, matchesMap().entry("columns", columns));
@@ -170,14 +221,12 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     private Map<String, Object> buildSubqueries(int subqueries, String indexName) throws IOException {
         StringBuilder query = startQuery();
-        // TODO LIMIT 5 triggers OOM on "bigtext" index, we should CBE instead
-        String limit = indexName.equalsIgnoreCase("bigtext") ? " | LIMIT 5 " : "";
         String subquery = "(FROM " + indexName + " )";
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
             query.append(", ").append(subquery);
         }
-        query.append(limit).append(" \"}");
+        query.append(" \"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
 
@@ -190,6 +239,18 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
             subquery.append(" BY ").append(grouping);
         }
         subquery.append(" )");
+        query.append("FROM ").append(subquery);
+        for (int i = 1; i < subqueries; i++) {
+            query.append(", ").append(subquery);
+        }
+        query.append(" \"}");
+        return responseAsMap(query(query.toString(), "columns,values"));
+    }
+
+    private Map<String, Object> buildSubqueriesWithSort(int subqueries, String indexName, String sortKeys, int rows) throws IOException {
+        StringBuilder query = startQuery();
+        StringBuilder subquery = new StringBuilder();
+        subquery.append("(FROM ").append(indexName).append(" | SORT ").append(sortKeys).append(" | LIMIT ").append(rows).append(" )");
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
             query.append(", ").append(subquery);

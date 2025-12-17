@@ -7,104 +7,76 @@
 
 package org.elasticsearch.xpack.esql.inference.rerank;
 
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
 /**
- * {@link RerankOperator} is an inference operator that compute scores for rows using a reranking model.
+ * {@link RerankOperator} is an {@link InferenceOperator} that computes relevance scores for rows using a reranking model.
+ * It evaluates a row encoder expression for each input row, batches them together, and sends them to the reranking service
+ * with a query text to obtain relevance scores.
  */
 public class RerankOperator extends InferenceOperator {
 
-    // Default number of rows to include per inference request
-    private static final int DEFAULT_BATCH_SIZE = 20;
-    private final String queryText;
+    public static final int DEFAULT_BATCH_SIZE = 10;
 
-    // Encodes each input row into a string representation for the model
-    private final ExpressionEvaluator rowEncoder;
-    private final int scoreChannel;
-
-    // Batch size used to group rows into a single inference request (currently fixed)
-    // TODO: make it configurable either in the command or as query pragmas
-    private final int batchSize = DEFAULT_BATCH_SIZE;
-
-    public RerankOperator(
+    /**
+     * Constructs a new {@code RerankOperator}.
+     *
+     * @param driverContext                   The driver context.
+     * @param inferenceService                The inference service to use for executing inference requests.
+     * @param requestItemIteratorFactory      Factory for creating request iterators from input pages.
+     * @param outputBuilder                   Builder for converting inference responses into output pages.
+     * @param maxOutstandingPages             The maximum number of pages processed in parallel.
+     * @param maxOutstandingInferenceRequests The maximum number of inference requests to be run in parallel.
+     */
+    RerankOperator(
         DriverContext driverContext,
-        BulkInferenceRunner bulkInferenceRunner,
-        String inferenceId,
-        String queryText,
-        ExpressionEvaluator rowEncoder,
-        int scoreChannel,
-        int maxOutstandingPages
+        InferenceService inferenceService,
+        RerankRequestIterator.Factory requestItemIteratorFactory,
+        RerankOutputBuilder outputBuilder,
+        int maxOutstandingPages,
+        int maxOutstandingInferenceRequests
     ) {
-        super(driverContext, bulkInferenceRunner, inferenceId, maxOutstandingPages);
-        this.queryText = queryText;
-        this.rowEncoder = rowEncoder;
-        this.scoreChannel = scoreChannel;
-    }
-
-    @Override
-    protected void doClose() {
-        Releasables.close(rowEncoder);
-    }
-
-    @Override
-    public String toString() {
-        return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
+        super(
+            driverContext,
+            inferenceService,
+            requestItemIteratorFactory,
+            outputBuilder,
+            maxOutstandingPages,
+            maxOutstandingInferenceRequests
+        );
     }
 
     /**
-     * Returns the request iterator responsible for batching and converting input rows into inference requests.
-     */
-    @Override
-    protected RerankOperatorRequestIterator requests(Page inputPage) {
-        return new RerankOperatorRequestIterator((BytesRefBlock) rowEncoder.eval(inputPage), inferenceId(), queryText, batchSize);
-    }
-
-    /**
-     * Returns the output builder responsible for collecting inference responses and building the output page.
-     */
-    @Override
-    protected RerankOperatorOutputBuilder outputBuilder(Page input) {
-        DoubleBlock.Builder outputBlockBuilder = blockFactory().newDoubleBlockBuilder(input.getPositionCount());
-        return new RerankOperatorOutputBuilder(outputBlockBuilder, input, scoreChannel);
-    }
-
-    /**
-     * Factory for creating {@link RerankOperator} instances
+     * Factory for creating {@link RerankOperator} instances.
      */
     public record Factory(
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
         ExpressionEvaluator.Factory rowEncoderFactory,
-        int scoreChannel
+        int scoreChannel,
+        int batchSize
     ) implements OperatorFactory {
-
         @Override
         public String describe() {
-            return "RerankOperator[inference_id=[" + inferenceId + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
+            return "RerankOperator[]";
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
             return new RerankOperator(
                 driverContext,
-                inferenceService.bulkInferenceRunner(),
-                inferenceId,
-                queryText,
-                rowEncoderFactory.get(driverContext),
-                scoreChannel,
-                BulkInferenceRunnerConfig.DEFAULT.maxOutstandingRequests()
+                inferenceService,
+                new RerankRequestIterator.Factory(inferenceId, queryText, rowEncoderFactory.get(driverContext), batchSize),
+                new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel),
+                DEFAULT_MAX_OUTSTANDING_PAGES,
+                DEFAULT_MAX_OUTSTANDING_REQUESTS
             );
         }
     }
+
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.rerank;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -21,74 +22,135 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsResults> {
+    private static final String SIMPLE_INFERENCE_ID = "test_rerank";
+    private static final String QUERY_TEXT = "test query";
+    private static final int BATCH_SIZE = 20;
 
-    private static final String SIMPLE_INFERENCE_ID = "test_reranker";
-    private static final String SIMPLE_QUERY = "query text";
     private int inputChannel;
     private int scoreChannel;
+
+    @Before
+    public void initRerankChannels() {
+        inputChannel = between(0, inputsCount - 1);
+        // Score channel can be anywhere in the page
+        scoreChannel = between(0, inputsCount);
+    }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new RerankOperator.Factory(
             mockedInferenceService(),
             SIMPLE_INFERENCE_ID,
-            SIMPLE_QUERY,
+            QUERY_TEXT,
             evaluatorFactory(inputChannel),
-            scoreChannel
+            scoreChannel,
+            BATCH_SIZE
         );
     }
 
-    @Before
-    public void initRerankChannels() {
-        inputChannel = between(0, inputsCount - 1);
-        scoreChannel = between(0, inputsCount - 1);
-        if (scoreChannel == inputChannel) {
-            scoreChannel++;
+    @Override
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        assertThat(results, hasSize(input.size()));
+
+        for (int curPage = 0; curPage < input.size(); curPage++) {
+            Page inputPage = input.get(curPage);
+            Page resultPage = results.get(curPage);
+
+            assertEquals(inputPage.getPositionCount(), resultPage.getPositionCount());
+
+            // If scoreChannel is at the end, the score block is appended (+1 block)
+            // Otherwise, it replaces an existing block (same block count)
+            int expectedBlockCount = scoreChannel == inputPage.getBlockCount() ? inputPage.getBlockCount() + 1 : inputPage.getBlockCount();
+            assertEquals(expectedBlockCount, resultPage.getBlockCount());
+
+            // Verify all original blocks are preserved (except the one replaced by the score block)
+            for (int channel = 0; channel < inputPage.getBlockCount(); channel++) {
+                if (channel != scoreChannel) {
+                    Block inputBlock = inputPage.getBlock(channel);
+                    Block resultBlock = resultPage.getBlock(channel);
+                    assertBlockContentEquals(inputBlock, resultBlock);
+                }
+            }
+
+            // Verify rerank scores in the score channel
+            assertRerankResults(inputPage, resultPage);
         }
     }
 
-    @Override
-    protected void assertSimpleOutput(List<Page> inputPages, List<Page> resultPages) {
-        assertThat(inputPages, hasSize(resultPages.size()));
+    private void assertRerankResults(Page inputPage, Page resultPage) {
+        BytesRefBlock inputBlock = inputPage.getBlock(inputChannel);
+        DoubleBlock scoreBlock = resultPage.getBlock(scoreChannel);
 
-        for (int pageId = 0; pageId < inputPages.size(); pageId++) {
-            Page inputPage = inputPages.get(pageId);
-            Page resultPage = resultPages.get(pageId);
+        BlockStringReader blockReader = new BlockStringReader();
 
-            assertThat(resultPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-            assertThat(resultPage.getBlockCount(), equalTo(Integer.max(scoreChannel + 1, inputPage.getBlockCount())));
+        for (int curPos = 0; curPos < inputPage.getPositionCount(); curPos++) {
+            if (inputBlock.isNull(curPos)) {
+                // Null inputs should produce null scores
+                assertThat(scoreBlock.isNull(curPos), equalTo(true));
+            } else {
+                // Read all non-empty text values from this position
+                List<String> inputTexts = readNonEmptyInputs(inputBlock, curPos);
 
-            for (int channel = 0; channel < inputPage.getBlockCount(); channel++) {
-                Block resultBlock = resultPage.getBlock(channel);
-                if (channel == scoreChannel) {
-                    assertExpectedScore(inputPage.getBlock(inputChannel), (DoubleBlock) resultBlock);
+                if (inputTexts.isEmpty()) {
+                    // Empty/whitespace-only inputs should produce null scores (filtered by RerankRequestIterator)
+                    assertThat(scoreBlock.isNull(curPos), equalTo(true));
                 } else {
-                    Block inputBlock = inputPage.getBlock(channel);
-                    assertThat(resultBlock.getPositionCount(), equalTo(resultPage.getPositionCount()));
-                    assertThat(resultBlock.elementType(), equalTo(inputBlock.elementType()));
-                    assertBlockContentEquals(inputBlock, resultBlock);
+                    // Verify score is present
+                    assertFalse(scoreBlock.isNull(curPos));
+                    double score = scoreBlock.getDouble(scoreBlock.getFirstValueIndex(curPos));
+
+                    // For multi-valued positions, the score should be the max of all input scores
+                    // (see RerankOutputBuilder.appendResponseToBlock)
+                    double expectedScore = inputTexts.stream()
+                        .mapToDouble(text -> (double) text.hashCode() / Integer.MAX_VALUE)
+                        .max()
+                        .orElseThrow();
+
+                    assertThat(score, closeTo(expectedScore, 0.0001));
                 }
             }
         }
     }
 
-    private void assertExpectedScore(BytesRefBlock inputBlock, DoubleBlock scoreBlock) {
-        assertThat(scoreBlock.getPositionCount(), equalTo(inputBlock.getPositionCount()));
-        BlockStringReader inputBlockReader = new InferenceOperatorTestCase.BlockStringReader();
+    /**
+     * Reads all non-empty text values from a position, matching the filtering done by RerankRequestIterator.
+     */
+    private List<String> readNonEmptyInputs(BytesRefBlock block, int pos) {
+        List<String> inputs = new ArrayList<>();
+        int valueCount = block.getValueCount(pos);
+        int firstValueIndex = block.getFirstValueIndex(pos);
+        BytesRef scratch = new BytesRef();
 
-        for (int pos = 0; pos < inputBlock.getPositionCount(); pos++) {
-            if (inputBlock.isNull(pos)) {
-                assertThat(scoreBlock.isNull(pos), equalTo(true));
-            } else {
-                double score = scoreBlock.getDouble(scoreBlock.getFirstValueIndex(pos));
-                double expectedScore = score(inputBlockReader.readString(inputBlock, pos));
-                assertThat(score, equalTo(expectedScore));
+        for (int i = 0; i < valueCount; i++) {
+            scratch = block.getBytesRef(firstValueIndex + i, scratch);
+            String text = scratch.utf8ToString();
+            // Match the filtering logic in RerankRequestIterator.readInputText
+            if (org.elasticsearch.common.Strings.hasText(text)) {
+                inputs.add(text);
             }
         }
+
+        return inputs;
+    }
+
+    @Override
+    protected RankedDocsResults mockInferenceResult(InferenceAction.Request request) {
+        List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>();
+        List<String> inputs = request.getInput();
+
+        for (int i = 0; i < inputs.size(); i++) {
+            String input = inputs.get(i);
+            // Generate a deterministic relevance score based on input text
+            float score = (float) input.hashCode() / Integer.MAX_VALUE;
+            rankedDocs.add(new RankedDocsResults.RankedDoc(i, score, input));
+        }
+
+        return new RankedDocsResults(rankedDocs);
     }
 
     @Override
@@ -98,23 +160,6 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo(
-            "RerankOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "], query=[" + SIMPLE_QUERY + "], score_channel=[" + scoreChannel + "]]"
-        );
-    }
-
-    @Override
-    protected RankedDocsResults mockInferenceResult(InferenceAction.Request request) {
-        List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>();
-        for (int rank = 0; rank < request.getInput().size(); rank++) {
-            String inputText = request.getInput().get(rank);
-            rankedDocs.add(new RankedDocsResults.RankedDoc(rank, score(inputText), inputText));
-        }
-
-        return new RankedDocsResults(rankedDocs);
-    }
-
-    private float score(String inputText) {
-        return (float) inputText.hashCode() / 100;
+        return equalTo("RerankOperator[]");
     }
 }

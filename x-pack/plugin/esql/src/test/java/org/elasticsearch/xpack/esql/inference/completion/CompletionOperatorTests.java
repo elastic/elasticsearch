@@ -50,12 +50,14 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
             assertEquals(inputPage.getPositionCount(), resultPage.getPositionCount());
             assertEquals(inputPage.getBlockCount() + 1, resultPage.getBlockCount());
 
+            // Verify all original blocks are preserved
             for (int channel = 0; channel < inputPage.getBlockCount(); channel++) {
                 Block inputBlock = inputPage.getBlock(channel);
                 Block resultBlock = resultPage.getBlock(channel);
                 assertBlockContentEquals(inputBlock, resultBlock);
             }
 
+            // Verify completion results in the new block
             assertCompletionResults(inputPage, resultPage);
         }
     }
@@ -64,7 +66,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
         BytesRefBlock inputBlock = resultPage.getBlock(inputChannel);
         BytesRefBlock resultBlock = resultPage.getBlock(inputPage.getBlockCount());
 
-        BlockStringReader blockReader = new InferenceOperatorTestCase.BlockStringReader();
+        BlockStringReader blockReader = new BlockStringReader();
 
         for (int curPos = 0; curPos < inputPage.getPositionCount(); curPos++) {
             if (inputBlock.isNull(curPos)) {
@@ -72,7 +74,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
             } else {
                 assertThat(
                     blockReader.readString(resultBlock, curPos),
-                    equalTo(blockReader.readString(inputBlock, curPos).toUpperCase(java.util.Locale.ROOT))
+                    equalTo(blockReader.readString(inputBlock, curPos).toUpperCase(Locale.ROOT))
                 );
             }
         }
@@ -94,6 +96,6 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("CompletionOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
+        return equalTo("CompletionOperator[]");
     }
 }

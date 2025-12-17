@@ -73,13 +73,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             var result = new LinkedHashSet<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.BOOLEAN, "field2")
-                    ),
-                    "MvUnionBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.BOOLEAN,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.BOOLEAN, "field2")
+                ),
+                "MvUnionBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.BOOLEAN,
+                matchResult(result)
             );
         }));
     }
@@ -91,13 +91,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             var result = new LinkedHashSet<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
-                    ),
-                    "MvUnionIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.INTEGER,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
+                ),
+                "MvUnionIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.INTEGER,
+                matchResult(result)
             );
         }));
     }
@@ -118,13 +118,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             var result = resultSet.stream().map(v -> unsignedLongAsBigInteger(v)).toList();
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, UNSIGNED_LONG, "field1"),
-                            new TestCaseSupplier.TypedData(field2, UNSIGNED_LONG, "field2")
-                    ),
-                    "MvUnionLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    UNSIGNED_LONG,
-                    equalTo(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, UNSIGNED_LONG, "field1"),
+                    new TestCaseSupplier.TypedData(field2, UNSIGNED_LONG, "field2")
+                ),
+                "MvUnionLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                UNSIGNED_LONG,
+                equalTo(result)
             );
         }));
     }
@@ -137,13 +137,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             result.addAll(field2);
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, dataType, "field1"),
-                            new TestCaseSupplier.TypedData(field2, dataType, "field2")
-                    ),
-                    "MvUnionLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    dataType,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, dataType, "field1"),
+                    new TestCaseSupplier.TypedData(field2, dataType, "field2")
+                ),
+                "MvUnionLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                dataType,
+                matchResult(result)
             );
         }));
     }
@@ -156,13 +156,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             result.addAll(field2);
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.DOUBLE, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.DOUBLE, "field2")
-                    ),
-                    "MvUnionDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.DOUBLE,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.DOUBLE, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.DOUBLE, "field2")
+                ),
+                "MvUnionDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.DOUBLE,
+                matchResult(result)
             );
         }));
     }
@@ -177,13 +177,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
                     result.addAll(field2);
 
                     return new TestCaseSupplier.TestCase(
-                            List.of(
-                                    new TestCaseSupplier.TypedData(field1, lhs, "field1"),
-                                    new TestCaseSupplier.TypedData(field2, rhs, "field2")
-                            ),
-                            "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                            DataType.KEYWORD,
-                            matchResult(result)
+                        List.of(
+                            new TestCaseSupplier.TypedData(field1, lhs, "field1"),
+                            new TestCaseSupplier.TypedData(field2, rhs, "field2")
+                        ),
+                        "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                        DataType.KEYWORD,
+                        matchResult(result)
                     );
                 }));
             }
@@ -196,13 +196,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             result.addAll(field2);
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.IP, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.IP, "field2")
-                    ),
-                    "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.IP,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.IP, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.IP, "field2")
+                ),
+                "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.IP,
+                matchResult(result)
             );
         }));
 
@@ -213,13 +213,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             result.addAll(field2);
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.VERSION, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.VERSION, "field2")
-                    ),
-                    "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.VERSION,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.VERSION, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.VERSION, "field2")
+                ),
+                "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.VERSION,
+                matchResult(result)
             );
         }));
 
@@ -230,13 +230,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             result.addAll(field2);
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.GEO_POINT, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.GEO_POINT, "field2")
-                    ),
-                    "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.GEO_POINT,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.GEO_POINT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.GEO_POINT, "field2")
+                ),
+                "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.GEO_POINT,
+                matchResult(result)
             );
         }));
 
@@ -247,13 +247,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             result.addAll(field2);
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_POINT, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_POINT, "field2")
-                    ),
-                    "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.CARTESIAN_POINT,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_POINT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_POINT, "field2")
+                ),
+                "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.CARTESIAN_POINT,
+                matchResult(result)
             );
         }));
 
@@ -264,13 +264,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             result.addAll(field2);
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.GEO_SHAPE, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.GEO_SHAPE, "field2")
-                    ),
-                    "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.GEO_SHAPE,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.GEO_SHAPE, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.GEO_SHAPE, "field2")
+                ),
+                "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.GEO_SHAPE,
+                matchResult(result)
             );
         }));
 
@@ -281,13 +281,13 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
             result.addAll(field2);
 
             return new TestCaseSupplier.TestCase(
-                    List.of(
-                            new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_SHAPE, "field1"),
-                            new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_SHAPE, "field2")
-                    ),
-                    "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                    DataType.CARTESIAN_SHAPE,
-                    matchResult(result)
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_SHAPE, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_SHAPE, "field2")
+                ),
+                "MvUnionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.CARTESIAN_SHAPE,
+                matchResult(result)
             );
         }));
     }

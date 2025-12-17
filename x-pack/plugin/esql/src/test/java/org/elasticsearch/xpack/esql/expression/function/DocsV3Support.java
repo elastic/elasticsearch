@@ -1212,7 +1212,8 @@ public abstract class DocsV3Support {
             }
         }
 
-        assert initialProvidedParamIndex + sig.argTypes().size() <= args.size() || (args.isEmpty() == false && args.getLast().variadic())
+        assert initialProvidedParamIndex + sig.argTypes().size() <= args.size()
+            || args.stream().anyMatch(EsqlFunctionRegistry.ArgSignature::variadic)
             : "The calculated initialProvidedParamIndex exceeds the args size";
         return initialProvidedParamIndex;
     }

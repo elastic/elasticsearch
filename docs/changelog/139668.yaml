@@ -1,5 +1,5 @@
 pr: 139668
-summary: Retry state save indefinitely
+summary: Fix anomaly detection jobs stuck in opening by continously retrying to set the state to opened.
 area: Machine Learning
 type: bug
 issues: []

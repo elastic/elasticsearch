@@ -1,0 +1,5 @@
+pr: 138374
+summary: Lookup Join on General Filter POC
+area: ES|QL
+type: enhancement
+issues: []

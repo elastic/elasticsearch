@@ -37,8 +37,8 @@ public class MvCountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, " +
-                    "aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+                (v, p) -> "any type except counter types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, or exponential_histogram"
             )
         );
     }

@@ -524,8 +524,8 @@ public final class MultiRowTestCaseSupplier {
 
     public static List<TypedDataSupplier> histogramCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        addSuppliers(cases, minRows, maxRows, "empty histogram", DataType.HISTOGRAM, () -> new BytesRef("") );
-        addSuppliers(cases, minRows, maxRows, "random histogram",  DataType.HISTOGRAM, EsqlTestUtils::randomHistogram);
+        addSuppliers(cases, minRows, maxRows, "empty histogram", DataType.HISTOGRAM, () -> new BytesRef(""));
+        addSuppliers(cases, minRows, maxRows, "random histogram", DataType.HISTOGRAM, EsqlTestUtils::randomHistogram);
         return cases;
     }
 

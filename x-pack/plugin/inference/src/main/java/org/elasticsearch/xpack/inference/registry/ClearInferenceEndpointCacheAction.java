@@ -90,7 +90,7 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
         );
         this.projectResolver = projectResolver;
         this.inferenceEndpointRegistry = inferenceEndpointRegistry;
-        this.taskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.IMMEDIATE, new CacheMetadataUpdateTaskExecutor());
+        this.taskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.NORMAL, new CacheMetadataUpdateTaskExecutor());
         clusterService.addListener(
             event -> event.state()
                 .metadata()

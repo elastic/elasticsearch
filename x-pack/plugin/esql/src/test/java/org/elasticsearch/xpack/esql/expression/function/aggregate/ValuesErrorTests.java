@@ -37,7 +37,7 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double or exponential_histogram"
+                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double, tdigest or exponential_histogram"
             )
         );
     }
@@ -47,7 +47,12 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         assertThat(
             invalidSignatureSamples,
             equalTo(
-                Set.of(List.of(DataType.DENSE_VECTOR), List.of(DataType.EXPONENTIAL_HISTOGRAM), List.of(DataType.AGGREGATE_METRIC_DOUBLE))
+                Set.of(
+                    List.of(DataType.DENSE_VECTOR),
+                    List.of(DataType.EXPONENTIAL_HISTOGRAM),
+                    List.of(DataType.AGGREGATE_METRIC_DOUBLE),
+                    List.of(DataType.TDIGEST)
+                )
             )
         );
     }

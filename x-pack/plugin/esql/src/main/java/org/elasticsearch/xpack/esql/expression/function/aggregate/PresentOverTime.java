@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -30,7 +31,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Present}, but it is used to check the presence of values over a time series in the given field.
  */
-public class PresentOverTime extends TimeSeriesAggregateFunction {
+public class PresentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PresentOverTime",
@@ -69,7 +70,9 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" }
+                "exponential_histogram",
+                "tdigest" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,10 +44,10 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                 DataType.INTEGER,
                 true
             );
-            List<TestCaseSupplier.TypedDataSupplier> histogramSuppliers = new ArrayList<>(TestCaseSupplier.exponentialHistogramCases());
-            if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
-                histogramSuppliers.addAll(TestCaseSupplier.tdigestCases());
-            }
+            List<TestCaseSupplier.TypedDataSupplier> histogramSuppliers = Stream.concat(
+                TestCaseSupplier.exponentialHistogramCases().stream(),
+                TestCaseSupplier.tdigestCases().stream()
+            ).toList();
             for (TestCaseSupplier.TypedDataSupplier histoSupplier : histogramSuppliers) {
                 suppliers.add(
                     new TestCaseSupplier(

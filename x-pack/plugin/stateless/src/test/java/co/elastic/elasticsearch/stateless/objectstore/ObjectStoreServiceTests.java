@@ -447,7 +447,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         }
     }
 
-    public void testReadLatestBccPopulatesCache() throws Exception {
+    public void testReadLatestBccUsingCachePopulatesCache() throws Exception {
         final Map<String, BlobLocation> uploadedBlobs = ConcurrentCollections.newConcurrentMap();
         var primaryTerm = randomLongBetween(1, 42);
         var useReplicatedRanges = randomBoolean();
@@ -520,7 +520,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory);
             var blobs = ObjectStoreService.listBlobs(primaryTerm, directory.getBlobContainer(primaryTerm));
             assertThat(blobs.size(), equalTo(nbBlobs));
-            assertThat(ObjectStoreService.readLatestBcc(directory, IOContext.DEFAULT, blobs), equalTo(latestBcc));
+            assertThat(ObjectStoreService.readLatestBccUsingCache(directory, IOContext.DEFAULT, blobs), equalTo(latestBcc));
 
             long writeCount = computeCacheWriteCounts(latestBcc, latestBccLength, regionSize.getBytes());
             assertTrue(TestThreadPool.terminate(testHarness.threadPool, 10L, TimeUnit.SECONDS));

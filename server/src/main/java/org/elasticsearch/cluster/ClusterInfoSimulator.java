@@ -41,13 +41,13 @@ public class ClusterInfoSimulator {
     private final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
 
-    public ClusterInfoSimulator(RoutingAllocation allocation) {
+    public ClusterInfoSimulator(RoutingAllocation allocation, ClusterSettings clusterSettings) {
         this.allocation = allocation;
         this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.estimatedHeapUsages = allocation.clusterInfo().getEstimatedHeapUsages();
-        this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
+        this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation, clusterSettings);
     }
 
     /**

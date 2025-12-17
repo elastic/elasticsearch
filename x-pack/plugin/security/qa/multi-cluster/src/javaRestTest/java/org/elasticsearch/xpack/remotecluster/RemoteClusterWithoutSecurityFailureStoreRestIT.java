@@ -11,7 +11,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +39,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -146,11 +144,7 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
         }
 
         // query remote cluster using ::data and ::failures selectors should succeed with security off
-        for (String indexName : Set.of(
-            "test1::data",
-            "test*::data",
-            "*::data"
-        )) {
+        for (String indexName : Set.of("test1::data", "test*::data", "*::data")) {
             final Request searchRequest = new Request(
                 "GET",
                 String.format(
@@ -164,11 +158,7 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
             final String[] expectedIndices = new String[] { backingDataIndexName };
             assertSearchResponseContainsIndices(client().performRequest(searchRequest), expectedIndices);
         }
-        for (String indexName : Set.of(
-            "test1::failures",
-            "test*::failures",
-            "*::failures"
-        )) {
+        for (String indexName : Set.of("test1::failures", "test*::failures", "*::failures")) {
             final Request searchRequest = new Request(
                 "GET",
                 String.format(

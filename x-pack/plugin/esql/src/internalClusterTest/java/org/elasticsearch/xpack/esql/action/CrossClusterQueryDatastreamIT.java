@@ -1400,40 +1400,37 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         return clusterInfo;
     }
 
-    protected Map<String, Object> populateDataStream(
-        String clusterAlias,
-        String indexName,
-        int numShards,
-        int numDocs,
-        int numFailures
-    ) throws IOException {
+    protected Map<String, Object> populateDataStream(String clusterAlias, String indexName, int numShards, int numDocs, int numFailures)
+        throws IOException {
         Client client = client(clusterAlias);
         var template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(indexName))
-            .template(Template.builder()
-                .settings(Settings.builder().put("index.number_of_shards", numShards))
-                .mappings(CompressedXContent.fromJSON("""
-                {
-                    "properties": {
-                      "@timestamp" : {
-                        "type": "date"
-                      },
-                      "id": {
-                        "type": "keyword"
-                      },
-                      "tag": {
-                        "type": "keyword"
-                      },
-                      "v": {
-                        "type": "long"
-                      },
-                      "const": {
-                        "type": "long"
-                      }
-                    }
-                }"""))
-                .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)))
-                .build())
+            .template(
+                Template.builder()
+                    .settings(Settings.builder().put("index.number_of_shards", numShards))
+                    .mappings(CompressedXContent.fromJSON("""
+                        {
+                            "properties": {
+                              "@timestamp" : {
+                                "type": "date"
+                              },
+                              "id": {
+                                "type": "keyword"
+                              },
+                              "tag": {
+                                "type": "keyword"
+                              },
+                              "v": {
+                                "type": "long"
+                              },
+                              "const": {
+                                "type": "long"
+                              }
+                            }
+                        }"""))
+                    .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)))
+                    .build()
+            )
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
         var request = new TransportPutComposableIndexTemplateAction.Request(indexName + "-template");

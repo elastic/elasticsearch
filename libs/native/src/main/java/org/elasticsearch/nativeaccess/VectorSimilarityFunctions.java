@@ -86,7 +86,7 @@ public interface VectorSimilarityFunctions {
 
     /**
      * Produces a method handle returning the square distance of several byte (unsigned int7) vectors.
-     * This bulk operation can be used to compute the dot product between a
+     * This bulk operation can be used to compute the square distance between a
      * single query vector and a number of other vectors.
      *
      * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
@@ -97,13 +97,13 @@ public interface VectorSimilarityFunctions {
      * type of the third argument is an int, representing the dimensions of each vector. The
      * type of the fourth argument is an int, representing the number of vectors in the
      * first argument. The type of the final argument is a MemorySegment, into which the
-     * computed dot product float values will be stored.
+     * computed square distance float values will be stored.
      */
     MethodHandle squareDistanceHandle7uBulk();
 
     /**
      * Produces a method handle returning the square distance of several byte (unsigned int7) vectors.
-     * This bulk operation can be used to compute the dot product between a
+     * This bulk operation can be used to compute the square distance between a
      * single query vector and a subset of vectors from a dataset (array of vectors). Each
      * vector to include in the operation is identified by an offset inside the dataset.
      *
@@ -119,10 +119,10 @@ public interface VectorSimilarityFunctions {
      *     <li>an {@code int}, representing the width (in bytes) of each vector. Or, in other words,
      *     the distance in bytes between two vectors inside the first param's {@code MemorySegment}</li>
      *     <li>a {@code MemorySegment} containing the indices of the vectors inside the first param's array
-     *     on which we'll compute the dot product</li>
-     *     <li>an {@code int}, representing the number of vectors for which we'll compute the dot product
+     *     on which we'll compute the square distance</li>
+     *     <li>an {@code int}, representing the number of vectors for which we'll compute the square distance
      *     (which is equal to the size - in number of elements - of the 5th and 7th {@code MemorySegment}s)</li>
-     *     <li>a {@code MemorySegment}, into which the computed dot product float values will be stored</li>
+     *     <li>a {@code MemorySegment}, into which the computed square distance float values will be stored</li>
      * </ol>
      */
     MethodHandle squareDistanceHandle7uBulkWithOffsets();

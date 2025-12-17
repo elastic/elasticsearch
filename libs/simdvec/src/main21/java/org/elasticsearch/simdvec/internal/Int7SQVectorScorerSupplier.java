@@ -211,17 +211,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
             Similarities.squareDistance7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
 
-            // Java-side adjustment
-            var aOffset = Float.intBitsToFloat(
-                vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
-            );
             for (int i = 0; i < numNodes; ++i) {
                 var squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                var secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
-                long secondByteOffset = (long) secondOrd * vectorPitch;
-                var bOffset = Float.intBitsToFloat(
-                    vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
-                );
                 float adjustedDistance = squareDistance * scoreCorrectionConstant;
                 scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, 1 / (1f + adjustedDistance));
             }

@@ -163,10 +163,8 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 squareDistance7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
 
                 for (int i = 0; i < numNodes; ++i) {
-                    var sqrDistance = scores[i];
-                    var secondOrd = nodes[i];
-                    long secondByteOffset = (long) secondOrd * vectorPitch;
-                    float adjustedDistance = sqrDistance * scoreCorrectionConstant;
+                    var squareDistance = scores[i];
+                    float adjustedDistance = squareDistance * scoreCorrectionConstant;
                     scores[i] = 1 / (1f + adjustedDistance);
                 }
             }

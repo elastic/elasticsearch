@@ -63,7 +63,7 @@ public final class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     private void checkVersionCompatibility(VersionedNamedWriteable namedWriteable) {
-        if (namedWriteable.getMinimalSupportedVersion().after(getTransportVersion())) {
+        if (getTransportVersion().supports(namedWriteable.getMinimalSupportedVersion()) == false) {
             throw new IllegalArgumentException(
                 "["
                     + namedWriteable.getWriteableName()

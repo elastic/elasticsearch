@@ -23,7 +23,6 @@ import java.util.function.Consumer;
 public class SkipperSettingsTests extends ESTestCase {
 
     public void testSkipperSettingDefaults() {
-        assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
             IndexSettings indexSettings = settings(IndexVersion.current(), b -> {});
             assertFalse(indexSettings.useDocValuesSkipper());
@@ -39,7 +38,6 @@ public class SkipperSettingsTests extends ESTestCase {
     }
 
     public void testTSDBSkipperSettingDefaults() {
-        assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
             IndexSettings indexSettings = settings(IndexVersion.current(), b -> {
                 b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
@@ -68,7 +66,6 @@ public class SkipperSettingsTests extends ESTestCase {
     }
 
     public void testLogsDBSkipperSettingDefaults() {
-        assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
             IndexSettings indexSettings = settings(
                 IndexVersion.current(),

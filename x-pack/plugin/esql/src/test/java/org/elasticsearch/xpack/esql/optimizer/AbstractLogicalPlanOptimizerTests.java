@@ -12,7 +12,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -67,6 +66,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
     protected static Analyzer subqueryAnalyzer;
+    protected static Map<String, EsField> mappingBaseConversion;
+    protected static Analyzer baseConversionAnalyzer;
 
     protected static EnrichResolution enrichResolution;
 
@@ -171,12 +172,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         List<EsIndex> metricIndices = new ArrayList<>();
-        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.isEnabled()) {
-            Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
-            metricIndices.add(
-                EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
-            );
-        }
+        Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
+        metricIndices.add(
+            EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
+        );
+        Map<String, EsField> tdigestMapping = loadMapping("tdigest_timeseries_index-mappings.json");
+        metricIndices.add(
+            EsIndexGenerator.esIndex("tdigest_timeseries_index", tdigestMapping, Map.of("tdigest_timeseries_index", IndexMode.TIME_SERIES))
+        );
         metricMapping = loadMapping("k8s-mappings.json");
         metricIndices.add(EsIndexGenerator.esIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
@@ -239,6 +242,28 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 mergeIndexResolutions(indexResolutions(test), defaultSubqueryResolution()),
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        // Some tests use data from the baseConversion index, so we load it here
+        mappingBaseConversion = loadMapping("mapping-base_conversion.json");
+        EsIndex baseConversion = new EsIndex(
+            "base_conversion",
+            mappingBaseConversion,
+            Map.of("base_conversion", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+        baseConversionAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(baseConversion),
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()

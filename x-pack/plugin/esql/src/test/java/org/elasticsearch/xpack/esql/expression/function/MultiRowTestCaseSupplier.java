@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -23,7 +24,6 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -496,24 +496,29 @@ public final class MultiRowTestCaseSupplier {
 
     public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
-            addSuppliers(
-                cases,
-                minRows,
-                maxRows,
-                "empty exponential histograms",
-                DataType.EXPONENTIAL_HISTOGRAM,
-                () -> new WriteableExponentialHistogram(ExponentialHistogram.empty())
-            );
-            addSuppliers(
-                cases,
-                minRows,
-                maxRows,
-                "random exponential histograms",
-                DataType.EXPONENTIAL_HISTOGRAM,
-                EsqlTestUtils::randomExponentialHistogram
-            );
-        }
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "empty exponential histograms",
+            DataType.EXPONENTIAL_HISTOGRAM,
+            () -> new WriteableExponentialHistogram(ExponentialHistogram.empty())
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "random exponential histograms",
+            DataType.EXPONENTIAL_HISTOGRAM,
+            EsqlTestUtils::randomExponentialHistogram
+        );
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> tdigestCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "empty T-Digest", DataType.TDIGEST, TDigestHolder::empty);
+        addSuppliers(cases, minRows, maxRows, "random T-Digest", DataType.TDIGEST, EsqlTestUtils::randomTDigest);
         return cases;
     }
 

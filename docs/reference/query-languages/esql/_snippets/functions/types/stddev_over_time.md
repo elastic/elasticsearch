@@ -2,9 +2,9 @@
 
 **Supported types**
 
-| number | result |
-| --- | --- |
-| double | double |
-| integer | double |
-| long | double |
+| field | window | result |
+| --- | --- | --- |
+| double | | double |
+| integer | | double |
+| long | | double |
 

@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -58,7 +57,8 @@ public class AbsentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
         ).flatMap(List::stream).map(AbsentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -79,12 +79,10 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.LONG,
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
-            DataType.VERSION
+            DataType.VERSION,
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
         );
-        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
-            types = new ArrayList<>(types);
-            types.add(DataType.EXPONENTIAL_HISTOGRAM);
-        }
         for (var dataType : types) {
             suppliers.add(
                 new TestCaseSupplier(

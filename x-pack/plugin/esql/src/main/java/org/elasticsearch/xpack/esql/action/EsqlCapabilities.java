@@ -1615,6 +1615,10 @@ public class EsqlCapabilities {
         HISTOGRAM_FIELD_SUPPORT_V0,
 
         /**
+         * histogram to tdigest conversion function
+         */
+        HISTOGRAM_TO_TDIGEST_CAST,
+        /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,

@@ -2033,22 +2033,9 @@ public class Security extends Plugin
             }
         });
 
-        record SecProv(String name, String version) {
-            boolean test(String secProvPattern) {
-                int i = secProvPattern.indexOf(':');
-                if (i < 0) {
-                    return name.equals(secProvPattern);
-                } else {
-                    String provName = secProvPattern.substring(0, i);
-                    String provVersion = secProvPattern.substring(i + 1);
-                    return name.equals(provName) && Regex.simpleMatch(provVersion, version);
-                }
-            }
-        }
-
-        Set<SecProv> foundProviders = new HashSet<>();
+        Set<SecurityProvider> foundProviders = new HashSet<>();
         for (Provider provider : java.security.Security.getProviders()) {
-            foundProviders.add(new SecProv(provider.getName().toLowerCase(Locale.ROOT), provider.getVersionStr()));
+            foundProviders.add(new SecurityProvider(provider.getName().toLowerCase(Locale.ROOT), provider.getVersionStr()));
             if (logger.isTraceEnabled()) {
                 logger.trace("Security Provider: " + provider.getName() + ", Version: " + provider.getVersionStr());
                 provider.entrySet().forEach(entry -> { logger.trace("\t" + entry.getKey()); });
@@ -2078,6 +2065,19 @@ public class Security extends Plugin
                 sb.append(++index).append(": ").append(error).append(";\n");
             }
             throw new IllegalArgumentException(sb.toString());
+        }
+    }
+
+    record SecurityProvider(String name, String version) {
+        boolean test(String secProvPattern) {
+            int i = secProvPattern.indexOf(':');
+            if (i < 0) {
+                return name.equals(secProvPattern);
+            } else {
+                String provName = secProvPattern.substring(0, i);
+                String provVersion = secProvPattern.substring(i + 1);
+                return name.equals(provName) && Regex.simpleMatch(provVersion, version);
+            }
         }
     }
 

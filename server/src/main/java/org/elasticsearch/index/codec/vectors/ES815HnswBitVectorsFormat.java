@@ -13,11 +13,11 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
 
@@ -29,8 +29,8 @@ public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
         super(NAME);
     }
 
-    public ES815HnswBitVectorsFormat(int maxConn, int beamWidth) {
-        super(NAME, maxConn, beamWidth);
+    public ES815HnswBitVectorsFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService mergeExec) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
     }
 
     @Override
@@ -40,7 +40,7 @@ public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);
+        throw new UnsupportedOperationException();
     }
 
     @Override

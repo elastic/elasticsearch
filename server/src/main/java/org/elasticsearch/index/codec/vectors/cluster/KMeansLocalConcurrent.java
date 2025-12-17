@@ -81,4 +81,9 @@ class KMeansLocalConcurrent extends KMeansLocal {
         }
         executor.invokeAll(runners);
     }
+
+    @Override
+    protected NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException {
+        return NeighborHood.computeNeighborhoods(executor, numWorkers, centroids, clustersPerNeighborhood);
+    }
 }

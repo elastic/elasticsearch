@@ -346,15 +346,15 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
     private static final String REINDEX_DOCS_URL = "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex";
     private static final Pattern NON_FINAL_MESSAGE_PATTERN = Pattern.compile(
         "^Can't update non dynamic setting\\(s\\) \\[\\[(?<skipped>[^]]+)]] for open indices \\[\\[(?<indices>.+)]]\\. "
-            + "Given you are updating non-final setting\\(s\\), you can either resubmit the update with `\\?reopen=true`, "
-            + "or create a new index with the desired setting\\(s\\) and reindex your data\\. See "
+            + "You can either resubmit the update with `\\?reopen=true`, or create a new index with the desired setting\\(s\\) "
+            + "and reindex your data\\. See "
             + Pattern.quote(REINDEX_DOCS_URL)
             + "$"
     );
     private static final Pattern FINAL_MESSAGE_PATTERN = Pattern.compile(
         "^Can't update non dynamic setting\\(s\\) \\[\\[(?<skipped>[^]]+)]] for open indices \\[\\[(?<indices>.+)]]\\. "
-            + "Given you are updating \\[\\[(?<final>[^]]+)]] final setting\\(s\\), you cannot resubmit the update with `\\?reopen=true` "
-            + "and will need to create a new index with the desired setting\\(s\\) and reindex your data\\. See "
+            + "The setting\\(s\\) \\[\\[(?<final>[^]]+)]] cannot be modified on an index once it is created\\. "
+            + "You will need to create a new index with the desired setting\\(s\\) and reindex your data\\. See "
             + Pattern.quote(REINDEX_DOCS_URL)
             + "$"
     );
@@ -373,8 +373,8 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
     private static void assertMessageIsFinalWithIndexNameAndSettingsAndFinalSettings(
         final String message,
         final String indexName,
-        Set<String> expectedSkippedSettings,
-        Set<String> expectedFinalSettings
+        final Set<String> expectedSkippedSettings,
+        final Set<String> expectedFinalSettings
     ) {
         final Matcher matcher = ensurePatternMatchesMessageAndGetMatcher(FINAL_MESSAGE_PATTERN, message);
         assertThat(matcher.groupCount(), equalTo(3));
@@ -383,13 +383,13 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         assertIndices(matcher.group("indices"), indexName);
     }
 
-    private static Matcher ensurePatternMatchesMessageAndGetMatcher(Pattern pattern, String message) {
+    private static Matcher ensurePatternMatchesMessageAndGetMatcher(final Pattern pattern, final String message) {
         final Matcher matcher = pattern.matcher(message);
         assertThat(matcher.matches(), is(true));
         return matcher;
     }
 
-    private static void assertSettingsGroup(String rawGroup, Set<String> expectedSettings) {
+    private static void assertSettingsGroup(final String rawGroup, final Set<String> expectedSettings) {
         final Set<String> actualSettings = Arrays.stream(rawGroup.split(", ")).collect(Collectors.toUnmodifiableSet());
         assertThat(actualSettings, equalTo(expectedSettings));
     }

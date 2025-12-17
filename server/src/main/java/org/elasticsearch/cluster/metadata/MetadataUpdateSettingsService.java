@@ -264,13 +264,13 @@ public class MetadataUpdateSettingsService {
                     final String suggestedPathForwardForUser;
                     final boolean canUseReopen = finalSkippedSettings.isEmpty();
                     if (canUseReopen) {
-                        suggestedPathForwardForUser = "Given you are updating non-final setting(s), you can either resubmit the update "
-                            + "with `?reopen=true`, or create a new index with the desired setting(s) and reindex your data. "
+                        suggestedPathForwardForUser = "You can either resubmit the update with `?reopen=true`, "
+                            + "or create a new index with the desired setting(s) and reindex your data. "
                             + "See https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex";
                     } else {
                         suggestedPathForwardForUser = Strings.format(
-                            "Given you are updating [%s] final setting(s), you cannot resubmit the update with `?reopen=true` "
-                                + "and will need to create a new index with the desired setting(s) and reindex your data. "
+                            "The setting(s) [%s] cannot be modified on an index once it is created. You will need to create a "
+                                + "new index with the desired setting(s) and reindex your data. "
                                 + "See https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex",
                             finalSkippedSettings
                         );

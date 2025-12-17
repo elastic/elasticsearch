@@ -514,6 +514,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
+    public String name() {
+        return NAME;
+    }
+
+    @Override
     public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
         throws IOException {
         GeoPoint[] localPoints = localPoints();

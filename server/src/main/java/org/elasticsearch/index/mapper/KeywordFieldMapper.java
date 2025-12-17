@@ -98,13 +98,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1493,7 +1491,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         return super.syntheticSourceSupport();
     }
 
-    public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+    /**
+     * Returns the layers for loading synthetic source values for this keyword field.
+     * These can be used by parent fields to combine layers from multiple sources.
+     */
+    public List<CompositeSyntheticFieldLoader.Layer> syntheticFieldLoaderLayers() {
         assert fieldType.stored() || docValuesParameters.enabled();
 
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
@@ -1549,7 +1551,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         }
 
-        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
+        return layers;
+    }
+
+
+    public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, syntheticFieldLoaderLayers());
     }
 
 }

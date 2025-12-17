@@ -9,9 +9,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;

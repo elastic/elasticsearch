@@ -1407,7 +1407,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         }
 
-
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)
         // and this fieldType has docValuesType=NONE. Then, when there is no index defined and the field is not stored, this field
         // is a no-op and we can skip adding it to the document.

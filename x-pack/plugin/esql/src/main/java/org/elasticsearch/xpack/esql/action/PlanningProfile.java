@@ -53,7 +53,7 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     }
 
     // For testing
-    PlanningProfile(TimeSpan planning, TimeSpan parsing, TimeSpan preAnalysis, TimeSpan dependencyResolution, TimeSpan analysis) {
+    public PlanningProfile(TimeSpan planning, TimeSpan parsing, TimeSpan preAnalysis, TimeSpan dependencyResolution, TimeSpan analysis) {
         planningMarker = new TimeSpanMarker(PLANNING, false, planning);
         parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
         preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);

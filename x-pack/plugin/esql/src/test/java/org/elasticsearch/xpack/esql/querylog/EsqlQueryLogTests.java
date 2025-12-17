@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.PlanningProfile;
+import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -204,13 +205,19 @@ public class EsqlQueryLogTests extends ESTestCase {
             public TimeValue overallTook() {
                 return new TimeValue(tookNanos, TimeUnit.NANOSECONDS);
             }
+
+            @Override
+            public PlanningProfile planningProfile() {
+                return new PlanningProfile(randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan());
+            }
         };
-        // Make all planning time spans have a value
-        for (PlanningProfile.TimeSpanMarker timeSpanMarker : esqlExecutionInfo.planningProfile().timeSpanMarkers()) {
-            timeSpanMarker.start();
-            timeSpanMarker.stop();
-        }
 
         return esqlExecutionInfo;
+    }
+
+    private static TimeSpan randomTimeSpan() {
+        long startNanos = randomNonNegativeLong();
+        long stopNanos = startNanos + randomLongBetween(1, 100_000);
+        return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
 }

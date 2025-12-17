@@ -457,12 +457,12 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         @Override
         public MethodHandle squareDistanceHandle7uBulk() {
-            return DOT_HANDLE_7U_BULK;
+            return SQR_HANDLE_7U_BULK;
         }
 
         @Override
         public MethodHandle squareDistanceHandle7uBulkWithOffsets() {
-            return DOT_HANDLE_7U_BULK_WITH_OFFSETS;
+            return SQR_HANDLE_7U_BULK_WITH_OFFSETS;
         }
 
         @Override

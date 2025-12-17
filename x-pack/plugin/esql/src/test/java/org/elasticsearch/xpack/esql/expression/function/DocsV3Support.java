@@ -1189,6 +1189,8 @@ public abstract class DocsV3Support {
      * <p>
      *     Used for functions like DATE_PARSE, with an optional parameter at the start.
      * </p>
+     * @return The corresponding index of the first sig arg within the function parameters.
+     *         {@code sig.argTypes().size() + initialProvidedParamIndex} will never exceed {@code args.size()}
      */
     public static int getFirstParametersIndexForSignature(List<EsqlFunctionRegistry.ArgSignature> args, TypeSignature sig) {
         int initialProvidedParamIndex = 0;
@@ -1210,6 +1212,8 @@ public abstract class DocsV3Support {
             }
         }
 
+        assert initialProvidedParamIndex + sig.argTypes().size() <= args.size()
+            : "The calculated initialProvidedParamIndex exceeds the args size";
         return initialProvidedParamIndex;
     }
 

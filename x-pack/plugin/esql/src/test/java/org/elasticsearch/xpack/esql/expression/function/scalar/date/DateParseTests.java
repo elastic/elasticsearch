@@ -76,7 +76,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
             ).withConfiguration(TEST_SOURCE, configurationForLocale(Locale.US));
         }));
 
-        for (DataType dateType : List.of(DataType.KEYWORD, DataType.TEXT)) {
+        for (DataType dateType : DataType.stringTypes()) {
             cases.add(
                 new TestCaseSupplier(
                     "With " + dateType,
@@ -91,7 +91,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                 )
             );
 
-            for (DataType formatType : List.of(DataType.KEYWORD, DataType.TEXT)) {
+            for (DataType formatType : DataType.stringTypes()) {
                 cases.add(
                     new TestCaseSupplier(
                         "With " + formatType + " and " + dateType,

@@ -93,13 +93,13 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testBasicNullFolding() {
-        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), Literal.NULL)));
-        assertNullLiteral(foldNull(new Round(EMPTY, Literal.NULL, null)));
-        assertNullLiteral(foldNull(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(foldNull(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, TEST_CFG)));
-        assertNullLiteral(foldNull(new DateParse(EMPTY, Literal.NULL, Literal.NULL, NULL, TEST_CFG)));
-        assertNullLiteral(foldNull(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL, TEST_CFG)));
-        assertNullLiteral(foldNull(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL)));
+        assertNullLiteral(foldNull(new Round(EMPTY, NULL, null)));
+        assertNullLiteral(foldNull(new Pow(EMPTY, NULL, NULL)));
+        assertNullLiteral(foldNull(new DateFormat(EMPTY, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateParse(EMPTY, NULL, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateTrunc(EMPTY, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new Substring(EMPTY, NULL, NULL, NULL)));
     }
 
     public void testNullFoldingIsNotNull() {

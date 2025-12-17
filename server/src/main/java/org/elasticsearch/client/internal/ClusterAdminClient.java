@@ -91,6 +91,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.EnsureClusterStateVersionAppliedRequest;
+import org.elasticsearch.action.admin.cluster.state.EnsureClusterStateVersionAppliedResponse;
+import org.elasticsearch.action.admin.cluster.state.TransportEnsureClusterStateVersionAppliedAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -375,5 +378,11 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType) {
         return new SimulatePipelineRequestBuilder(this, source, xContentType);
+    }
+
+    public ActionFuture<EnsureClusterStateVersionAppliedResponse> waitForClusterStateApplication(
+        EnsureClusterStateVersionAppliedRequest request
+    ) {
+        return execute(TransportEnsureClusterStateVersionAppliedAction.TYPE, request);
     }
 }

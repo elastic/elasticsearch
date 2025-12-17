@@ -67,6 +67,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSna
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.TransportEnsureClusterStateVersionAppliedAction;
 import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
 import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageMetric;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
@@ -814,6 +815,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportShardFlushAction.TYPE, TransportShardFlushAction.class);
         actions.register(TransportShardRefreshAction.TYPE, TransportShardRefreshAction.class);
         actions.register(TransportPrevalidateShardPathAction.TYPE, TransportPrevalidateShardPathAction.class);
+        actions.register(TransportEnsureClusterStateVersionAppliedAction.TYPE, TransportEnsureClusterStateVersionAppliedAction.class);
 
         // desired nodes
         actions.register(GetDesiredNodesAction.INSTANCE, TransportGetDesiredNodesAction.class);

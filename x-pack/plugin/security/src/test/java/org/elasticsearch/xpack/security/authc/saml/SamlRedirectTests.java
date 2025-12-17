@@ -56,13 +56,14 @@ public class SamlRedirectTests extends SamlTestCase {
         final String url = redirect.getRedirectUrl();
         assertRedirectUrl(
             url,
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                + "<saml2p:LogoutRequest xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" "
-                + "Destination=\"https://idp.test/saml/logout\" "
-                + "ID=\"_id123456789\" IssueInstant=\"2018-01-14T22:47:00.000Z\" Version=\"2.0\">"
-                + "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">https://idp.test/</saml2:Issuer>"
-                + "<saml2:NameID xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">name-123456-7890</saml2:NameID>"
-                + "</saml2p:LogoutRequest>",
+            """
+                <?xml version="1.0" encoding="UTF-8"?>\
+                <saml2p:LogoutRequest xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" \
+                Destination="https://idp.test/saml/logout" \
+                ID="_id123456789" IssueInstant="2018-01-14T22:47:00.000Z" Version="2.0">\
+                <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">https://idp.test/</saml2:Issuer>\
+                <saml2:NameID xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">name-123456-7890</saml2:NameID>\
+                </saml2p:LogoutRequest>""",
             emptyMap(),
             false
         );
@@ -77,13 +78,14 @@ public class SamlRedirectTests extends SamlTestCase {
         final String url = redirect.getRedirectUrl("hello");
         assertRedirectUrl(
             url,
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                + "<saml2p:LogoutRequest xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" "
-                + "Destination=\"https://idp.test/saml/logout\" "
-                + "ID=\"_id123456789\" IssueInstant=\"2018-01-14T22:47:00.000Z\" Version=\"2.0\">"
-                + "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">https://idp.test/</saml2:Issuer>"
-                + "<saml2:NameID xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">name-123456-7890</saml2:NameID>"
-                + "</saml2p:LogoutRequest>",
+            """
+                <?xml version="1.0" encoding="UTF-8"?>\
+                <saml2p:LogoutRequest xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" \
+                Destination="https://idp.test/saml/logout" \
+                ID="_id123456789" IssueInstant="2018-01-14T22:47:00.000Z" Version="2.0">\
+                <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">https://idp.test/</saml2:Issuer>\
+                <saml2:NameID xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">name-123456-7890</saml2:NameID>\
+                </saml2p:LogoutRequest>""",
             Map.of("RelayState", "hello", "SigAlg", "http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256"),
             true
         );
@@ -94,13 +96,14 @@ public class SamlRedirectTests extends SamlTestCase {
         final String url = redirect.getRedirectUrl("foo");
         assertRedirectUrl(
             url,
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                + "<saml2p:LogoutRequest xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" "
-                + "Destination=\"https://idp.test/saml/logout?a=xyz\" "
-                + "ID=\"_id123456789\" IssueInstant=\"2018-01-14T22:47:00.000Z\" Version=\"2.0\">"
-                + "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">https://idp.test/</saml2:Issuer>"
-                + "<saml2:NameID xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">name-123456-7890</saml2:NameID>"
-                + "</saml2p:LogoutRequest>",
+            """
+                <?xml version="1.0" encoding="UTF-8"?>\
+                <saml2p:LogoutRequest xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" \
+                Destination="https://idp.test/saml/logout?a=xyz" \
+                ID="_id123456789" IssueInstant="2018-01-14T22:47:00.000Z" Version="2.0">\
+                <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">https://idp.test/</saml2:Issuer>\
+                <saml2:NameID xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">name-123456-7890</saml2:NameID>\
+                </saml2p:LogoutRequest>""",
             Map.of("RelayState", "foo", "a", "xyz"),
             false
         );
@@ -111,13 +114,14 @@ public class SamlRedirectTests extends SamlTestCase {
         final String url = redirect.getRedirectUrl();
         assertRedirectUrl(
             url,
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                + "<saml2p:LogoutRequest xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" "
-                + "Destination=\"https://idp.test/saml/logout?\" "
-                + "ID=\"_id123456789\" IssueInstant=\"2018-01-14T22:47:00.000Z\" Version=\"2.0\">"
-                + "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">https://idp.test/</saml2:Issuer>"
-                + "<saml2:NameID xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">name-123456-7890</saml2:NameID>"
-                + "</saml2p:LogoutRequest>",
+            """
+                <?xml version="1.0" encoding="UTF-8"?>\
+                <saml2p:LogoutRequest xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" \
+                Destination="https://idp.test/saml/logout?" \
+                ID="_id123456789" IssueInstant="2018-01-14T22:47:00.000Z" Version="2.0">\
+                <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">https://idp.test/</saml2:Issuer>\
+                <saml2:NameID xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">name-123456-7890</saml2:NameID>\
+                </saml2p:LogoutRequest>""",
             emptyMap(),
             false
         );

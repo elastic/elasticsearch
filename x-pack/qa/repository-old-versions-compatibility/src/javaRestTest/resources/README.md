@@ -35,10 +35,10 @@ docker run -d --name es \
 -v ${SHARED_FOLDER}/data:/usr/share/elasticsearch/data \
 -v ${SHARED_FOLDER}/snapshots:/usr/share/elasticsearch/snapshots \
 --env "discovery.type=single-node" \
-docker.elastic.co/elasticsearch/elasticsearch:9.1.3
+docker.elastic.co/elasticsearch/elasticsearch:9.1.4
 
 // Version 6
-docker.elastic.co/elasticsearch/elasticsearch:9.1.3
+docker.elastic.co/elasticsearch/elasticsearch:9.1.4
 ```
 
 ### Create Index Version 5

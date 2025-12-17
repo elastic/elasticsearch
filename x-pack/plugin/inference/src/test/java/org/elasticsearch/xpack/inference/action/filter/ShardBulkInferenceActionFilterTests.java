@@ -86,7 +86,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
@@ -107,6 +109,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -999,6 +1002,92 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+
+        IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+        assertThat(coordinatingIndexingPressure, notNullValue());
+        verify(coordinatingIndexingPressure).close();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIndexingPressureTripsOnFailures() throws Exception {
+        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
+        final InstrumentedIndexingPressure indexingPressure = new InstrumentedIndexingPressure(
+            // Set the coordinating bytes limit high enough to handle a few failures without tripping
+            Settings.builder().put(MAX_COORDINATING_BYTES.getKey(), "100kb").build()
+        );
+        final ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), indexingPressure, useLegacyFormat, inferenceStats);
+
+        final AtomicBoolean indexingPressureTripped = new AtomicBoolean(false);
+        final Consumer<BulkItemRequest> assertBulkItemRequest = (item) -> {
+            BulkItemResponse response = item.getPrimaryResponse();
+            assertNotNull(response);
+            assertTrue(response.isFailed());
+
+            BulkItemResponse.Failure failure = response.getFailure();
+            assertNotNull(failure);
+            if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                assertThat(failure.getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+                assertThat(
+                    failure.getCause().getMessage(),
+                    matchesRegex("Unable to report failures for document \\[\\d+] due to memory pressure")
+                );
+                indexingPressureTripped.set(true);
+            } else {
+                assertThat(failure.getStatus(), is(RestStatus.NOT_FOUND));
+                assertThat(failure.getCause(), instanceOf(ResourceNotFoundException.class));
+                assertThat(
+                    failure.getCause().getMessage(),
+                    containsString("Inference id [missing_inference_id] not found for field [inference_field]")
+                );
+            }
+        };
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain<BulkShardRequest, BulkShardResponse> actionFilterChain = (task, action, request, listener) -> {
+            try {
+                assertNull(request.getInferenceFieldMap());
+                assertThat(request.items().length, equalTo(100));
+
+                for (BulkItemRequest item : request.items()) {
+                    assertBulkItemRequest.accept(item);
+                }
+
+                IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
+                assertThat(coordinatingIndexingPressure, notNullValue());
+                verify(coordinatingIndexingPressure, times(100)).increment(eq(1), longThat(l -> l > 0));
+                verify(coordinatingIndexingPressure, times(100)).increment(eq(0), longThat(l -> l > 0));
+
+                // Verify that the coordinating indexing pressure is maintained through downstream action filters
+                verify(coordinatingIndexingPressure, never()).close();
+
+                // Call the listener once the request is successfully processed, like is done in the production code path
+                listener.onResponse(null);
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener<BulkShardResponse> actionListener = (ActionListener<BulkShardResponse>) mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "inference_field",
+            new InferenceFieldMetadata("inference_field", "missing_inference_id", new String[] { "inference_field" }, null)
+        );
+
+        // Create enough items to guarantee that indexing pressure will trip
+        BulkItemRequest[] items = new BulkItemRequest[100];
+        for (int i = 0; i < 100; i++) {
+            items[i] = new BulkItemRequest(
+                0,
+                new IndexRequest("index").id(Integer.toString(i)).source("inference_field", randomAlphaOfLengthBetween(3, 20))
+            );
+        }
+
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+        assertTrue(indexingPressureTripped.get());
 
         IndexingPressure.Coordinating coordinatingIndexingPressure = indexingPressure.getCoordinating();
         assertThat(coordinatingIndexingPressure, notNullValue());

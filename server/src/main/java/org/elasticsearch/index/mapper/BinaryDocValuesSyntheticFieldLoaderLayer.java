@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValuesSeparateCounts;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -36,18 +35,14 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
         var docValues = leafReader.getBinaryDocValues(name);
-        var counts = leafReader.getNumericDocValues(name + ".counts");
         if (docValues == null) {
             bytesValues = null;
             hasValue = false;
             return null;
         }
 
-        if (counts == null) {
-            bytesValues = new MultiValuedSortedBinaryDocValues(docValues);
-        } else {
-            bytesValues = new MultiValuedSortedBinaryDocValuesSeparateCounts(docValues, counts);
-        }
+        var counts = leafReader.getNumericDocValues(name + ".counts");
+        bytesValues = MultiValuedSortedBinaryDocValues.from(docValues, counts);
 
         return docId -> {
             hasValue = bytesValues.advanceExact(docId);

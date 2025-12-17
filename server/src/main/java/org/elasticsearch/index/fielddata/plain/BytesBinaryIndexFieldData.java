@@ -12,7 +12,6 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -20,7 +19,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValuesSeparateCounts;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -82,16 +80,8 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
     @Override
     public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
-            NumericDocValues counts = DocValues.getNumeric(context.reader(), fieldName + ".counts");
-            BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
-
-            final SortedBinaryDocValues sortedBinaryDocValues;
-            if (counts == null) {
-                sortedBinaryDocValues = new MultiValuedSortedBinaryDocValues(values);
-            } else {
-                sortedBinaryDocValues = new MultiValuedSortedBinaryDocValuesSeparateCounts(values, counts);
-            }
-            return new MultiValuedBinaryDVLeafFieldData(sortedBinaryDocValues, toScriptFieldFactory);
+            var values = MultiValuedSortedBinaryDocValues.from(context.reader(), fieldName, fieldName + ".counts");
+            return new MultiValuedBinaryDVLeafFieldData(values, toScriptFieldFactory);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

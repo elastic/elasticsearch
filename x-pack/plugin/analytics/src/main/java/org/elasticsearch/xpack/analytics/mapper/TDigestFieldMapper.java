@@ -22,7 +22,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -74,7 +73,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Field Mapper for pre-aggregated histograms.
  */
 public class TDigestFieldMapper extends FieldMapper {
-    public static final FeatureFlag TDIGEST_FIELD_MAPPER = new FeatureFlag("tdigest_field_mapper");
 
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";

@@ -9,8 +9,8 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -22,43 +22,43 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMaxFromWKBGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMaxFromWKBGeoEvaluator.class);
+public final class StXMaxFromDocValuesGeoEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMaxFromDocValuesGeoEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator wkbBlock;
+  private final EvalOperator.ExpressionEvaluator encodedBlock;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StXMaxFromWKBGeoEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
-      DriverContext driverContext) {
+  public StXMaxFromDocValuesGeoEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator encodedBlock, DriverContext driverContext) {
     this.source = source;
-    this.wkbBlock = wkbBlock;
+    this.encodedBlock = encodedBlock;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock wkbBlockBlock = (BytesRefBlock) wkbBlock.eval(page)) {
-      return eval(page.getPositionCount(), wkbBlockBlock);
+    try (LongBlock encodedBlockBlock = (LongBlock) encodedBlock.eval(page)) {
+      return eval(page.getPositionCount(), encodedBlockBlock);
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += wkbBlock.baseRamBytesUsed();
+    baseRamBytesUsed += encodedBlock.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public DoubleBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
+  public DoubleBlock eval(int positionCount, LongBlock encodedBlockBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
-        if (!wkbBlockBlock.isNull(p)) {
+        if (!encodedBlockBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
@@ -66,7 +66,7 @@ public final class StXMaxFromWKBGeoEvaluator implements EvalOperator.ExpressionE
           continue position;
         }
         try {
-          StXMax.fromWellKnownBinaryGeo(result, p, wkbBlockBlock);
+          StXMax.fromDocValuesGeo(result, p, encodedBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -78,12 +78,12 @@ public final class StXMaxFromWKBGeoEvaluator implements EvalOperator.ExpressionE
 
   @Override
   public String toString() {
-    return "StXMaxFromWKBGeoEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StXMaxFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(wkbBlock);
+    Releasables.closeExpectNoException(encodedBlock);
   }
 
   private Warnings warnings() {
@@ -101,21 +101,21 @@ public final class StXMaxFromWKBGeoEvaluator implements EvalOperator.ExpressionE
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
+    private final EvalOperator.ExpressionEvaluator.Factory encodedBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock) {
       this.source = source;
-      this.wkbBlock = wkbBlock;
+      this.encodedBlock = encodedBlock;
     }
 
     @Override
-    public StXMaxFromWKBGeoEvaluator get(DriverContext context) {
-      return new StXMaxFromWKBGeoEvaluator(source, wkbBlock.get(context), context);
+    public StXMaxFromDocValuesGeoEvaluator get(DriverContext context) {
+      return new StXMaxFromDocValuesGeoEvaluator(source, encodedBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StXMaxFromWKBGeoEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StXMaxFromDocValuesGeoEvaluator[" + "encodedBlock=" + encodedBlock + "]";
     }
   }
 }

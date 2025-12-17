@@ -19,6 +19,6 @@ public class StXSerializationTests extends AbstractExpressionSerializationTests<
 
     @Override
     protected StX mutateInstance(StX instance) throws IOException {
-        return new StX(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
+        return new StX(instance.source(), randomValueOtherThan(instance.spatialField(), AbstractExpressionSerializationTests::randomChild));
     }
 }

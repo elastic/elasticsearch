@@ -1455,7 +1455,7 @@ count:long | centroid:geo_point
 ###############################################
 # Check doc-values pushdown works with other spatial functions
 
-geoGridDocValuesPushdown
+geoGridDocValuesPushdownEnvelopeNPoints
 required_capability: spatial_grid_types
 required_capability: st_envelope_mv_fix
 required_capability: st_npoints
@@ -1477,5 +1477,33 @@ ABQ            | 8148fffffffffff | 2/0/1           | 9w              | BBOX (-10
 ABV            | 8158fffffffffff | 2/2/1           | s1              | BBOX (7.270259885117412, 7.270259885117412, 9.004376577213407, 9.004376577213407)       | 1
 ACA            | 8149bffffffffff | 2/0/1           | 9f              | BBOX (-99.7545086313039, -99.7545086313039, 16.76196731161326, 16.76196731161326)       | 1
 ACC            | 81753ffffffffff | 2/1/1           | eb              | BBOX (-0.17140287905931473, -0.17140287905931473, 5.606981506571174, 5.606981506571174) | 1
+;
+
+geoGridDocValuesPushdownXY
+required_capability: spatial_grid_types
+required_capability: st_envelope_mv_fix
+required_capability: st_npoints
+
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| EVAL geotile = ST_GEOTILE(location, 2)
+| EVAL geohash = ST_GEOHASH(location, 2)
+| EVAL x = ST_X(location)
+| EVAL xmin = ST_XMIN(location)
+| EVAL xmax = ST_XMAX(location)
+| EVAL y = ST_Y(location)
+| EVAL ymin = ST_YMIN(location)
+| EVAL ymax = ST_YMAX(location)
+| KEEP abbrev, geohex, geotile, geohash, x, xmin, xmax, y, ymin, ymax
+| SORT abbrev ASC
+| LIMIT 5
+;
+
+abbrev:keyword | geohex:geohex   | geotile:geotile | geohash:geohash | x:double          | xmin:double        | xmax:double        | y:double          | ymin:double        | ymax:double
+ABJ            | 81753ffffffffff | 2/1/1           | eb              | -3.932219333946705 | -3.932219333946705 | -3.932219333946705 | 5.254398426041007 | 5.254398426041007 | 5.254398426041007
+ABQ            | 8148fffffffffff | 2/0/1           | 9w              | -106.616685166955 | -106.616685166955 | -106.616685166955 | 35.04915777593851 | 35.04915777593851 | 35.04915777593851
+ABV            | 8158fffffffffff | 2/2/1           | s1              | 7.270259885117412  | 7.270259885117412  | 7.270259885117412  | 9.004376577213407 | 9.004376577213407 | 9.004376577213407
+ACA            | 8149bffffffffff | 2/0/1           | 9f              | -99.7545086313039 | -99.7545086313039 | -99.7545086313039 | 16.76196731161326 | 16.76196731161326 | 16.76196731161326
+ACC            | 81753ffffffffff | 2/1/1           | eb              | -0.17140287905931473 | -0.17140287905931473 | -0.17140287905931473 | 5.606981506571174 | 5.606981506571174 | 5.606981506571174
 ;
 

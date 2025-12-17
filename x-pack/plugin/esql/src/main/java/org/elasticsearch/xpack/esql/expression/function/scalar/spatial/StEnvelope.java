@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -19,11 +18,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -40,7 +37,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
 /**
  * Determines the minimum bounding rectangle of a geometry.
@@ -48,7 +44,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
  * Alternatively, it is well described in PostGIS documentation at
  * <a href="https://postgis.net/docs/ST_ENVELOPE.html">PostGIS:ST_ENVELOPE</a>.
  */
-public class StEnvelope extends SpatialDocValuesFunction {
+public class StEnvelope extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StEnvelope",
@@ -76,11 +72,11 @@ public class StEnvelope extends SpatialDocValuesFunction {
     }
 
     private StEnvelope(Source source, Expression field, boolean useDocValues) {
-        super(source, List.of(field), useDocValues);
+        super(source, field, useDocValues);
     }
 
     private StEnvelope(StreamInput in) throws IOException {
-        this(Source.readFrom((StreamInput & PlanStreamInput) in), in.readNamedWriteable(Expression.class), false);
+        super(in);
     }
 
     @Override
@@ -90,7 +86,7 @@ public class StEnvelope extends SpatialDocValuesFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        var resolution = isSpatial(spatialField(), sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
+        var resolution = super.resolveType();
         if (resolution.resolved()) {
             this.dataType = switch (spatialField().dataType()) {
                 case GEO_POINT, GEO_SHAPE -> GEO_SHAPE;
@@ -123,17 +119,6 @@ public class StEnvelope extends SpatialDocValuesFunction {
     @Override
     public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
         return new StEnvelope(source(), spatialField(), useDocValues);
-    }
-
-    @Override
-    public Expression spatialField() {
-        return children().getFirst();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(spatialField());
     }
 
     @Override

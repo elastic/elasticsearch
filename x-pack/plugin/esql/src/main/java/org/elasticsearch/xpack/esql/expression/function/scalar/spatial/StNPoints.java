@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -20,11 +19,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -36,13 +33,12 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
 /**
  * Counts the number of points in the geometry
  * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_NPoints.html">PostGIS:ST_NPoints</a>.
  */
-public class StNPoints extends SpatialDocValuesFunction {
+public class StNPoints extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StNPoints",
@@ -69,21 +65,16 @@ public class StNPoints extends SpatialDocValuesFunction {
     }
 
     private StNPoints(Source source, Expression field, boolean spatialDocValues) {
-        super(source, List.of(field), spatialDocValues);
+        super(source, field, spatialDocValues);
     }
 
     private StNPoints(StreamInput in) throws IOException {
-        this(Source.readFrom((StreamInput & PlanStreamInput) in), in.readNamedWriteable(Expression.class), false);
+        super(in);
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        return isSpatial(spatialField(), sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
     }
 
     @Override
@@ -98,17 +89,6 @@ public class StNPoints extends SpatialDocValuesFunction {
     @Override
     public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
         return new StNPoints(source(), spatialField(), useDocValues);
-    }
-
-    @Override
-    public Expression spatialField() {
-        return children().getFirst();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(spatialField());
     }
 
     @Override

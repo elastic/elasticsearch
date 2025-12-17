@@ -223,7 +223,7 @@ final class TransportHandshaker {
         Object channel
     ) {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
-            if (remoteTransportVersion.id() >= localTransportVersion.id()) {
+            if (TransportVersion.min(remoteTransportVersion, localTransportVersion) == localTransportVersion) {
                 // Remote is semantically newer than us (i.e. has a greater transport protocol version), so we propose using our current
                 // transport protocol version. If we're initiating the connection then that's the version we'll use; if the other end is
                 // initiating the connection then it's up to the other end to decide whether to use this version (if it knows it) or

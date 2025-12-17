@@ -219,6 +219,60 @@
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "Expression that outputs values to calculate the percentile of."
+        },
+        {
+          "name" : "percentile",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "Expression that outputs values to calculate the percentile of."
+        },
+        {
+          "name" : "percentile",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "number",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "Expression that outputs values to calculate the percentile of."
+        },
+        {
+          "name" : "percentile",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     }
   ],
   "examples" : [

@@ -340,7 +340,7 @@ stack: ga 9.2
 serverless: unavailable
 ```
 
-`semantic_text` supports [{{ccs}} (CCS)](docs-content://solutions/search/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `true`. This is the default value, so most CCS queries work automatically.
+`semantic_text` supports [{{ccs}} (CCS)](docs-content://explore-analyze/cross-cluster-search.md) through the [`_search` endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is set to `true`. This is the default value, so most CCS queries work automatically.
 
 Query `semantic_text` fields across clusters using the standard search endpoint with cluster notation:
 

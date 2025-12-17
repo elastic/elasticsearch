@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
@@ -553,7 +553,7 @@ public class EsqlFunctionRegistry {
                 def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, bi(SumOverTime::new), "sum_over_time"),
-                def(StdDevOverTime.class, bi(StdDevOverTime::new), "stddev_over_time"),
+                def(StddevOverTime.class, bi(StddevOverTime::new), "stddev_over_time"),
                 def(VarianceOverTime.class, bi(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
                 def(CountOverTime.class, bi(CountOverTime::new), "count_over_time"),
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),

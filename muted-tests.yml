@@ -319,9 +319,6 @@ tests:
     method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: staged, expectedAssembleTaskName:
     extractedAssemble, #1]"
     issue: https://github.com/elastic/elasticsearch/issues/119870
-  - class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
-    method: testLuceneVersionConstant
-    issue: https://github.com/elastic/elasticsearch/issues/125638
   - class: org.elasticsearch.packaging.test.DebPreservationTests
     method: test40RestartOnUpgrade
     issue: https://github.com/elastic/elasticsearch/issues/125821

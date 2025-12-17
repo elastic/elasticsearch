@@ -139,7 +139,8 @@ public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<Geome
 
         Function<List<Geometry>, List<Object>> formatter = geoFormatterFactory.getFormatter(
             format != null ? format : GeometryFormatterFactory.GEOJSON,
-            Function.identity()
+            Function.identity(),
+            true
         );
         return new ValueFetcher() {
             private GeometryFieldScript script;

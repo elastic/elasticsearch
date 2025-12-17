@@ -748,7 +748,8 @@ public class PainlessExecuteAction {
                     // convert geo points to the standard format of the fields api
                     Function<List<GeoPoint>, List<Object>> format = GeometryFormatterFactory.getFormatter(
                         GeometryFormatterFactory.GEOJSON,
-                        p -> new Point(p.lon(), p.lat())
+                        p -> new Point(p.lon(), p.lat()),
+                        false
                     );
                     return new Response(format.apply(points));
                 }, indexService);
@@ -767,7 +768,8 @@ public class PainlessExecuteAction {
                     // convert geometries to the standard format of the fields api
                     Function<List<Geometry>, List<Object>> format = GeometryFormatterFactory.getFormatter(
                         GeometryFormatterFactory.GEOJSON,
-                        Function.identity()
+                        Function.identity(),
+                        true
                     );
                     return new Response(format.apply(geometries));
                 }, indexService);

@@ -193,7 +193,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
-            return GeometryFormatterFactory.getFormatter(format, Function.identity());
+            return GeometryFormatterFactory.getFormatter(format, Function.identity(), true);
         }
 
         @Override

@@ -65,10 +65,10 @@ public class GeoFormatterFactory<T> {
      * using standard GeometryFormatterFactory and formats with parameters are getting resolved using factories specified during
      * construction.
      */
-    public Function<List<T>, List<Object>> getFormatter(String format, Function<T, Geometry> toGeometry) {
+    public Function<List<T>, List<Object>> getFormatter(String format, Function<T, Geometry> toGeometry, boolean useArrays) {
         final int start = format.indexOf('(');
         if (start == -1) {
-            return GeometryFormatterFactory.getFormatter(format, toGeometry);
+            return GeometryFormatterFactory.getFormatter(format, toGeometry, useArrays);
         }
         final String formatName = format.substring(0, start);
         Function<String, Function<List<T>, List<Object>>> factory = factories.get(formatName);

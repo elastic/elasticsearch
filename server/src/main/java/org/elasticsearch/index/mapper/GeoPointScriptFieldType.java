@@ -202,7 +202,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         GeoPointFieldScript.LeafFactory leafFactory = leafFactory(context.lookup());
         Function<List<GeoPoint>, List<Object>> formatter = GeoPointFieldMapper.GeoPointFieldType.GEO_FORMATTER_FACTORY.getFormatter(
             format != null ? format : GeometryFormatterFactory.GEOJSON,
-            p -> new org.elasticsearch.geometry.Point(p.getLon(), p.getLat())
+            p -> new org.elasticsearch.geometry.Point(p.getLon(), p.getLat()),
+            false
         );
         return new ValueFetcher() {
             private GeoPointFieldScript script;

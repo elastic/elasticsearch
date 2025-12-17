@@ -30,11 +30,12 @@ public class GeometryFormatterFactory {
     /**
      * Returns a formatter by name
      */
-    public static <T> Function<List<T>, List<Object>> getFormatter(String name, Function<T, Geometry> toGeometry) {
+    public static <T> Function<List<T>, List<Object>> getFormatter(String name, Function<T, Geometry> toGeometry, boolean useArrays) {
         return switch (name) {
             case GEOJSON -> geometries -> {
                 final List<Object> objects = new ArrayList<>(geometries.size());
-                geometries.forEach((shape) -> objects.add(GeoJson.toMap(toGeometry.apply(shape))));
+                // we use arrays here so the footprint of the resulting GeoJson is smaller
+                geometries.forEach((shape) -> objects.add(GeoJson.toMap(toGeometry.apply(shape), useArrays)));
                 return objects;
             };
             case WKT -> geometries -> {

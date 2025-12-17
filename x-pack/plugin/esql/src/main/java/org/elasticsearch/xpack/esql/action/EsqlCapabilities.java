@@ -19,8 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT;
-
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -1787,7 +1785,6 @@ public class EsqlCapabilities {
          * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
          */
         FN_MV_INTERSECTION,
-
 
         /**
          * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.

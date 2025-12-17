@@ -17,6 +17,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
 
@@ -28,8 +29,8 @@ public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
         super(NAME);
     }
 
-    public ES815HnswBitVectorsFormat(int maxConn, int beamWidth) {
-        super(NAME, maxConn, beamWidth);
+    public ES815HnswBitVectorsFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService mergeExec) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
     }
 
     @Override

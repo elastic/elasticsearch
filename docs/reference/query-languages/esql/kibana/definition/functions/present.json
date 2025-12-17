@@ -212,6 +212,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for presence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
           "optional" : false,
           "description" : "Expression that outputs values to be checked for presence."

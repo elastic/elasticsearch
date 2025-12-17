@@ -17,6 +17,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
@@ -33,7 +34,19 @@ public class ES814HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFo
     }
 
     public ES814HnswScalarQuantizedVectorsFormat(int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
-        super(NAME, maxConn, beamWidth);
+        this(maxConn, beamWidth, confidenceInterval, bits, compress, 1, null);
+    }
+
+    public ES814HnswScalarQuantizedVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        Float confidenceInterval,
+        int bits,
+        boolean compress,
+        int numMergeWorkers,
+        ExecutorService mergeExec
+    ) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
         this.flatVectorsFormat = new ES814ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 

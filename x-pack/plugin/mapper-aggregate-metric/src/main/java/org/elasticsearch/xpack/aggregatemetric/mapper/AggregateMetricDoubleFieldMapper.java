@@ -77,6 +77,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig.Function.AMD_AVG;
 
 /** A {@link FieldMapper} for a field containing aggregate metrics such as min/max/value_count etc. */
 public class AggregateMetricDoubleFieldMapper extends FieldMapper {
@@ -503,6 +504,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
             if (cfg != null) {
                 var function = cfg.function();
+                if (function == AMD_AVG) {
+                    return new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields);
+                }
                 Metric metric = switch (function) {
                     case AMD_COUNT -> Metric.value_count;
                     case AMD_MAX -> Metric.max;
@@ -532,7 +536,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             return switch (config.function()) {
-                case AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT -> true;
+                case AMD_AVG, AMD_MIN, AMD_MAX, AMD_SUM, AMD_COUNT, AMD_DEFAULT -> true;
                 default -> false;
             };
         }

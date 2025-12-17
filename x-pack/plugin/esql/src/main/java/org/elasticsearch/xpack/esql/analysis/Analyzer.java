@@ -2380,7 +2380,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static AggregateMetricDoubleBlockBuilder.Metric getMetric(AggregateFunction aggFunc, boolean isTimeSeries) {
             if (hasNativeSupport(aggFunc, isTimeSeries) == false) {
-                return AggregateMetricDoubleBlockBuilder.Metric.DEFAULT;
+//                return AggregateMetricDoubleBlockBuilder.Metric.DEFAULT;
+                return AggregateMetricDoubleBlockBuilder.Metric.AVG;
             }
             if (aggFunc instanceof Max || aggFunc instanceof MaxOverTime) {
                 return AggregateMetricDoubleBlockBuilder.Metric.MAX;
@@ -2400,7 +2401,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (aggFunc instanceof Absent || aggFunc instanceof AbsentOverTime) {
                 return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
             }
-            return AggregateMetricDoubleBlockBuilder.Metric.DEFAULT;
+//            return AggregateMetricDoubleBlockBuilder.Metric.DEFAULT;
+            return AggregateMetricDoubleBlockBuilder.Metric.AVG;
         }
     }
 
@@ -2427,7 +2429,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Expression newField = FromAggregateMetricDouble.withMetric(
                         fa.source(),
                         fa,
-                        AggregateMetricDoubleBlockBuilder.Metric.DEFAULT
+                        AggregateMetricDoubleBlockBuilder.Metric.AVG
+//                        AggregateMetricDoubleBlockBuilder.Metric.DEFAULT
                     );
                     List<Expression> children = new ArrayList<>(aggFunc.children());
                     children.set(0, newField);

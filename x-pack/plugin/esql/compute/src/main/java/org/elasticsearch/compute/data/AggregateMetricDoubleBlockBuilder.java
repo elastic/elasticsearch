@@ -187,7 +187,8 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         MAX(1, "max"),
         SUM(2, "sum"),
         COUNT(3, "value_count"),
-        DEFAULT(4, "default");
+        DEFAULT(4, "default"),
+        AVG(5, "avg");
 
         private final int index;
         private final String label;
@@ -212,6 +213,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
                 case 2 -> SUM;
                 case 3 -> COUNT;
                 case 4 -> DEFAULT;
+                case 5 -> AVG;
                 default -> null;
             };
         }

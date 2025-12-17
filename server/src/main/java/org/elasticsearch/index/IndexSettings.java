@@ -774,7 +774,10 @@ public final class IndexSettings {
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         if (MODE.get(s) == IndexMode.TIME_SERIES) {
-            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+            if (DOC_VALUES_SKIPPER && iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+                return "true";
+            }
+            if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
                 return "true";
             }
             return "false";

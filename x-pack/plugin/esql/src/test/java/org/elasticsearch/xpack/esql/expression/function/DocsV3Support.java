@@ -1212,7 +1212,7 @@ public abstract class DocsV3Support {
             }
         }
 
-        assert initialProvidedParamIndex + sig.argTypes().size() <= args.size()
+        assert initialProvidedParamIndex + sig.argTypes().size() <= args.size() || (args.isEmpty() == false && args.getLast().variadic())
             : "The calculated initialProvidedParamIndex exceeds the args size";
         return initialProvidedParamIndex;
     }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.core.Strings;
 import org.hamcrest.Matcher;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.Issuer;
@@ -114,7 +115,7 @@ public class SamlRedirectTests extends SamlTestCase {
     }
 
     private static String buildExpectedLogoutRequestString(String destination) {
-        return EXPECTED_LOGOUT_REQUEST_TEMPLATE.formatted(destination);
+        return Strings.format(EXPECTED_LOGOUT_REQUEST_TEMPLATE, destination);
     }
 
     private static Map<String, String> parseAndDecodeUrlParameters(String url) {

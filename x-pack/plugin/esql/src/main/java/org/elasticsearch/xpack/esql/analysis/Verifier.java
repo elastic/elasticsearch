@@ -181,9 +181,13 @@ public class Verifier {
                 groupings.forEach(unresolvedExpressions);
 
                 // We don't count _timeseries which is added implicitly to grouping but not to a list of aggs
-                boolean hasGroupByAll = groupings.stream()
-                    .filter(g -> g instanceof FieldAttribute)
-                    .anyMatch(f -> ((FieldAttribute) f).name().equals(MetadataAttribute.TIMESERIES));
+                boolean hasGroupByAll = false;
+                for (Expression grouping : groupings) {
+                    if(MetadataAttribute.isTimeSeriesAttribute(grouping)) {
+                        hasGroupByAll = true;
+                        break;
+                    }
+                }
                 int groupingSize = hasGroupByAll ? groupings.size() - 1 : groupings.size();
 
                 // followed by just the aggregates (to avoid going through the groups again)

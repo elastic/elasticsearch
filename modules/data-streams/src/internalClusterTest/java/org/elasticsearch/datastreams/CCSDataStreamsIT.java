@@ -39,7 +39,6 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -81,7 +80,6 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         );
     }
 
-    @Test
     public void testSuccessfulCCS() throws Exception {
         String localDS = "logs-local";
         String remoteDS = "logs-remote";
@@ -142,7 +140,6 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         });
     }
 
-    @Test
     public void testFailureStoreCCS() throws Exception {
         String localDS = "logs-local";
         String remoteDS = "logs-remote";
@@ -203,7 +200,6 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         });
     }
 
-    @Test
     public void testFailureStoreCCSMSearch() throws Exception {
         String localDS = "logs-local";
         String remoteDS = "logs-remote";
@@ -280,7 +276,6 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         });
     }
 
-    @Test
     public void testFailureStoreCCSReindex() throws Exception {
         String localDS = "logs-local";
         String remoteDS = "logs-remote";

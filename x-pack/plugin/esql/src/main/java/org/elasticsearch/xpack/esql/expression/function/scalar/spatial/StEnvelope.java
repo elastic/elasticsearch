@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
@@ -103,7 +104,14 @@ public class StEnvelope extends SpatialDocValuesFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (spatialDocValues) {
-            throw new UnsupportedOperationException("StEnvelope does not support doc values");
+            if (spatialField().dataType() == GEO_POINT) {
+                return new StEnvelopeFromDocValuesGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            }
+            if (spatialField().dataType() == CARTESIAN_POINT) {
+                return new StEnvelopeFromDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            }
+            // Planner mistake: should not have enabled doc values on shapes
+            throw new UnsupportedOperationException("StEnvelope does not support doc values on shapes");
         } else {
             if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
                 return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));

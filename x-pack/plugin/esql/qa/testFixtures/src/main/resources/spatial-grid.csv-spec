@@ -1447,3 +1447,35 @@ count:long | centroid:geo_point
 13         | POINT (-2.283508819169723 53.28242553254733)
 2          | POINT (-3.482485176064074 58.24696456314996)
 ;
+
+###############################################
+# Fixes related to geo-grid functions
+###############################################
+
+###############################################
+# Check doc-values pushdown works with other spatial functions
+
+geoGridDocValuesPushdown
+required_capability: spatial_grid_types
+required_capability: st_envelope_mv_fix
+required_capability: st_npoints
+
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| EVAL geotile = ST_GEOTILE(location, 2)
+| EVAL geohash = ST_GEOHASH(location, 2)
+| EVAL location_envelope = ST_ENVELOPE(location)
+| EVAL location_npoints = ST_NPOINTS(location)
+| KEEP abbrev, geohex, geotile, geohash, location_envelope, location_npoints
+| SORT abbrev ASC
+| LIMIT 5
+;
+
+abbrev:keyword | geohex:geohex   | geotile:geotile | geohash:geohash | location_envelope:geo_shape                                                             | location_npoints:integer
+ABJ            | 81753ffffffffff | 2/1/1           | eb              | BBOX (-3.932219333946705, -3.932219333946705, 5.254398426041007, 5.254398426041007)     | 1
+ABQ            | 8148fffffffffff | 2/0/1           | 9w              | BBOX (-106.616685166955, -106.616685166955, 35.04915777593851, 35.04915777593851)       | 1
+ABV            | 8158fffffffffff | 2/2/1           | s1              | BBOX (7.270259885117412, 7.270259885117412, 9.004376577213407, 9.004376577213407)       | 1
+ACA            | 8149bffffffffff | 2/0/1           | 9f              | BBOX (-99.7545086313039, -99.7545086313039, 16.76196731161326, 16.76196731161326)       | 1
+ACC            | 81753ffffffffff | 2/1/1           | eb              | BBOX (-0.17140287905931473, -0.17140287905931473, 5.606981506571174, 5.606981506571174) | 1
+;
+

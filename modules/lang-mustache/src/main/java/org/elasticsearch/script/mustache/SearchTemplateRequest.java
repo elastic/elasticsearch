@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -53,6 +54,8 @@ public class SearchTemplateRequest extends LegacyActionRequest
     @Nullable
     private String projectRouting;
 
+    public static TransportVersion SEARCH_TEMPLATE_PROJECT_ROUTING = TransportVersion.fromName("search_template_project_routing");
+
     public SearchTemplateRequest() {}
 
     public SearchTemplateRequest(StreamInput in) throws IOException {
@@ -65,6 +68,11 @@ public class SearchTemplateRequest extends LegacyActionRequest
         script = in.readOptionalString();
         if (in.readBoolean()) {
             scriptParams = in.readGenericMap();
+        }
+        if (in.getTransportVersion().supports(SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
         }
     }
 
@@ -255,6 +263,9 @@ public class SearchTemplateRequest extends LegacyActionRequest
         out.writeBoolean(hasParams);
         if (hasParams) {
             out.writeGenericMap(scriptParams);
+        }
+        if (out.getTransportVersion().supports(SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
         }
     }
 

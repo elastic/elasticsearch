@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -51,6 +52,11 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
         requests = in.readCollectionAsList(SearchTemplateRequest::new);
+        if (in.getTransportVersion().supports(SearchTemplateRequest.SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     /**
@@ -126,6 +132,9 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
         out.writeCollection(requests);
+        if (out.getTransportVersion().supports(SearchTemplateRequest.SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
+        }
     }
 
     @Override

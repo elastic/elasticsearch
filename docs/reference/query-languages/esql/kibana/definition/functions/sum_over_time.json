@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -28,7 +28,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -46,7 +46,7 @@
           "name" : "field",
           "type" : "exponential_histogram",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -64,7 +64,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -82,7 +82,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -93,6 +93,24 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the sum over time"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     }
   ],
   "examples" : [

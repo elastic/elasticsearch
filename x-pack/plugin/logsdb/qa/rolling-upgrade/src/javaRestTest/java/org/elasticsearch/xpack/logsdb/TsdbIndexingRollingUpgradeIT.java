@@ -7,9 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.upgrades;
-
-import com.carrotsearch.randomizedtesting.annotations.Name;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -27,71 +25,60 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.upgrades.TsdbIT.TEMPLATE;
-import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
+import static org.elasticsearch.xpack.logsdb.TsdbIT.TEMPLATE;
+import static org.elasticsearch.xpack.logsdb.TsdbIT.formatInstant;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
     static String BULK_ITEM_TEMPLATE =
         """
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "$name", "uid":"$uid", "ip": "$ip", "network": {"tx": $tx, "rx": $rx}}}}
             """;
 
-    public TsdbIndexingRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
-
     public void testIndexing() throws Exception {
         String dataStreamName = "k9s";
-        if (isOldCluster()) {
-            startTrial();
-            createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
+        createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
 
-            Instant startTime = Instant.now().minusSeconds(60 * 60);
+        Instant startTime = Instant.now().minusSeconds(60 * 60);
+        bulkIndex(dataStreamName, 4, 1024, startTime);
+
+        String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
+        var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
+        assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("time_series"));
+        assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
+
+        var mapping = getIndexMappingAsMap(firstBackingIndex);
+        assertThat(
+            "incorrect k8s.pod.name field in mapping:" + mapping,
+            "keyword",
+            equalTo(ObjectPath.evaluate(mapping, "properties.k8s.properties.pod.properties.name.type"))
+        );
+
+        ensureGreen(dataStreamName);
+        search(dataStreamName);
+        query(dataStreamName);
+
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
+            startTime = startTime.plusNanos(60 * 30);
             bulkIndex(dataStreamName, 4, 1024, startTime);
-
-            String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
-            var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("time_series"));
-            assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
-
-            var mapping = getIndexMappingAsMap(firstBackingIndex);
-            assertThat(
-                "incorrect k8s.pod.name field in mapping:" + mapping,
-                "keyword",
-                equalTo(ObjectPath.evaluate(mapping, "properties.k8s.properties.pod.properties.name.type"))
-            );
-
-            ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
-        } else if (isMixedCluster()) {
-            Instant startTime = Instant.now().minusSeconds(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-
-            ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
-        } else if (isUpgradedCluster()) {
-            ensureGreen(dataStreamName);
-            Instant startTime = Instant.now();
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-            search(dataStreamName);
-            query(dataStreamName);
-
-            var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
-            forceMergeRequest.addParameter("max_num_segments", "1");
-            assertOK(client().performRequest(forceMergeRequest));
-
-            ensureGreen(dataStreamName);
             search(dataStreamName);
             query(dataStreamName);
         }
+
+        var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
+        forceMergeRequest.addParameter("max_num_segments", "1");
+        assertOK(client().performRequest(forceMergeRequest));
+
+        ensureGreen(dataStreamName);
+        search(dataStreamName);
+        query(dataStreamName);
     }
 
     static void bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
@@ -197,18 +184,6 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSecu
         assertThat(maxRx, notNullValue());
         Long maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
         assertThat(maxTx, notNullValue());
-    }
-
-    protected static void startTrial() throws IOException {
-        Request startTrial = new Request("POST", "/_license/start_trial");
-        startTrial.addParameter("acknowledge", "true");
-        try {
-            assertOK(client().performRequest(startTrial));
-        } catch (ResponseException e) {
-            var responseBody = entityAsMap(e.getResponse());
-            String error = ObjectPath.evaluate(responseBody, "error_message");
-            assertThat(error, containsString("Trial was already activated."));
-        }
     }
 
     static Map<String, Object> getIndexSettingsWithDefaults(String index) throws IOException {

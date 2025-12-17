@@ -11,7 +11,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
@@ -129,26 +130,19 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             clusterService,
             aliasFilter
         );
-        expressionQueryList.buildJoinOnForExpressionJoin(
-            request.getJoinOnConditions(),
-            request.getMatchFields(),
-            request.getInputPage(),
-            clusterService,
-            warnings
-        );
+        expressionQueryList.buildJoinOnForExpressionJoin(request.getJoinOnConditions(), request.getMatchFields(), clusterService, warnings);
         return expressionQueryList;
     }
 
     private void buildJoinOnForExpressionJoin(
         Expression joinOnConditions,
         List<MatchConfig> matchFields,
-        Page inputPage,
         ClusterService clusterService,
         Warnings warnings
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
         for (Expression expr : expressions) {
-            boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, inputPage, clusterService, warnings);
+            boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, clusterService, warnings);
             if (applied == false) {
                 applied = applyAsRightSidePushableFilter(expr);
             }
@@ -179,7 +173,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private boolean applyAsLeftRightBinaryComparison(
         Expression expr,
         List<MatchConfig> matchFields,
-        Page inputPage,
         ClusterService clusterService,
         Warnings warnings
     ) {
@@ -189,20 +182,17 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             // the left side comes from the page that was sent to the lookup node
             // the right side is the field from the lookup index
             // check if the left side is in the matchFields
-            // if it is its corresponding page is the corresponding number in inputPage
-            Block block = null;
             DataType dataType = null;
             int channelOffset = -1;
             for (int i = 0; i < matchFields.size(); i++) {
                 if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
                     channelOffset = i;
-                    block = inputPage.getBlock(i);
                     dataType = matchFields.get(i).type();
                     break;
                 }
             }
             MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
-            if (block != null && rightFieldType != null && dataType != null && channelOffset != -1) {
+            if (rightFieldType != null && dataType != null && channelOffset != -1) {
                 // special handle Equals operator
                 // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
                 // so here we reuse the existing logic from field based join to build a termQueryList for Equals
@@ -210,11 +200,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                     QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, channelOffset, dataType);
                     queryLists.add(termQueryForEquals.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
                 } else {
+                    ElementType elementType = PlannerUtils.toElementType(dataType);
                     queryLists.add(
                         new BinaryComparisonQueryList(
                             rightFieldType,
                             context,
-                            block,
+                            elementType,
                             channelOffset,
                             binaryComparison,
                             clusterService,

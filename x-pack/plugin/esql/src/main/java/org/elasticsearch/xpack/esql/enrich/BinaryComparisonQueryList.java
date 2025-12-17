@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -49,7 +50,7 @@ public class BinaryComparisonQueryList extends QueryList {
     public BinaryComparisonQueryList(
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
-        Block leftHandSideBlock,
+        ElementType leftHandSideElementType,
         int channelOffset,
         EsqlBinaryComparison binaryComparison,
         ClusterService clusterService,
@@ -69,7 +70,7 @@ public class BinaryComparisonQueryList extends QueryList {
         // and later in doGetQuery we will replace left_expr with the value from the leftHandSideBlock
         // We do that because binaryComparison expects the field to be on the left and the literal on the right to be translatable
         this.binaryComparison = (EsqlBinaryComparison) binaryComparison.swapLeftAndRight();
-        this.blockValueReader = QueryList.createBlockValueReaderForType(leftHandSideBlock.elementType());
+        this.blockValueReader = QueryList.createBlockValueReaderForType(leftHandSideElementType);
         this.searchExecutionContext = searchExecutionContext;
         lucenePushdownPredicates = LucenePushdownPredicates.from(
             SearchContextStats.from(List.of(searchExecutionContext)),

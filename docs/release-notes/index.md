@@ -33,17 +33,30 @@ Infra/Core:
 Infra/Logging:
 * Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
 
+Ingest Node:
+* Upgrading tika to 3.2.3 [#139267](https://github.com/elastic/elasticsearch/pull/139267)
+
 Security:
 * Improve security migration resilience by handling version conflicts [#137558](https://github.com/elastic/elasticsearch/pull/137558)
 
 
 ### Fixes [elasticsearch-9.1.9-fixes]
 
+CCS:
+* Fix: Correctly pickup MRT value for `msearch`'s search requests [#138583](https://github.com/elastic/elasticsearch/pull/138583)
+
+Cluster Coordination:
+* Avoid stack overflow in `IndicesClusterStateService` `applyClusterState` [#132536](https://github.com/elastic/elasticsearch/pull/132536)
+
 Downsampling:
 * Fix multi fields in downsampling [#138869](https://github.com/elastic/elasticsearch/pull/138869)
 
 ES|QL:
+* Fixes esql class cast bug in STATS at planning level [#137511](https://github.com/elastic/elasticsearch/pull/137511) (issues: [#133992](https://github.com/elastic/elasticsearch/issues/133992), [#136598](https://github.com/elastic/elasticsearch/issues/136598))
 * [ES|QL] Compare query builders using identity [#139080](https://github.com/elastic/elasticsearch/pull/139080)
+
+Inference:
+* [Inference API] Use dimensions field in JinaAI `text_embedding` requests [#139413](https://github.com/elastic/elasticsearch/pull/139413)
 
 Infra/Core:
 * GET /_migration/deprecations doesn't check disk watermarks against correct settings values [#138115](https://github.com/elastic/elasticsearch/pull/138115) (issue: [#137005](https://github.com/elastic/elasticsearch/issues/137005))
@@ -54,8 +67,14 @@ Ingest Node:
 Machine Learning:
 * Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
 
+Search:
+* Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder` [#136732](https://github.com/elastic/elasticsearch/pull/136732)
+
 Security:
 * More reliable trigger for security index migration [#139028](https://github.com/elastic/elasticsearch/pull/139028)
+
+Stats:
+* Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
 
 
 
@@ -670,9 +689,6 @@ Machine Learning:
 * Track inference deployments [#131442](https://github.com/elastic/elasticsearch/pull/131442)
 * [ML] Add Azure AI Rerank support to the Inference Plugin [#129848](https://github.com/elastic/elasticsearch/pull/129848)
 * [ML] Add IBM watsonx Completion and Chat Completion support to the Inference Plugin [#129146](https://github.com/elastic/elasticsearch/pull/129146)
-* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
-* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
-* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
 
 Mapping:
 * Add new `pattern_text` field mapper in tech preview [#135370](https://github.com/elastic/elasticsearch/pull/135370)

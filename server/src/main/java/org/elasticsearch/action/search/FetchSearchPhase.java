@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -24,6 +25,7 @@ import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActio
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
+import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -31,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE_FEATURE_FLAG;
 
 /**
@@ -269,7 +272,27 @@ class FetchSearchPhase extends SearchPhase {
             aggregatedDfs
         );
 
-        if (CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled()) {
+        TransportVersion dataNodeVersion = connection.getTransportVersion();
+        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
+        boolean isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection;
+
+        if(logger.isTraceEnabled()) {
+            logger.info(
+                "FetchSearchPhase decision for shard {}: featureFlag={}, dataNodeSupports={}, " +
+                    "dataNodeVersion={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, " +
+                    "targetNode={}, isCCSQuery={}",
+                shardIndex,
+                CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled(),
+                dataNodeSupports,
+                dataNodeVersion,
+                dataNodeVersion.id(),
+                CHUNKED_FETCH_PHASE.id(),
+                connection.getNode(),
+                isCCSQuery
+            );
+        }
+
+        if (CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled() && dataNodeSupports && isCCSQuery == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
 

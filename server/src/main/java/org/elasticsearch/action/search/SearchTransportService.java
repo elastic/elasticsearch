@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -69,6 +70,7 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE_FEATURE_FLAG;
 
 /**
@@ -545,34 +547,70 @@ public class SearchTransportService {
         );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
-            if (CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled()
-                && request instanceof ShardFetchSearchRequest fetchSearchReq
-                && fetchSearchReq.getCoordinatingNode() != null) {
+            boolean featureFlagEnabled = CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled();
+            boolean hasCoordinator = request instanceof ShardFetchSearchRequest fetchSearchReq
+                && fetchSearchReq.getCoordinatingNode() != null;
 
-                // CHUNKED PATH
+            TransportVersion channelVersion = channel.getVersion();
+            boolean versionSupported = channelVersion.supports(CHUNKED_FETCH_PHASE);
+
+            // Check if we can connect to the coordinator (CCS detection)
+            boolean canConnectToCoordinator = false;
+            if (hasCoordinator) {
+                ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                DiscoveryNode coordinatorNode = fetchSearchReq.getCoordinatingNode();
+                // In CCS, the remote data node won't have a connection to the local coordinator
+                canConnectToCoordinator = transportService.nodeConnected(coordinatorNode);
+            }
+
+            if(logger.isTraceEnabled()) {
+                logger.info(
+                    "CHUNKED_FETCH decision: featureFlag={}, versionSupported={}, hasCoordinator={}, " +
+                        "canConnectToCoordinator={}, channelVersion={}, request_from={}",
+                    featureFlagEnabled,
+                    versionSupported,
+                    hasCoordinator,
+                    canConnectToCoordinator,
+                    channelVersion,
+                    hasCoordinator ? ((ShardFetchSearchRequest) request).getCoordinatingNode() : "N/A"
+                );
+            }
+
+            // Only use chunked fetch if we can actually connect back to the coordinator
+            if (featureFlagEnabled && versionSupported && hasCoordinator && canConnectToCoordinator) {
+                ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                logger.info("Using CHUNKED fetch path");
+
                 final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {
-                    final Transport.Connection conn = transportService.getConnection(fetchSearchReq.getCoordinatingNode());
-
                     @Override
                     public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
-                        transportService.sendChildRequest(
-                            conn,
-                            TransportFetchPhaseResponseChunkAction.TYPE.name(),
-                            new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
-                            task,
-                            TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(
-                                listener.map(ignored -> null),
-                                in -> ActionResponse.Empty.INSTANCE,
-                                EsExecutors.DIRECT_EXECUTOR_SERVICE
-                            )
-                        );
+                        try {
+                            // Get connection only when actually sending chunks (not in field initializer!)
+                            Transport.Connection conn = transportService.getConnection(fetchSearchReq.getCoordinatingNode());
+
+                            transportService.sendChildRequest(
+                                conn,
+                                TransportFetchPhaseResponseChunkAction.TYPE.name(),
+                                new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
+                                task,
+                                TransportRequestOptions.EMPTY,
+                                new ActionListenerResponseHandler<>(
+                                    listener.map(ignored -> null),
+                                    in -> ActionResponse.Empty.INSTANCE,
+                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                                )
+                            );
+                        } catch (Exception e) {
+                            logger.error("Failed to send chunk", e);
+                            listener.onFailure(e);
+                        }
                     }
                 };
 
                 searchService.executeFetchPhase(request, (SearchShardTask) task, writer, new ChannelActionListener<>(channel));
             } else {
-                // Normal path
+                // Normal path - used for CCS, version mismatches, or when feature is disabled
+                logger.info("Using NORMAL fetch path (canConnectToCoordinator={})", canConnectToCoordinator);
                 searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
         };

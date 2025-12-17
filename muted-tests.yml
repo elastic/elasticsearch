@@ -238,9 +238,6 @@ tests:
   - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
     method: testRandomDirectoryIOExceptions
     issue: https://github.com/elastic/elasticsearch/issues/118733
-  - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-    method: test {p0=logsdb/10_settings/missing hostname field}
-    issue: https://github.com/elastic/elasticsearch/issues/120476
   - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
     method: testBottomFieldSort
     issue: https://github.com/elastic/elasticsearch/issues/118214

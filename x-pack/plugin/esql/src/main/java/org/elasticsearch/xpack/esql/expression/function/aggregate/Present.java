@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The function that checks for the presence of a field in the output result.
  * Presence means that the input expression yields any non-null value.
  */
-public class Present extends AggregateFunction implements ToAggregator {
+public class Present extends AggregateFunction implements ToAggregator, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Present", Present::new);
 
     @FunctionInfo(
@@ -82,7 +83,8 @@ public class Present extends AggregateFunction implements ToAggregator {
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" },
+                "exponential_histogram",
+                "tdigest" },
             description = "Expression that outputs values to be checked for presence."
         ) Expression field
     ) {

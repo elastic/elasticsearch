@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The function that checks for the absence of a field in the output result.
  * An absence means that the input expression does not yield a non-null value.
  */
-public class Absent extends AggregateFunction implements SurrogateExpression {
+public class Absent extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Absent", Absent::new);
 
     @FunctionInfo(
@@ -81,7 +82,8 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" },
+                "exponential_histogram",
+                "tdigest" },
             description = "Expression that outputs values to be checked for absence."
         ) Expression field
     ) {

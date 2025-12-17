@@ -537,9 +537,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/46_downsample/Sort from multiple indices one with aggregate metric double}
-  issue: https://github.com/elastic/elasticsearch/issues/139125
 
 # Examples:
 #

@@ -714,9 +714,9 @@ FROM sample_data, (FROM books METADATA _score, _index
 ignoreOrder:true
 
 _index:keyword | book_no:keyword | title:text                      | author:text                                 | _score:double | @timestamp:datetime
-books | 4536            | War and Peace (Signet Classics) | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.03          | null
-books | 5327            | War and Peace                   | Leo Tolstoy                                 | 0.08          | null
-sample_data | null            | null                            | null                                        | null          | 2023-10-23T13:33:34.937Z
+books          | 5327            | War and Peace                      | Leo Tolstoy | 0.08          | null
+books          | 9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo | 0.03          | null
+sample_data    | null            | null                               | null        | null          | 2023-10-23T13:33:34.937Z
 ;
 
 subqueryInFromWithRerankInMainQuery

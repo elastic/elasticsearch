@@ -1817,7 +1817,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
     }
 
-    private RepositoryData getRepositoryData(Repository repository) {
+    protected RepositoryData getRepositoryData(Repository repository) {
         final PlainActionFuture<RepositoryData> res = new PlainActionFuture<>();
         repository.getRepositoryData(deterministicTaskQueue::scheduleNow, res);
         deterministicTaskQueue.runAllRunnableTasks();
@@ -1895,7 +1895,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return greenHealthListener;
     }
 
-    private void clearDisruptionsAndAwaitSync() {
+    protected void clearDisruptionsAndAwaitSync() {
         testClusterNodes.clearNetworkDisruptions();
         stabilize();
     }
@@ -2021,7 +2021,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), runnable);
     }
 
-    private void scheduleNow(Runnable runnable) {
+    protected void scheduleNow(Runnable runnable) {
         deterministicTaskQueue.scheduleNow(runnable);
     }
 

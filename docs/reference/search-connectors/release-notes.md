@@ -14,7 +14,9 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 :::
 
 ## 9.2.3 [connectors-9.2.3-release-notes]
-There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+### Fixes [connectors-9.2.3-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely.[#3868](https://github.com/elastic/connectors/pull/3868)
 
 ## 9.2.2 [connectors-9.2.2-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
@@ -30,7 +32,9 @@ There are no new features, enhancements, fixes, known issues, or deprecations as
 * Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
 
 ## 9.1.9 [connectors-9.1.9-release-notes]
-There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+### Fixes [connectors-9.1.9-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely.[#3868](https://github.com/elastic/connectors/pull/3868)
 
 ## 9.1.8 [connectors-9.1.8-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.

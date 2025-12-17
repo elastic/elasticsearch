@@ -274,6 +274,12 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
 
+        // If either field has no values (is null), return null
+        if (firstValueCount == 0 || secondValueCount == 0) {
+            builder.appendNull();
+            return;
+        }
+
         int firstValueIndex = field1.getFirstValueIndex(position);
         int secondValueIndex = field2.getFirstValueIndex(position);
 
@@ -291,15 +297,10 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
         }
 
         // Build result
-        if (values.size() == 1) {
-            // Single value - don't wrap in multivalue
-            addValueFunction.accept(values.iterator().next());
-        } else {
-            builder.beginPositionEntry();
-            for (T value : values) {
-                addValueFunction.accept(value);
-            }
-            builder.endPositionEntry();
+        builder.beginPositionEntry();
+        for (T value : values) {
+            addValueFunction.accept(value);
         }
+        builder.endPositionEntry();
     }
 }

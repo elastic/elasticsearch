@@ -113,10 +113,11 @@ public final class TypeResolutions {
                 && t != DENSE_VECTOR
                 && t != AGGREGATE_METRIC_DOUBLE
                 && t != EXPONENTIAL_HISTOGRAM
+                && t != HISTOGRAM
                 && t != TDIGEST,
             operationName,
             paramOrd,
-            "any type except counter, spatial types, dense_vector, aggregate_metric_double, tdigest or exponential_histogram"
+            "any type except counter, spatial types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
         );
     }
 

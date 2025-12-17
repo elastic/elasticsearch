@@ -45,7 +45,7 @@ When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these value
 
 `exponential_histogram` fields are primarily intended for use with aggregations. To make them efficient for aggregations, the histogram is stored as compact [doc values](/reference/elasticsearch/mapping-reference/doc-values.md) and not indexed.
 
-Exponential histograms are supported in ES|QL; see the [ES|QL reference](/reference/query-languages/esql) for details.
+Exponential histograms are supported in ES|QL; see the [ES|QL reference](/reference/query-languages/esql.md) for details.
 
 In Query DSL, because the data is not indexed, you can use `exponential_histogram` fields with the following aggregations:
 

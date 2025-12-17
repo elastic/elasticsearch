@@ -1412,7 +1412,17 @@ public abstract class DocsV3Support {
             if (info.examples().length > 0) {
                 builder.startArray("examples");
                 for (Example example : info.examples()) {
-                    builder.value(loadExample(example.file(), example.tag()));
+                    var loadedExample = loadExample(example.file(), example.tag());
+                    if (loadedExample == null) {
+                        throw new IllegalArgumentException(
+                            "Failed to write Kibana function definition for function ["
+                                + name
+                                + "], example with tag ["
+                                + example.tag()
+                                + "] cannot be loaded."
+                        );
+                    }
+                    builder.value(loadedExample);
                 }
                 builder.endArray();
             } else if (info.operator().isEmpty()) {

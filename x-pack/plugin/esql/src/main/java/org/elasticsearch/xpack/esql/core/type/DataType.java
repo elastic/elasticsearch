@@ -380,8 +380,18 @@ public enum DataType implements Writeable {
         builder().esType("tdigest")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST)
+            .supportedSince(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST, DataTypesTransportVersions.ESQL_TDIGEST_TECH_PREVIEW)
 
+    ),
+
+    /**
+     * Data type for representing histogram data without an associated data structure
+     */
+    HISTOGRAM(
+        builder().esType("histogram")
+            .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+            .docValues()
+            .underConstruction(DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE)
     ),
 
     /**
@@ -1056,6 +1066,15 @@ public enum DataType implements Writeable {
         );
 
         private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+        /**
+         * Development version for histogram support
+         */
+        public static final TransportVersion ESQL_HISTOGRAM_DATATYPE = TransportVersion.fromName("esql_histogram_datatype");
+
+        /**
+         * Transport version for when the feature flag for the ESQL TDigest type was removed.
+         */
+        public static final TransportVersion ESQL_TDIGEST_TECH_PREVIEW = TransportVersion.fromName("esql_tdigest_tech_preview");
 
     }
 }

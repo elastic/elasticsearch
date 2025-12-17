@@ -36,7 +36,8 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         this.values = values;
     }
 
-    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName, String countsFieldName) throws IOException {
+    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName, String countsFieldName)
+        throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
         NumericDocValues counts = DocValues.getNumeric(leafReader, countsFieldName);
         return from(values, counts);
@@ -60,7 +61,6 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
     @Override
     public abstract BytesRef nextValue() throws IOException;
-
 
     private static class IntegratedCounts extends MultiValuedSortedBinaryDocValues {
         IntegratedCounts(BinaryDocValues values) {
@@ -93,6 +93,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
     private static class SeparateCounts extends MultiValuedSortedBinaryDocValues {
         private final NumericDocValues counts;
+
         SeparateCounts(BinaryDocValues values, NumericDocValues counts) {
             super(values);
             this.counts = counts;

@@ -260,10 +260,7 @@ static inline void sqr7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    size_t blk = dims & ~(SQR7U_STRIDE_BYTES_LEN - 1);
-    size_t c = 0;
-
-    for (; c < count; c++) {
+    for (size_t c = 0; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_sqr7u(a0, b, dims);
     }

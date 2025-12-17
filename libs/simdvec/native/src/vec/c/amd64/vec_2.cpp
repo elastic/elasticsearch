@@ -302,28 +302,9 @@ static inline void sqr7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    if (dims > STRIDE_BYTES_LEN) {
-        const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
-        for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
-            int i = limit;
-            int32_t res = sqr7u_inner_avx512(a0, b, i);
-            for (; i < dims; i++) {
-                int32_t dist = a0[i] - b[i];
-                res += dist * dist;
-            }
-            results[c] = (f32_t)res;
-        }
-    } else {
-        for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
-            int32_t res = 0;
-            for (int32_t i = 0; i < dims; i++) {
-                int32_t dist = a0[i] - b[i];
-                res += dist * dist;
-            }
-            results[c] = (f32_t)res;
-        }
+    for (size_t c = 0; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_sqr7u_2(a0, b, dims);
     }
 }
 

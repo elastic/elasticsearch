@@ -73,7 +73,9 @@ public record CompatibilityVersions(
 
     public static void ensureVersionsCompatibility(CompatibilityVersions candidate, Collection<CompatibilityVersions> existing) {
         CompatibilityVersions minimumClusterVersions = minimumVersions(existing);
-        if (TransportVersion.min(candidate.transportVersion(), minimumClusterVersions.transportVersion()) == candidate.transportVersion()) {
+        if (candidate.transportVersion().equals(minimumClusterVersions.transportVersion()) == false
+            && TransportVersion.min(candidate.transportVersion(), minimumClusterVersions.transportVersion()) == candidate
+                .transportVersion()) {
             throw new IllegalStateException(
                 "node with version ["
                     + candidate.transportVersion().toReleaseVersion()

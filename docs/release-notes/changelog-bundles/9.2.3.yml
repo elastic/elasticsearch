@@ -1,0 +1,119 @@
+version: 9.2.3
+released: false
+generated: 2025-12-17T00:39:59.634626351Z
+changelogs:
+  - pr: 136732
+    summary: Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 136827
+    summary: Fix columns ordering when pruning an INLINE STATS
+    area: ES|QL
+    type: bug
+    issues:
+      - 136797
+  - pr: 137431
+    summary: Fix enrich and lookup join resolution based on min transport version
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 137511
+    summary: Fixes esql class cast bug in STATS at planning level
+    area: ES|QL
+    type: bug
+    issues:
+      - 133992
+      - 136598
+  - pr: 137558
+    summary: Improve security migration resilience by handling version conflicts
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 138115
+    summary: GET /_migration/deprecations doesn't check disk watermarks against correct settings values
+    area: Infra/Core
+    type: bug
+    issues:
+      - 137005
+  - pr: 138126
+    summary: Improving performance of stats APIs when the number of shards is very large
+    area: Stats
+    type: bug
+    issues:
+      - 97222
+  - pr: 138632
+    summary: Correctly handle empty inputs in `chunkedInfer()`
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 138715
+    summary: Fix downsampling with disabled subobjects
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 138738
+    summary: Add node scoped `vectors.indexing.use_gpu` setting
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 138806
+    summary: Bump lz4 dependency
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 138854
+    summary: Upgrade ECS logging layout
+    area: Infra/Logging
+    type: upgrade
+    issues: []
+  - pr: 138869
+    summary: Fix multi fields in downsampling
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 138883
+    summary: Speed up `LeafCollector#setScorer` in `TopHitsAggregator`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 138929
+    summary: Do not pack non-dimension fields in TS
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 138948
+    summary: Improving performance of get data streams API by avoiding getting effective mappings
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 139028
+    summary: More reliable trigger for security index migration
+    area: Security
+    type: bug
+    issues: []
+  - pr: 139061
+    summary: "Disallow index types updates to bbq_disk, revert"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 139080
+    summary: "[ES|QL] Compare query builders using identity"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 139267
+    summary: Upgrading tika to 3.2.3
+    area: Ingest Node
+    type: upgrade
+    issues: []
+  - pr: 139413
+    summary: "[Inference API] Use dimensions field in JinaAI `text_embedding` requests"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 139420
+    summary: Fix offset maths bug in `InetAddress` parsing
+    area: Mapping
+    type: bug
+    issues: []

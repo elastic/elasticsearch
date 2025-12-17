@@ -103,6 +103,11 @@ public class ToTDigest extends AbstractConvertFunction {
                 centroids.add(value);
                 counts.add(count);
             }
+            if (totalCount == 0) {
+                min = Double.NaN;
+                max = Double.NaN;
+                sum = Double.NaN;
+            }
             return new TDigestHolder(centroids, counts, min, max, sum, totalCount);
         } catch (IOException e) {
             throw new IllegalArgumentException(e.getMessage());

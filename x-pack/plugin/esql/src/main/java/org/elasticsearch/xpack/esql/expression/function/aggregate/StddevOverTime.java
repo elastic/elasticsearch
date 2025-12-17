@@ -27,7 +27,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link StdDev}, but it is used to calculate the standard deviation over a time series of values from the given field.
  */
-public class StdDevOverTime extends TimeSeriesAggregateFunction {
+public class StddevOverTime extends TimeSeriesAggregateFunction {
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the population standard deviation over time of a numeric field.",
@@ -36,12 +36,12 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
         preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "stddev_over_time") }
     )
-    public StdDevOverTime(
+    public StddevOverTime(
         Source source,
         @Param(
             name = "field",
             type = { "double", "integer", "long" },
-            description = "The metric field to calculate the standard deviation of."
+            description = "the metric field to calculate the standard deviation for"
         ) Expression field,
         @Param(
             name = "window",
@@ -53,7 +53,7 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
         this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public StdDevOverTime(Source source, Expression field, Expression filter, Expression window) {
+    public StddevOverTime(Source source, Expression field, Expression filter, Expression window) {
         super(source, field, filter, window, emptyList());
     }
 
@@ -73,18 +73,18 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
     }
 
     @Override
-    protected NodeInfo<StdDevOverTime> info() {
-        return NodeInfo.create(this, StdDevOverTime::new, field(), filter(), window());
+    protected NodeInfo<StddevOverTime> info() {
+        return NodeInfo.create(this, StddevOverTime::new, field(), filter(), window());
     }
 
     @Override
-    public StdDevOverTime replaceChildren(List<Expression> newChildren) {
-        return new StdDevOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+    public StddevOverTime replaceChildren(List<Expression> newChildren) {
+        return new StddevOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
-    public StdDevOverTime withFilter(Expression filter) {
-        return new StdDevOverTime(source(), field(), filter, window());
+    public StddevOverTime withFilter(Expression filter) {
+        return new StddevOverTime(source(), field(), filter, window());
     }
 
     @Override

@@ -38,8 +38,8 @@ public class CaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             return typeErrorMessage(signature, 0, "boolean");
         }
         DataType mainType = signature.get(1).noText();
-        if (mainType == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return typeErrorMessage(signature, 1, "any but aggregate_metric_double");
+        if (mainType == DataType.AGGREGATE_METRIC_DOUBLE || mainType == DataType.TDIGEST) {
+            return typeErrorMessage(signature, 1, "any but aggregate_metric_double or tdigest");
         }
         for (int i = 2; i < signature.size(); i++) {
             if (i % 2 == 0 && i != signature.size() - 1) {
@@ -52,8 +52,8 @@ public class CaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 if (signature.get(i).noText() != mainType) {
                     return typeErrorMessage(signature, i, mainType.typeName());
                 }
-                if (signature.get(i) == DataType.AGGREGATE_METRIC_DOUBLE) {
-                    return typeErrorMessage(signature, i, "any but aggregate_metric_double");
+                if (signature.get(i) == DataType.AGGREGATE_METRIC_DOUBLE || signature.get(i) == DataType.TDIGEST) {
+                    return typeErrorMessage(signature, i, "any but aggregate_metric_double or tdigest");
                 }
             }
         }

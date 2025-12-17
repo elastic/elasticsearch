@@ -14,6 +14,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -56,7 +57,8 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
         ).flatMap(List::stream).map(MinTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         FunctionAppliesTo unsignedLongAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.2.0", "", true);
@@ -233,6 +235,15 @@ public class MinTests extends AbstractAggregationTestCase {
                     .map(obj -> (ExponentialHistogram) obj)
                     .filter(histo -> histo.valueCount() > 0) // only non-empty histograms have an influence
                     .map(ExponentialHistogram::min)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+                expectedReturnType = DataType.DOUBLE;
+            } else if (fieldSupplier.type() == DataType.TDIGEST) {
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(obj -> (TDigestHolder) obj)
+                    .filter(histo -> histo.getValueCount() > 0) // only non-empty histograms have an influence
+                    .map(TDigestHolder::getMin)
                     .min(Comparator.naturalOrder())
                     .orElse(null);
                 expectedReturnType = DataType.DOUBLE;

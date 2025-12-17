@@ -180,6 +180,7 @@ public class IndexVersions {
     public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT = def(9_031_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW = def(9_032_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES = def(9_033_0_00, Version.LUCENE_10_2_2);
+    public static final IndexVersion BACKPORT_91_SECURITY_MIGRATIONS_METADATA_FLATTENED_UPDATE = def(9_033_0_01, Version.LUCENE_10_2_2);
     public static final IndexVersion IGNORED_SOURCE_COALESCED_ENTRIES_WITH_FF = def(9_034_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion EXCLUDE_SOURCE_VECTORS_DEFAULT = def(9_035_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB = def(9_036_0_00, Version.LUCENE_10_2_2);
@@ -207,6 +208,9 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID = def(9_055_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion AGG_METRIC_DOUBLE_REMOVE_POINTS = def(9_056_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STATELESS_SKIPPERS_ENABLED_FOR_TSDB = def(9_057_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX = def(9_058_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DEFAULT_HNSW_EARLY_TERMINATION = def(9_059_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES = def(9_060_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

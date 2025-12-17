@@ -10,18 +10,24 @@ package org.elasticsearch.xpack.inference.queries;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryRewriteAsyncAction;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteRemoteAsyncAction;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -42,6 +48,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -312,35 +319,7 @@ public final class InferenceQueryUtils {
                 originalIndices.indicesOptions()
             );
 
-            queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, threadContext, listener) -> {
-                ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> wrappedListener = listener
-                    .delegateFailureAndWrap((l, m) -> {
-                        gal.onResponse(m);
-                        l.onResponse(null);
-                    });
-
-                executeAsyncWithOrigin(threadContext, ML_ORIGIN, request, wrappedListener, (req, l1) -> {
-                    client.getConnection(req, l1.delegateFailureAndWrap((l2, c) -> {
-                        TransportVersion transportVersion = c.getTransportVersion();
-                        if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
-                            // Assume that no remote inference fields are queried. We must do this because we cannot throw an error here
-                            // without breaking BwC for interception-eligible queries (ex: match/knn/sparse_vector) that don't need to be
-                            // intercepted. We track the transport version in the response so that more thorough error checking can be
-                            // performed with the complete output of getInferenceInfo (i.e. complete local and remote inference info).
-                            l2.onResponse(
-                                Map.of(
-                                    clusterAlias,
-                                    Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion)
-                                )
-                            );
-                        } else {
-                            client.execute(GetInferenceFieldsAction.REMOTE_TYPE, req, l2.delegateFailureAndWrap((l3, resp) -> {
-                                l3.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                            }));
-                        }
-                    }));
-                });
-            });
+            queryRewriteContext.registerUniqueAsyncAction(new RemoteInferenceInfoAsyncAction(clusterAlias, request), gal::onResponse);
         }
     }
 
@@ -354,23 +333,7 @@ public final class InferenceQueryUtils {
 
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();
-
-            queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, threadContext, listener) -> {
-                ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> wrappedListener = listener
-                    .delegateFailureAndWrap((l, m) -> {
-                        gal.onResponse(m);
-                        l.onResponse(null);
-                    });
-
-                client.getConnection(null, wrappedListener.delegateFailureAndWrap((l, c) -> {
-                    l.onResponse(
-                        Map.of(
-                            clusterAlias,
-                            Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), c.getTransportVersion())
-                        )
-                    );
-                }));
-            });
+            queryRewriteContext.registerUniqueAsyncAction(new RemoteTransportVersionAsyncAction(clusterAlias), gal::onResponse);
         }
     }
 
@@ -471,115 +434,19 @@ public final class InferenceQueryUtils {
         }
 
         if (inferenceIds.isEmpty() == false) {
-            if (useCoordinatedInferenceAction) {
-                registerInferenceAsyncActionsWithCoordinatedAction(queryRewriteContext, query, inferenceIds, inferenceResultsMapListener);
-            } else {
-                registerInferenceAsyncActionsWithInferenceAction(queryRewriteContext, query, inferenceIds, inferenceResultsMapListener);
-            }
+            queryRewriteContext.registerUniqueAsyncAction(
+                new LocalInferenceAsyncAction(
+                    query,
+                    inferenceIds,
+                    queryRewriteContext.getLocalClusterAlias(),
+                    useCoordinatedInferenceAction
+                ),
+                inferenceResultsMapListener::onResponse
+            );
         } else {
             // Inference results map already contains all necessary inference results
             inferenceResultsMapListener.onResponse(inferenceResultsMap != null ? inferenceResultsMap : Map.of());
         }
-    }
-
-    private static void registerInferenceAsyncActionsWithInferenceAction(
-        QueryRewriteContext queryRewriteContext,
-        String query,
-        List<String> inferenceIds,
-        ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener
-    ) {
-        List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
-            .map(
-                i -> new InferenceAction.Request(
-                    TaskType.ANY,
-                    i,
-                    null,
-                    null,
-                    null,
-                    List.of(query),
-                    Map.of(),
-                    InputType.INTERNAL_SEARCH,
-                    null,
-                    false
-                )
-            )
-            .toList();
-
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> wrappedListener = listener.delegateFailureAndWrap((l, m) -> {
-                inferenceResultsMapListener.onResponse(m);
-                l.onResponse(null);
-            });
-
-            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createLocalInferenceGroupedActionListener(
-                wrappedListener,
-                inferenceRequests.size()
-            );
-            for (InferenceAction.Request inferenceRequest : inferenceRequests) {
-                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
-                    queryRewriteContext.getLocalClusterAlias(),
-                    inferenceRequest.getInferenceEntityId()
-                );
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    InferenceAction.INSTANCE,
-                    inferenceRequest,
-                    gal.delegateFailureAndWrap((l, inferenceResponse) -> {
-                        InferenceResults inferenceResults = validateAndConvertInferenceResults(
-                            inferenceResponse.getResults(),
-                            fullyQualifiedInferenceId.inferenceId()
-                        );
-                        l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
-                    })
-                );
-            }
-        });
-    }
-
-    private static void registerInferenceAsyncActionsWithCoordinatedAction(
-        QueryRewriteContext queryRewriteContext,
-        String query,
-        List<String> inferenceIds,
-        ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener
-    ) {
-        List<CoordinatedInferenceAction.Request> inferenceRequests = inferenceIds.stream().map(inferenceId -> {
-            var request = CoordinatedInferenceAction.Request.forTextInput(inferenceId, List.of(query), null, false, null);
-            request.setHighPriority(true);
-            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
-            return request;
-        }).toList();
-
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> wrappedListener = listener.delegateFailureAndWrap((l, m) -> {
-                inferenceResultsMapListener.onResponse(m);
-                l.onResponse(null);
-            });
-
-            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createLocalInferenceGroupedActionListener(
-                wrappedListener,
-                inferenceRequests.size()
-            );
-            for (CoordinatedInferenceAction.Request inferenceRequest : inferenceRequests) {
-                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
-                    queryRewriteContext.getLocalClusterAlias(),
-                    inferenceRequest.getModelId()
-                );
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    CoordinatedInferenceAction.INSTANCE,
-                    inferenceRequest,
-                    gal.delegateFailureAndWrap((l, inferenceResponse) -> {
-                        InferenceResults inferenceResults = validateAndConvertInferenceResults(
-                            inferenceResponse.getInferenceResults(),
-                            fullyQualifiedInferenceId.inferenceId()
-                        );
-                        l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
-                    })
-                );
-            }
-        });
     }
 
     private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createLocalInferenceGroupedActionListener(
@@ -653,5 +520,226 @@ public final class InferenceQueryUtils {
         }
 
         return inferenceResults;
+    }
+
+    private static final class LocalInferenceAsyncAction extends QueryRewriteAsyncAction<
+        Map<FullyQualifiedInferenceId, InferenceResults>,
+        LocalInferenceAsyncAction> {
+
+        private final String query;
+        private final List<String> inferenceIds;
+        private final String clusterAlias;
+        private final boolean useCoordinatedInferenceAction;
+
+        private LocalInferenceAsyncAction(
+            String query,
+            List<String> inferenceIds,
+            String clusterAlias,
+            boolean useCoordinatedInferenceAction
+        ) {
+            this.query = query;
+            this.inferenceIds = inferenceIds;
+            this.clusterAlias = clusterAlias;
+            this.useCoordinatedInferenceAction = useCoordinatedInferenceAction;
+        }
+
+        @Override
+        protected void execute(Client client, ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> listener) {
+            List<? extends ActionRequest> inferenceRequests = generateInferenceRequests();
+            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createLocalInferenceGroupedActionListener(
+                listener,
+                inferenceRequests.size()
+            );
+
+            for (ActionRequest inferenceRequest : inferenceRequests) {
+                executeInferenceRequest(inferenceRequest, client, gal);
+            }
+        }
+
+        @Override
+        public int doHashCode() {
+            return Objects.hash(query, inferenceIds, clusterAlias, useCoordinatedInferenceAction);
+        }
+
+        @Override
+        public boolean doEquals(LocalInferenceAsyncAction other) {
+            return Objects.equals(query, other.query)
+                && Objects.equals(inferenceIds, other.inferenceIds)
+                && Objects.equals(clusterAlias, other.clusterAlias)
+                && useCoordinatedInferenceAction == other.useCoordinatedInferenceAction;
+        }
+
+        private List<? extends ActionRequest> generateInferenceRequests() {
+            List<? extends ActionRequest> inferenceRequests;
+            if (useCoordinatedInferenceAction) {
+                inferenceRequests = inferenceIds.stream().map(inferenceId -> {
+                    var request = CoordinatedInferenceAction.Request.forTextInput(inferenceId, List.of(query), null, false, null);
+                    request.setHighPriority(true);
+                    request.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+                    return request;
+                }).toList();
+            } else {
+                inferenceRequests = inferenceIds.stream()
+                    .map(
+                        i -> new InferenceAction.Request(
+                            TaskType.ANY,
+                            i,
+                            null,
+                            null,
+                            null,
+                            List.of(query),
+                            Map.of(),
+                            InputType.INTERNAL_SEARCH,
+                            null,
+                            false
+                        )
+                    )
+                    .toList();
+            }
+
+            return inferenceRequests;
+        }
+
+        private void executeInferenceRequest(
+            ActionRequest inferenceRequest,
+            Client client,
+            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal
+        ) {
+            if (inferenceRequest instanceof InferenceAction.Request inferenceActionRequest) {
+                if (useCoordinatedInferenceAction) {
+                    throw new IllegalStateException("Request type is wrong for useCoordinatedInferenceAction=true");
+                }
+
+                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
+                    clusterAlias,
+                    inferenceActionRequest.getInferenceEntityId()
+                );
+
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    inferenceActionRequest,
+                    gal.delegateFailureAndWrap((l, inferenceActionResponse) -> {
+                        InferenceResults inferenceResults = validateAndConvertInferenceResults(
+                            inferenceActionResponse.getResults(),
+                            fullyQualifiedInferenceId.inferenceId()
+                        );
+                        l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
+                    })
+                );
+            } else if (inferenceRequest instanceof CoordinatedInferenceAction.Request coordinatedInferenceActionRequest) {
+                if (useCoordinatedInferenceAction == false) {
+                    throw new IllegalStateException("Request type is wrong for useCoordinatedInferenceAction=false");
+                }
+
+                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
+                    clusterAlias,
+                    coordinatedInferenceActionRequest.getModelId()
+                );
+
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    CoordinatedInferenceAction.INSTANCE,
+                    coordinatedInferenceActionRequest,
+                    gal.delegateFailureAndWrap((l, coordinatedInferenceActionResponse) -> {
+                        InferenceResults inferenceResults = validateAndConvertInferenceResults(
+                            coordinatedInferenceActionResponse.getInferenceResults(),
+                            fullyQualifiedInferenceId.inferenceId()
+                        );
+                        l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
+                    })
+                );
+            } else {
+                throw new IllegalStateException("Unsupported inference request type [" + inferenceRequest.getClass() + "]");
+            }
+        }
+    }
+
+    private static final class RemoteInferenceInfoAsyncAction extends QueryRewriteRemoteAsyncAction<
+        Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>,
+        RemoteInferenceInfoAsyncAction> {
+
+        private final GetInferenceFieldsAction.Request request;
+
+        private RemoteInferenceInfoAsyncAction(String clusterAlias, GetInferenceFieldsAction.Request request) {
+            super(clusterAlias);
+            this.request = request;
+        }
+
+        @Override
+        protected void execute(
+            RemoteClusterClient client,
+            ThreadContext threadContext,
+            ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> listener
+        ) {
+            final String clusterAlias = getClusterAlias();
+            executeAsyncWithOrigin(threadContext, ML_ORIGIN, request, listener, (req, l1) -> {
+                client.getConnection(req, l1.delegateFailureAndWrap((l2, c) -> {
+                    TransportVersion transportVersion = c.getTransportVersion();
+                    if (transportVersion.supports(GET_INFERENCE_FIELDS_ACTION_TV) == false) {
+                        // Assume that no remote inference fields are queried. We must do this because we cannot throw an error here
+                        // without breaking BwC for interception-eligible queries (ex: match/knn/sparse_vector) that don't need to be
+                        // intercepted. We track the transport version in the response so that more thorough error checking can be
+                        // performed with the complete output of getInferenceInfo (i.e. complete local and remote inference info).
+                        l2.onResponse(
+                            Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), transportVersion))
+                        );
+                    } else {
+                        client.execute(GetInferenceFieldsAction.REMOTE_TYPE, req, l2.delegateFailureAndWrap((l3, resp) -> {
+                            l3.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                        }));
+                    }
+                }));
+            });
+        }
+
+        @Override
+        public int doHashCode() {
+            return Objects.hashCode(request);
+        }
+
+        @Override
+        public boolean doEquals(RemoteInferenceInfoAsyncAction other) {
+            return Objects.equals(request, other.request);
+        }
+    }
+
+    private static final class RemoteTransportVersionAsyncAction extends QueryRewriteRemoteAsyncAction<
+        Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>,
+        RemoteTransportVersionAsyncAction> {
+
+        private RemoteTransportVersionAsyncAction(String clusterAlias) {
+            super(clusterAlias);
+        }
+
+        @Override
+        protected void execute(
+            RemoteClusterClient client,
+            ThreadContext threadContext,
+            ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> listener
+        ) {
+            final String clusterAlias = getClusterAlias();
+            client.getConnection(null, listener.delegateFailureAndWrap((l, c) -> {
+                l.onResponse(
+                    Map.of(clusterAlias, Tuple.tuple(new GetInferenceFieldsAction.Response(Map.of(), Map.of()), c.getTransportVersion()))
+                );
+            }));
+        }
+
+        @Override
+        public int doHashCode() {
+            // This unique async action doesn't have any member variables (besides cluster alias, which is handled by
+            // QueryRewriteRemoteAsyncAction), so all instances are equal
+            return 0;
+        }
+
+        @Override
+        public boolean doEquals(RemoteTransportVersionAsyncAction other) {
+            // This unique async action doesn't have any member variables (besides cluster alias, which is handled by
+            // QueryRewriteRemoteAsyncAction), so all instances are equal
+            return true;
+        }
     }
 }

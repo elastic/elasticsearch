@@ -1474,7 +1474,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES_V2(Build.current().isSnapshot()),
+        ENABLE_FORK_FOR_REMOTE_INDICES_V2,
 
         /**
          * Support for the Present function
@@ -1601,13 +1601,20 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
 
-        TDIGEST_FIELD_TYPE_SUPPORT_V4(T_DIGEST_ESQL_SUPPORT),
+        /**
+         * Support for the T-Digest elasticsearch field mapper and ES|QL type when they were released into tech preview.
+         */
+        TDIGEST_TECH_PREVIEW,
 
         /**
          * Development capability for the histogram field integration
          */
         HISTOGRAM_FIELD_SUPPORT_V0,
 
+        /**
+         * histogram to tdigest conversion function
+         */
+        HISTOGRAM_TO_TDIGEST_CAST,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1775,6 +1782,12 @@ public class EsqlCapabilities {
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
          */
         FIX_PRESENT_AND_ABSENT_ON_STATS_WITH_FALSE_FILTER,
+
+        /**
+         * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
+         */
+        FN_MV_INTERSECTION,
+
 
         /**
          * Marks the move to the hash(doc) % shard_count routing function. Added in #137062.

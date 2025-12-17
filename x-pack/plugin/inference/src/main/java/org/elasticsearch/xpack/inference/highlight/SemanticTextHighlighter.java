@@ -21,6 +21,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -275,7 +276,7 @@ public class SemanticTextHighlighter implements Highlighter {
                 } else if (query instanceof KnnByteVectorQuery knnQuery) {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity));
                 } else if (query instanceof MatchAllDocsQuery) {
-                    queries.add(new MatchAllDocsQuery());
+                    queries.add(Queries.ALL_DOCS_INSTANCE);
                 } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity));
                 } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
@@ -319,7 +320,7 @@ public class SemanticTextHighlighter implements Highlighter {
             @Override
             public void visitLeaf(Query query) {
                 if (query instanceof MatchAllDocsQuery) {
-                    queries.add(new MatchAllDocsQuery());
+                    queries.add(Queries.ALL_DOCS_INSTANCE);
                 }
             }
         });

@@ -9,20 +9,16 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
-import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.index.Sorter;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 
@@ -36,7 +32,7 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES813Int8FlatVectorFormat";
 
-    private final FlatVectorsFormat format;
+    final FlatVectorsFormat format;
 
     public ES813Int8FlatVectorFormat() {
         this(null, 7, false);
@@ -52,7 +48,7 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES813FlatVectorWriter(format.fieldsWriter(state));
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -68,46 +64,6 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
     @Override
     public String toString() {
         return NAME + "(name=" + NAME + ", innerFormat=" + format + ")";
-    }
-
-    public static class ES813FlatVectorWriter extends KnnVectorsWriter {
-
-        private final FlatVectorsWriter writer;
-
-        public ES813FlatVectorWriter(FlatVectorsWriter writer) {
-            super();
-            this.writer = writer;
-        }
-
-        @Override
-        public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-            return writer.addField(fieldInfo);
-        }
-
-        @Override
-        public void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
-            writer.flush(maxDoc, sortMap);
-        }
-
-        @Override
-        public void finish() throws IOException {
-            writer.finish();
-        }
-
-        @Override
-        public void close() throws IOException {
-            writer.close();
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return writer.ramBytesUsed();
-        }
-
-        @Override
-        public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-            writer.mergeOneField(fieldInfo, mergeState);
-        }
     }
 
     public static class ES813FlatVectorReader extends KnnVectorsReader {

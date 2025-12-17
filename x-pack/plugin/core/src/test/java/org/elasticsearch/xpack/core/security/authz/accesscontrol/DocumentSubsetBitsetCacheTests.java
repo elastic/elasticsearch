@@ -20,13 +20,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
@@ -461,8 +461,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     public void testEquivalentMatchAllDocsQuery() {
-        assertTrue(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new MatchAllDocsQuery()));
-        assertTrue(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new ConstantScoreQuery(new MatchAllDocsQuery())));
+        assertTrue(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(Queries.ALL_DOCS_INSTANCE));
+        assertTrue(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE)));
         assertFalse(DocumentSubsetBitsetCache.isEffectiveMatchAllDocsQuery(new TermQuery(new Term("term"))));
     }
 

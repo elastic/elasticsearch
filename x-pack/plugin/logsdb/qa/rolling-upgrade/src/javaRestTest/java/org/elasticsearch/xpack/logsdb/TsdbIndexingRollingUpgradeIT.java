@@ -11,7 +11,6 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -27,7 +26,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.logsdb.TsdbIT.TEMPLATE;
 import static org.elasticsearch.xpack.logsdb.TsdbIT.formatInstant;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

@@ -1,7 +1,4 @@
 tests:
-- class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/102717"
-  method: "testRequestResetAndAbort"
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -150,9 +147,6 @@ tests:
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
-- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
-  method: testLuceneVersionConstant
-  issue: https://github.com/elastic/elasticsearch/issues/125638
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
@@ -409,12 +403,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit array synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/139300
-- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
-  method: testProfile {SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/139303
-- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
-  method: testProfile {ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/139304
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139335
@@ -469,6 +457,9 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testReadNonExistingPath
+  issue: https://github.com/elastic/elasticsearch/issues/139665
 
 # Examples:
 #

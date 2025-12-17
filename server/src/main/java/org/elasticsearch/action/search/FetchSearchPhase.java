@@ -276,11 +276,11 @@ class FetchSearchPhase extends SearchPhase {
         boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
         boolean isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection;
 
-        if(logger.isTraceEnabled()) {
+        if (logger.isTraceEnabled()) {
             logger.info(
-                "FetchSearchPhase decision for shard {}: featureFlag={}, dataNodeSupports={}, " +
-                    "dataNodeVersion={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, " +
-                    "targetNode={}, isCCSQuery={}",
+                "FetchSearchPhase decision for shard {}: featureFlag={}, dataNodeSupports={}, "
+                    + "dataNodeVersion={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
+                    + "targetNode={}, isCCSQuery={}",
                 shardIndex,
                 CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled(),
                 dataNodeSupports,

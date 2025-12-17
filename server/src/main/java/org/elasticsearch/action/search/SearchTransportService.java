@@ -563,10 +563,10 @@ public class SearchTransportService {
                 canConnectToCoordinator = transportService.nodeConnected(coordinatorNode);
             }
 
-            if(logger.isTraceEnabled()) {
+            if (logger.isTraceEnabled()) {
                 logger.info(
-                    "CHUNKED_FETCH decision: featureFlag={}, versionSupported={}, hasCoordinator={}, " +
-                        "canConnectToCoordinator={}, channelVersion={}, request_from={}",
+                    "CHUNKED_FETCH decision: featureFlag={}, versionSupported={}, hasCoordinator={}, "
+                        + "canConnectToCoordinator={}, channelVersion={}, request_from={}",
                     featureFlagEnabled,
                     versionSupported,
                     hasCoordinator,

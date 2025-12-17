@@ -12,7 +12,7 @@ Most fields are [indexed](/reference/elasticsearch/mapping-reference/mapping-ind
 
 Sorting, aggregations, and access to field values in scripts requires a different data access pattern. Instead of looking up the term and finding documents, we need to be able to look up the document and find the terms that it has in a field.
 
-The `doc_values` field is an on-disk data structure that is built at document index time and enables efficient data access. It stores the same values as `_source`, but in a columnar format that is more efficient for sorting and aggregation. 
+The `doc_values` field is an on-disk data structure that is built at document index time and enables efficient data access. It stores the same values as `_source`, but in a columnar format that is more efficient for sorting and aggregation.
 
 Doc values are supported on most field types, excluding `text` and `annotated_text` fields. See also [Disabling doc values](#_disabling_doc_values).
 
@@ -84,6 +84,12 @@ This implementation detail of doc values is visible when features directly inter
 How the ordering differs depends on whether the array is mapped as keyword or a numeric field type. In case of the `keyword` field type, the multi-valued values for each document are ordered lexicographically and duplicates are lost. If retaining duplicates is important then the `counted_keyword` field type should be used.
 In case of numeric field types (e.g. `long`, `double`, `scaled_float`, etc.), the multi-valued values for each document are ordered in natural order and duplicates are retained.
 
+## Doc values skippers [doc-values-skippers]
+
+Doc values skippers are an additional data structure on doc values fields that store summary information for multi-level blocks of documents (currently minimum value, maximum value and doc count).
+They can assist fast querying and aggregation over a field without the need for a terms or points index structure, significantly reducing its disk footprint. This is particularly true when the field in question is correlated with the index sort.  For example, timestamp filtered queries in time series indexes can use skippers to filter out large blocks of documents without having to inspect individual field values.
+
+Skippers can be enabled for all fields in an index that are marked as `docvalues=true` and `index=false` by using the index-level setting `index.mapping.use_doc_values_skippers`.  They are enabled by default for [`time_series indexes`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-mode).
 
 
 

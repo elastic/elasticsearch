@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -31,7 +32,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Avg}, but it is used to calculate the average value over a time series of values from the given field.
  */
-public class AvgOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
+public class AvgOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AvgOverTime",
@@ -50,7 +51,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
         Source source,
         @Param(
             name = "number",
-            type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram" },
+            type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram", "tdigest" },
             description = "Expression that outputs values to average."
         ) Expression field,
         @Param(

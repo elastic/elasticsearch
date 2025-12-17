@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -15,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -330,7 +330,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             );
             LuceneSourceOperator.Factory source = new LuceneSourceOperator.Factory(
                 new IndexedByShardIdFromSingleton<>(esqlContext),
-                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
                 1,

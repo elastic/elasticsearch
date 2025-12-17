@@ -68,6 +68,11 @@ import java.util.stream.Collectors;
 public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
 
     @Deprecated(forRemoval = true)
+    public boolean after(TransportVersion version) {
+        return version.id < id;
+    }
+
+    @Deprecated(forRemoval = true)
     public boolean onOrAfter(TransportVersion version) {
         throw new UnsupportedOperationException("use TransportVersion.supports(...) instead");
     }
@@ -345,7 +350,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
         TransportVersion bestSoFar = VersionsHolder.ZERO;
         for (final var knownVersion : VersionsHolder.ALL_VERSIONS_BY_ID.values()) {
-            if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
+            if (knownVersion.id > bestSoFar.id && knownVersion.id < this.id) {
                 bestSoFar = knownVersion;
             }
         }

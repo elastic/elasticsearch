@@ -25,13 +25,11 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
 
     private final List<String> input;
     private final InputType inputType;
-    private final boolean dimensionsSetByUser;
     private final JinaAIEmbeddingsModel model;
 
     public JinaAIEmbeddingsRequest(List<String> input, InputType inputType, JinaAIEmbeddingsModel embeddingsModel) {
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
-        dimensionsSetByUser = embeddingsModel.getServiceSettings().dimensionsSetByUser();
         this.model = Objects.requireNonNull(embeddingsModel);
     }
 

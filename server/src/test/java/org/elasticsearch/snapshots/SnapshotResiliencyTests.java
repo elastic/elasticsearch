@@ -229,8 +229,20 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), deleteIndexListener)
         );
 
+        final SubscribableListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new SubscribableListener<>();
+        continueOrDie(
+            deleteIndexListener,
+            ignored -> client().admin()
+                .cluster()
+                .restoreSnapshot(
+                    new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(true),
+                    restoreSnapshotResponseListener
+                )
+        );
+        final var maybeWaitForGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseListener, index, shards);
+
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-        continueOrDie(restoreSnapshotAndWaitForGreen(deleteIndexListener, repoName, snapshotName, index, shards), ignore -> {
+        continueOrDie(maybeWaitForGreenListener, ignore -> {
             client().search(
                 new SearchRequest(index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseListener
@@ -672,7 +684,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        final var restoredIndexGreenListener = waitForGreenAfterRestore(restoreSnapshotResponseListener, "restored_" + index, shards);
+        final var restoredIndexGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseListener, "restored_" + index, shards);
 
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
         continueOrDie(restoredIndexGreenListener, ignored -> {
@@ -984,6 +996,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             );
                         } else if (shardRouting.started()
                             && shardRouting.currentNodeId().equals(currentPrimaryNode.node().getId()) == false) {
+                                // The shard recovers from blob store in stateless without needing the original primary node
                                 assertTrue(DiscoveryNode.isStateless(masterNode.settings));
                                 if (masterNodeCount > 1) {
                                     scheduleNow(() -> testClusterNodes.stopNode(masterNode));
@@ -1080,7 +1093,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 )
         );
 
-        final var restoredIndexGreenListener = waitForGreenAfterRestore(restoreSnapshotResponseStepListener, restoredIndex, shards);
+        final var restoredIndexGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseStepListener, restoredIndex, shards);
 
         final SubscribableListener<SearchResponse> searchResponseStepListener = new SubscribableListener<>();
 
@@ -1850,28 +1863,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return createIndexResponseStepListener;
     }
 
-    protected <T> SubscribableListener<Void> restoreSnapshotAndWaitForGreen(
-        SubscribableListener<T> listener,
-        String repoName,
-        String snapshotName,
-        String indexName,
-        int expectedNumShards
-    ) {
-        final SubscribableListener<RestoreSnapshotResponse> restoreSnapshotResponseListener = new SubscribableListener<>();
-        continueOrDie(
-            listener,
-            ignored -> client().admin()
-                .cluster()
-                .restoreSnapshot(
-                    new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).waitForCompletion(true),
-                    restoreSnapshotResponseListener
-                )
-        );
-
-        return waitForGreenAfterRestore(restoreSnapshotResponseListener, indexName, expectedNumShards);
-    }
-
-    private SubscribableListener<Void> waitForGreenAfterRestore(
+    protected SubscribableListener<Void> maybeWaitForGreenAfterRestore(
         SubscribableListener<RestoreSnapshotResponse> restoreListener,
         String indexName,
         int expectedNumShards
@@ -1880,11 +1872,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
         continueOrDie(restoreListener, restoreSnapshotResponse -> {
             assertEquals(expectedNumShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
 
-            client().admin()
-                .cluster()
-                .prepareHealth(TimeValue.MINUS_ONE, indexName)
-                .setWaitForGreenStatus()
-                .execute(clusterHealthResponseListener);
+            // Wait for green index when the node is stateless, otherwise subsequent search may fail
+            if (DiscoveryNode.isStateless(testClusterNodes.nodes().values().iterator().next().settings)) {
+                client().admin()
+                    .cluster()
+                    .prepareHealth(TimeValue.MINUS_ONE, indexName)
+                    .setWaitForGreenStatus()
+                    .execute(clusterHealthResponseListener);
+            } else {
+                // Just fake a green health since it does not matter in stateful
+                final var clusterHealthResponse = new ClusterHealthResponse();
+                clusterHealthResponse.setStatus(ClusterHealthStatus.GREEN);
+                clusterHealthResponseListener.onResponse(clusterHealthResponse);
+            }
         });
 
         final SubscribableListener<Void> greenHealthListener = new SubscribableListener<>();

@@ -121,31 +121,6 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
         // query cluster setup
         setupLocalDataOnQueryCluster();
 
-        // query remote cluster using :: selectors should not succeed, even with security off
-        for (String indexName : Set.of(
-            "test1::data",
-            "test*::data",
-            "*::data",
-            "test1::failures",
-            "test*::failures",
-            "*::failures",
-            "other1::failures",
-            "non-existing::whatever"
-        )) {
-            final Request searchRequest = new Request(
-                "GET",
-                String.format(
-                    Locale.ROOT,
-                    "/%s:%s/_search?ccs_minimize_roundtrips=%s",
-                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    indexName,
-                    ccsMinimizeRoundtrips
-                )
-            );
-            final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
-            assertSelectorsNotSupported(exception);
-        }
-
         final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
         final String backingDataIndexName = backingIndices.v1();
         final String backingFailureIndexName = backingIndices.v2();
@@ -168,6 +143,44 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
                 ? new String[] { "local_index", backingDataIndexName }
                 : new String[] { backingDataIndexName };
             assertSearchResponseContainsIndices(client().performRequest(dataSearchRequest), expectedIndices);
+        }
+
+        // query remote cluster using ::data and ::failures selectors should succeed with security off
+        for (String indexName : Set.of(
+            "test1::data",
+            "test*::data",
+            "*::data"
+        )) {
+            final Request searchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    indexName,
+                    ccsMinimizeRoundtrips
+                )
+            );
+            final String[] expectedIndices = new String[] { backingDataIndexName };
+            assertSearchResponseContainsIndices(client().performRequest(searchRequest), expectedIndices);
+        }
+        for (String indexName : Set.of(
+            "test1::failures",
+            "test*::failures",
+            "*::failures"
+        )) {
+            final Request searchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    indexName,
+                    ccsMinimizeRoundtrips
+                )
+            );
+            final String[] expectedIndices = new String[] { backingFailureIndexName };
+            assertSearchResponseContainsIndices(client().performRequest(searchRequest), expectedIndices);
         }
 
         // also, searching directly the backing failure index should work
@@ -251,11 +264,6 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
                 "email" : "jack@example.com"
             }""");
         assertOK(performRequestAgainstFulfillingCluster(createDoc2));
-    }
-
-    private static void assertSelectorsNotSupported(ResponseException exception) {
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(exception.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
     }
 
     private static void assertSearchResponseContainsIndices(Response response, String... expectedIndices) throws IOException {

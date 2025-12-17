@@ -839,6 +839,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         estimatedMemoryUsageInBytes += RamUsageEstimator.sizeOf(throwable.getMessage());
 
         // We use the string representation each stack trace element as a rough estimate of its size
+        // TODO: Is this a decent estimate?
         for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
             estimatedMemoryUsageInBytes += RamUsageEstimator.sizeOf(stackTraceElement.toString());
         }

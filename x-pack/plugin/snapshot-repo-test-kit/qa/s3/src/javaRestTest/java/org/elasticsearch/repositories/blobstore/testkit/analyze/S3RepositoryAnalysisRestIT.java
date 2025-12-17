@@ -27,4 +27,9 @@ public class S3RepositoryAnalysisRestIT extends AbstractS3RepositoryAnalysisRest
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
+
+    @Override
+    S3ConsistencyModel consistencyModel() {
+        return S3ConsistencyModel.AWS_DEFAULT;
+    }
 }

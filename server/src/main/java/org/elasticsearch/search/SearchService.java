@@ -13,7 +13,6 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -1749,7 +1749,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                  * the filter for nested documents or slicing so we have to
                  * delay reading it until the aggs ask for it.
                  */
-                () -> context.rewrittenQuery() == null ? new MatchAllDocsQuery() : context.rewrittenQuery(),
+                () -> context.rewrittenQuery() == null ? Queries.ALL_DOCS_INSTANCE : context.rewrittenQuery(),
                 context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
                 multiBucketConsumerService.getLimit(),
                 () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),

@@ -15,7 +15,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 public class ClusterStateAction extends ActionType<ClusterStateResponse> {
 
     public static final ClusterStateAction INSTANCE = new ClusterStateAction();
-    public static final String NAME = "cluster:internal:monitor/state";
+    public static final String NAME = "cluster:monitor/state";
     public static final RemoteClusterActionType<ClusterStateResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         ClusterStateResponse::new

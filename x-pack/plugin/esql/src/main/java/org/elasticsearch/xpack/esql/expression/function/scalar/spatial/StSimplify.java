@@ -37,7 +37,6 @@ import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -166,18 +165,9 @@ public class StSimplify extends SpatialDocValuesFunction {
         double inputTolerance = getInputTolerance(toleranceExpression);
         Object input = geometry.fold(foldCtx);
         if (input instanceof List<?> list) {
-            // TODO: Consider if this should compact to a GeometryCollection instead, which is what we do for fields
-            ArrayList<BytesRef> results = new ArrayList<>(list.size());
-            for (Object o : list) {
-                if (o instanceof BytesRef inputGeometry) {
-                    results.add(BlockProcessor.geoSourceAndConstantTolerance(inputGeometry, inputTolerance));
-                } else {
-                    throw new IllegalArgumentException("unsupported list element type: " + o.getClass().getSimpleName());
-                }
-            }
-            return results;
+            return processor.processSingleGeometry(processor.asJtsGeometry(list), inputTolerance);
         } else if (input instanceof BytesRef inputGeometry) {
-            return BlockProcessor.geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
+            return processor.processSingleGeometry(inputGeometry, inputTolerance);
         } else {
             throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
         }
@@ -242,20 +232,23 @@ public class StSimplify extends SpatialDocValuesFunction {
             this.spatialCoordinateType = spatialCoordinateType;
         }
 
-        private static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, double inputTolerance) {
+        private BytesRef processSingleGeometry(BytesRef inputGeometry, double inputTolerance) {
             if (inputGeometry == null) {
                 return null;
             }
             try {
-                Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(inputGeometry);
-                Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
-                return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
+                return processSingleGeometry(UNSPECIFIED.wkbToJtsGeometry(inputGeometry), inputTolerance);
             } catch (ParseException e) {
                 throw new IllegalArgumentException("could not parse the geometry expression: " + e);
             }
         }
 
-        void processPoints(BytesRefBlock.Builder builder, int p, LongBlock left, double tolerance) throws IOException {
+        private BytesRef processSingleGeometry(Geometry jtsGeometry, double inputTolerance) {
+            Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
+            return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
+        }
+
+        private void processPoints(BytesRefBlock.Builder builder, int p, LongBlock left, double tolerance) throws IOException {
             if (left.getValueCount(p) < 1) {
                 builder.appendNull();
             } else {
@@ -265,7 +258,7 @@ public class StSimplify extends SpatialDocValuesFunction {
             }
         }
 
-        void processGeometries(BytesRefBlock.Builder builder, int p, BytesRefBlock left, double tolerance) {
+        private void processGeometries(BytesRefBlock.Builder builder, int p, BytesRefBlock left, double tolerance) {
             if (left.getValueCount(p) < 1) {
                 builder.appendNull();
             } else {
@@ -275,7 +268,7 @@ public class StSimplify extends SpatialDocValuesFunction {
             }
         }
 
-        Geometry asJtsMultiPoint(LongBlock valueBlock, int position, Function<Long, Point> decoder) {
+        private Geometry asJtsMultiPoint(LongBlock valueBlock, int position, Function<Long, Point> decoder) {
             final int firstValueIndex = valueBlock.getFirstValueIndex(position);
             final int valueCount = valueBlock.getValueCount(position);
             if (valueCount == 1) {
@@ -290,7 +283,7 @@ public class StSimplify extends SpatialDocValuesFunction {
             return geometryFactory.createMultiPointFromCoords(coordinates);
         }
 
-        Geometry asJtsGeometry(BytesRefBlock valueBlock, int position) {
+        private Geometry asJtsGeometry(BytesRefBlock valueBlock, int position) {
             try {
                 final int firstValueIndex = valueBlock.getFirstValueIndex(position);
                 final int valueCount = valueBlock.getValueCount(position);
@@ -300,8 +293,23 @@ public class StSimplify extends SpatialDocValuesFunction {
                 }
                 final Geometry[] geometries = new Geometry[valueCount];
                 for (int i = 0; i < valueCount; i++) {
-                    BytesRef wkb = valueBlock.getBytesRef(firstValueIndex + i, scratch);
                     geometries[i] = UNSPECIFIED.wkbToJtsGeometry(valueBlock.getBytesRef(firstValueIndex, scratch));
+                }
+                return geometryFactory.createGeometryCollection(geometries);
+            } catch (ParseException e) {
+                throw new IllegalArgumentException("could not parse the geometry expression: " + e);
+            }
+        }
+
+        private Geometry asJtsGeometry(List<?> values) {
+            try {
+                final Geometry[] geometries = new Geometry[values.size()];
+                for (int i = 0; i < values.size(); i++) {
+                    if (values.get(i) instanceof BytesRef inputGeometry) {
+                        geometries[i] = UNSPECIFIED.wkbToJtsGeometry(inputGeometry);
+                    } else {
+                        throw new IllegalArgumentException("unsupported list element type: " + values.get(i).getClass().getSimpleName());
+                    }
                 }
                 return geometryFactory.createGeometryCollection(geometries);
             } catch (ParseException e) {

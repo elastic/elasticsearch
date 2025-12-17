@@ -12,6 +12,16 @@ package org.elasticsearch.plugins.cli;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
+import org.bouncycastle.bcpg.ArmoredInputStream;
+import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureList;
+import org.bouncycastle.openpgp.PGPUtil;
+import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -71,8 +81,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.Supplier;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -557,11 +567,12 @@ public class InstallPluginAction implements Closeable {
      * @param officialPlugin true if the plugin is an official plugin
      * @return the path to the downloaded plugin ZIP
      * @throws IOException   if an I/O exception occurs download or reading files and resources
+     * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
      * @throws UserException if checksum validation fails
      * @throws URISyntaxException is the url is invalid
      */
     private Path downloadAndValidate(final String urlString, final Path tmpDir, final boolean officialPlugin) throws IOException,
-        UserException, URISyntaxException {
+        PGPException, UserException, URISyntaxException {
         Path zip = downloadZip(urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
@@ -649,19 +660,119 @@ public class InstallPluginAction implements Closeable {
         return zip;
     }
 
-    void verifySignature(final Path zip, final String urlString) throws IOException {
-        String ascUrl = urlString + ".asc";
-        URL url = openUrl(ascUrl);
-        if (url == null) {
-            throw new IOException("Plugin signature missing: " + ascUrl);
-        }
-        try (InputStream ascInputStream = urlOpenStream(url)) {
-            pgpSignatureVerifier(urlString, terminal).get().accept(zip, ascInputStream);
+    /**
+     * Verify the signature of the downloaded plugin ZIP. The signature is obtained from the source of the downloaded plugin by appending
+     * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
+     *
+     * @param zip       the path to the downloaded plugin ZIP
+     * @param urlString the URL source of the downloaded plugin ZIP
+     * @throws IOException  if an I/O exception occurs reading from various input streams
+     * @throws PGPException if the PGP implementation throws an internal exception during verification
+     */
+    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
+        final String ascUrlString = urlString + ".asc";
+        final URL ascUrl = openUrl(ascUrlString);
+        try (
+            // fin is a file stream over the downloaded plugin zip whose signature to verify
+            InputStream fin = pluginZipInputStream(zip);
+            // sin is a URL stream to the signature corresponding to the downloaded plugin zip
+            InputStream sin = urlOpenStream(ascUrl);
+            // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
+            InputStream ain = new ArmoredInputStream(getPublicKey())
+        ) {
+            final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
+            final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
+
+            // validate the signature has key ID matching our public key ID
+            final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
+            if (getPublicKeyId().equals(keyId) == false) {
+                throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
+            }
+
+            // compute the signature of the downloaded plugin zip, wrapped with long execution warning
+            timedComputeSignatureForDownloadedPlugin(fin, ain, signature);
+
+            // finally we verify the signature of the downloaded plugin zip matches the expected signature
+            if (signature.verify() == false) {
+                throw new IllegalStateException("signature verification for [" + urlString + "] failed");
+            }
         }
     }
 
-    Supplier<BiConsumer<Path, InputStream>> pgpSignatureVerifier(String urlString, Terminal terminal) {
-        return new BcPgpSignatureVerifierLoader(urlString, terminal::println);
+    private void timedComputeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException,
+        IOException {
+        final Timer timer = new Timer();
+
+        try {
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    reportLongSignatureVerification();
+                }
+            }, acceptableSignatureVerificationDelay());
+
+            computeSignatureForDownloadedPlugin(fin, ain, signature);
+        } finally {
+            timer.cancel();
+        }
+    }
+
+    // package private for testing
+    void computeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException, IOException {
+        final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
+        final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
+        signature.init(new JcaPGPContentVerifierBuilderProvider(), key);
+        final byte[] buffer = new byte[1024];
+        int read;
+        while ((read = fin.read(buffer)) != -1) {
+            signature.update(buffer, 0, read);
+        }
+    }
+
+    // package private for testing
+    void reportLongSignatureVerification() {
+        terminal.println(
+            "The plugin installer is trying to verify the signature of the downloaded plugin "
+                + "but this verification is taking longer than expected. This is often because the "
+                + "plugin installer is waiting for your system to supply it with random numbers. "
+                + ((System.getProperty("os.name").startsWith("Windows") == false)
+                    ? "Ensure that your system has sufficient entropy so that reads from /dev/random do not block."
+                    : "")
+        );
+    }
+
+    // package private for testing
+    long acceptableSignatureVerificationDelay() {
+        return 5_000;
+    }
+
+    /**
+     * An input stream to the raw bytes of the plugin ZIP.
+     *
+     * @param zip the path to the downloaded plugin ZIP
+     * @return an input stream to the raw bytes of the plugin ZIP.
+     * @throws IOException if an I/O exception occurs preparing the input stream
+     */
+    InputStream pluginZipInputStream(final Path zip) throws IOException {
+        return Files.newInputStream(zip);
+    }
+
+    /**
+     * Return the public key ID of the signing key that is expected to have signed the official plugin.
+     *
+     * @return the public key ID
+     */
+    String getPublicKeyId() {
+        return "D27D666CD88E42B4";
+    }
+
+    /**
+     * An input stream to the public key of the signing key.
+     *
+     * @return an input stream to the public key
+     */
+    InputStream getPublicKey() {
+        return InstallPluginAction.class.getResourceAsStream("/public_key.asc");
     }
 
     /**

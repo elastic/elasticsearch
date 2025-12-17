@@ -10,6 +10,7 @@
 import org.elasticsearch.gradle.OS
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'com.gradleup.shadow'
 
 base {
   archivesName = 'elasticsearch-plugin-cli'
@@ -29,16 +30,24 @@ dependencies {
   implementation 'org.ow2.asm:asm:9.9'
   implementation 'org.ow2.asm:asm-tree:9.9'
 
-  // Bouncy Castle subproject for PGP signature verification
-  runtimeOnly project('bc')
-  testImplementation project('bc')
-
+  api "org.bouncycastle:bcpg-fips:1.0.7.1"
+  api "org.bouncycastle:bc-fips:1.0.2.6"
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
 }
 
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
+}
+
+tasks.named("shadowJar").configure {
+  relocate 'org.bouncycastle', 'shadow.org.bouncycastle'
+}
+
 tasks.named("test").configure {
+  // Use original classpath, not the shadow JAR, since test code imports non-relocated packages
+  classpath = sourceSets.test.runtimeClasspath
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
   // These tests are "heavy" on the secure number generator. On Linux, the NativePRNG defaults to /dev/random for the seeds, and
@@ -49,3 +58,31 @@ tasks.named("test").configure {
   }
 }
 
+/*
+ * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
+ * functionality
+ *
+ * sun.security.internal.spec.TlsKeyMaterialParameterSpec
+ * sun.security.internal.spec.TlsKeyMaterialSpec
+ * sun.security.internal.spec.TlsMasterSecretParameterSpec
+ * sun.security.internal.spec.TlsPrfParameterSpec
+ * sun.security.internal.spec.TlsRsaPremasterSecretParameterSpec
+ * sun.security.provider.SecureRandom
+ *
+ */
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
+          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
+  )
+}

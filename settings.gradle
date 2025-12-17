@@ -91,7 +91,6 @@ List projects = [
   'distribution:tools:server-cli',
   'distribution:tools:windows-service-cli',
   'distribution:tools:plugin-cli',
-  'distribution:tools:plugin-cli:bc',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',

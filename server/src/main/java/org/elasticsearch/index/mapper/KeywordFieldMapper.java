@@ -67,7 +67,7 @@ import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
@@ -849,7 +849,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 if (storedInBinaryDocValues()) {
                     // TODO: Support the function-specific optimizations
-                    return new BytesRefsFromCustomBinaryBlockLoader(name());
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 }
 
                 if (cfg == null) {
@@ -1321,27 +1321,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
                 if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
-                    if (multiValueFormatUsedSeparateCountColumns()) {
-                        // store the value in a binary doc values field, create one if it doesn't exist
-                        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
-                        var countField = (MultiValuedBinaryNoCount.UpdateableNumericField) context.doc().getByKey(fieldName + ".counts");
-                        if (field == null) {
-                            field = new MultiValuedBinaryNoCount(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
-                            context.doc().addWithKey(fieldName, field);
-                            countField = new MultiValuedBinaryNoCount.UpdateableNumericField(fieldName + ".counts");
-                            context.doc().addWithKey(countField.name(), countField);
-                        }
-                        field.add(bytesRef);
-                        countField.setValue(field.count());
-                    } else {
-                        // store the value in a binary doc values field, create one if it doesn't exist
-                        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
-                        if (field == null) {
-                            field = new MultiValuedBinaryWithCount(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
-                            context.doc().addWithKey(fieldName, field);
-                        }
-                        field.add(bytesRef);
+                    // store the value in a binary doc values field, create one if it doesn't exist
+                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+                    if (field == null) {
+                        field = new MultiValuedBinaryWithCount(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
+                        context.doc().addWithKey(fieldName, field);
                     }
+                    field.add(bytesRef);
                 } else {
                     // otherwise for bwc, store the value in a stored fields like we used to
                     context.doc().add(new StoredField(fieldName, bytesRef));
@@ -1385,26 +1371,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
 
-            if (multiValueFormatUsedSeparateCountColumns()) {
-                MultiValuedBinaryNoCount field = (MultiValuedBinaryNoCount) context.doc().getField(fieldType().name());
-                var countField = (MultiValuedBinaryNoCount.UpdateableNumericField) context.doc().getByKey(fieldType().name() + ".counts");
-                if (field == null) {
-                    field = new MultiValuedBinaryNoCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
-                    context.doc().addWithKey(fieldType().name(), field);
-                    countField = new MultiValuedBinaryNoCount.UpdateableNumericField(fieldType().name() + ".counts");
-                    context.doc().addWithKey(countField.name(), countField);
-                }
-
-                field.add(binaryValue);
-                countField.setValue(field.count());
-            } else {
-                MultiValuedBinaryWithCount field = (MultiValuedBinaryWithCount) context.doc().getField(fieldType().name());
-                if (field == null) {
-                    field = new MultiValuedBinaryWithCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
-                    context.doc().addWithKey(fieldType().name(), field);
-                }
-                field.add(binaryValue);
+            MultiValuedBinaryNoCount field = (MultiValuedBinaryNoCount) context.doc().getField(fieldType().name());
+            var countField = (MultiValuedBinaryNoCount.UpdateableNumericField) context.doc().getByKey(fieldType().name() + ".counts");
+            if (field == null) {
+                field = new MultiValuedBinaryNoCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
+                context.doc().addWithKey(fieldType().name(), field);
+                countField = new MultiValuedBinaryNoCount.UpdateableNumericField(fieldType().name() + ".counts");
+                context.doc().addWithKey(countField.name(), countField);
             }
+
+            field.add(binaryValue);
+            countField.setValue(field.count());
         }
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)

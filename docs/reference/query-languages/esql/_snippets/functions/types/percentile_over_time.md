@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| number | percentile | result |
+| field | percentile | result |
 | --- | --- | --- |
 | double | double | double |
 | double | integer | double |

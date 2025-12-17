@@ -4,5 +4,8 @@
 Counts the number of points in the supplied geometry.
 
 ```esql
-null
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL points = ST_NPOINTS(city_boundary)
+| KEEP abbrev, airport, points
 ```

@@ -3,7 +3,14 @@
 **Example**
 
 ```esql
-null
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL points = ST_NPOINTS(city_boundary)
+| KEEP abbrev, airport, points
 ```
+
+| abbrev:keyword | airport:text | points:integer |
+| --- | --- | --- |
+| CPH | Copenhagen | 15 |
 
 

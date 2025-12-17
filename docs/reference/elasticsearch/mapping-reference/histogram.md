@@ -111,5 +111,38 @@ PUT my-index-000001/_doc/2
 1. Values for each bucket. Values in the array are treated as doubles and must be given in increasing order. For [T-Digest](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation) histograms this value represents the mean value. In case of HDR histograms this represents the value iterated to.
 2. Count for each bucket. Values in the arrays are treated as long integers and must be positive or zero. Negative values will be rejected. The relation between a bucket and a count is given by the position in the array.
 
+### Coercion from exponential histogram [histogram-coercion]
+```{appliest_to}
+stack: preview 9.3
+serverless: preview
+```
 
+To facilitate transitions and mixed inputs, `histogram` fields support coercion from the `exponential_histogram` field structure. When `coerce` is enabled (default), you can provide an exponential histogram payload and Elasticsearch will convert it to the `histogram` field's internal T-Digest representation during indexing.
 
+```console
+PUT my-index-000002
+{
+  "mappings" : {
+    "properties" : {
+      "my_histogram" : {
+        "type" : "histogram"
+      }
+    }
+  }
+}
+
+PUT my-index-000002/_doc/1
+{
+  "my_histogram" : {
+    "scale": 12,
+    "sum": 1234.0,
+    "min": -123.456,
+    "max": 456.456,
+    "zero": { "threshold": 0.001, "count": 42 },
+    "positive": { "indices": [-10, 25, 26], "counts": [2, 3, 4] },
+    "negative": { "indices": [-5, 0], "counts": [10, 7] }
+  }
+}
+```
+
+To reject exponential histogram input, disable coercion on the field mapping or at the index level. See [coerce](/reference/elasticsearch/mapping-reference/coerce.md).

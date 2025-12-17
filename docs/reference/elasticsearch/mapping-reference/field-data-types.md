@@ -77,6 +77,9 @@ Dates
 [`histogram`](/reference/elasticsearch/mapping-reference/histogram.md)
 :   Pre-aggregated numerical values in the form of a histogram.
 
+[`exponential_histogram`](/reference/elasticsearch/mapping-reference/exponential-histogram.md)
+:   Pre-aggregated numerical values in the form of an exponential histogram.
+
 
 ### Text search types [text-search-types]
 
@@ -145,38 +148,3 @@ In {{es}}, arrays do not require a dedicated field data type. Any field can cont
 It is often useful to index the same field in different ways for different purposes. For instance, a `string` field could be mapped as a `text` field for full-text search, and as a `keyword` field for sorting or aggregations. Alternatively, you could index a text field with the [`standard` analyzer](/reference/text-analysis/analysis-standard-analyzer.md), the [`english`](/reference/text-analysis/analysis-lang-analyzer.md#english-analyzer) analyzer, and the [`french` analyzer](/reference/text-analysis/analysis-lang-analyzer.md#french-analyzer).
 
 This is the purpose of *multi-fields*. Most field types support multi-fields via the [`fields`](/reference/elasticsearch/mapping-reference/multi-fields.md) parameter.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

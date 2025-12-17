@@ -39,6 +39,15 @@ max: double
 790.423509
 ;
 
+maxRateWithOperations
+required_capability: ts_command_v0
+required_capability: double_quotes_source_enclosing
+TS k8s | STATS max=10 + max(10 + rate(network.total_bytes_in)) | EVAL max=ROUND(max, 6) | KEEP max;
+
+max: double
+790.423509
+;
+
 maxCost
 required_capability: ts_command_v0
 TS k8s | STATS max_cost=max(rate(network.total_cost)) | EVAL max_cost=ROUND(max_cost, 6) | KEEP max_cost;

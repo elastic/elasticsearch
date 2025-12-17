@@ -948,21 +948,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return f;
     }
 
-    private void checkForRemoteClusters(LogicalPlan plan, Source source, String commandName) {
-        plan.forEachUp(UnresolvedRelation.class, r -> {
-            for (var indexPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
-                if (RemoteClusterAware.isRemoteIndexName(indexPattern)) {
-                    throw new ParsingException(
-                        source,
-                        "invalid index pattern [{}], remote clusters are not supported with {}",
-                        r.indexPattern().indexPattern(),
-                        commandName
-                    );
-                }
-            }
-        });
-    }
-
     @Override
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {

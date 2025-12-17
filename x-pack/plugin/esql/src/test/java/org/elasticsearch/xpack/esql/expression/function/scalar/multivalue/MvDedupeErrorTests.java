@@ -43,12 +43,17 @@ public class MvDedupeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     }
 
     @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
         /*
          * In general MvDedupe should support all signatures. While building a
          * new type you may we to temporarily relax this.
          */
-        assertThat("all signatures except dense_vector and aggregate_metric_double should be supported", checked, equalTo(2));
+        assertThat(
+            invalidSignatureSamples,
+            equalTo(
+                Set.of(List.of(DataType.DENSE_VECTOR), List.of(DataType.EXPONENTIAL_HISTOGRAM), List.of(DataType.AGGREGATE_METRIC_DOUBLE))
+            )
+        );
     }
 
 }

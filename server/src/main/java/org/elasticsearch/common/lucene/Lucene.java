@@ -636,7 +636,7 @@ public class Lucene {
      * Returns the generic version of the provided {@link SortField} that
      * can be used to merge documents coming from different shards.
      */
-    private static SortField rewriteMergeSortField(SortField sortField) {
+    public static SortField rewriteMergeSortField(SortField sortField) {
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
@@ -651,6 +651,13 @@ public class Lucene {
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
+        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource fcs) {
+            SortField newSortField = new SortField(sortField.getField(), fcs.reducedType(), sortField.getReverse());
+            Object missingValue = fcs.missingValue(sortField.getReverse());
+            if (missingValue != null) {
+                newSortField.setMissingValue(missingValue);
+            }
+            return newSortField;
         } else {
             return sortField;
         }
@@ -659,15 +666,8 @@ public class Lucene {
     static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
         sortField = rewriteMergeSortField(sortField);
         out.writeOptionalString(sortField.getField());
-        if (sortField.getComparatorSource() != null) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField
-                .getComparatorSource();
-            writeSortType(out, comparatorSource.reducedType());
-            writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
-        } else {
-            writeSortType(out, sortField.getType());
-            writeMissingValue(out, sortField.getMissingValue());
-        }
+        writeSortType(out, sortField.getType());
+        writeMissingValue(out, sortField.getMissingValue());
         out.writeBoolean(sortField.getReverse());
     }
 

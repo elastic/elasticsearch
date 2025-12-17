@@ -17,10 +17,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -29,7 +27,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.PrefixQuery;
@@ -43,9 +40,9 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
@@ -58,6 +55,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
+import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -398,7 +396,7 @@ public class WildcardFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             if (value.length() == 0) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
             // Check for simple "match all expressions e.g. .*
@@ -1106,7 +1104,7 @@ public class WildcardFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new WildcardSyntheticFieldLoader());
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
             if (ignoreAbove.valuesPotentiallyIgnored()) {
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                     @Override
@@ -1120,54 +1118,4 @@ public class WildcardFieldMapper extends FieldMapper {
         });
     }
 
-    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
-        private final ByteArrayStreamInput docValuesStream = new ByteArrayStreamInput();
-        private int docValueCount;
-        private BytesRef docValueBytes;
-
-        @Override
-        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            BinaryDocValues values = leafReader.getBinaryDocValues(fullPath());
-            if (values == null) {
-                docValueCount = 0;
-                return null;
-            }
-
-            return docId -> {
-                if (values.advanceExact(docId) == false) {
-                    docValueCount = 0;
-                    return hasValue();
-                }
-                docValueBytes = values.binaryValue();
-                docValuesStream.reset(docValueBytes.bytes);
-                docValuesStream.setPosition(docValueBytes.offset);
-                docValueCount = docValuesStream.readVInt();
-                return hasValue();
-            };
-        }
-
-        @Override
-        public boolean hasValue() {
-            return docValueCount > 0;
-        }
-
-        @Override
-        public long valueCount() {
-            return docValueCount;
-        }
-
-        @Override
-        public void write(XContentBuilder b) throws IOException {
-            for (int i = 0; i < docValueCount; i++) {
-                int length = docValuesStream.readVInt();
-                b.utf8Value(docValueBytes.bytes, docValuesStream.getPosition(), length);
-                docValuesStream.skipBytes(length);
-            }
-        }
-
-        @Override
-        public String fieldName() {
-            return fullPath();
-        }
-    }
 }

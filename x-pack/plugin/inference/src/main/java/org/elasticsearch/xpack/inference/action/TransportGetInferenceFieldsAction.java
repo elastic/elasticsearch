@@ -115,7 +115,7 @@ public class TransportGetInferenceFieldsAction extends HandledTransportAction<
                 inferenceFieldsMap.put(index, inferenceFieldMetadataList);
             });
 
-            if (query != null && query.isBlank() == false) {
+            if (query != null) {
                 Set<String> inferenceIds = inferenceFieldsMap.values()
                     .stream()
                     .flatMap(List::stream)

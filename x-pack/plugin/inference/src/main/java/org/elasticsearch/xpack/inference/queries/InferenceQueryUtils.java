@@ -730,11 +730,15 @@ public final class InferenceQueryUtils {
 
         @Override
         public int doHashCode() {
+            // This unique async action doesn't have any member variables (besides cluster alias, which is handled by
+            // QueryRewriteRemoteAsyncAction), so all instances are equal
             return 0;
         }
 
         @Override
         public boolean doEquals(RemoteTransportVersionAsyncAction other) {
+            // This unique async action doesn't have any member variables (besides cluster alias, which is handled by
+            // QueryRewriteRemoteAsyncAction), so all instances are equal
             return true;
         }
     }

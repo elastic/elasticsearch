@@ -232,9 +232,9 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         }
 
         boolean filterUpdated;
-        if (filterAsMap != null) {
+        if (filterAsMap != null || dataStreamToFilterMap.containsKey(dataStream)) {
             CompressedXContent previousFilter = dataStreamToFilterMap.get(dataStream);
-            if (previousFilter == null) {
+            if (previousFilter == null || filterAsMap == null) {
                 filterUpdated = true;
             } else {
                 filterUpdated = filterAsMap.equals(decompress(previousFilter)) == false;
@@ -249,6 +249,9 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             Map<String, CompressedXContent> newDataStreamToFilterMap = new HashMap<>(dataStreamToFilterMap);
             if (filterAsMap != null) {
                 newDataStreamToFilterMap.put(dataStream, compress(filterAsMap));
+            } else if (filterUpdated) {
+                // This is removing orphaned alias filters
+                newDataStreamToFilterMap.remove(dataStream);
             }
             return new DataStreamAlias(name, List.copyOf(dataStreams), newDataStreamToFilterMap, writeDataStream);
         } else {
@@ -264,7 +267,8 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
     public DataStreamAlias removeDataStream(String dataStream) {
         Set<String> dataStreams = new HashSet<>(this.dataStreams);
         boolean removed = dataStreams.remove(dataStream);
-        if (removed == false) {
+        // This is removing orphaned alias filters
+        if (removed == false && dataStreamToFilterMap.containsKey(dataStream) == false) {
             return this;
         }
 

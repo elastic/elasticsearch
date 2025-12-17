@@ -183,7 +183,12 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
     }
 
     public void testRemovalOfOrphanedFilters() {
-        DataStreamAlias alias = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, Map.of("unknown", Map.of("term", Map.of("field", "value"))));
+        DataStreamAlias alias = new DataStreamAlias(
+            "my-alias",
+            List.of("ds-1", "ds-2"),
+            null,
+            Map.of("unknown", Map.of("term", Map.of("field", "value")))
+        );
         DataStreamAlias result = alias.removeDataStream("unknown");
         assertThat(result, not(sameInstance(alias)));
         assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));

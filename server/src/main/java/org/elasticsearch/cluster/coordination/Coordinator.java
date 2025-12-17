@@ -195,6 +195,18 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final List<PeerFinderListener> peerFinderListeners;
     private final LeaderHeartbeatService leaderHeartbeatService;
     private final ClusterService clusterService;
+    /**
+     * Unsynchronised snapshot of the last accepted cluster state, updated under Coordinator#mutex but read without synchronization.
+     * Only use to avoid blocking on the mutex and when eventual consistency is acceptable.
+     * For strictly synchronised use cases, please use {@link #getLastAcceptedState()}}
+     */
+    private volatile ClusterState unsynchronisedLastAcceptedClusterState;
+    /**
+     * Unsynchronised current term, updated under Coordinator#mutex but read without synchronization.
+     * Only use to avoid blocking on the mutex and when eventual consistency is acceptable.
+     * For strictly synchronised use cases, please use {@link #getCurrentTerm()}
+     */
+    private volatile long unsynchronisedCurrentTerm;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -335,6 +347,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.leaderHeartbeatService = leaderHeartbeatService;
         this.compatibilityVersions = compatibilityVersions;
         this.clusterService = clusterService;
+        this.unsynchronisedLastAcceptedClusterState = ClusterState.EMPTY_STATE;
+        this.unsynchronisedCurrentTerm = 0;
     }
 
     /**
@@ -344,11 +358,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     public ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(
             settings,
-            getLastAcceptedState(), // doesn't care about blocks or the current master node so no need for getStateForMasterService
+            // Uses a possibly outdated cluster state so that the health reporting is not blocked on the mutex
+            unsynchronisedLastAcceptedClusterState,
             peerFinder.getLastResolvedAddresses(),
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             peerFinder.getMastersOfPeers(),
-            getCurrentTerm(),
+            // Uses a possibly outdated current term so that the health reporting is not blocked on the mutex
+            unsynchronisedCurrentTerm,
             electionStrategy,
             nodeHealthService.getHealth(),
             joinHelper.getInFlightJoinStatuses()
@@ -414,6 +430,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
 
             coordinationState.get().handleCommit(applyCommitRequest);
+            // Since the coordination state changed, we update accordingly
+            unsynchronisedLastAcceptedClusterState = coordinationState.get().getLastAcceptedState();
+            unsynchronisedCurrentTerm = coordinationState.get().getCurrentTerm();
+
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
             applierState = mode == Mode.CANDIDATE ? clusterStateWithNoMasterBlock(committedState) : committedState;
             updateSingleNodeClusterChecker(); // in case nodes increase/decrease, possibly update the single-node checker
@@ -492,6 +512,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
             ensureTermAtLeast(sourceNode, newClusterState.term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
+            // Since the coordination state changed, we update accordingly
+            unsynchronisedLastAcceptedClusterState = coordinationState.get().getLastAcceptedState();
+            unsynchronisedCurrentTerm = coordinationState.get().getCurrentTerm();
 
             if (sourceNode.equals(getLocalNode())) {
                 preVoteCollector.update(getPreVoteResponse(), getLocalNode());
@@ -1147,6 +1170,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         synchronized (mutex) {
             CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
             coordinationState.set(new CoordinationState(getLocalNode(), persistedState, electionStrategy));
+            // Since the coordination state changed, we update accordingly
+            unsynchronisedLastAcceptedClusterState = persistedState.getLastAcceptedState();
+            unsynchronisedCurrentTerm = persistedState.getCurrentTerm();
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
@@ -1380,6 +1406,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             metadataBuilder.coordinationMetadata(coordinationMetadata);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metadata(metadataBuilder).build());
+            // Since the coordination state changed, we update accordingly
+            unsynchronisedLastAcceptedClusterState = coordinationState.get().getLastAcceptedState();
+            unsynchronisedCurrentTerm = coordinationState.get().getCurrentTerm();
+
             var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
             assert nodeEligibility.mayWin()
                 : "initial state does not allow local node to win election, reason: "

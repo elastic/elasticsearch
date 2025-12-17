@@ -11,7 +11,7 @@ import org.elasticsearch.TransportVersion;
 
 /**
  * ESQL sometimes can only create query plans in a certain way if all nodes in the cluster (and participating remotes)
- * are at a certain minimum transport version. This is a wrapper to carry the minimum veresion along with objects that
+ * are at a certain minimum transport version. This is a wrapper to carry the minimum version along with objects that
  * get created during planning. Where this object gets consumed, we need to assume that all nodes are at the minimum
  * transport version, so that we don't use features not supported everywhere.
  *

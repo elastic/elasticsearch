@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -454,21 +453,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         reason = in.readOptionalString();
         allocationStatus = in.readOptionalWriteable(AllocationStatus::new);
         cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            priority = in.readEnum(Priority.class);
-        } else {
-            priority = Priority.NORMAL;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            deploymentId = in.readString();
-        } else {
-            deploymentId = modelId;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-        } else {
-            adaptiveAllocationsSettings = null;
-        }
+        priority = in.readEnum(Priority.class);
+        deploymentId = in.readString();
+        adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
     }
 
     public String getDeploymentId() {
@@ -641,15 +628,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(allocationStatus);
         out.writeOptionalWriteable(cacheSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            out.writeEnum(priority);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeString(deploymentId);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(adaptiveAllocationsSettings);
-        }
+        out.writeEnum(priority);
+        out.writeString(deploymentId);
+        out.writeOptionalWriteable(adaptiveAllocationsSettings);
     }
 
     @Override

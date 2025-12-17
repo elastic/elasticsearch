@@ -112,7 +112,7 @@ PUT my-index-000001/_doc/2
 2. Count for each bucket. Values in the arrays are treated as long integers and must be positive or zero. Negative values will be rejected. The relation between a bucket and a count is given by the position in the array.
 
 ### Coercion from exponential histogram [histogram-coercion]
-```{appliest_to}
+```{applies_to}
 stack: preview 9.3
 serverless: preview
 ```

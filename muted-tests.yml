@@ -388,9 +388,6 @@ tests:
 - class: org.elasticsearch.xpack.core.security.authc.AuthenticationTests
   method: testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata
   issue: https://github.com/elastic/elasticsearch/issues/139167
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139195
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/139196
@@ -403,9 +400,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit array synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/139300
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139335
 - class: org.elasticsearch.xpack.downsample.DownsampleIT
   method: testAggregateMethod
   issue: https://github.com/elastic/elasticsearch/issues/139382
@@ -430,9 +424,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testReductionPlanForTopNWithPushedDownFunctions
   issue: https://github.com/elastic/elasticsearch/issues/139493
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139527
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/139482

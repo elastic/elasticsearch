@@ -921,7 +921,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
 
         continueOrDie(clusterStateResponseStepListener, clusterStateResponse -> {
-            final ShardRouting shardToRelocate = clusterStateResponse.getState().routingTable().allShards(index).get(0);
+            final ShardRouting shardToRelocate = clusterStateResponse.getState()
+                .routingTable()
+                .allShards(index)
+                .stream()
+                .filter(ShardRouting::primary)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no primary shard found"));
             final SnapshotResiliencyTestHelper.TestClusterNode currentPrimaryNode = testClusterNodes.nodeById(
                 shardToRelocate.currentNodeId()
             );
@@ -976,9 +982,31 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                         ActionListener.noop()
                                     )
                             );
-                        } else {
-                            scheduleSoon(this);
-                        }
+                        } else if (shardRouting.started()
+                            && shardRouting.currentNodeId().equals(currentPrimaryNode.node().getId()) == false) {
+                                assertTrue(DiscoveryNode.isStateless(masterNode.settings));
+                                if (masterNodeCount > 1) {
+                                    scheduleNow(() -> testClusterNodes.stopNode(masterNode));
+                                }
+                                testClusterNodes.randomDataNodeSafe()
+                                    .client()
+                                    .admin()
+                                    .cluster()
+                                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                                    .execute(ActionListener.running(() -> {
+                                        createdSnapshot.set(true);
+                                        testClusterNodes.randomDataNodeSafe()
+                                            .client()
+                                            .admin()
+                                            .cluster()
+                                            .deleteSnapshot(
+                                                new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName),
+                                                ActionListener.noop()
+                                            );
+                                    }));
+                            } else {
+                                scheduleSoon(this);
+                            }
                     });
                 }
             });

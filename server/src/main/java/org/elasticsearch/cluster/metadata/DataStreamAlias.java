@@ -275,7 +275,12 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             if (dataStream.equals(writeDataStream)) {
                 writeDataStream = null;
             }
-            return new DataStreamAlias(name, List.copyOf(dataStreams), dataStreamToFilterMap, writeDataStream);
+            Map<String, CompressedXContent> updatedDataStreamMap = dataStreamToFilterMap;
+            if (dataStreamToFilterMap.containsKey(dataStream)) {
+                updatedDataStreamMap = new HashMap<>(dataStreamToFilterMap);
+                updatedDataStreamMap.remove(dataStream);
+            }
+            return new DataStreamAlias(name, List.copyOf(dataStreams), updatedDataStreamMap, writeDataStream);
         }
     }
 

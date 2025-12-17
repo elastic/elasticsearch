@@ -1,0 +1,5 @@
+pr: 139669
+summary: Upgrade Netty to 4.1.130.Final
+area: Security
+type: upgrade
+issues: []

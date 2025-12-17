@@ -133,6 +133,15 @@ public final class DocumentParser {
         };
     }
 
+    private static void skipChildren(DocumentParserContext context) throws IOException {
+        boolean withinLeafObject = context.path().isWithinLeafObject();
+        // treat everything as leaf while skipping children, this allows parser decorators
+        // to implement custom skip logic for children with DotExpandingXContentParser
+        context.path().setWithinLeafObject(true);
+        context.parser().skipChildren();
+        context.path().setWithinLeafObject(withinLeafObject);
+    }
+
     private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
         try {
             final boolean emptyDoc = isEmptyDoc(context.root(), context.parser());
@@ -153,7 +162,7 @@ public final class DocumentParser {
                         )
                     );
                 } else {
-                    context.parser().skipChildren();
+                    skipChildren(context);
                 }
             } else if (emptyDoc == false) {
                 parseObjectOrNested(context);
@@ -303,7 +312,7 @@ public final class DocumentParser {
                     )
                 );
             } else {
-                parser.skipChildren();
+                skipChildren(context);
             }
             return;
         }
@@ -564,7 +573,7 @@ public final class DocumentParser {
                 );
             } else {
                 // not dynamic, read everything up to end object
-                context.parser().skipChildren();
+                skipChildren(context);
             }
         } else {
             Mapper dynamicObjectMapper;
@@ -603,7 +612,7 @@ public final class DocumentParser {
             if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
                 if (context.addDynamicMapper(dynamicObjectMapper) == false) {
                     failIfMatchesRoutingPath(context, currentFieldName);
-                    context.parser().skipChildren();
+                    skipChildren(context);
                     return;
                 }
             }
@@ -657,7 +666,7 @@ public final class DocumentParser {
                     )
                 );
             } else {
-                context.parser().skipChildren();
+                skipChildren(context);
             }
             return;
         }
@@ -705,7 +714,7 @@ public final class DocumentParser {
         } else {
             if (parsesArrayValue(objectMapperFromTemplate)) {
                 if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
-                    context.parser().skipChildren();
+                    skipChildren(context);
                     return;
                 }
                 context.path().add(currentFieldName);

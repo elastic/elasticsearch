@@ -23,20 +23,24 @@ public interface BytesRefHashTable extends Accountable, Releasable {
     /** Gets the key at the given id value. */
     BytesRef get(long id, BytesRef dest);
 
-    /** Finds the id from the given key value. */
+    /**
+     * Finds the id associated with the given key, or -1 is the key is
+     * not contained in the hash.
+     */
     long find(BytesRef key);
 
     /**
-     * Adds the given key to the table. Returns -1 if the key is already
-     * present, otherwise returns the next id.
+     * Adds the given key to the table. Return its newly allocated id if
+     * it wasn't in the table yet, or {@code -1-id} if it was already
+     * present in the table.
      */
     long add(BytesRef key);
 
     /**
      * Adds the given keys to the table. Id's are stored in the given ids
-     * long array. Each element in the id array is
-     * Returns -1 if the key is already
-     * present, otherwise returns the next id.
+     * array. Each element in the id array is either the newly allocated
+     * id if the key wasn't in the table yet, or {@code -1-id} if it was
+     * already present in the table.
      */
     void add(BytesRef[] keys, long[] ids);
 

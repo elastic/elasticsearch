@@ -94,11 +94,11 @@ public class BytesRefSwissHashTests extends ESTestCase {
                         assertThat(hash.add(v[i]), equalTo((long) i));
                         assertThat(hash.size(), equalTo(i + 1L));
                         assertThat(hash.get(i, scratch), equalTo(v[i]));
-                        assertThat(hash.add(v[i]), equalTo((long) i));
+                        assertThat(hash.add(v[i]), equalTo(-1L - i));
                         assertThat(hash.size(), equalTo(i + 1L));
                     }
                     for (int i = 0; i < v.length; i++) {
-                        assertThat(hash.add(v[i]), equalTo((long) i));
+                        assertThat(hash.add(v[i]), equalTo(-1L - i));
                     }
                     assertThat(hash.size(), equalTo((long) v.length));
                 }
@@ -109,7 +109,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
                     assertThat(hash.size(), equalTo((long) v.length));
                     Arrays.fill(ids, 0);
                     hash.add(v, ids);
-                    assertThat(ids, equalTo(LongStream.range(0, count).toArray()));
+                    assertThat(ids, equalTo(LongStream.range(0, count).map(i -> -1 - i).toArray()));
                     assertThat(hash.size(), equalTo((long) v.length));
                 }
                 default -> throw new IllegalArgumentException();

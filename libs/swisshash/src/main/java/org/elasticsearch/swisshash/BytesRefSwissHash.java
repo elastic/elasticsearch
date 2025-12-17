@@ -280,7 +280,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                     size++;
                     return nextId;
                 } else if (hash(value) == hash && matches(key, id)) {
-                    return id;
+                    return -1 - id;
                 }
             }
         }
@@ -426,7 +426,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                     final long value = idAndHash(checkSlot);
                     final int id = id(value);
                     if (hash(value) == hash && matches(key, id)) {
-                        return id;
+                        return -1 - id;
                     }
                     matches &= matches - 1; // clear the first set bit and try again
                 }

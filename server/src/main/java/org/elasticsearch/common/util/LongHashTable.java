@@ -21,12 +21,16 @@ public interface LongHashTable extends Releasable {
     /** Gets a key from the given id value. */
     long get(long id);
 
-    /** Finds the id from the given key value. */
+    /**
+     * Finds the id associated with the given key, or -1 is the key is
+     * not contained in the hash.
+     */
     long find(long key);
 
     /**
-     * Adds the given key to the table. Returns -1 if the key is already
-     * present, otherwise returns the next id.
+     * Adds the given key to the table. Return its newly allocated id if
+     * it wasn't in the table yet, or {@code -1-id} if it was already
+     * present in the table.
      */
     long add(long key);
 

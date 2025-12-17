@@ -276,7 +276,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
                 if (currentId >= 0) {
                     final long currentKey = key(currentId);
                     if (currentKey == key) {
-                        return currentId;
+                        return -1 - currentId;
                     }
                     slot = slot(slot + 1);
                 } else {
@@ -482,7 +482,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
                     final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
                     final int id = id(checkSlot);
                     if (key(id) == key) {
-                        return id;
+                        return -1 - id;
                     }
                     matches &= matches - 1; // clear the first set bit and try again
                 }

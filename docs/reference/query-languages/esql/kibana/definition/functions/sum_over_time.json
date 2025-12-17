@@ -93,6 +93,24 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the sum over time"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
     }
   ],
   "examples" : [

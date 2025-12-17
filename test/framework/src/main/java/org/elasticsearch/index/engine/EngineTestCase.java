@@ -35,7 +35,6 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
@@ -60,6 +59,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -189,7 +189,7 @@ public abstract class EngineTestCase extends ESTestCase {
             engine.refresh("test");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+            Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
             assertThat(totalHits, equalTo(numDocs));
         }
     }
@@ -1019,7 +1019,7 @@ public abstract class EngineTestCase extends ESTestCase {
             engine.refresh("test");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+            Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
             assertThat(totalHits, equalTo(numDocs));
         }
     }
@@ -1662,7 +1662,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (randomBoolean()) {
             return reader -> reader;
         } else {
-            return reader -> new MatchingDirectoryReader(reader, new MatchAllDocsQuery());
+            return reader -> new MatchingDirectoryReader(reader, Queries.ALL_DOCS_INSTANCE);
         }
     }
 
@@ -1707,7 +1707,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected static CodecService newCodecService() {
-        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
+        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     /**

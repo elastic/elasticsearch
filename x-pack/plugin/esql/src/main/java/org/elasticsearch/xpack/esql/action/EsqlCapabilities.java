@@ -19,8 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT;
-
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -960,6 +958,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_V0,
 
         /**
+         * Support running all aggregations on aggregate_metric_double using the default metric
+         */
+        AGGREGATE_METRIC_DOUBLE_DEFAULT_METRIC,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1536,6 +1539,12 @@ public class EsqlCapabilities {
         TS_RATE_DATENANOS,
         TS_RATE_DATENANOS_2,
         TS_DERIV_DATENANOS,
+
+        /**
+         * Rate and increase calculations use interpolation at the boundaries between time buckets
+         */
+        RATE_WITH_INTERPOLATION,
+
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1595,7 +1604,15 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
 
-        TDIGEST_FIELD_TYPE_SUPPORT_V3(T_DIGEST_ESQL_SUPPORT),
+        /**
+         * Support for the T-Digest elasticsearch field mapper and ES|QL type when they were released into tech preview.
+         */
+        TDIGEST_TECH_PREVIEW,
+
+        /**
+         * Development capability for the histogram field integration
+         */
+        HISTOGRAM_FIELD_SUPPORT_V0,
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1742,6 +1759,13 @@ public class EsqlCapabilities {
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 
         /**
+         * Fix for circular reference in alias chains during PushDownEnrich and aggregate deduplication.
+         * Prevents "Potential cycle detected" errors when aliases reference each other.
+         * https://github.com/elastic/elasticsearch/issues/138346
+         */
+        FIX_ENRICH_ALIAS_CYCLE_IN_DEDUPLICATE_AGGS,
+
+        /**
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,
@@ -1750,6 +1774,18 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/138283
          */
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
+
+        /**
+         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval} replaced a stats
+         * with false filter with null with {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Present} or
+         * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
+         */
+        FIX_PRESENT_AND_ABSENT_ON_STATS_WITH_FALSE_FILTER,
+
+        /**
+         * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
+         */
+        FN_MV_INTERSECTION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

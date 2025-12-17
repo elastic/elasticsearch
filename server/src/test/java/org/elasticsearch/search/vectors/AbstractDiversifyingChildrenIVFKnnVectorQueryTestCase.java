@@ -30,7 +30,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -47,6 +46,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.junit.Before;
 
@@ -154,7 +154,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
                 assertEquals(0, topDocs.scoreDocs.length);
 
                 // Test with match_all filter and large k to test exact search
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, new MatchAllDocsQuery(), 10, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, Queries.ALL_DOCS_INSTANCE, 10, parentFilter);
                 topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value());
                 assertEquals(0, topDocs.scoreDocs.length);
@@ -195,7 +195,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
                 assertEquals(0, topDocs.scoreDocs.length);
 
                 // Test with match_all filter and large k to test exact search
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, new MatchAllDocsQuery(), 10, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, Queries.ALL_DOCS_INSTANCE, 10, parentFilter);
                 topDocs = searcher.search(query, 3);
                 assertEquals(0, topDocs.totalHits.value());
                 assertEquals(0, topDocs.scoreDocs.length);
@@ -257,10 +257,10 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter);
                 assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, new MatchAllDocsQuery(), 20, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 20, parentFilter);
                 assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
 
-                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, new MatchAllDocsQuery(), 1, parentFilter);
+                query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 1, parentFilter);
                 assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1);
             }
         }

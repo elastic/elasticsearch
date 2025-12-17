@@ -1,6 +1,0 @@
-pr: 139687
-summary: "Fix flaky test: Text similarity reranker with `min_score` zero includes\
-  \ all docs"
-area: Relevance
-type: bug
-issues: []

@@ -42,6 +42,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -193,12 +194,14 @@ public class EsqlSession {
         PlanRunner planRunner,
         ActionListener<Versioned<Result>> listener
     ) {
+        executionInfo.planningProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        executionInfo.markBeginParsing();
+        PlanningProfile.TimeSpanMarker parsingProfile = executionInfo.planningProfile().parsing();
+        parsingProfile.start();
         EsqlStatement statement = parse(request);
-        executionInfo.markEndParsing();
+        parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
         Configuration configuration = new Configuration(
             request.timeZone() == null
@@ -576,8 +579,10 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        executionInfo.markBeginPreAnalysis();
+        PlanningProfile.TimeSpanMarker preAnalysisProfile = executionInfo.planningProfile().preAnalysis();
+        preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
@@ -607,6 +612,8 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
+        PlanningProfile.TimeSpanMarker dependencyResolutionProfile = executionInfo.planningProfile().dependencyResolution();
+        dependencyResolutionProfile.start();
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {
@@ -669,7 +676,7 @@ public class EsqlSession {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
-                executionInfo.markEndPreAnalysis();
+                dependencyResolutionProfile.stop();
                 analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
             })
             .addListener(logicalPlanListener);
@@ -1046,7 +1053,6 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> listener
     ) {
         LOGGER.debug("Analyzing the plan ({})", description);
-        executionInfo.markBeginAnalysis();
         try {
             if (result.indexResolution.values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
@@ -1057,8 +1063,10 @@ public class EsqlSession {
                     requestFilter != null
                 );
             }
+            PlanningProfile.TimeSpanMarker analysisProfile = executionInfo.planningProfile().analysis();
+            analysisProfile.start();
             LogicalPlan plan = analyzedPlan(parsed, configuration, result, executionInfo);
-            executionInfo.markEndAnalysis();
+            analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
             listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));

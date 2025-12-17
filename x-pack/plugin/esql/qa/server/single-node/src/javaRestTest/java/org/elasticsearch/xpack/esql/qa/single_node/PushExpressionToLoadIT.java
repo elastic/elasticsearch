@@ -765,6 +765,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("planning", matchesMap().extraOk())
                     .entry("parsing", matchesMap().extraOk())
                     .entry("preanalysis", matchesMap().extraOk())
+                    .entry("dependency_resolution", matchesMap().extraOk())
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
                     .entry("minimumTransportVersion", instanceOf(Integer.class))

@@ -63,6 +63,9 @@ abstract class KMeansLocal {
         float soarLambda
     ) throws IOException;
 
+    /** compute the neighborhoods for the given centroids and clustersPerNeighborhood */
+    protected abstract NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException;
+
     /**
      * uses a Reservoir Sampling approach to picking the initial centroids which are subsequently expected
      * to be used by a clustering algorithm
@@ -379,7 +382,7 @@ abstract class KMeansLocal {
         NeighborHood[] neighborhoods = null;
         // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
         if (neighborAware && centroids.length > clustersPerNeighborhood) {
-            neighborhoods = NeighborHood.computeNeighborhoods(centroids, clustersPerNeighborhood);
+            neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
         }
         cluster(vectors, kMeansIntermediate, neighborhoods);
         if (neighborAware && soarLambda >= 0) {

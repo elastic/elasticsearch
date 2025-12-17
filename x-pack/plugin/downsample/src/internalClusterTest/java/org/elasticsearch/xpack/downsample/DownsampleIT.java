@@ -646,7 +646,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         final double[] array = new double[size];
         double minHistogramValue = randomDoubleBetween(0.0, 0.1, true);
         for (int i = 0; i < array.length; i++) {
-            array[i] = minHistogramValue += randomDoubleBetween(1.0, 10.0, true);
+            array[i] = minHistogramValue += randomDoubleBetween(0.1, 10.0, true);
         }
         return array;
     }

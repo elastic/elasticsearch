@@ -164,6 +164,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "histogram",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "the metric field to calculate the value for"

@@ -12,13 +12,24 @@ package org.elasticsearch.search.msearch;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -117,6 +128,92 @@ public class MultiSearchIT extends ESIntegTestCase {
                     response.getResponses()[2].getFailure().getMessage().contains("the 'search.check_ccs_compatibility' setting is enabled")
                 );
             }
+        );
+    }
+
+    public void testMrtValuesArePickedCorrectly() throws IOException {
+
+        {
+            // If no MRT is specified, all searches should default to true.
+            String body = """
+                {"index": "index-1" }
+                {"query" : {"match" : { "message": "this is a test"}}}
+                {"index": "index-2" }
+                {"query" : {"match_all" : {}}}
+                """;
+
+            MultiSearchRequest mreq = parseRequest(body, Map.of());
+            for (SearchRequest req : mreq.requests()) {
+                assertTrue(req.isCcsMinimizeRoundtrips());
+            }
+        }
+
+        {
+            // MRT query param is false, so all searches should use this value.
+            String body = """
+                {"index": "index-1" }
+                {"query" : {"match" : { "message": "this is a test"}}}
+                {"index": "index-2" }
+                {"query" : {"match_all" : {}}}
+                """;
+
+            MultiSearchRequest mreq = parseRequest(body, Map.of("ccs_minimize_roundtrips", "false"));
+            for (SearchRequest req : mreq.requests()) {
+                assertFalse(req.isCcsMinimizeRoundtrips());
+            }
+        }
+
+        {
+            // Query param is absent but MRT is specified for each request.
+            String body = """
+                {"index": "index-1", "ccs_minimize_roundtrips": false }
+                {"query" : {"match" : { "message": "this is a test"}}}
+                {"index": "index-2", "ccs_minimize_roundtrips": false }
+                {"query" : {"match_all" : {}}}
+                """;
+
+            MultiSearchRequest mreq = parseRequest(body, Map.of());
+            for (SearchRequest req : mreq.requests()) {
+                assertFalse(req.isCcsMinimizeRoundtrips());
+            }
+        }
+
+        {
+            /*
+             * The first request overrides the query param and should use MRT=true.
+             * The second request should use the query param value.
+             */
+            String body = """
+                {"index": "index-1", "ccs_minimize_roundtrips": true }
+                {"query" : {"match" : { "message": "this is a test"}}}
+                {"index": "index-2" }
+                {"query" : {"match_all" : {}}}
+                """;
+
+            MultiSearchRequest mreq = parseRequest(body, Map.of("ccs_minimize_roundtrips", "false"));
+
+            assertThat(mreq.requests().size(), Matchers.is(2));
+            assertTrue(mreq.requests().getFirst().isCcsMinimizeRoundtrips());
+            assertFalse(mreq.requests().getLast().isCcsMinimizeRoundtrips());
+        }
+    }
+
+    private RestRequest mkRequest(String body, Map<String, String> params) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/index*/_msearch")
+            .withParams(params)
+            .withContent(new BytesArray(body), XContentType.JSON)
+            .build();
+    }
+
+    private MultiSearchRequest parseRequest(String body, Map<String, String> params) throws IOException {
+        return RestMultiSearchAction.parseRequest(
+            mkRequest(body, params),
+            true,
+            new UsageService().getSearchUsageHolder(),
+            (ignored) -> true,
+            // Disable CPS for these tests.
+            Optional.of(false)
         );
     }
 }

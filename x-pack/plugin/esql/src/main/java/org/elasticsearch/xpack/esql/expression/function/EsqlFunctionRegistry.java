@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBas
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -505,6 +506,7 @@ public class EsqlFunctionRegistry {
                 def(ToLongSurrogate.class, ToLongSurrogate::new, "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),
+                def(ToTDigest.class, ToTDigest::new, "to_tdigest"),
                 def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
                 def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
                 def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
@@ -553,7 +555,7 @@ public class EsqlFunctionRegistry {
                 def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, bi(SumOverTime::new), "sum_over_time"),
-                def(StdDevOverTime.class, bi(StdDevOverTime::new), "stddev_over_time"),
+                def(StddevOverTime.class, bi(StddevOverTime::new), "stddev_over_time"),
                 def(VarianceOverTime.class, bi(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
                 def(CountOverTime.class, bi(CountOverTime::new), "count_over_time"),
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),

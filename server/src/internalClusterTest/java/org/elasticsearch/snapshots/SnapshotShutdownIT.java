@@ -758,10 +758,18 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         nodeRoleCombinationsToTest.add(nodeRoles);
         logger.info("Testing {} roles", nodeRoles);
 
+        mockLog.addExpectation(
+            new MockLog.PatternNotSeenEventExpectation(
+                "Expect SnapshotShutdownProgressTracker to not run",
+                SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                Level.INFO,
+                "Shard snapshot completion stats since shutdown began*"
+            )
+        );
+
         // Now test each combination of node roles
         for (List<String> roles : nodeRoleCombinationsToTest) {
             String nodeRolesString = String.join(",", roles);
-
             final var nodeName = internalCluster().startNode(
                 // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
                 Settings.builder()
@@ -770,23 +778,11 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                     .build()
             );
 
-            mockLog.addExpectation(
-                new MockLog.PatternNotSeenEventExpectation(
-                    "Expect SnapshotShutdownProgressTracker to not run for node roles " + nodeRolesString,
-                    SnapshotShutdownProgressTracker.class.getCanonicalName(),
-                    Level.INFO,
-                    "Shard snapshot completion stats since shutdown began*"
-                )
-            );
-
             // Put shutdown metadata to trigger shutdown progress tracker
             final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
             putShutdownForRemovalMetadata(nodeName, clusterService);
-
-            // Wait for log expectation to be matched
-            mockLog.awaitAllExpectationsMatchedShort();
-            resetMockLog();
         }
+        mockLog.awaitAllExpectationsMatched();
     }
 
     /**
@@ -813,8 +809,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         putShutdownForRemovalMetadata(nodeName, clusterService);
 
         // Wait for log expectation to be matched
-        mockLog.awaitAllExpectationsMatchedShort();
-        resetMockLog();
+        mockLog.awaitAllExpectationsMatched();
     }
 
     private static void addUnassignedShardsWatcher(ClusterService clusterService, String indexName) {

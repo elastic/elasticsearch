@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -123,5 +126,103 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
     @Override
     public Builder builder(BlockFactory factory, int expectedCount) {
         return factory.aggregateMetricDoubleBuilder(expectedCount);
+    }
+
+    public static class AvgBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+        NumberFieldMapper.NumberFieldType sumFieldType;
+        NumberFieldMapper.NumberFieldType countFieldType;
+
+        AvgBlockLoader(EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> availableMetrics) {
+            if (availableMetrics.containsKey(AggregateMetricDoubleFieldMapper.Metric.sum) == false
+                || availableMetrics.containsKey(AggregateMetricDoubleFieldMapper.Metric.value_count) == false) {
+                sumFieldType = null;
+                countFieldType = null;
+            } else {
+                sumFieldType = availableMetrics.get(AggregateMetricDoubleFieldMapper.Metric.sum);
+                countFieldType = availableMetrics.get(AggregateMetricDoubleFieldMapper.Metric.value_count);
+            }
+        }
+
+        static NumericDocValues getNumericDocValues(NumberFieldMapper.NumberFieldType field, LeafReader leafReader) throws IOException {
+            if (field == null) {
+                return null;
+            }
+            String fieldName = field.name();
+            var values = leafReader.getNumericDocValues(fieldName);
+            if (values != null) {
+                return values;
+            }
+            var sortedValues = leafReader.getSortedNumericDocValues(fieldName);
+            return DocValues.unwrapSingleton(sortedValues);
+        }
+
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
+            NumericDocValues sumValues = getNumericDocValues(sumFieldType, context.reader());
+            NumericDocValues valueCountValues = getNumericDocValues(countFieldType, context.reader());
+            return new BlockDocValuesReader() {
+                private int docID = -1;
+
+                @Override
+                protected int docId() {
+                    return docID;
+                }
+
+                @Override
+                public String toString() {
+                    return "BlockDocValuesReader.AggregateMetricDoubleAvg";
+                }
+
+                @Override
+                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                    int expectedCount = docs.count() - offset;
+                    if (sumValues == null || valueCountValues == null) {
+                        return factory.constantNulls(expectedCount);
+                    }
+                    try (DoubleBuilder builder = factory.doublesFromDocValues(expectedCount)) {
+                        int lastDoc = -1;
+
+                        for (int i = offset; i < docs.count(); i++) {
+                            int doc = docs.get(i);
+                            if (doc < lastDoc) {
+                                throw new IllegalStateException("docs within same block must be in order");
+                            }
+                            boolean advance = sumValues.advanceExact(doc);
+                            advance = valueCountValues.advanceExact(doc) && advance;
+                            if (advance) {
+                                this.docID = doc;
+                                lastDoc = doc;
+                                double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                                int count = Math.toIntExact(valueCountValues.longValue());
+                                builder.appendDouble(sum / count);
+                            } else {
+                                builder.appendNull();
+                            }
+                        }
+                        return builder.build();
+                    }
+                }
+
+                @Override
+                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                    DoubleBuilder blockBuilder = (DoubleBuilder) builder;
+                    boolean advance = sumValues.advanceExact(docId);
+                    advance = valueCountValues.advanceExact(docId) && advance;
+                    if (advance) {
+                        this.docID = docId;
+                        var sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                        var count = Math.toIntExact(valueCountValues.longValue());
+                        blockBuilder.appendDouble(sum / count);
+                    } else {
+                        blockBuilder.appendNull();
+                    }
+                }
+            };
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return null;
+        }
     }
 }

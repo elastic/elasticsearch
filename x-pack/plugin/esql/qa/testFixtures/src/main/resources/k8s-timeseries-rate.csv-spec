@@ -165,6 +165,7 @@ rate_bytes:double | cluster:keyword | time_bucket:datetime     | rate_kb:double
 rate_of_aggregate_metric
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+required_capability: aggregate_metric_double_avg_as_default_metric
 
 TS k8s-downsampled
 | STATS sum_bytes = sum(rate(network.total_bytes_in)),

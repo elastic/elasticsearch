@@ -460,6 +460,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testReadNonExistingPath
   issue: https://github.com/elastic/elasticsearch/issues/139665
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/40_unsupported_types/unsupported}
+  issue: https://github.com/elastic/elasticsearch/issues/139701
 
 # Examples:
 #

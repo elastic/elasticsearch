@@ -21,6 +21,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -28,8 +31,20 @@ import static co.elastic.elasticsearch.stateless.autoscaling.DesiredClusterTopol
 
 public class DesiredToplogyContextTests extends ESTestCase {
 
+    private ThreadPool testThreadPool;
+
+    @Before
+    private void setup() {
+        testThreadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void cleanup() {
+        testThreadPool.shutdownNow();
+    }
+
     public void testListenerCalledWhenTopologyPopulated() {
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(new TestThreadPool(getTestName()));
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         DesiredTopologyContext context = new DesiredTopologyContext(clusterService);
 
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
@@ -46,7 +61,7 @@ public class DesiredToplogyContextTests extends ESTestCase {
     }
 
     public void testOnMasterClearsStaleTopology() {
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(new TestThreadPool(getTestName()));
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         DesiredTopologyContext context = new DesiredTopologyContext(clusterService);
 
         context.updateDesiredClusterTopology(randomDesiredClusterTopology());
@@ -57,7 +72,7 @@ public class DesiredToplogyContextTests extends ESTestCase {
     }
 
     public void testOffMasterClearsTopology() {
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(new TestThreadPool(getTestName()));
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         DesiredTopologyContext context = new DesiredTopologyContext(clusterService);
 
         context.updateDesiredClusterTopology(randomDesiredClusterTopology());

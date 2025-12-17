@@ -36,10 +36,17 @@ public final class DefaultSamlAuthenticateResponseHandler implements SamlAuthent
     ) {
         @SuppressWarnings("unchecked")
         final Map<String, Object> tokenMeta = (Map<String, Object>) authenticationResult.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
+        final String inResponseTo = (String) tokenMeta.get(SamlRealm.TOKEN_METADATA_IN_RESPONSE_TO);
         tokenService.createOAuth2Tokens(authentication, originatingAuthentication, tokenMeta, true, ActionListener.wrap(tokenResult -> {
             final TimeValue expiresIn = tokenService.getExpirationDelay();
             listener.onResponse(
-                new SamlAuthenticateResponse(authentication, tokenResult.getAccessToken(), tokenResult.getRefreshToken(), expiresIn)
+                new SamlAuthenticateResponse(
+                    authentication,
+                    tokenResult.getAccessToken(),
+                    tokenResult.getRefreshToken(),
+                    expiresIn,
+                    inResponseTo
+                )
             );
         }, listener::onFailure));
     }

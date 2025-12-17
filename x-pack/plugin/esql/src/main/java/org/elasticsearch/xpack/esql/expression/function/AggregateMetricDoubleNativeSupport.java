@@ -5,9 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.plugin;
+package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.plugins.ExtensiblePlugin;
-import org.elasticsearch.plugins.Plugin;
-
-public class EsqlCorePlugin extends Plugin implements ExtensiblePlugin {}
+/**
+ * Marker interface to say that an aggregate funciton supports aggregate_metric_double natively
+ * i.e. max, min, sum, count, avg
+ */
+public interface AggregateMetricDoubleNativeSupport {}

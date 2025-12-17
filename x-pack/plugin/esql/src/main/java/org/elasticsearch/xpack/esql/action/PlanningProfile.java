@@ -20,6 +20,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Tracks profiling for the planning phase
+ */
 public class PlanningProfile implements Writeable, ToXContentFragment {
 
     public static final String PLANNING = "planning";

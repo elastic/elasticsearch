@@ -466,6 +466,9 @@ tests:
 - class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/139658
+- class: org.elasticsearch.smoketest.WatcherYamlRestIT
+  method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
+  issue: https://github.com/elastic/elasticsearch/issues/139663
 
 # Examples:
 #

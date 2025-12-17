@@ -283,7 +283,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
     }
 
-    private static class SparseInferenceRewriteAction extends QueryRewriteAsyncAction<TextExpansionResults> {
+    private static class SparseInferenceRewriteAction extends QueryRewriteAsyncAction<TextExpansionResults, SparseInferenceRewriteAction> {
 
         private final String inferenceId;
         private final String query;
@@ -345,16 +345,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         @Override
-        public int hashCode() {
+        public int doHashCode() {
             return Objects.hash(inferenceId, query);
         }
 
         @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof SparseInferenceRewriteAction == false) {
-                return false;
-            }
-            SparseInferenceRewriteAction other = (SparseInferenceRewriteAction) obj;
+        public boolean doEquals(SparseInferenceRewriteAction other) {
             return Objects.equals(inferenceId, other.inferenceId) && Objects.equals(query, other.query);
         }
     }

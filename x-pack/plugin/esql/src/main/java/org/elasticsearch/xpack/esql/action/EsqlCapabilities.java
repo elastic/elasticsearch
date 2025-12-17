@@ -1781,6 +1781,11 @@ public class EsqlCapabilities {
          */
         FN_MV_INTERSECTION,
 
+        /**
+         * Support for the MV_UNION function which returns the set union of two multivalued fields
+         */
+        FN_MV_UNION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

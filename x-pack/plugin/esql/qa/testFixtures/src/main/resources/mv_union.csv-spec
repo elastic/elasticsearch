@@ -1,0 +1,207 @@
+testMvUnionWithIntValues
+required_capability: fn_mv_union
+// tag::testMvUnionWithIntValues[]
+ROW a = [1, 2, 3, 4, 5], b = [2, 3, 4, 5, 6]
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue
+// end::testMvUnionWithIntValues[]
+;
+// tag::testMvUnionWithIntValues-result[]
+finalValue:integer 
+[1, 2, 3, 4, 5, 6]
+// end::testMvUnionWithIntValues-result[]
+;
+
+testMvUnionWithLongValues
+required_capability: fn_mv_union
+// tag::testMvUnionWithLongValues[]
+ROW a = [1, 2, 3, 4, 5]::long, b = [2, 3, 4, 5, 6]::long
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue
+// end::testMvUnionWithLongValues[]
+;
+// tag::testMvUnionWithLongValues-result[]
+finalValue:long 
+[1, 2, 3, 4, 5, 6]
+// end::testMvUnionWithLongValues-result[]
+;
+
+testMvUnionWithBooleanValues
+required_capability: fn_mv_union
+// tag::testMvUnionWithBooleanValues[]
+ROW a = [true, false], b = [false]
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue
+// end::testMvUnionWithBooleanValues[]
+;
+// tag::testMvUnionWithBooleanValues-result[]
+finalValue:boolean 
+[true, false]
+// end::testMvUnionWithBooleanValues-result[]
+;
+
+testMvUnionWithDoubleValues
+required_capability: fn_mv_union
+// tag::testMvUnionWithDoubleValues[]
+ROW a = [5.2, 10.5, 1.12345], b = [10.5, 2.6928]
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue
+// end::testMvUnionWithDoubleValues[]
+;
+// tag::testMvUnionWithDoubleValues-result[]
+finalValue:double 
+[5.2, 10.5, 1.12345, 2.6928]
+// end::testMvUnionWithDoubleValues-result[]
+;
+
+testMvUnionWithBytesRefValues
+required_capability: fn_mv_union
+// tag::testMvUnionWithBytesRefValues[]
+ROW a = ["one", "two", "three"], b = ["two", "four"]
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue
+// end::testMvUnionWithBytesRefValues[]
+;
+// tag::testMvUnionWithBytesRefValues-result[]
+finalValue:keyword
+["one", "two", "three", "four"]
+// end::testMvUnionWithBytesRefValues-result[]
+;
+
+testMvUnionGeoPoint
+required_capability: fn_mv_union
+
+ROW a = ["POINT(42.97109629958868 14.7552534006536)", "POINT(23.23 14.7)"]::geo_point, b = ["POINT(42.97109629958868 14.7552534006536)", "POINT(12.12 11.22)"]::geo_point
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue;
+
+finalValue:geo_point
+["POINT (42.97109629958868 14.7552534006536)", "POINT (23.23 14.7)", "POINT (12.12 11.22)"]
+;
+
+testMvUnionGeoShape
+required_capability: fn_mv_union
+
+ROW a = ["POLYGON((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9))","POLYGON((1 1, 9 1, 9 9, 1 9, 1 1))"], b = ["POLYGON((-5 -5, -1 -5, -1 -1, -5 -1, -5 -5))","POLYGON((1 1, 9 1, 9 9, 1 9, 1 1))"]
+| EVAL finalValue = MV_UNION(TO_GEOSHAPE(a), TO_GEOSHAPE(b)) 
+| KEEP finalValue;
+
+finalValue:geo_shape
+["POLYGON((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9))", "POLYGON((1 1, 9 1, 9 9, 1 9, 1 1))", "POLYGON((-5 -5, -1 -5, -1 -1, -5 -1, -5 -5))"]
+;
+
+testMvUnionIp
+required_capability: fn_mv_union
+
+ROW a = ["1.1.1.1", "2.2.2.2"]::ip, b = ["3.3.3.3", "2.2.2.2"]::ip
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue;
+
+finalValue:ip
+["1.1.1.1", "2.2.2.2", "3.3.3.3"]
+;
+
+testMvUnionVersion
+required_capability: fn_mv_union
+
+ROW a = ["1.2.3", "9.3.0"]::version, b = ["4.5", "9.3.0"]::version
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue;
+
+finalValue:version
+["1.2.3", "9.3.0", "4.5"]
+;
+
+testMvUnionWithSingleValueParam
+required_capability: fn_mv_union
+
+ROW a = 4, b = [4, 5, 6, 7]
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+[4, 5, 6, 7]
+;
+
+testMvUnionWithSecondSingleValueParam
+required_capability: fn_mv_union
+
+ROW a = [1, 2, 3, 4], b = 5
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+[1, 2, 3, 4, 5]
+;
+
+testMvUnionWithTwoSingleValues
+required_capability: fn_mv_union
+
+ROW a = 1, b = 2
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+[1, 2]
+;
+
+testMvUnionWithIdenticalSingleValues
+required_capability: fn_mv_union
+
+ROW a = 1, b = 1
+| EVAL finalValue = MV_UNION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+1
+;
+
+testMvUnionAgainstAnIndex
+required_capability: fn_mv_union
+
+FROM employees
+| WHERE MV_COUNT(MV_UNION(salary_change, [-7.26, 12.09])) > 2
+| SORT emp_no
+| LIMIT 5
+| KEEP emp_no, hire_date, salary_change;
+
+emp_no:integer | hire_date:datetime       | salary_change:double
+10001          | 1986-06-26T00:00:00.000Z | [-1.36, 13.48, 14.68]
+10003          | 1986-12-01T00:00:00.000Z | [1.08, 2.29, 6.97, 12.4]
+10004          | 1986-12-01T00:00:00.000Z | [-1.78, -0.85, 3.6, 5.04]
+10006          | 1989-06-02T00:00:00.000Z | [-6.77, -3.43, 1.63, 3.25]
+10008          | 1994-09-15T00:00:00.000Z | [-5.96, -2.92, -0.98, 5.39]
+;
+
+testMvUnionNullReturnedWhenFirstArgIsNull
+required_capability: fn_mv_union
+
+ROW a = [1, 2, 3, 4]
+| EVAL finalValue = MV_UNION(null, a) 
+| KEEP finalValue;
+
+finalValue:integer
+null
+;
+
+testMvUnionNullReturnedWhenSecondArgIsNull
+required_capability: fn_mv_union
+
+ROW a = [1, 2, 3, 4]
+| EVAL finalValue = MV_UNION(a, null) 
+| KEEP finalValue;
+
+finalValue:integer
+null
+;
+
+testMvUnionNullReturnedWhenBothArgsAreNull
+required_capability: fn_mv_union
+
+ROW a = [1, 2, 3, 4]
+| EVAL finalValue = MV_UNION(null, null) 
+| KEEP finalValue;
+
+finalValue:null
+null
+;

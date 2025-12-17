@@ -225,6 +225,13 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     @Override
+    public void add(BytesRef[] keys, long[] ids) {
+        for (int i = 0; i < keys.length; i++) {
+            ids[i] = add(keys[i]);
+        }
+    }
+
+    @Override
     protected void removeAndAdd(long index) {
         final long id = getAndSetId(index, -1);
         assert id >= 0;

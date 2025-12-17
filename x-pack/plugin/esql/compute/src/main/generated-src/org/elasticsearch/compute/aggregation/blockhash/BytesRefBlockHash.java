@@ -87,12 +87,20 @@ final class BytesRefBlockHash extends BlockHash {
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);
         }
-        BytesRef scratch = new BytesRef();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
-            for (int i = 0; i < positions; i++) {
-                BytesRef v = vector.getBytesRef(i, scratch);
-                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
+            long[] ids = new long[1024];
+            for (int base = 0; base < positions; base += 1024) {
+                int chunkLen = Math.min(1024, positions - base);
+                // collect chunk values
+                BytesRef[] values = new BytesRef[chunkLen];
+                for (int i = 0; i < chunkLen; i++) {
+                    values[i] = vector.getBytesRef(base + i, new BytesRef());
+                }
+                hash.add(values, ids); // bulk hash this chunk
+                for (int i = 0; i < chunkLen; i++) { // append results
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(ids[i])));
+                }
             }
             return builder.build();
         }

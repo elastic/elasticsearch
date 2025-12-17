@@ -26,9 +26,11 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -38,26 +40,36 @@ public class BytesRefSwissHashTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
-        // name, count, expectedGrowCount, expectedIdPageCount
-        params.add(new Object[] { "tiny", 5, 0, 1 });
-        params.add(new Object[] { "small", BytesRefSwissHash.INITIAL_CAPACITY / 2, 0, 1 });
-        params.add(new Object[] { "two idAndHash pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES, 1, 2 });
-        params.add(new Object[] { "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 4, 16 });
-        params.add(new Object[] { "huge", 100_000, 6, 64 });
+        for (AddType addType : AddType.values()) {
+            // addType, name, count, expectedGrowCount, expectedIdPageCount
+            params.add(new Object[] { AddType.ARRAY, "tiny", 5, 0, 1 });
+            params.add(new Object[] { addType, "small", BytesRefSwissHash.INITIAL_CAPACITY / 2, 0, 1 });
+            params.add(new Object[] { addType, "two idAndHash pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES, 1, 2 });
+            params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 4, 16 });
+            params.add(new Object[] { addType, "huge", 100_000, 6, 64 });
+        }
         return params;
     }
 
+    private enum AddType {
+        SINGLE_VALUE,
+        ARRAY
+    }
+
+    private final AddType addType;
     private final String name;
     private final int count;
     private final int expectedGrowCount;
     private final int expectedIdPageCount;
 
     public BytesRefSwissHashTests(
+        @Name("addType") AddType addType,
         @Name("name") String name,
         @Name("count") int count,
         @Name("expectedGrowCount") int expectedGrowCount,
         @Name("expectedIdPageCount") int expectedIdPageCount
     ) {
+        this.addType = addType;
         this.name = name;
         this.count = count;
         this.expectedGrowCount = expectedGrowCount;
@@ -76,17 +88,32 @@ public class BytesRefSwissHashTests extends ESTestCase {
         try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
             assertThat(hash.size(), equalTo(0L));
 
-            for (int i = 0; i < v.length; i++) {
-                assertThat(hash.add(v[i]), equalTo((long) i));
-                assertThat(hash.size(), equalTo(i + 1L));
-                assertThat(hash.get(i, scratch), equalTo(v[i]));
-                assertThat(hash.add(v[i]), equalTo((long) i));
-                assertThat(hash.size(), equalTo(i + 1L));
+            switch (addType) {
+                case SINGLE_VALUE -> {
+                    for (int i = 0; i < v.length; i++) {
+                        assertThat(hash.add(v[i]), equalTo((long) i));
+                        assertThat(hash.size(), equalTo(i + 1L));
+                        assertThat(hash.get(i, scratch), equalTo(v[i]));
+                        assertThat(hash.add(v[i]), equalTo((long) i));
+                        assertThat(hash.size(), equalTo(i + 1L));
+                    }
+                    for (int i = 0; i < v.length; i++) {
+                        assertThat(hash.add(v[i]), equalTo((long) i));
+                    }
+                    assertThat(hash.size(), equalTo((long) v.length));
+                }
+                case ARRAY -> {
+                    long[] ids = new long[v.length];
+                    hash.add(v, ids);
+                    assertThat(ids, equalTo(LongStream.range(0, count).toArray()));
+                    assertThat(hash.size(), equalTo((long) v.length));
+                    Arrays.fill(ids, 0);
+                    hash.add(v, ids);
+                    assertThat(ids, equalTo(LongStream.range(0, count).toArray()));
+                    assertThat(hash.size(), equalTo((long) v.length));
+                }
+                default -> throw new IllegalArgumentException();
             }
-            for (int i = 0; i < v.length; i++) {
-                assertThat(hash.add(v[i]), equalTo((long) i));
-            }
-            assertThat(hash.size(), equalTo((long) v.length));
 
             for (int i = 0; i < v.length; i++) {
                 assertThat(hash.find(v[i]), equalTo((long) i));

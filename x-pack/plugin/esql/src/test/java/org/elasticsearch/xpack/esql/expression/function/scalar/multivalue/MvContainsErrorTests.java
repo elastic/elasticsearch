@@ -37,6 +37,7 @@ public class MvContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
             DataType.AGGREGATE_METRIC_DOUBLE,
             DataType.DENSE_VECTOR,
             DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.HISTOGRAM,
             DataType.TDIGEST
         );
         if (unsupportedTypes.contains(signature.getFirst())
@@ -46,7 +47,8 @@ public class MvContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
                     false,
                     validPerPosition,
                     signature,
-                    (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double, tdigest or exponential_histogram"
+                    (v, p) -> "any type except counter types, dense_vector, " +
+                        "aggregate_metric_double, tdigest, histogram, or exponential_histogram"
                 )
             );
         } else {

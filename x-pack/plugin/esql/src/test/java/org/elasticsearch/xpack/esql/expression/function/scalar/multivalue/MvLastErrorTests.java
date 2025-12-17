@@ -37,7 +37,8 @@ public class MvLastErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double, tdigest or exponential_histogram"
+                (v, p) -> "any type except counter types, dense_vector, " +
+                    "aggregate_metric_double, tdigest, histogram, or exponential_histogram"
             )
         );
     }
@@ -51,6 +52,7 @@ public class MvLastErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     List.of(DataType.DENSE_VECTOR),
                     List.of(DataType.EXPONENTIAL_HISTOGRAM),
                     List.of(DataType.AGGREGATE_METRIC_DOUBLE),
+                    List.of(DataType.HISTOGRAM),
                     List.of(DataType.TDIGEST)
                 )
             )

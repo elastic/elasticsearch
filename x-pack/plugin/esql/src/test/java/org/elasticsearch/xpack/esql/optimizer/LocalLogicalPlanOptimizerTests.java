@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -97,10 +96,8 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -124,13 +121,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -153,65 +147,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class LocalLogicalPlanOptimizerTests extends ESTestCase {
-
-    private static Analyzer analyzer;
-    private static Analyzer allTypesAnalyzer;
-    private static Analyzer tsAnalyzer;
-    private static LogicalPlanOptimizer logicalOptimizer;
-    private static Map<String, EsField> mapping;
-
-    @BeforeClass
-    public static void init() {
-        mapping = loadMapping("mapping-basic.json");
-        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
-
-        analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(test),
-                defaultLookupResolution(),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-
-        var allTypesMapping = loadMapping("mapping-all-types.json");
-        EsIndex testAll = EsIndexGenerator.esIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
-        allTypesAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(testAll),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-
-        var tsMapping = loadMapping("k8s-mappings.json");
-        var tsIndex = EsIndexGenerator.esIndex("k8s", tsMapping, Map.of("k8s", IndexMode.TIME_SERIES));
-        var tsDownsampledMapping = loadMapping("k8s-downsampled-mappings.json");
-        var tsDownsampledIndex = EsIndexGenerator.esIndex(
-            "k8s-downsampled",
-            tsDownsampledMapping,
-            Map.of("k8s-downsampled", IndexMode.TIME_SERIES)
-        );
-
-        tsAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(tsIndex, tsDownsampledIndex),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-    }
+public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOptimizerTests {
 
     /**
      * Expects
@@ -1154,7 +1090,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[test_all][$$dense_vector$V_DOT_PRODUCT$27{f}#27, !alias_integer,
      */
     public void testVectorFunctionsReplaced() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1200,7 +1135,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]
      */
     public void testVectorFunctionsReplacedWithTopN() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1246,7 +1180,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsNotPushedDownWhenNotIndexed() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1288,7 +1221,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDouble() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = "FROM k8s-downsampled | STATS m = min(network.eth0.tx)";
 
         LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
@@ -1315,7 +1247,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             from k8s-downsampled
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
@@ -1369,7 +1300,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDoubleTSCommand() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             TS k8s-downsampled |
             STATS m = max(max_over_time(network.eth0.tx)),
@@ -1444,7 +1374,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      * a field we could otherwise push. Stub relations don't have a "push" concept.
      */
     public void testAggregateMetricDoubleInlineStats() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM k8s-downsampled
             | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
@@ -1487,7 +1416,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsWhenFieldMissing() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1530,7 +1458,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsInWhere() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1569,7 +1496,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsInStats() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1617,7 +1543,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsUpdateIntermediateProjections() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1670,7 +1595,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsWithDuplicateFunctions() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         // Generate two random test cases - one for duplicate usage, one for the second set
         SimilarityFunctionTestCase testCase1 = SimilarityFunctionTestCase.random("dense_vector");
         SimilarityFunctionTestCase testCase2 = randomValueOtherThan(testCase1, () -> SimilarityFunctionTestCase.random("dense_vector"));
@@ -1803,7 +1727,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInEval() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL l = LENGTH(last_name)
@@ -1821,7 +1744,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInWhere() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | WHERE LENGTH(last_name) > 1
@@ -1837,7 +1759,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInStats() {
-        assumeTrue("requires 137382", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS l = SUM(LENGTH(last_name))
@@ -1855,7 +1776,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInEvalAfterManyRenames() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL l1 = last_name
@@ -1876,7 +1796,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInWhereAndEval() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | WHERE LENGTH(last_name) > 1
@@ -1914,7 +1833,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      * }</pre>
      */
     public void testLengthPushdownZoo() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
@@ -2000,7 +1918,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInStatsTwice() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS l = SUM(LENGTH(last_name)) + AVG(LENGTH(last_name))
@@ -2026,7 +1943,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthTwoFields() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS last_name = SUM(LENGTH(last_name)), first_name = SUM(LENGTH(first_name))
@@ -2216,7 +2132,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushableFunctionsInFork() {
-        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         var query = """
             from test_all
             | eval u = v_cosine(dense_vector, [4, 5, 6])
@@ -2305,7 +2220,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushableFunctionsInSubqueries() {
-        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("Subqueries are allowed", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             from test_all, (from test_all | eval s = length(text) | keep s)
             | eval t = v_dot_product(dense_vector, [1, 2, 3])
@@ -2366,8 +2281,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushDownFunctionsLookupJoin() {
-        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
-
         var query = """
             from test
             | eval s = length(first_name)
@@ -2388,16 +2301,15 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
 
-        // Find the "t" field which should be a pushed down LENGTH function on last_name
+        // Find the "t" field which should not be pushed down
         var tAlias = eval.fields()
             .stream()
             .filter(f -> f.name().equals("t"))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Field 't' not found in eval"));
         var tField = as(tAlias, Alias.class);
-        var tFieldAttr = as(tField.child(), FieldAttribute.class);
-        assertThat(tFieldAttr.name(), startsWith("$$last_name$LENGTH$"));
-        assertThat(tFieldAttr.fieldName().string(), equalTo("last_name"));
+        var tLength = as(tField.child(), Length.class);
+        assertThat(Expressions.name(tLength.field()), equalTo("last_name"));
 
         // Find the "u" field which should NOT be pushed down - it's LENGTH(language_name{f}#150)
         var uAlias = eval.fields()
@@ -2437,8 +2349,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         // Right side of join: EsRelation[languages_lookup][LOOKUP][language_code{f}#149, language_name{f}#150, $$last_..]
         var rightRelation = as(join.right(), EsRelation.class);
-        // Verify that the pushed down field t (last_name length) is not in the lookup relation output
-        assertFalse(rightRelation.output().contains(tFieldAttr));
+        assertThat(rightRelation.output().stream().map(Attribute::name).toList(), contains("language_code", "language_name"));
     }
 
     private IsNotNull isNotNull(Expression field) {
@@ -2449,28 +2360,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var empty = as(o, LocalRelation.class);
         assertThat(empty.supplier(), is(EmptyLocalSupplier.EMPTY));
         return empty;
-    }
-
-    private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
-        return logicalOptimizer.optimize(analyzed);
-    }
-
-    protected LogicalPlan plan(String query) {
-        return plan(query, analyzer);
-    }
-
-    protected LogicalPlan localPlan(LogicalPlan plan, Configuration configuration, SearchStats searchStats) {
-        var localContext = new LocalLogicalOptimizerContext(configuration, FoldContext.small(), searchStats);
-        return new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
-    }
-
-    protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
-        return localPlan(plan, EsqlTestUtils.TEST_CFG, searchStats);
-    }
-
-    private LogicalPlan localPlan(String query) {
-        return localPlan(plan(query), TEST_SEARCH_STATS);
     }
 
     private static Analyzer analyzerWithUnionTypeMapping() {
@@ -2495,11 +2384,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
-    }
-
-    @Override
-    protected List<String> filteredWarnings() {
-        return withDefaultLimitWarning(super.filteredWarnings());
     }
 
     public static EsRelation relation() {

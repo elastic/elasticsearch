@@ -13,12 +13,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -85,7 +85,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
                 )
             );
 
-        testCase(filters, new MatchAllDocsQuery(), iw -> {
+        testCase(filters, Queries.ALL_DOCS_INSTANCE, iw -> {
             Document doc = new Document();
             doc.add(new SortedSetDocValuesField("the_field", new BytesRef("test1")));
             doc.add(new SortedNumericDocValuesField("number_field", 19));
@@ -124,7 +124,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
         assertThrows(
             "Expected a multi bucket aggregation but got [InternalFilter] for aggregation [bucket_script]",
             IllegalArgumentException.class,
-            () -> testCase(filter, new MatchAllDocsQuery(), iw -> {
+            () -> testCase(filter, Queries.ALL_DOCS_INSTANCE, iw -> {
                 Document doc = new Document();
                 doc.add(new SortedSetDocValuesField("the_field", new BytesRef("test1")));
                 doc.add(new SortedNumericDocValuesField("number_field", 19));

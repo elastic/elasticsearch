@@ -1263,20 +1263,20 @@ public class AuthenticationTests extends ESTestCase {
     public static TransportVersion randomTransportVersionBetween(TransportVersion minVersion, TransportVersion maxVersion) {
         return randomFrom(
             Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS)
-                .filter(v -> v.onOrAfter(minVersion) && v.before(maxVersion))
+                .filter(v -> v.supports(minVersion) && v.supports(maxVersion) == false)
                 .toArray(TransportVersion[]::new)
         );
     }
 
     public static TransportVersion randomTransportVersionBefore(TransportVersion maxVersion) {
         return randomFrom(
-            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.before(maxVersion)).toArray(TransportVersion[]::new)
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.supports(maxVersion) == false).toArray(TransportVersion[]::new)
         );
     }
 
     public static TransportVersion randomTransportVersion(TransportVersion minVersion) {
         return randomFrom(
-            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.onOrAfter(minVersion)).toArray(TransportVersion[]::new)
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.supports(minVersion)).toArray(TransportVersion[]::new)
         );
     }
 

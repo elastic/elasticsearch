@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
@@ -41,7 +42,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
             float[] expected = null;
             for (var impl : VectorScorerInt7uBulkBenchmark.Implementation.values()) {
                 var bench = new VectorScorerInt7uBulkBenchmark();
-                bench.function = VectorScorerInt7uBulkBenchmark.Function.DOT_PRODUCT;
+                bench.function = VectorSimilarityType.DOT_PRODUCT;
                 bench.implementation = impl;
                 bench.dims = dims;
                 bench.numVectors = 1000;
@@ -71,7 +72,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
             float[] expected = null;
             for (var impl : VectorScorerInt7uBulkBenchmark.Implementation.values()) {
                 var bench = new VectorScorerInt7uBulkBenchmark();
-                bench.function = VectorScorerInt7uBulkBenchmark.Function.DOT_PRODUCT;
+                bench.function = VectorSimilarityType.DOT_PRODUCT;
                 bench.implementation = impl;
                 bench.dims = dims;
                 bench.numVectors = 1000;
@@ -105,7 +106,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 VectorScorerInt7uBulkBenchmark.Implementation.NATIVE
             )) {
                 var bench = new VectorScorerInt7uBulkBenchmark();
-                bench.function = VectorScorerInt7uBulkBenchmark.Function.DOT_PRODUCT;
+                bench.function = VectorSimilarityType.DOT_PRODUCT;
                 bench.implementation = impl;
                 bench.dims = dims;
                 bench.numVectors = 1000;

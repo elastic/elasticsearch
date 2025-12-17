@@ -9,7 +9,6 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -83,27 +82,8 @@ public class VectorScorerInt7uBenchmark {
     @Param
     public Implementation implementation;
 
-    public enum Function {
-        DOT_PRODUCT(VectorSimilarityType.DOT_PRODUCT),
-        SQUARE_DISTANCE(VectorSimilarityType.EUCLIDEAN);
-
-        private final VectorSimilarityType type;
-
-        Function(VectorSimilarityType type) {
-            this.type = type;
-        }
-
-        public VectorSimilarityType type() {
-            return type;
-        }
-
-        public VectorSimilarityFunction function() {
-            return VectorSimilarityType.of(type);
-        }
-    }
-
-    @Param
-    public Function function;
+    @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
+    public VectorSimilarityType function;
 
     private Path path;
     private Directory dir;
@@ -219,7 +199,7 @@ public class VectorScorerInt7uBenchmark {
         writeInt7VectorData(dir, vectorData.vectorData, vectorData.offsets);
 
         in = dir.openInput("vector.data", IOContext.DEFAULT);
-        var values = vectorValues(dims, numVectors, in, function.function());
+        var values = vectorValues(dims, numVectors, in, VectorSimilarityType.of(function));
         float scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
 
         switch (implementation) {
@@ -237,19 +217,21 @@ public class VectorScorerInt7uBenchmark {
                         vec2CorrectionConstant,
                         scoreCorrectionConstant
                     );
-                    case SQUARE_DISTANCE -> new ScalarSquareDistance(vec1, vec2, scoreCorrectionConstant);
+                    case EUCLIDEAN -> new ScalarSquareDistance(vec1, vec2, scoreCorrectionConstant);
+                    default -> throw new IllegalArgumentException(function + " not supported");
                 };
                 break;
             case LUCENE:
-                scorer = luceneScoreSupplier(values, function.function()).scorer();
+                scorer = luceneScoreSupplier(values, VectorSimilarityType.of(function)).scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = luceneScorer(values, function.function(), vectorData.queryVector);
+                    queryScorer = luceneScorer(values, VectorSimilarityType.of(function), vectorData.queryVector);
                 }
                 break;
             case NATIVE:
-                scorer = factory.getInt7SQVectorScorerSupplier(function.type(), in, values, scoreCorrectionConstant).orElseThrow().scorer();
+                scorer = factory.getInt7SQVectorScorerSupplier(function, in, values, scoreCorrectionConstant).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getInt7SQVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
+                    queryScorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(function), values, vectorData.queryVector)
+                        .orElseThrow();
                 }
                 break;
         }

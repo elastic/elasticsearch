@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
@@ -25,10 +26,10 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsH
 public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
 
     private final double delta = 1e-3;
-    private final VectorScorerInt7uBenchmark.Function function;
+    private final VectorSimilarityType function;
     private final int dims;
 
-    public VectorScorerInt7uBenchmarkTests(VectorScorerInt7uBenchmark.Function function, int dims) {
+    public VectorScorerInt7uBenchmarkTests(VectorSimilarityType function, int dims) {
         this.function = function;
         this.dims = dims;
     }
@@ -100,10 +101,7 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
             return () -> Arrays.stream(params)
                 .map(Integer::parseInt)
                 .flatMap(
-                    i -> Stream.of(
-                        new Object[] { VectorScorerInt7uBenchmark.Function.DOT_PRODUCT, i },
-                        new Object[] { VectorScorerInt7uBenchmark.Function.SQUARE_DISTANCE, i }
-                    )
+                    i -> Stream.of(new Object[] { VectorSimilarityType.DOT_PRODUCT, i }, new Object[] { VectorSimilarityType.EUCLIDEAN, i })
                 )
                 .iterator();
         } catch (NoSuchFieldException e) {

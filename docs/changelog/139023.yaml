@@ -1,0 +1,5 @@
+pr: 139023
+summary: Add comma delimiter validation to index name expressions in roles and API keys
+area: Security
+type: bug
+issues: []

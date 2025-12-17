@@ -9,6 +9,8 @@
 
 package org.elasticsearch.plugins.cli;
 
+import org.elasticsearch.core.PathUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
@@ -70,7 +72,7 @@ class BcPgpSignatureVerifierLoader implements Supplier<BiConsumer<Path, InputStr
     }
 
     private static URL[] urls(String esHome, String cliLibs) throws IOException {
-        Path homeDir = Path.of(esHome);
+        Path homeDir = PathUtils.get(esHome);
         List<URL> urls = new ArrayList<>();
         for (String lib : cliLibs.split(",")) {
             Path libDir = homeDir.resolve(lib);

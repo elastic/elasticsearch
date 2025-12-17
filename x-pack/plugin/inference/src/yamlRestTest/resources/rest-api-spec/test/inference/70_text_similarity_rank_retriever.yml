@@ -462,6 +462,39 @@ setup:
       cluster_features: "text_similarity_reranker_minscore_fix"
       reason: test min score functionality
 
+  # Re-index with positive numeric values for deterministic scores
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
+          topic: [ "science" ]
+          subtopic: [ "technology" ]
+          inference_text_field: "1"
+        refresh: true
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
+          topic: [ "science" ]
+          subtopic: [ "astronomy" ]
+          inference_text_field: "2"
+        refresh: true
+
+  - do:
+      index:
+        index: test-index
+        id: doc_3
+        body:
+          text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
+          topic: [ "geography" ]
+          inference_text_field: "3"
+        refresh: true
+
   - do:
       search:
         index: test-index
@@ -477,7 +510,7 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: text
+              field: inference_text_field
               min_score: 0
           size: 10
 

@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
@@ -22,14 +23,16 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.MultiValuedBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
  * A query for matching an exact BytesRef value for a specific field.
- * The equavalent of {@link org.apache.lucene.document.SortedDocValuesField#newSlowExactQuery(String, BytesRef)},
+ * The equivalent of {@link org.apache.lucene.document.SortedDocValuesField#newSlowExactQuery(String, BytesRef)},
  * but then for binary doc values.
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
@@ -51,25 +54,47 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + ".counts");
+
                 if (values == null) {
                     return null;
                 }
 
-                final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
+                final TwoPhaseIterator iterator;
+                if (counts == null) {
+                    iterator = new TwoPhaseIterator(values) {
 
-                    final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
+                        final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
 
-                    @Override
-                    public boolean matches() throws IOException {
-                        BytesRef binaryValue = values.binaryValue();
-                        return reader.match(binaryValue, term::equals);
-                    }
+                        @Override
+                        public boolean matches() throws IOException {
+                            BytesRef binaryValue = values.binaryValue();
+                            return reader.match(binaryValue, term::equals);
+                        }
 
-                    @Override
-                    public float matchCost() {
-                        return 10; // because one comparison
-                    }
-                };
+                        @Override
+                        public float matchCost() {
+                            return 10; // because one comparison
+                        }
+                    };
+                } else {
+                    var valuesWithCounts = MultiValuedBinaryDocValues.from(values, counts);
+                    iterator = new TwoPhaseIterator(valuesWithCounts) {
+                        MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
+
+                        @Override
+                        public boolean matches() throws IOException {
+                            BytesRef binaryValue = values.binaryValue();
+                            int count = Math.toIntExact(counts.longValue());
+                            return reader.match(binaryValue, count, term::equals);
+                        }
+
+                        @Override
+                        public float matchCost() {
+                            return 10; // because one comparison
+                        }
+                    };
+                }
 
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }

@@ -1708,7 +1708,7 @@ public class EsqlCapabilities {
         CHUNK_FUNCTION_V2(),
 
         /**
-         * Support for vector similarity functtions pushdown
+         * Support for vector similarity functions pushdown
          */
         VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN,
 
@@ -1786,6 +1786,11 @@ public class EsqlCapabilities {
          * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
          */
         FN_MV_INTERSECTION,
+
+        /**
+         * Support query approximation.
+         */
+        APPROXIMATE(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -21,6 +21,18 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuerySettings {
+    // TODO: discuss/implement to exact settings for query approximation
+    public static final QuerySettingDef<Boolean> APPROXIMATE = new QuerySettingDef<>(
+        "approximate",
+        DataType.BOOLEAN,
+        false,
+        true,
+        true,
+        "Enable approximating analytical queries.",
+        (value) -> (Boolean) Foldables.literalValueOf(value),
+        false
+    );
+
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
@@ -53,7 +65,7 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(APPROXIMATE, PROJECT_ROUTING, TIME_ZONE)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {

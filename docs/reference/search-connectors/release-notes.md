@@ -17,6 +17,7 @@ It includes detailed steps, tooling, and resources to help you transition to sup
 
 ### Fixes [connectors-9.2.3-fixes]
 * Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely.[#3868](https://github.com/elastic/connectors/pull/3868)
+* Fixed a bug in the Network Drive connector where Document Level Security (DLS) syncs failed because file permission checks were performed without the necessary credentials. [#3873](https://github.com/elastic/connectors/pull/3873)
 
 ## 9.2.2 [connectors-9.2.2-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
@@ -35,6 +36,7 @@ There are no new features, enhancements, fixes, known issues, or deprecations as
 
 ### Fixes [connectors-9.1.9-fixes]
 * Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely.[#3868](https://github.com/elastic/connectors/pull/3868)
+* Fixed a bug in the Network Drive connector where Document Level Security (DLS) syncs failed because file permission checks were performed without the necessary credentials. [#3873](https://github.com/elastic/connectors/pull/3873)
 
 ## 9.1.8 [connectors-9.1.8-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.

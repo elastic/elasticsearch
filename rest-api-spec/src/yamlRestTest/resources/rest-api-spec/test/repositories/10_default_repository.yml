@@ -170,3 +170,145 @@ teardown:
 
   - match: { acknowledged: true }
 
+---
+"Cannot set read-only repository as default":
+  # Create a read-only repository
+  - do:
+      snapshot.create_repository:
+        repository: readonly_repo
+        verify: false
+        body:
+          type: fs
+          settings:
+            location: "readonly_repo_loc"
+            readonly: true
+
+  # Try to set read-only repository as default - should fail
+  - do:
+      catch: /Repository \[readonly_repo\] is marked as read-only/
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "readonly_repo"
+
+  # Clean up
+  - do:
+      snapshot.delete_repository:
+        repository: readonly_repo
+
+---
+"Cannot mark default repository as read-only":
+  # Set first repo as default
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_1"
+
+  # Try to update the default repository to be read-only - should fail
+  - do:
+      catch: /Repository \[test_repo_1\] is the default repository/
+      snapshot.create_repository:
+        repository: test_repo_1
+        verify: false
+        body:
+          type: fs
+          settings:
+            location: "test_repo_1_loc"
+            readonly: true
+
+  # Verify repository is still not read-only
+  - do:
+      snapshot.get_repository:
+        repository: test_repo_1
+
+  - is_false: test_repo_1.settings.readonly
+
+---
+"Cannot create default repository as read-only":
+  # First, set test_repo_1 as default
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_1"
+
+  # Try to create a new repository (test_repo_3) as read-only and then set it as default
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_3
+        verify: false
+        body:
+          type: fs
+          settings:
+            location: "test_repo_3_loc"
+            readonly: true
+
+  # Now try to set the read-only repository as default - should fail
+  - do:
+      catch: /Repository \[test_repo_3\] is marked as read-only/
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_3"
+
+  # Clean up
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_3
+
+  # Clear the default setting
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: null
+
+---
+"Can mark repository as read-only after removing default setting":
+  # Set first repo as default
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: "test_repo_1"
+
+  # Cannot mark it as read-only while it's the default
+  - do:
+      catch: /Repository \[test_repo_1\] is the default repository/
+      snapshot.create_repository:
+        repository: test_repo_1
+        verify: false
+        body:
+          type: fs
+          settings:
+            location: "test_repo_1_loc"
+            readonly: true
+
+  # Clear the default setting
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            repositories.default_repository: null
+
+  # Now we can mark it as read-only
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_1
+        verify: false
+        body:
+          type: fs
+          settings:
+            location: "test_repo_1_loc"
+            readonly: true
+
+  - match: { acknowledged: true }
+
+  # Verify repository is now read-only
+  - do:
+      snapshot.get_repository:
+        repository: test_repo_1
+
+  - match: { test_repo_1.settings.readonly: "true" }
+

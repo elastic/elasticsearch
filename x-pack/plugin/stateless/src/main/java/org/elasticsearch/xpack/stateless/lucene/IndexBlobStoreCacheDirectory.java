@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 
 import org.apache.lucene.store.Directory;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -50,16 +48,6 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         LongAdder totalBytesWarmed
     ) {
         super(cacheService, shardId, totalBytesRead, totalBytesWarmed);
-    }
-
-    public void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
-        assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
-        try {
-            currentMetadata = metadata;
-            currentDataSetSizeInBytes = dataSetSizeInBytes;
-        } finally {
-            assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
-        }
     }
 
     @Override

@@ -1,0 +1,28 @@
+{
+  "project_routing.get_multiple": {
+    "documentation": {
+      "url": null,
+      "description": "Get named project routing expressions"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_project_routing/",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

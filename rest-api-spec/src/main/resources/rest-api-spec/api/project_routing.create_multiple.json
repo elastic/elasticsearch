@@ -1,0 +1,32 @@
+{
+  "project_routing.create_multiple": {
+    "documentation": {
+      "url": null,
+      "description": "Create or update named project routing expressions"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_project_routing/",
+          "methods": [
+            "PUT"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "Project routing expressions to save",
+      "required": true
+    }
+  }
+}

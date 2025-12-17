@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.gpu;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
@@ -40,8 +41,6 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
     }
 
     public void testAutoModeWithUnavailableGPU() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
@@ -53,7 +52,8 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
         var format = vectorsFormatProvider.getKnnVectorsFormat(
             settings,
             indexOptions,
-            randomGPUSupportedSimilarity(indexOptions.getType())
+            randomGPUSupportedSimilarity(indexOptions.getType()),
+            DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);
     }

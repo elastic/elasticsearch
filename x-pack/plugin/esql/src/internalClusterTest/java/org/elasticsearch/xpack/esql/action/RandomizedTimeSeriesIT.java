@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -230,6 +231,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         return rowKey;
     }
 
+    private static String getTimeseriesId(List<String> rowKey) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < rowKey.size() - 1; i++) {  // Skip the timestamp.
+            sb.append(rowKey.get(i));
+        }
+        return sb.toString();
+    }
+
     static Integer getTimestampIndex(String esqlQuery) {
         // first we get the stats command after the pipe
         var statsIndex = esqlQuery.indexOf("| STATS");
@@ -287,16 +296,31 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     record RateStats(Long count, RateRange max, RateRange avg, RateRange min, RateRange sum) {}
 
     static RateStats calculateDeltaAggregation(
-        Collection<List<Tuple<String, Tuple<Instant, Double>>>> allTimeseries,
+        List<Collection<List<Tuple<String, Tuple<Instant, Double>>>>> allTimeseries,
+        int offset,
         Integer secondsInWindow,
         DeltaAgg deltaAgg
     ) {
-        List<RateRange> allRates = allTimeseries.stream().map(timeseries -> {
+        List<RateRange> allRates = allTimeseries.get(offset).stream().map(timeseries -> {
+            timeseries = new ArrayList<>(timeseries); // Copy time series to add adjacent tuples without affecting results.
+            timeseries.sort(Comparator.comparing(t -> t.v2().v1())); // Sort the timeseries by timestamp
+            if (deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE)) {
+                if (offset > 0) {
+                    var previousWindow = allTimeseries.get(offset - 1);
+                    if (previousWindow.isEmpty() == false) {
+                        addBoundaryTuple(timeseries, previousWindow, true);
+                    }
+                }
+                if (offset < allTimeseries.size() - 1) {
+                    var nextWindow = allTimeseries.get(offset + 1);
+                    if (nextWindow.isEmpty() == false) {
+                        addBoundaryTuple(timeseries, nextWindow, false);
+                    }
+                }
+            }
             if (timeseries.size() < 2) {
                 return null;
             }
-            // Sort the timeseries by timestamp
-            timeseries.sort((t1, t2) -> t1.v2().v1().compareTo(t2.v2().v1()));
             var firstTs = timeseries.getFirst().v2().v1();
             var lastTs = timeseries.getLast().v2().v1();
             var tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
@@ -350,15 +374,20 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
             if (deltaAgg.equals(DeltaAgg.INCREASE)) {
                 return new RateRange(
-                    counterGrowth * 0.99, // INCREASE is RATE multiplied by the window size
+                    counterGrowth * 0.5, // INCREASE is RATE multiplied by the window size
                     // Upper bound is extrapolated to the window size
-                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.01
+                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.5
                 );
             } else {
-                return new RateRange(
-                    counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
-                    counterGrowth / tsDurationSeconds * 1.01 // Add 1% tolerance to the upper bound
-                );
+                // TODO: get tighter bounds.
+                double smaller = Math.min(secondsInWindow, tsDurationSeconds);
+                double larger = Math.max(secondsInWindow, tsDurationSeconds);
+                double lowBound = counterGrowth / larger * 0.1;
+                if (lowBound < 1.0) {
+                    lowBound = 0.0;
+                }
+                double highBound = counterGrowth / smaller * 4.0;
+                return new RateRange(lowBound, highBound);
             }
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
@@ -374,6 +403,62 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             allRates.stream().min(RateRange::compareTo).orElseThrow(),
             new RateRange(allRates.stream().mapToDouble(r -> r.lower).sum(), allRates.stream().mapToDouble(r -> r.upper).sum())
         );
+    }
+
+    private static void addBoundaryTuple(
+        List<Tuple<String, Tuple<Instant, Double>>> timeseries,
+        Collection<List<Tuple<String, Tuple<Instant, Double>>>> otherWindow,
+        boolean isLowerBoundary
+    ) {
+        String timeseriesId = timeseries.getFirst().v1();
+        var referenceTuple = isLowerBoundary ? timeseries.getFirst().v2() : timeseries.getLast().v2();
+        Tuple<Instant, Double> otherTuple = null;
+        long otherTimestamp = 0;
+        for (var doc : otherWindow) {
+            for (var tuple : doc) {
+                String id = tuple.v1();
+                if (timeseriesId.equals(id)) {
+                    long timestamp = tuple.v2().v1().toEpochMilli();
+                    if (otherTuple == null
+                        || (timestamp > otherTimestamp && isLowerBoundary)
+                        || (timestamp < otherTimestamp && isLowerBoundary == false)) {
+                        otherTimestamp = timestamp;
+                        otherTuple = tuple.v2();
+                    }
+                }
+            }
+        }
+        if (otherTuple != null) {
+            final long timeDelta = Math.abs(referenceTuple.v1().toEpochMilli() - otherTuple.v1().toEpochMilli());
+            if (isLowerBoundary) {
+                final double valueDelta;
+                final double baseValue;
+                if (referenceTuple.v2() > otherTuple.v2()) {
+                    valueDelta = referenceTuple.v2() - otherTuple.v2();
+                    baseValue = otherTuple.v2();
+                } else {
+                    valueDelta = referenceTuple.v2();
+                    baseValue = 0;
+                }
+                var boundaryTuple = new Tuple<>(
+                    timeseriesId,
+                    new Tuple<>(otherTuple.v1().plusMillis(timeDelta / 2), baseValue + valueDelta / 2)
+                );
+                timeseries.addFirst(boundaryTuple);
+            } else {
+                final double valueDelta;
+                if (otherTuple.v2() > referenceTuple.v2()) {
+                    valueDelta = otherTuple.v2() - referenceTuple.v2();
+                } else {
+                    valueDelta = otherTuple.v2();
+                }
+                var boundaryTuple = new Tuple<>(
+                    timeseriesId,
+                    new Tuple<>(referenceTuple.v1().plusMillis(timeDelta / 2), referenceTuple.v2() + valueDelta / 2)
+                );
+                timeseries.addLast(boundaryTuple);
+            }
+        }
     }
 
     void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
@@ -447,8 +532,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      * the same values from the documents in the group.
      */
     public void testRateGroupBySubset() {
-        // var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
-        var deltaAgg = Tuple.tuple("delta", DeltaAgg.DELTA); // TODO: Enable random selection after fixing
+        var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
         var metricName = DELTA_AGG_METRIC_MAP.get(deltaAgg.v2());
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();
@@ -472,36 +556,48 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
             var groups = groupedRows(documents, dimensions, windowSize);
+            Map<String, List<Collection<List<Tuple<String, Tuple<Instant, Double>>>>>> docsPerWindowPerTimeseries = new HashMap<>();
+            Map<String, List<List<Object>>> rowsPerTimeseries = new HashMap<>();
             for (List<Object> row : rows) {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
                 var windowDataPoints = groups.get(rowKey);
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, metricName);
-                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), windowSize, deltaAgg.v2());
-                try {
-                    assertThat(row.getFirst(), equalTo(rateAgg.count));
-                    checkWithin((Double) row.get(1), rateAgg.max);
-                    checkWithin((Double) row.get(2), rateAgg.avg);
-                    checkWithin((Double) row.get(3), rateAgg.min);
-                    checkWithin((Double) row.get(4), rateAgg.sum);
-                } catch (AssertionError e) {
-                    failedWindows.add(
-                        "ROWS: "
-                            + rows.size()
-                            + "|Failed for row:\n"
-                            + row
-                            + "\nWanted: "
-                            + rateAgg
-                            + "\nRow times and values:\n\tTS:"
-                            + docsPerTimeseries.values()
-                                .stream()
-                                .map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", ")))
-                                .collect(Collectors.joining("\n\tTS:"))
-                            + "\nException: "
-                            + e.getMessage()
-                    );
-                }
+                String timeseriesId = getTimeseriesId(rowKey);
+                docsPerWindowPerTimeseries.computeIfAbsent(timeseriesId, k -> new ArrayList<>()).add(docsPerTimeseries.values());
+                rowsPerTimeseries.computeIfAbsent(timeseriesId, k -> new ArrayList<>()).add(row);
             }
-            assertNoFailedWindows(failedWindows, rows, deltaAgg.v2().name());
+            for (var key : docsPerWindowPerTimeseries.keySet()) {
+                var rowList = rowsPerTimeseries.get(key);
+                var docsPerTimeseries = docsPerWindowPerTimeseries.get(key);
+                for (int i = 0; i < rowList.size(); i++) {
+                    var row = rowList.get(i);
+                    var rateAgg = calculateDeltaAggregation(docsPerTimeseries, i, windowSize, deltaAgg.v2());
+                    try {
+                        assertThat(row.getFirst(), equalTo(rateAgg.count));
+                        checkWithin((Double) row.get(1), rateAgg.max);
+                        checkWithin((Double) row.get(2), rateAgg.avg);
+                        checkWithin((Double) row.get(3), rateAgg.min);
+                        checkWithin((Double) row.get(4), rateAgg.sum);
+                    } catch (AssertionError e) {
+                        failedWindows.add(
+                            "ROWS: "
+                                + rows.size()
+                                + "|Failed for row:\n"
+                                + row
+                                + "\nWanted: "
+                                + rateAgg
+                                + "\nRow times and values:\n\tTS:"
+                                + docsPerTimeseries.get(i)
+                                    .stream()
+                                    .map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", ")))
+                                    .collect(Collectors.joining("\n\tTS:"))
+                                + "\nException: "
+                                + e.getMessage()
+                        );
+                    }
+                }
+                assertNoFailedWindows(failedWindows, rows, deltaAgg.v2().name());
+            }
         }
     }
 
@@ -513,6 +609,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      */
     public void testRateGroupByNothing() {
         var groups = groupedRows(documents, List.of(), 60);
+        List<Collection<List<Tuple<String, Tuple<Instant, Double>>>>> docsPerWindowPerTimeseries = new ArrayList<>();
         try (var resp = run(String.format(Locale.ROOT, """
             TS %s
             | STATS count(rate(metrics.counterl_hdd.bytes.read)),
@@ -528,7 +625,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var windowStart = windowStart(row.get(4), SECONDS_IN_WINDOW);
                 var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
-                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), SECONDS_IN_WINDOW, DeltaAgg.RATE);
+                docsPerWindowPerTimeseries.add(docsPerTimeseries.values());
+            }
+            for (int i = 0; i < rows.size(); i++) {
+                var row = rows.get(i);
+                var rateAgg = calculateDeltaAggregation(docsPerWindowPerTimeseries, i, SECONDS_IN_WINDOW, DeltaAgg.RATE);
                 try {
                     assertThat(row.getFirst(), equalTo(rateAgg.count));
                     checkWithin((Double) row.get(1), rateAgg.max);

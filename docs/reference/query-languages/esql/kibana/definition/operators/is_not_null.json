@@ -142,6 +142,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "geo_point",
           "optional" : false,
           "description" : "Value to check. It can be a single- or multi-valued column or an expression."
@@ -239,6 +251,18 @@
         {
           "name" : "field",
           "type" : "long",
+          "optional" : false,
+          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
           "optional" : false,
           "description" : "Value to check. It can be a single- or multi-valued column or an expression."
         }

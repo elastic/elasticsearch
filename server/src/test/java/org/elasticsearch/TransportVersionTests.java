@@ -33,30 +33,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportVersionTests extends ESTestCase {
 
-    public void testVersionComparison() {
-        TransportVersion V_8_2_0 = TransportVersions.V_8_2_0;
-        TransportVersion V_8_16_0 = TransportVersions.V_8_16_0;
-        assertThat(V_8_2_0.before(V_8_16_0), is(true));
-        assertThat(V_8_2_0.before(V_8_2_0), is(false));
-        assertThat(V_8_16_0.before(V_8_2_0), is(false));
-
-        assertThat(V_8_2_0.onOrBefore(V_8_16_0), is(true));
-        assertThat(V_8_2_0.onOrBefore(V_8_2_0), is(true));
-        assertThat(V_8_16_0.onOrBefore(V_8_2_0), is(false));
-
-        assertThat(V_8_2_0.after(V_8_16_0), is(false));
-        assertThat(V_8_2_0.after(V_8_2_0), is(false));
-        assertThat(V_8_16_0.after(V_8_2_0), is(true));
-
-        assertThat(V_8_2_0.onOrAfter(V_8_16_0), is(false));
-        assertThat(V_8_2_0.onOrAfter(V_8_2_0), is(true));
-        assertThat(V_8_16_0.onOrAfter(V_8_2_0), is(true));
-
-        assertThat(V_8_2_0, is(lessThan(V_8_16_0)));
-        assertThat(V_8_2_0.compareTo(V_8_2_0), is(0));
-        assertThat(V_8_16_0, is(greaterThan(V_8_2_0)));
-    }
-
     public static class CorrectFakeVersion {
         public static final TransportVersion V_0_00_01 = new TransportVersion(199);
         public static final TransportVersion V_0_000_002 = new TransportVersion(2);
@@ -68,23 +44,6 @@ public class TransportVersionTests extends ESTestCase {
         public static final TransportVersion V_0_000_001 = new TransportVersion(1);
         public static final TransportVersion V_0_000_002 = new TransportVersion(2);
         public static final TransportVersion V_0_000_003 = new TransportVersion(2);
-    }
-
-    public void testStaticTransportVersionChecks() {
-        assertThat(
-            TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
-            contains(
-                CorrectFakeVersion.V_0_000_002,
-                CorrectFakeVersion.V_0_000_003,
-                CorrectFakeVersion.V_0_000_004,
-                CorrectFakeVersion.V_0_00_01
-            )
-        );
-        AssertionError e = expectThrows(
-            AssertionError.class,
-            () -> TransportVersions.collectAllVersionIdsDefinedInClass(DuplicatedIdFakeVersion.class)
-        );
-        assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
     private static String padNumber(String number) {
@@ -162,18 +121,6 @@ public class TransportVersionTests extends ESTestCase {
         }
     }
 
-    public void testIsPatchFrom() {
-        TransportVersion patchVersion = TransportVersion.fromId(8_800_0_04);
-        assertThat(TransportVersion.fromId(8_799_0_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_799_0_09).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_03).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_04).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_0_49).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_1_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_801_0_00).isPatchFrom(patchVersion), is(false));
-    }
-
     public void testVersionConstantPresent() {
         Set<TransportVersion> ignore = Set.of(TransportVersion.zero(), TransportVersion.current(), TransportVersion.minimumCompatible());
         assertThat(TransportVersion.current(), sameInstance(TransportVersion.fromId(TransportVersion.current().id())));
@@ -191,7 +138,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+            if (tv.id() >= 8_84_10_00 && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "
                         + tv

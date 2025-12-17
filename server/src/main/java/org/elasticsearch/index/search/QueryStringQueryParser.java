@@ -25,7 +25,6 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -292,7 +291,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     @Override
     protected Query newMatchAllDocsQuery() {
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override
@@ -648,7 +647,7 @@ public class QueryStringQueryParser extends QueryParser {
 
     private Query existsQuery(String fieldName) {
         if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
-            return new MatchNoDocsQuery("No mappings yet");
+            return Queries.NO_MAPPINGS;
         }
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
             .getFieldType(FieldNamesFieldMapper.NAME);

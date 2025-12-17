@@ -25,13 +25,12 @@ public class QuerySettings {
         "project_routing",
         DataType.KEYWORD,
         true,
-        false,
         true,
+        false,
         "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled.",
-        // TODO enable this when CPS is ready and we move this to tech preview
-        // (value, ctx) -> ctx.crossProjectEnabled() ? null : "not enabled",
+        (value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled",
         (value) -> Foldables.stringLiteralValueOf(value, "Unexpected value"),
         null
     );

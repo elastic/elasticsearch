@@ -227,7 +227,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
 
                     // We use merge_over_time as default for histograms and last_over_time for other types
                     TimeSeriesAggregateFunction tsAgg;
-                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM || aggField.dataType() == DataType.TDIGEST) {
                         tsAgg = new HistogramMergeOverTime(af.source(), aggField, Literal.TRUE, af.window());
                     } else {
                         tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
@@ -457,9 +457,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
         final long bucketInMillis = getTimeBucketInMillis(agg);
         if (bucketInMillis <= 0) {
-            throw new EsqlIllegalArgumentException(
-                "Using a window in aggregation [{}] requires a time bucket in groupings",
-                agg.sourceText()
+            throw new IllegalArgumentException(
+                "Using a window in aggregation [" + agg.sourceText() + "] requires a time bucket in groupings"
             );
         }
         for (NamedExpression aggregate : agg.aggregates()) {
@@ -471,15 +470,19 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         continue;
                     }
                 }
-                throw new EsqlIllegalArgumentException(
-                    "Unsupported window [{}] for aggregate function [{}]; "
-                        + "the window must be larger than the time bucket [{}] and an exact multiple of it",
-                    window.sourceText(),
-                    af.sourceText(),
-                    Objects.requireNonNull(agg.timeBucket()).sourceText()
+                throw new IllegalArgumentException(
+                    "Unsupported window ["
+                        + window.sourceText()
+                        + "] for aggregate function ["
+                        + af.sourceText()
+                        + "]; "
+                        + "the window must be larger than the time bucket ["
+                        + Objects.requireNonNull(agg.timeBucket()).sourceText()
+                        + "] and an exact multiple of it"
                 );
             }
         }
+
     }
 
     private long getTimeBucketInMillis(TimeSeriesAggregate agg) {

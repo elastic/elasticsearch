@@ -46,6 +46,7 @@ public class UserFunctionTests extends ESTestCase {
             null,
             null,
             randomBoolean(),
+            false,
             null
         );
         Analyzer analyzer = analyzer(sqlConfig, IndexResolution.valid(test));

@@ -133,7 +133,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.relativeStart = null;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
-            this.planningProfile = new PlanningProfile(in);
+            this.planningProfile = PlanningProfile.readFrom(in);
         } else {
             this.planningProfile = new PlanningProfile();
         }

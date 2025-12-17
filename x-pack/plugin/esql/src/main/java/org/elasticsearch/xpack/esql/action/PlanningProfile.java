@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 public class PlanningProfile implements Writeable, ToXContentFragment {
 
@@ -45,26 +46,28 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
     private static final TransportVersion ESQL_QUERY_PLANNING_PROFILE = TransportVersion.fromName("esql_query_planning_profile");
 
     public PlanningProfile() {
-        planningMarker = new TimeSpanMarker(PLANNING);
-        parsingMarker = new TimeSpanMarker(PARSING);
-        preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS);
-        dependencyResolutionMarker = new TimeSpanMarker(DEPENDENCY_RESOLUTION, true);
-        analysisMarker = new TimeSpanMarker(ANALYSIS, true);
+        this(null, null, null, null, null);
     }
 
-    public PlanningProfile(StreamInput in) throws IOException {
-        planningMarker = new TimeSpanMarker(PLANNING, false, in);
+    // For testing
+    PlanningProfile(TimeSpan planning, TimeSpan parsing, TimeSpan preAnalysis, TimeSpan dependencyResolution, TimeSpan analysis) {
+        planningMarker = new TimeSpanMarker(PLANNING, false, planning);
+        parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
+        preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);
+        dependencyResolutionMarker = new TimeSpanMarker(DEPENDENCY_RESOLUTION, true, dependencyResolution);
+        analysisMarker = new TimeSpanMarker(ANALYSIS, true, analysis);
+    }
+
+    public static PlanningProfile readFrom(StreamInput in) throws IOException {
+        TimeSpan planning = in.readOptionalWriteable(TimeSpan::readFrom);
+        TimeSpan parsing = null, preAnalysis = null, dependencyResolution = null, analysis = null;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_PROFILE)) {
-            parsingMarker = new TimeSpanMarker(PARSING, false, in);
-            preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, in);
-            dependencyResolutionMarker = new TimeSpanMarker(DEPENDENCY_RESOLUTION, true, in);
-            analysisMarker = new TimeSpanMarker(ANALYSIS, true, in);
-        } else {
-            parsingMarker = new TimeSpanMarker(PARSING);
-            preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS);
-            dependencyResolutionMarker = new TimeSpanMarker(DEPENDENCY_RESOLUTION, true);
-            analysisMarker = new TimeSpanMarker(ANALYSIS, true);
+            parsing = in.readOptionalWriteable(TimeSpan::readFrom);
+            preAnalysis = in.readOptionalWriteable(TimeSpan::readFrom);
+            dependencyResolution = in.readOptionalWriteable(TimeSpan::readFrom);
+            analysis = in.readOptionalWriteable(TimeSpan::readFrom);
         }
+        return new PlanningProfile(planning, parsing, preAnalysis, dependencyResolution, analysis);
     }
 
     @Override
@@ -76,6 +79,38 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(dependencyResolutionMarker == null ? null : dependencyResolutionMarker.timeSpan);
             out.writeOptionalWriteable(analysisMarker == null ? null : analysisMarker.timeSpan);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        PlanningProfile that = (PlanningProfile) o;
+        return Objects.equals(planningMarker, that.planningMarker)
+            && Objects.equals(parsingMarker, that.parsingMarker)
+            && Objects.equals(preAnalysisMarker, that.preAnalysisMarker)
+            && Objects.equals(dependencyResolutionMarker, that.dependencyResolutionMarker)
+            && Objects.equals(analysisMarker, that.analysisMarker);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
+    }
+
+    @Override
+    public String toString() {
+        return "PlanningProfile{"
+            + "planningMarker="
+            + planningMarker
+            + ", parsingMarker="
+            + parsingMarker
+            + ", preAnalysisMarker="
+            + preAnalysisMarker
+            + ", dependencyResolutionMarker="
+            + dependencyResolutionMarker
+            + ", analysisMarker="
+            + analysisMarker
+            + '}';
     }
 
     /**
@@ -131,27 +166,24 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
 
     public static class TimeSpanMarker {
         private TimeSpan timeSpan;
-        private TimeSpan.Builder timeSpanBuilder;
+        private transient TimeSpan.Builder timeSpanBuilder;
 
         private final String name;
         private final boolean allowMultipleCalls;
 
-        private TimeSpanMarker(String name) {
-            this(name, false);
-        }
-
-        private TimeSpanMarker(String name, boolean allowMultipleCalls) {
+        // Package private for testing
+        TimeSpanMarker(String name, boolean allowMultipleCalls, TimeSpan timeSpan) {
             this.name = name;
             this.allowMultipleCalls = allowMultipleCalls;
-        }
-
-        private TimeSpanMarker(String name, boolean allowMultipleCalls, StreamInput in) throws IOException {
-            this(name, allowMultipleCalls);
-            this.timeSpan = in.readOptional(TimeSpan::readFrom);
+            this.timeSpan = timeSpan;
         }
 
         public String name() {
             return name;
+        }
+
+        TimeSpan timeSpan() {
+            return timeSpan;
         }
 
         public void start() {
@@ -170,6 +202,34 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         public TimeValue timeTook() {
             assert timeSpan != null : "start() should have been called for " + name;
             return timeSpan.toTimeValue();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            TimeSpanMarker that = (TimeSpanMarker) o;
+            return allowMultipleCalls == that.allowMultipleCalls
+                && Objects.equals(timeSpan, that.timeSpan)
+                && Objects.equals(name, that.name);
+            // Don't consider timeStampBuilders for equality
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(timeSpan, name, allowMultipleCalls);
+        }
+
+        @Override
+        public String toString() {
+            return "TimeSpanMarker{"
+                + "name='"
+                + name
+                + '\''
+                + ", timeSpan="
+                + timeSpan
+                + ", allowMultipleCalls="
+                + allowMultipleCalls
+                + '}';
         }
     }
 }

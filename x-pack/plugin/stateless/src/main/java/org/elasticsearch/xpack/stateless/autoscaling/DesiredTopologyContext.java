@@ -21,15 +21,18 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 /**
  * Holds an instance of DesiredClusterTopology which can be passed when fetching metrics
  * (POST /_internal/serverless/autoscaling). Each subsequent POST updates the topology.
  */
 public class DesiredTopologyContext implements LocalNodeMasterListener {
 
-    private volatile DesiredClusterTopology desiredClusterTopology;
-
     private final ClusterService clusterService;
+    private volatile DesiredClusterTopology desiredClusterTopology;
+    private final List<DesiredTopologyListener> listeners = new CopyOnWriteArrayList<>();
 
     public DesiredTopologyContext(ClusterService clusterService) {
         this.clusterService = clusterService;
@@ -40,7 +43,18 @@ public class DesiredTopologyContext implements LocalNodeMasterListener {
     }
 
     public void updateDesiredClusterTopology(DesiredClusterTopology desiredClusterTopology) {
+        DesiredClusterTopology previous = this.desiredClusterTopology;
         this.desiredClusterTopology = desiredClusterTopology;
+
+        if (previous == null && desiredClusterTopology != null) {
+            for (DesiredTopologyListener listener : listeners) {
+                listener.onDesiredTopologyAvailable(desiredClusterTopology);
+            }
+        }
+    }
+
+    public void addListener(DesiredTopologyListener listener) {
+        listeners.add(listener);
     }
 
     @Nullable
@@ -49,7 +63,10 @@ public class DesiredTopologyContext implements LocalNodeMasterListener {
     }
 
     @Override
-    public void onMaster() {}
+    public void onMaster() {
+        // Clear any stale topology that might have been set during master transition
+        desiredClusterTopology = null;
+    }
 
     @Override
     public void offMaster() {

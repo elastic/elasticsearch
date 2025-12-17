@@ -11,27 +11,35 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.TimeValue;
 
 public class EnsureClusterStateVersionAppliedRequest extends BaseNodesRequest {
     private final long clusterStateVersion;
+    private final TimeValue nodeTimeout;
 
-    public EnsureClusterStateVersionAppliedRequest(long clusterStateVersion, String... nodesIds) {
+    public EnsureClusterStateVersionAppliedRequest(long clusterStateVersion, TimeValue nodeTimeout, String... nodesIds) {
         super(nodesIds);
         this.clusterStateVersion = clusterStateVersion;
+        this.nodeTimeout = nodeTimeout;
     }
 
-    public EnsureClusterStateVersionAppliedRequest(long clusterStateVersion, DiscoveryNode... concreteNodes) {
+    public EnsureClusterStateVersionAppliedRequest(long clusterStateVersion, TimeValue nodeTimeout, DiscoveryNode... concreteNodes) {
         super(concreteNodes);
         this.clusterStateVersion = clusterStateVersion;
+        this.nodeTimeout = nodeTimeout;
     }
 
-    public static EnsureClusterStateVersionAppliedRequest onAllNodes(long clusterStateVersion) {
+    public static EnsureClusterStateVersionAppliedRequest onAllNodes(long clusterStateVersion, TimeValue nodeTimeout) {
         /// Null nodes means all known nodes in the cluster,
         /// see [org.elasticsearch.action.support.nodes.TransportNodesAction#resolveRequest].
-        return new EnsureClusterStateVersionAppliedRequest(clusterStateVersion, (DiscoveryNode[]) null);
+        return new EnsureClusterStateVersionAppliedRequest(clusterStateVersion, nodeTimeout, (DiscoveryNode[]) null);
     }
 
     public long clusterStateVersion() {
         return clusterStateVersion;
+    }
+
+    public TimeValue nodeTimeout() {
+        return nodeTimeout;
     }
 }

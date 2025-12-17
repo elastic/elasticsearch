@@ -50,7 +50,7 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
     TransportEnsureClusterStateVersionAppliedAction.NodeResponse,
     Void> {
     public static final ActionType<EnsureClusterStateVersionAppliedResponse> TYPE = new ActionType<>(
-        "internal:cluster/nodes/state/wait_for_version"
+        "internal:cluster/nodes/state/ensure_version"
     );
 
     private static final Logger logger = LogManager.getLogger(TransportEnsureClusterStateVersionAppliedAction.class);
@@ -86,7 +86,7 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
 
     @Override
     protected NodeRequest newNodeRequest(EnsureClusterStateVersionAppliedRequest request) {
-        return new NodeRequest(request.clusterStateVersion());
+        return new NodeRequest(request.clusterStateVersion(), request.nodeTimeout());
     }
 
     @Override
@@ -96,7 +96,7 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        // We are using nodeOperationAsync(...).
+        /// We are using [#nodeOperationAsync].
         throw new UnsupportedOperationException();
     }
 
@@ -124,30 +124,44 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                // TODO ??
-                listener.onFailure(new ElasticsearchTimeoutException(""));
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "timed out waiting for cluster state version [" + request.clusterStateVersion + "] to be applied"
+                    )
+                );
             }
         };
 
-        ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), clusterStateListener, predicate, null, logger);
+        ClusterStateObserver.waitForState(
+            clusterService,
+            threadPool.getThreadContext(),
+            clusterStateListener,
+            predicate,
+            request.timeout,
+            logger
+        );
     }
 
     public static class NodeRequest extends AbstractTransportRequest {
         private final long clusterStateVersion;
+        private final TimeValue timeout;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            this.clusterStateVersion = in.readVLong();
+            this.clusterStateVersion = in.readLong();
+            this.timeout = TimeValue.timeValueMillis(in.readLong());
         }
 
-        public NodeRequest(long clusterStateVersion) {
+        public NodeRequest(long clusterStateVersion, TimeValue timeout) {
             this.clusterStateVersion = clusterStateVersion;
+            this.timeout = timeout;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVLong(clusterStateVersion);
+            out.writeLong(clusterStateVersion);
+            out.writeLong(timeout.millis());
         }
 
         @Override

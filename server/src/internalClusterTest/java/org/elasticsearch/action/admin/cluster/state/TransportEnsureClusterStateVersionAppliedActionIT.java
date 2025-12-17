@@ -9,9 +9,11 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -45,7 +47,9 @@ public class TransportEnsureClusterStateVersionAppliedActionIT extends ESIntegTe
 
         var future = client().admin()
             .cluster()
-            .waitForClusterStateApplication(EnsureClusterStateVersionAppliedRequest.onAllNodes(clusterStateVersion.get()));
+            .ensureClusterStateVersionApplied(
+                EnsureClusterStateVersionAppliedRequest.onAllNodes(clusterStateVersion.get(), TimeValue.MINUS_ONE)
+            );
         var response = future.actionGet();
         assertFalse(response.hasFailures());
         assertTrue(response.failures().isEmpty());
@@ -66,12 +70,16 @@ public class TransportEnsureClusterStateVersionAppliedActionIT extends ESIntegTe
 
         var onePlusVersionFuture = client().admin()
             .cluster()
-            .waitForClusterStateApplication(new EnsureClusterStateVersionAppliedRequest(currentState.version() + 1, masterNodeId));
+            .ensureClusterStateVersionApplied(
+                new EnsureClusterStateVersionAppliedRequest(currentState.version() + 1, TimeValue.MINUS_ONE, masterNodeId)
+            );
 
         // Note that here we are waiting for two updates.
         var twoPlusVersionFuture = client().admin()
             .cluster()
-            .waitForClusterStateApplication(new EnsureClusterStateVersionAppliedRequest(currentState.version() + 2, masterNodeId, node1Id));
+            .ensureClusterStateVersionApplied(
+                new EnsureClusterStateVersionAppliedRequest(currentState.version() + 2, TimeValue.MINUS_ONE, masterNodeId, node1Id)
+            );
 
         assertFalse(onePlusVersionFuture.isDone());
         assertFalse(twoPlusVersionFuture.isDone());
@@ -103,6 +111,21 @@ public class TransportEnsureClusterStateVersionAppliedActionIT extends ESIntegTe
         assertEquals(2, twoPlusVersionResponse.getNodes().size());
         assertTrue(twoPlusVersionResponse.getNodes().stream().anyMatch(r -> r.getNode().getName().equals(masterNode)));
         assertTrue(twoPlusVersionResponse.getNodes().stream().anyMatch(r -> r.getNode().getName().equals(node1)));
+    }
+
+    public void testNodeLevelTimeout() throws InterruptedException {
+        internalCluster().startMasterOnlyNode();
+        ensureStableCluster(1);
+
+        var response = client().admin()
+            .cluster()
+            .ensureClusterStateVersionApplied(EnsureClusterStateVersionAppliedRequest.onAllNodes(1000000, TimeValue.timeValueMillis(100)))
+            .actionGet();
+
+        assertEquals(1, response.failures().size());
+        // The structure is FailedNodeException -> RemoteTransportException -> ElasticsearchTimeoutException
+        assertTrue(response.failures().get(0).getCause().getCause() instanceof ElasticsearchTimeoutException);
+        assertEquals(0, response.getNodes().size());
     }
 
     private void dummyClusterStateUpdate(String masterNode, CountDownLatch latch) {

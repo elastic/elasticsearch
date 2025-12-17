@@ -380,7 +380,7 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new SimulatePipelineRequestBuilder(this, source, xContentType);
     }
 
-    public ActionFuture<EnsureClusterStateVersionAppliedResponse> waitForClusterStateApplication(
+    public ActionFuture<EnsureClusterStateVersionAppliedResponse> ensureClusterStateVersionApplied(
         EnsureClusterStateVersionAppliedRequest request
     ) {
         return execute(TransportEnsureClusterStateVersionAppliedAction.TYPE, request);

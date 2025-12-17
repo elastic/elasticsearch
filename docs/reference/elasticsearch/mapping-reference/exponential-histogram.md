@@ -143,13 +143,7 @@ The accepted JSON structure for `exponential_histogram` fields is:
 }
 ```
 
-Constraints:
-
-- `scale` must be within the supported range [-11, 38].
-- `zero.threshold` must be a finite, non-negative double; `zero.count` must be a non-negative long.
-- In both `positive` and `negative`, `indices.length == counts.length` with all `counts > 0` and unique indices
-- The bucket indices should be provided in sorted order. Unsorted indices are supported, but will incur a performance penalty during indexing.
-- Empty histograms must omit `min` and `max` and have `sum: 0.0`.
+The bucket indices should be provided in sorted order. Unsorted indices are supported, but will incur a performance penalty during indexing.
 
 ### Coercion from T-Digest [exponential-histogram-coercion]
 

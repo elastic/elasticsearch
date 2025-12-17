@@ -782,7 +782,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
             putShutdownForRemovalMetadata(nodeName, clusterService);
         }
-        mockLog.awaitAllExpectationsMatched();
+        mockLog.awaitAllExpectationsMatched(TimeValue.timeValueSeconds(1));
     }
 
     /**
@@ -809,7 +809,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         putShutdownForRemovalMetadata(nodeName, clusterService);
 
         // Wait for log expectation to be matched
-        mockLog.awaitAllExpectationsMatched();
+        mockLog.awaitAllExpectationsMatched(TimeValue.timeValueSeconds(1));
     }
 
     private static void addUnassignedShardsWatcher(ClusterService clusterService, String indexName) {

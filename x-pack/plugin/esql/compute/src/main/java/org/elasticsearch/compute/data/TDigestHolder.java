@@ -16,12 +16,15 @@ import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,6 +38,15 @@ import java.util.Objects;
  * object here, are required for ESQL testing.  See for example ShowExecSerializationTest.
  */
 public class TDigestHolder implements GenericNamedWriteable {
+
+    private static final TDigestHolder EMPTY;
+    static {
+        try {
+            EMPTY = new TDigestHolder(encodeCentroidsAndCounts(List.of(), List.of()), Double.NaN, Double.NaN, Double.NaN, 0L);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
 
@@ -59,6 +71,18 @@ public class TDigestHolder implements GenericNamedWriteable {
         this.valueCount = valueCount;
     }
 
+    public TDigestHolder(TDigestState rawTDigest, double min, double max, double sum, long valueCount) {
+        try {
+            this.encodedDigest = encodeCentroidsAndCounts(rawTDigest);
+        } catch (IOException e) {
+            throw new IllegalStateException("Error encoding TDigest", e);
+        }
+        this.min = min;
+        this.max = max;
+        this.sum = sum;
+        this.valueCount = valueCount;
+    }
+
     // TODO: Probably TDigestHolder and ParsedTDigest should be the same object
     public TDigestHolder(TDigestParser.ParsedTDigest parsed) throws IOException {
         this(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
@@ -67,6 +91,10 @@ public class TDigestHolder implements GenericNamedWriteable {
     public TDigestHolder(List<Double> centroids, List<Long> counts, double min, double max, double sum, long valueCount)
         throws IOException {
         this(encodeCentroidsAndCounts(centroids, counts), min, max, sum, valueCount);
+    }
+
+    public static TDigestHolder empty() {
+        return EMPTY;
     }
 
     public TDigestHolder(StreamInput in) throws IOException {
@@ -119,6 +147,37 @@ public class TDigestHolder implements GenericNamedWriteable {
 
         BytesRef docValue = streamOutput.bytes().toBytesRef();
         return docValue;
+    }
+
+    private static BytesRef encodeCentroidsAndCounts(TDigestState rawTDigest) throws IOException {
+        // TODO: This is copied from the method of the same name in TDigestFieldMapper. It would be nice to find a way to reuse that code
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+
+        for (Iterator<Centroid> it = rawTDigest.uniqueCentroids(); it.hasNext();) {
+            Centroid centroid = it.next();
+            if (centroid.count() > 0) {
+                streamOutput.writeVLong(centroid.count());
+                streamOutput.writeDouble(centroid.mean());
+            }
+        }
+
+        BytesRef docValue = streamOutput.bytes().toBytesRef();
+        return docValue;
+    }
+
+    public void addTo(TDigestState state) {
+        try {
+            // TODO: The decoding is copied from TDigestFieldMapper. It would be nice to find a way to reuse that code
+            ByteArrayStreamInput values = new ByteArrayStreamInput();
+            values.reset(encodedDigest.bytes, encodedDigest.offset, encodedDigest.length);
+            while (values.available() > 0) {
+                long count = values.readVLong();
+                double centroid = values.readDouble();
+                state.add(centroid, count);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Malformed TDigest bytes", e);
+        }
     }
 
     public BytesRef getEncodedDigest() {

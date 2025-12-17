@@ -18,10 +18,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.Collection;
 
@@ -30,11 +28,6 @@ import static org.hamcrest.Matchers.is;
 public class CCMEnablementServiceIT extends ESSingleNodeTestCase {
 
     private CCMEnablementService ccmEnablementService;
-
-    @BeforeClass
-    public static void classSetup() {
-        assumeTrue("CCM is behind a feature flag and snapshot only right now", CCMFeatureFlag.FEATURE_FLAG.isEnabled());
-    }
 
     @Before
     public void createComponents() {

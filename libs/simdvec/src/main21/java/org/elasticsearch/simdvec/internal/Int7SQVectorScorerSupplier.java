@@ -301,6 +301,37 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         }
 
         @Override
+        protected void bulkScoreFromSegment(
+            MemorySegment vectors,
+            int vectorLength,
+            int vectorPitch,
+            int firstOrd,
+            MemorySegment ordinals,
+            MemorySegment scores,
+            int numNodes
+        ) {
+            long firstByteOffset = (long) firstOrd * vectorPitch;
+            var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.dotProduct7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+
+            // Java-side adjustment
+            var aOffset = Float.intBitsToFloat(
+                vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
+            );
+            for (int i = 0; i < numNodes; ++i) {
+                var dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                var secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
+                long secondByteOffset = (long) secondOrd * vectorPitch;
+                var bOffset = Float.intBitsToFloat(
+                    vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
+                );
+                float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
+                adjustedDistance = adjustedDistance < 0 ? 1 / (1 + -1 * adjustedDistance) : adjustedDistance + 1;
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedDistance);
+            }
+        }
+
+        @Override
         public MaxInnerProductSupplier copy() {
             return new MaxInnerProductSupplier(input.clone(), values, scoreCorrectionConstant);
         }

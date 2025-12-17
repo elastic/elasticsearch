@@ -891,6 +891,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryHistogram(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            histogramCases(),
+            expectedType,
+            v -> expectedValue.apply((BytesRef) v),
+            warnings
+        );
+    }
+
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -1551,6 +1568,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 "<random exponential histogram>",
                 EsqlTestUtils::randomExponentialHistogram,
                 DataType.EXPONENTIAL_HISTOGRAM
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> histogramCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<random histogram>",
+                EsqlTestUtils::randomHistogram,
+                DataType.HISTOGRAM
+            ),
+            new TypedDataSupplier(
+                "<empty histogram>",
+                () -> new BytesRef(""),
+                DataType.HISTOGRAM
             )
         );
     }

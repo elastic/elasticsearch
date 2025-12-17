@@ -1,7 +1,4 @@
 tests:
-- class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/102717"
-  method: "testRequestResetAndAbort"
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -150,9 +147,6 @@ tests:
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
-- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
-  method: testLuceneVersionConstant
-  issue: https://github.com/elastic/elasticsearch/issues/125638
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
@@ -463,6 +457,15 @@ tests:
 - class: org.elasticsearch.xpack.core.action.XPackUsageResponseTests
   method: testVersionDependentSerializationWriteToOldStream
   issue: https://github.com/elastic/elasticsearch/issues/139576
+- class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/139658
+- class: org.elasticsearch.smoketest.WatcherYamlRestIT
+  method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
+  issue: https://github.com/elastic/elasticsearch/issues/139663
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testReadNonExistingPath
+  issue: https://github.com/elastic/elasticsearch/issues/139665
 
 # Examples:
 #

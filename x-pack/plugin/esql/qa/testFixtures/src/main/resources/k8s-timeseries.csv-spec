@@ -1138,3 +1138,59 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 16.0871          | 11.8608         | 2024-05-10T00:15:00.000Z | prod
 10.2206          | 6.9807          | 2024-05-10T00:20:00.000Z | prod
 ;
+
+DefaultMetricWithFrom
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_default_metric
+FROM k8s-downsampled
+| STATS max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| sort pod
+;
+
+max:double | std_dev:double | pod:keyword
+1060.0     | 331.5018947    | one
+824.0      | 151.9744943    | three
+1419.0     | 364.4118888    | two
+;
+
+DefaultMetricWithTS
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_default_metric
+TS k8s-downsampled
+| STATS max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| sort pod
+;
+
+max:double | std_dev:double | pod:keyword
+1060.0     | 355.3786713    | one
+824.0      | 180.6918802    | three
+815.0      | 102.3469046    | two
+;
+
+DefaultMetricWithFromImplicitCasting
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_default_metric
+FROM k8s*
+| STATS min = min(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| sort pod
+;
+
+min:double | std_dev:double | pod:keyword
+18.0       | 380.8643432    | one
+48.0       | 340.5483293    | three
+20.0       | 431.2070165    | two
+;
+
+DefaultMetricWithTSImplicitCasting
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_default_metric
+TS k8s*
+| STATS min = min(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+| sort pod
+;
+
+min:double | std_dev:double | pod:keyword
+193.0      | 427.9853269    | one
+715.0      | 208.6955678    | three
+602.0      | 375.7757842    | two
+;

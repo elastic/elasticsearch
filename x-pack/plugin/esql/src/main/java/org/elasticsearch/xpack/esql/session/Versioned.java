@@ -39,13 +39,13 @@ import org.elasticsearch.TransportVersion;
  * <h2>How to make version-sensitive changes</h2>
  *
  * Let's say that we want to create an optimization for ESQL queries like
- * {@code ... | STATS ... BY field | SORT field DESC | LIMIT 10}. The optimization would fuse the three nodes
- * into a single {@code TopNAggregate} node, which corresponds to a new operator that only keeps at most N=10 groups in memory,
+ * {@code ... | STATS ... BY field | SORT field DESC | LIMIT 10}. The optimization would fuse the commands
+ * into a single {@code TopNAggregate}, which corresponds to a new operator that only keeps at most N=10 groups in memory,
  * as only the highest values for {@code field} will make it into the output.
  * <p>
- * Old nodes don't support this new node type, but they can already execute this query. Therefore, we need to make sure that
- * this optimization is only applied when all nodes are at or above the version that introduced {@code TopNAggregate}, or
- * we will break backward compatibility.
+ * Old nodes don't support this new {@code TopNAggregate} class, but they can already execute this query. Therefore, we
+ * need to make sure that this optimization is only applied when all nodes are at or above the version that introduced
+ * {@code TopNAggregate}, or we will break backward compatibility.
  * <p>
  * To achieve this, the optimizer rule can use the minimum transport version from the
  * {@link org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext}. If the minimum version is at or above the required version,

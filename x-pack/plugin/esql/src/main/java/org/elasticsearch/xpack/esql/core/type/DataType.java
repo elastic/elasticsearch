@@ -406,7 +406,7 @@ public enum DataType implements Writeable {
         builder().esType("histogram")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction(DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE)
+            .supportedSince(DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE, DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE_RELEASE)
     ),
 
     /**
@@ -1091,5 +1091,9 @@ public enum DataType implements Writeable {
          */
         public static final TransportVersion ESQL_TDIGEST_TECH_PREVIEW = TransportVersion.fromName("esql_tdigest_tech_preview");
 
+        /**
+         * Release version for Histogram data type support
+         */
+        public static final TransportVersion ESQL_HISTOGRAM_DATATYPE_RELEASE = TransportVersion.fromName("esql_histogram_datatype_release");
     }
 }

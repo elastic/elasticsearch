@@ -97,10 +97,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "tdigest",
           "optional" : false,
-          "description" : "Expression that outputs values to average."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",

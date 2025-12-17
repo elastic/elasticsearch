@@ -285,7 +285,7 @@ public class Subject {
 
     // Package private for testing
     RoleReference.CrossClusterApiKeyRoleReference buildRoleReferenceForCrossClusterApiKey() {
-        assert version.onOrAfter(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
+        assert version.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);

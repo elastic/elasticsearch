@@ -166,6 +166,7 @@ import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -1234,7 +1235,9 @@ public class ServerlessStatelessPlugin extends Plugin
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING,
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB,
             SharedBlobCacheWarmingService.OFFLINE_WARMING_ENABLED_SETTING,
-            RestReshardSplitAction.RESHARD_ALLOWED
+            RestReshardSplitAction.RESHARD_ALLOWED,
+            MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,
+            MetadataMappingService.PUT_MAPPING_PRIORITY_SETTING
         );
     }
 

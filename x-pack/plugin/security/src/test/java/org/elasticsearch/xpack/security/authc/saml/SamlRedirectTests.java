@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.hamcrest.Matcher;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -29,17 +30,16 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SamlRedirectTests extends SamlTestCase {
 
@@ -66,7 +66,7 @@ public class SamlRedirectTests extends SamlTestCase {
     public void testRedirectUrlWithoutRelayStateOrSigning() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL), NO_SIGNING);
         final String url = redirect.getRedirectUrl();
-        assertRedirectUrl(url, buildExpectedLogoutRequest(LOGOUT_URL), emptyMap(), false);
+        assertRedirectUrl(url, Map.of("SAMLRequest", equalTo(buildExpectedLogoutRequestString(LOGOUT_URL))));
     }
 
     public void testRedirectUrlWithRelayStateAndSigning() throws Exception {
@@ -78,57 +78,81 @@ public class SamlRedirectTests extends SamlTestCase {
         final String url = redirect.getRedirectUrl("hello");
         assertRedirectUrl(
             url,
-            buildExpectedLogoutRequest(LOGOUT_URL),
-            Map.of("RelayState", "hello", "SigAlg", "http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256"),
-            true
+            Map.of(
+                "SAMLRequest",
+                equalTo(buildExpectedLogoutRequestString(LOGOUT_URL)),
+                "RelayState",
+                equalTo("hello"),
+                "SigAlg",
+                equalTo("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"),
+                "Signature",
+                notNullValue(String.class)
+            )
         );
     }
 
     public void testRedirectUrlWithExistingParameters() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL + "?a=xyz"), NO_SIGNING);
         final String url = redirect.getRedirectUrl("foo");
-        assertRedirectUrl(url, buildExpectedLogoutRequest(LOGOUT_URL + "?a=xyz"), Map.of("RelayState", "foo", "a", "xyz"), false);
+        assertRedirectUrl(
+            url,
+            Map.of(
+                "SAMLRequest",
+                equalTo(buildExpectedLogoutRequestString(LOGOUT_URL + "?a=xyz")),
+                "RelayState",
+                equalTo("foo"),
+                "a",
+                equalTo("xyz")
+            )
+        );
     }
 
     public void testRedirectUrlWithTrailingQuestionMark() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL + "?"), NO_SIGNING);
         final String url = redirect.getRedirectUrl();
-        assertRedirectUrl(url, buildExpectedLogoutRequest(LOGOUT_URL + "?"), emptyMap(), false);
+        assertRedirectUrl(url, Map.of("SAMLRequest", equalTo(buildExpectedLogoutRequestString(LOGOUT_URL + "?"))));
     }
 
-    private static String buildExpectedLogoutRequest(String destination) {
+    private static String buildExpectedLogoutRequestString(String destination) {
         return EXPECTED_LOGOUT_REQUEST_TEMPLATE.formatted(destination);
     }
 
-    private void assertRedirectUrl(
-        String actualRequestUrl,
-        String expectedUncompressedSamlRequestContent,
-        Map<String, String> expectedParams,
-        boolean allowExtraParams
-    ) {
-        Set<String> requiredParams = new HashSet<>(expectedParams.keySet());
-        String[] parts = actualRequestUrl.split("\\?");
-        assertThat(parts[0], equalTo(LOGOUT_URL));
-        final String[] params = parts[1].split("&");
-        for (String param : params) {
-            final String[] keyValue = param.split("=", 2);
-            assertThat(keyValue.length, equalTo(2));
-            final String actualKey = keyValue[0];
-            final String actualValue = keyValue[1];
-            if (actualKey.equals("SAMLRequest")) {
-                final String samlRequest = URLDecoder.decode(actualValue, StandardCharsets.UTF_8);
-                final String decompressed = decompressAndBase64Decode(samlRequest);
-                assertThat(decompressed, equalTo(expectedUncompressedSamlRequestContent));
-            } else {
-                if (expectedParams.containsKey(actualKey)) {
-                    assertThat("invalid value for key " + actualKey, actualValue, equalTo(expectedParams.get(actualKey)));
-                    requiredParams.remove(actualKey);
-                } else if (allowExtraParams == false) {
-                    fail("unexpected parameter: " + actualKey);
-                }
+    private static Map<String, String> parseAndDecodeUrlParameters(String url) {
+        return parseAndDecodeUrlParameters(url, (key, value) -> value);
+    }
+
+    private static Map<String, String> parseAndDecodeUrlParameters(String url, BiFunction<String, String, String> valueDecoder) {
+        Map<String, String> params = new HashMap<>();
+        String[] parts = url.split("\\?", 2);
+        if (parts.length < 2 || parts[1].isEmpty()) {
+            return params;
+        }
+        for (String param : parts[1].split("&")) {
+            String[] keyValue = param.split("=", 2);
+            if (keyValue.length == 2) {
+                String key = keyValue[0];
+                String value = URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
+                params.put(key, valueDecoder.apply(key, value));
             }
         }
-        assertThat(requiredParams, empty());
+        return params;
+    }
+
+    private void assertRedirectUrl(String actualRequestUrl, Map<String, Matcher<String>> expectedParams) {
+        String[] parts = actualRequestUrl.split("\\?", 2);
+        assertThat(parts[0], equalTo(LOGOUT_URL));
+
+        Map<String, String> actualParams = parseAndDecodeUrlParameters(actualRequestUrl, (key, value) -> {
+            if (key.equals("SAMLRequest")) {
+                return decompressAndBase64Decode(value);
+            }
+            return value;
+        });
+        assertThat("URL parameter keys", actualParams.keySet(), equalTo(expectedParams.keySet()));
+
+        for (Map.Entry<String, Matcher<String>> expected : expectedParams.entrySet()) {
+            assertThat("Parameter " + expected.getKey(), actualParams.get(expected.getKey()), expected.getValue());
+        }
     }
 
     private static String decompressAndBase64Decode(String compressedBase64) {
@@ -186,18 +210,11 @@ public class SamlRedirectTests extends SamlTestCase {
         assertThat(validateSignature(queryParam.substring(0, queryParam.length() - 5), signature, credential), equalTo(false));
     }
 
-    private String parseAndUrlDecodeParameter(String parameter) {
-        final String value = parameter.split("=", 2)[1];
-        return URLDecoder.decode(value, StandardCharsets.UTF_8);
-    }
-
     private String validateUrlAndGetSignature(String url) {
-        final String params[] = url.split("\\?")[1].split("&");
-        assert (params.length == 3);
-        String sigAlg = parseAndUrlDecodeParameter(params[1]);
+        Map<String, String> params = parseAndDecodeUrlParameters(url);
         // We currently only support signing with SHA256withRSA, this test should be updated if we add support for more
-        assertThat(sigAlg, equalTo("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"));
-        return parseAndUrlDecodeParameter(params[2]);
+        assertThat(params.get("SigAlg"), equalTo("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"));
+        return params.get("Signature");
     }
 
     private boolean validateSignature(String queryParam, String signature, X509Credential credential) {

@@ -67,7 +67,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
         this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
 
-        if (in.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
+        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
             coordinatingTaskId = in.readLong();
         }
@@ -82,7 +82,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         out.writeOptionalWriteable(aggregatedDfs);
         out.writeOptionalWriteable(rankDocs);
 
-        if (out.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
+        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             out.writeOptionalWriteable(coordinatingNode);
             out.writeLong(coordinatingTaskId);
         }

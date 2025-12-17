@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE_FEATURE_FLAG;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -269,7 +270,7 @@ class FetchSearchPhase extends SearchPhase {
             aggregatedDfs
         );
 
-        if (connection.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+        if (CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled()) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
 

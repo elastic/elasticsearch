@@ -23,6 +23,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,6 +79,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
     public static final ActionType<Response> TYPE = new ActionType<>("internal:data/read/search/fetch/coordination");
 
     public static final TransportVersion CHUNKED_FETCH_PHASE = TransportVersion.fromName("chunked_fetch_phase");
+    public static final FeatureFlag CHUNKED_FETCH_PHASE_FEATURE_FLAG = new FeatureFlag("chunked_fetch_phase");
 
     private final TransportService transportService;
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;

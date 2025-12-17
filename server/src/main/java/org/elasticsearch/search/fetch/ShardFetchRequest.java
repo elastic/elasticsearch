@@ -73,7 +73,7 @@ public class ShardFetchRequest extends AbstractTransportRequest {
         } else {
             lastEmittedDoc = null;
         }
-        if (in.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
+        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
             coordinatingTaskId = in.readLong();
         }
@@ -93,7 +93,7 @@ public class ShardFetchRequest extends AbstractTransportRequest {
             out.writeByte((byte) 2);
             Lucene.writeScoreDoc(out, lastEmittedDoc);
         }
-        if (out.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
+        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             out.writeOptionalWriteable(coordinatingNode);
             out.writeLong(coordinatingTaskId);
         }

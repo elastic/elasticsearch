@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValuesSeparateCounts;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -28,7 +29,11 @@ public class SortedBinaryDocValuesStringFieldScript extends StringFieldScript {
         super(fieldName, Map.of(), searchLookup, OnScriptError.FAIL, ctx);
         try {
             var binaryDocValues = DocValues.getBinary(ctx.reader(), fieldName);
-            sortedBinaryDocValues = new MultiValuedSortedBinaryDocValues(binaryDocValues);
+            var counts = DocValues.getNumeric(ctx.reader(), fieldName + ".counts");
+            sortedBinaryDocValues = counts == null
+                ? new MultiValuedSortedBinaryDocValues(binaryDocValues)
+                : new MultiValuedSortedBinaryDocValuesSeparateCounts(binaryDocValues, counts);
+
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

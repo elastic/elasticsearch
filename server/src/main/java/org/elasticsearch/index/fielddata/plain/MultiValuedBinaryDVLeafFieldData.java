@@ -17,10 +17,10 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
-    private final BinaryDocValues values;
+    private final SortedBinaryDocValues values;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-    MultiValuedBinaryDVLeafFieldData(BinaryDocValues values, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+    MultiValuedBinaryDVLeafFieldData(SortedBinaryDocValues values, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
         super();
         this.values = values;
         this.toScriptFieldFactory = toScriptFieldFactory;
@@ -33,7 +33,7 @@ public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        return new MultiValuedSortedBinaryDocValues(values);
+        return values;
     }
 
     @Override

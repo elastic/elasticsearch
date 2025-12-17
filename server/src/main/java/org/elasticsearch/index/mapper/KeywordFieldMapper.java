@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -18,10 +19,13 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -94,6 +98,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1316,13 +1321,27 @@ public final class KeywordFieldMapper extends FieldMapper {
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
                 if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
-                    // store the value in a binary doc values field, create one if it doesn't exist
-                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
-                    if (field == null) {
-                        field = new MultiValuedBinaryDocValuesField(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
-                        context.doc().addWithKey(fieldName, field);
+                    if (multiValueFormatUsedSeparateCountColumns()) {
+                        // store the value in a binary doc values field, create one if it doesn't exist
+                        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+                        var countField = (MultiValuedBinaryNoCount.UpdateableNumericField) context.doc().getByKey(fieldName + ".counts");
+                        if (field == null) {
+                            field = new MultiValuedBinaryNoCount(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
+                            context.doc().addWithKey(fieldName, field);
+                            countField = new MultiValuedBinaryNoCount.UpdateableNumericField(fieldName + ".counts");
+                            context.doc().addWithKey(countField.name(), countField);
+                        }
+                        field.add(bytesRef);
+                        countField.setValue(field.count());
+                    } else {
+                        // store the value in a binary doc values field, create one if it doesn't exist
+                        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+                        if (field == null) {
+                            field = new MultiValuedBinaryWithCount(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
+                            context.doc().addWithKey(fieldName, field);
+                        }
+                        field.add(bytesRef);
                     }
-                    field.add(bytesRef);
                 } else {
                     // otherwise for bwc, store the value in a stored fields like we used to
                     context.doc().add(new StoredField(fieldName, bytesRef));
@@ -1365,13 +1384,29 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
-            MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getField(fieldType().name());
-            if (field == null) {
-                field = new MultiValuedBinaryDocValuesField(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
-                context.doc().addWithKey(fieldType().name(), field);
+
+            if (multiValueFormatUsedSeparateCountColumns()) {
+                MultiValuedBinaryNoCount field = (MultiValuedBinaryNoCount) context.doc().getField(fieldType().name());
+                var countField = (MultiValuedBinaryNoCount.UpdateableNumericField) context.doc().getByKey(fieldType().name() + ".counts");
+                if (field == null) {
+                    field = new MultiValuedBinaryNoCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
+                    context.doc().addWithKey(fieldType().name(), field);
+                    countField = new MultiValuedBinaryNoCount.UpdateableNumericField(fieldType().name() + ".counts");
+                    context.doc().addWithKey(countField.name(), countField);
+                }
+
+                field.add(binaryValue);
+                countField.setValue(field.count());
+            } else {
+                MultiValuedBinaryWithCount field = (MultiValuedBinaryWithCount) context.doc().getField(fieldType().name());
+                if (field == null) {
+                    field = new MultiValuedBinaryWithCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
+                    context.doc().addWithKey(fieldType().name(), field);
+                }
+                field.add(binaryValue);
             }
-            field.add(binaryValue);
         }
+
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)
         // and this fieldType has docValuesType=NONE. Then, when there is no index defined and the field is not stored, this field
@@ -1390,6 +1425,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private boolean storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck() {
         return indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
+    }
+
+    private boolean multiValueFormatUsedSeparateCountColumns() {
+        return indexCreatedVersion.onOrAfter(IndexVersions.BINARY_DV_MULTI_VALUED_PARALLEL_COUNT);
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
@@ -1538,14 +1577,14 @@ public final class KeywordFieldMapper extends FieldMapper {
      * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
      * binary doc values for fields with multiple values per document.
      */
-    private static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+    private abstract static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
         enum Ordering {
             INSERTION,
             NATURAL
         }
 
-        private final Set<BytesRef> uniqueValues;
-        private int docValuesByteCount = 0;
+        protected final Set<BytesRef> uniqueValues;
+        protected int docValuesByteCount = 0;
 
         MultiValuedBinaryDocValuesField(String name, Ordering ordering) {
             super(name);
@@ -1561,6 +1600,19 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // might as well track these on the go as opposed to having to loop through all entries later
                 docValuesByteCount += value.length;
             }
+        }
+
+        public int count() {
+            return uniqueValues.size();
+        }
+
+        @Override
+        public abstract BytesRef binaryValue();
+    }
+
+    private static class MultiValuedBinaryWithCount extends MultiValuedBinaryDocValuesField {
+        MultiValuedBinaryWithCount(String name, Ordering ordering) {
+            super(name, ordering);
         }
 
         /**
@@ -1583,6 +1635,102 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);
+            }
+        }
+    }
+
+    private static class MultiValuedBinaryNoCount extends MultiValuedBinaryDocValuesField {
+        MultiValuedBinaryNoCount(String name, Ordering ordering) {
+            super(name, ordering);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            int docValuesCount = uniqueValues.size();
+            // the + 1 is for the total doc values count, which is prefixed at the start of the array
+            int streamSize = docValuesByteCount + (docValuesCount + 1) * Integer.BYTES;
+
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                if (docValuesCount == 1) {
+                    BytesRef value = uniqueValues.stream().findFirst().get();
+                    out.writeBytes(value.bytes, value.offset, value.length);
+                } else {
+                    for (BytesRef value : uniqueValues) {
+                        int valueLength = value.length;
+                        out.writeVInt(valueLength);
+                        out.writeBytes(value.bytes, value.offset, valueLength);
+                    }
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to get binary value", e);
+            }
+        }
+
+        public static class UpdateableNumericField implements IndexableField {
+
+            public static final FieldType TYPE;
+            static {
+                FieldType ft = new FieldType();
+                ft.setDocValuesType(DocValuesType.NUMERIC);
+                ft.setOmitNorms(true);
+                TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
+            }
+
+            private final String name;
+            private long value = 0;
+
+            protected UpdateableNumericField(String name) {
+                this.name = name;
+            }
+
+            public void setValue(long value) {
+                this.value = value;
+            }
+
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public IndexableFieldType fieldType() {
+                return TYPE;
+            }
+
+            @Override
+            public String stringValue() {
+                return null;
+            }
+
+            @Override
+            public Reader readerValue() {
+                return null;
+            }
+
+            @Override
+            public Number numericValue() {
+                return value;
+            }
+
+            @Override
+            public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
+                return null;
+            }
+
+            @Override
+            public BytesRef binaryValue() {
+                return null;
+            }
+
+            @Override
+            public StoredValue storedValue() {
+                return null;
+            }
+
+            @Override
+            public InvertableType invertableType() {
+                return InvertableType.BINARY;
             }
         }
     }

@@ -4102,7 +4102,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Note that all three spatial functions need to be notified that they will receive doc value points.
+     * The combination of spatial grid functions and SORT will lead to doc-values being extracted for points.
+     * We test that all nine spatial functions get correctly notified that they will receive doc value points.
      */
     public void testSpatialGridTypesAndSortWithEnvelopeUseDocValues() {
         for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
@@ -4112,10 +4113,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     | EVAL envelope = ST_ENVELOPE(location)
                     | EVAL points = ST_NPOINTS(location)
                     | EVAL grid = ST_GRID(location, 2)
+                    | EVAL x = ST_X(location)
+                    | EVAL xmin = ST_XMIN(location)
+                    | EVAL xmax = ST_XMAX(location)
+                    | EVAL y = ST_Y(location)
+                    | EVAL ymin = ST_YMIN(location)
+                    | EVAL ymax = ST_YMAX(location)
                     | SORT abbrev
-                    """.replace("GRID", grid) + (keepLocation
-                    ? "| KEEP abbrev, location, grid, envelope, points"
-                    : "| KEEP abbrev, grid, grid, envelope, points");
+                    | KEEP abbrev, location, grid, envelope, points, x, y, xmin, xmax, ymin, ymax
+                    """.replace("GRID", grid).replace("KEEP abbrev, location", (keepLocation ? "KEEP abbrev, location" : "KEEP abbrev"));
                 for (boolean withDocValues : new boolean[] { false, true }) {
                     withDocValues &= keepLocation == false; // if we keep location, we cannot use doc-values
                     var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;

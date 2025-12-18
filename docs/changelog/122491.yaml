@@ -1,0 +1,11 @@
+pr: 122491
+summary: Add CEF processor to Ingest node
+area: Ingest node
+type: feature
+issues:
+  - 126201
+highlight:
+  title: Add CEF processor to Ingest node
+  body: |-
+    CEF Ingest node processor parses a CEF (Common Event Format) message into a structured JSON object. It follows the CEF specification to extract fields such as device vendor, device product, device version, signature ID, name, severity, and extension fields. This allows users to easily analyze and visualize CEF-formatted logs within Elasticsearch and Kibana.
+  notable: true

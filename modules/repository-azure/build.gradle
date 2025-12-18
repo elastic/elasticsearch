@@ -83,7 +83,7 @@ dependencies {
 
   implementation project(":modules:transport-netty4")
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
-  runtimeOnly("org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}")
+  // runtimeOnly("org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}")
 
   testImplementation project(':test:fixtures:azure-fixture')
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')

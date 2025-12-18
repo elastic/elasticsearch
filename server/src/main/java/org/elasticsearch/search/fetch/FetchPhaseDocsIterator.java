@@ -161,11 +161,7 @@ abstract class FetchPhaseDocsIterator {
                     for (SearchHit hit : lastHitsArray) {
                         hit.decRef();
                     }
-                    lastChunk = new SearchHits(
-                        lastHitsArray,
-                        new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO),
-                        Float.NaN
-                    );
+                    lastChunk = new SearchHits(lastHitsArray, new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     chunkBuffer.clear();
                 }
             } else {
@@ -276,9 +272,7 @@ abstract class FetchPhaseDocsIterator {
             docsInReader.sort(Comparator.comparingInt(a -> a.docId));
 
             // Prepare array for setNextReader
-            int[] docsArray = docsInReader.stream()
-                .mapToInt(dp -> dp.docId - docBase)
-                .toArray();
+            int[] docsArray = docsInReader.stream().mapToInt(dp -> dp.docId - docBase).toArray();
 
             try {
                 setNextReader(ctx, docsArray);

@@ -1,8 +1,8 @@
 {
-  "project_routing.create_single": {
+  "project_routing.get": {
     "documentation": {
       "url": null,
-      "description": "Create or update named project routing expression"
+      "description": "Get named project routing expression"
     },
     "stability": "experimental",
     "visibility": "public",
@@ -14,7 +14,7 @@
       "paths": [
         {
           "path": "/_project_routing/{name}",
-          "methods": ["PUT"],
+          "methods": ["GET"],
           "parts": {
             "name": {
               "type": "string",
@@ -23,10 +23,6 @@
           }
         }
       ]
-    },
-    "body": {
-      "description": "Project routing expression to save",
-      "required": true
     }
   }
 }

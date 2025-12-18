@@ -1,8 +1,8 @@
 {
-  "project_routing.get_multiple": {
+  "project_routing.create_many": {
     "documentation": {
       "url": null,
-      "description": "Get named project routing expressions"
+      "description": "Create or update named project routing expressions"
     },
     "stability": "experimental",
     "visibility": "public",
@@ -14,9 +14,13 @@
       "paths": [
         {
           "path": "/_project_routing/",
-          "methods": ["GET"]
+          "methods": ["PUT"]
         }
       ]
+    },
+    "body": {
+      "description": "Project routing expressions to save",
+      "required": true
     }
   }
 }

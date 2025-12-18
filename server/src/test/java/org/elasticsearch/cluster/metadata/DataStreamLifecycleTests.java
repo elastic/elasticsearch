@@ -67,7 +67,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         var downsamplingRounds = instance.downsamplingRounds();
         var downsamplingMethod = instance.downsamplingMethod();
         var frozenAfter = instance.frozenAfter();
-        switch (randomInt(5)) {
+        switch (randomInt(DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? 5 : 4)) {
             case 0 -> {
                 if (instance.targetsFailureStore()) {
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
@@ -108,7 +108,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
                     lifecycleTarget = DataStreamLifecycle.LifecycleType.DATA;
                 }
             }
-            case 5 -> frozenAfter = randomValueOtherThan(frozenAfter, () -> randomBoolean() ? null : randomPositiveTimeValue());
+            case 5 -> frozenAfter = randomValueOtherThan(frozenAfter, DataStreamLifecycleTests::randomFrozenAfter);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new DataStreamLifecycle(lifecycleTarget, enabled, retention, downsamplingRounds, downsamplingMethod, frozenAfter);
@@ -518,7 +518,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .downsamplingRounds(downsamplingRounds)
             .downsamplingMethod(downsamplingRounds == null ? null : DownsampleConfigTests.randomSamplingMethod())
-            .frozenAfter(randomBoolean() ? null : randomPositiveTimeValue())
+            .frozenAfter(randomFrozenAfter())
             .build();
     }
 
@@ -530,7 +530,7 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         return DataStreamLifecycle.failuresLifecycleBuilder()
             .enabled(randomBoolean())
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
-            .frozenAfter(randomBoolean() ? null : randomPositiveTimeValue())
+            .frozenAfter(randomFrozenAfter())
             .build();
     }
 
@@ -554,6 +554,13 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    private static TimeValue randomFrozenAfter() {
+        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() == false) {
+            return null;
+        }
+        return randomBoolean() ? null : randomPositiveTimeValue();
     }
 
     public void testInvalidLifecycleConfiguration() {

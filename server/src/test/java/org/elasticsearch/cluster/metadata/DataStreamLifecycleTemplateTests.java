@@ -48,7 +48,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
         var downsamplingRounds = instance.downsamplingRounds();
         var downsamplingMethod = instance.downsamplingMethod();
         var frozenAfter = instance.frozenAfter();
-        switch (randomInt(5)) {
+        switch (randomInt(DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? 5 : 4)) {
             case 0 -> {
                 lifecycleTarget = lifecycleTarget == DataStreamLifecycle.LifecycleType.DATA
                     ? DataStreamLifecycle.LifecycleType.FAILURES
@@ -293,6 +293,9 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
     }
 
     private static ResettableValue<TimeValue> randomFrozenAfter() {
+        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() == false) {
+            return ResettableValue.undefined();
+        }
         return switch (randomIntBetween(0, 2)) {
             case 0 -> ResettableValue.undefined();
             case 1 -> ResettableValue.reset();

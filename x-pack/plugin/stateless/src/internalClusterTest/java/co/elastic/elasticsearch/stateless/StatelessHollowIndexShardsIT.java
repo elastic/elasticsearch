@@ -171,6 +171,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.metadata.DataStreamFailureStoreDefinition.FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
@@ -307,6 +308,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
             .put(DATA_STREAM_LIFECYCLE_POLL_INTERVAL, TimeValue.timeValueSeconds(1))
             .put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1")
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, (String) null)
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0);
     }
 
@@ -3223,6 +3225,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
                 bulkRequest.add(indexRequest);
             }
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+
             assertThat(bulkResponse.getItems().length, equalTo(numDocs));
             String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
             String failBackingIndexPrefix = DataStream.FAILURE_STORE_PREFIX + dataStream;

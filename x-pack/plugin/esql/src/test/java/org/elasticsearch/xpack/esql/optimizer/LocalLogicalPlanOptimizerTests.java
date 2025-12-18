@@ -2040,6 +2040,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testReductionPlanForTopNWithPushedDownFunctions() {
+        assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL score = V_DOT_PRODUCT(dense_vector, [1.0, 2.0, 3.0])
@@ -2102,6 +2103,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testReductionPlanForTopNWithPushedDownFunctionsInOrder() {
+        assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL fieldLength = LENGTH(text)

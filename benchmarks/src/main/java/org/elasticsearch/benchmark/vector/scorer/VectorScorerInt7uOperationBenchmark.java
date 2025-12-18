@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -29,15 +30,18 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
+
+@Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 1)
-public class VectorScorerJDKInt7uBenchmark {
+public class VectorScorerInt7uOperationBenchmark {
 
     static {
         NodeNamePatternConverter.setGlobalNodeName("foo");
@@ -55,6 +59,9 @@ public class VectorScorerJDKInt7uBenchmark {
     @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
     public int size;
 
+    @Param({ "DOT_PRODUCT" })
+    public VectorSimilarityType function;
+
     @Setup(Level.Iteration)
     public void init() {
         byteArrayA = new byte[size];
@@ -67,9 +74,9 @@ public class VectorScorerJDKInt7uBenchmark {
         heapSegB = MemorySegment.ofArray(byteArrayB);
 
         arena = Arena.ofConfined();
-        nativeSegA = arena.allocate((long) byteArrayA.length);
+        nativeSegA = arena.allocate(byteArrayA.length);
         MemorySegment.copy(MemorySegment.ofArray(byteArrayA), 0L, nativeSegA, 0L, byteArrayA.length);
-        nativeSegB = arena.allocate((long) byteArrayB.length);
+        nativeSegB = arena.allocate(byteArrayB.length);
         MemorySegment.copy(MemorySegment.ofArray(byteArrayB), 0L, nativeSegB, 0L, byteArrayB.length);
     }
 
@@ -79,20 +86,17 @@ public class VectorScorerJDKInt7uBenchmark {
     }
 
     @Benchmark
-    @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public int dotProductLucene() {
+    public int lucene() {
         return VectorUtil.dotProduct(byteArrayA, byteArrayB);
     }
 
     @Benchmark
-    @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public int dotProductNativeWithNativeSeg() {
+    public int nativeWithNativeSeg() {
         return dotProduct7u(nativeSegA, nativeSegB, size);
     }
 
     @Benchmark
-    @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public int dotProductNativeWithHeapSeg() {
+    public int nativeWithHeapSeg() {
         return dotProduct7u(heapSegA, heapSegB, size);
     }
 
@@ -106,24 +110,7 @@ public class VectorScorerJDKInt7uBenchmark {
         try {
             return (int) vectorSimilarityFunctions.dotProductHandle7u().invokeExact(a, b, length);
         } catch (Throwable e) {
-            if (e instanceof Error err) {
-                throw err;
-            } else if (e instanceof RuntimeException re) {
-                throw re;
-            } else {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-    static final byte MIN_INT7_VALUE = 0;
-    static final byte MAX_INT7_VALUE = 127;
-
-    static void randomInt7BytesBetween(byte[] bytes) {
-        var random = ThreadLocalRandom.current();
-        for (int i = 0, len = bytes.length; i < len;) {
-            bytes[i++] = (byte) random.nextInt(MIN_INT7_VALUE, MAX_INT7_VALUE + 1);
+            throw rethrow(e);
         }
     }
 }

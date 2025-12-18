@@ -47,9 +47,7 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
                 update.setIndicesOptions(indicesOptions);
             }
             // If CPS is enabled cluster-wide, ensure the CPS flag is set on indices_options
-            update.setIndicesOptions(
-                DatafeedConfig.ensureCrossProjectSearchEnabled(update.getIndicesOptions(), enableCrossProjectSearch)
-            );
+            update.setIndicesOptions(DatafeedConfig.ensureCrossProjectSearchEnabled(update.getIndicesOptions(), enableCrossProjectSearch));
             update.setId(datafeedId);
             return new Request(update.build());
         }

@@ -233,9 +233,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     public static IndicesOptions ensureCrossProjectSearchEnabled(IndicesOptions options, boolean enableCrossProjectSearch) {
         if (enableCrossProjectSearch && options != null && options.resolveCrossProjectIndexExpression() == false) {
-            return IndicesOptions.builder(options)
-                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                .build();
+            return IndicesOptions.builder(options).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
         }
         return options;
     }

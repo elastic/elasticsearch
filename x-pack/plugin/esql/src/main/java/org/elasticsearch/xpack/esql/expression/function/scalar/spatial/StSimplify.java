@@ -62,7 +62,7 @@ public class StSimplify extends SpatialDocValuesFunction {
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
             + "Note that the resulting geometry may be invalid, even if the original input was valid.",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = @Example(file = "spatial-jts", tag = "st_simplify")
     )
     public StSimplify(

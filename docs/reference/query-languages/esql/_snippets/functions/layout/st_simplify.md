@@ -2,7 +2,7 @@
 
 ## `ST_SIMPLIFY` [esql-st_simplify]
 ```{applies_to}
-stack: preview
+stack: preview 9.4.0
 serverless: preview
 ```
 

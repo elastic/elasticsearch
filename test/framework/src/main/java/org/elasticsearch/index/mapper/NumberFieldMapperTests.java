@@ -255,7 +255,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         // dimension = true is allowed
         assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
 
-        assertDimensionIndexing();
+        assertTimeSeriesIndexing();
     }
 
     public void testMetricType() throws IOException {

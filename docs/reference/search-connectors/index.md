@@ -21,7 +21,7 @@ A _connector_ is an Elastic integration that syncs data from an original data so
 
 Each connector extracts the original files, records, or objects; and transforms them into documents within {{es}}.
 
-These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/connectors/sources) repo.
+These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources) repo.
 
 ## Available connectors
 
@@ -42,41 +42,40 @@ The columns provide specific information about each connector:
 
 
 
-| Connector | Status | [Advanced sync rules](./es-sync-rules.md#es-sync-rules-advanced) | [Local binary extraction service](./es-connectors-content-extraction.md#es-connectors-content-extraction-local) | [Incremental syncs](./content-syncs.md#es-connectors-sync-types-incremental) | [Document level security](./document-level-security.md) | Source code |
-| ------- | --------------- | -- | -- | -- | -- | -- |
-| [Azure Blob](/reference/search-connectors/es-connectors-azure-blob.md) | **GA** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/azure_blob_storage.py) |
-| [Box](/reference/search-connectors/es-connectors-box.md)  | **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/box.py) |
-| [Confluence Cloud](/reference/search-connectors/es-connectors-confluence.md) | **GA** | 8.9+ | 8.11+ | 8.13+ | 8.10 | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/confluence.py) |
-| [Confluence Data Center](/reference/search-connectors/es-connectors-confluence.md) | **Preview** | 8.13+ | 8.13+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/confluence.py) |
-| [Confluence Server](/reference/search-connectors/es-connectors-confluence.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/confluence.py) |
-| [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)| **GA** | - | 8.11+ | 8.13+ | 8.12+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/dropbox.py) |
-| [GitHub](/reference/search-connectors/es-connectors-github.md)| **GA** | 8.10+ | 8.11+ | 8.13+ | 8.12+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/github.py) |
-| [Gmail](/reference/search-connectors/es-connectors-gmail.md)| **GA** | - | - | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/gmail.py) |
-| [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)| **GA** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/google_cloud_storage.py) |
-| [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)| **GA** | - | 8.11+ | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/google_drive.py) |
-| [GraphQL](/reference/search-connectors/es-connectors-graphql.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/graphql.py) |
-| [Jira Cloud](/reference/search-connectors/es-connectors-jira.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/jira.py) |
-| [Jira Data Center](/reference/search-connectors/es-connectors-jira.md)| **Preview** | 8.13+ | 8.13+ | 8.13+ | 8.13+*| [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/jira.py) |
-| [Jira Server](/reference/search-connectors/es-connectors-jira.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/jira.py) |
-| [Microsoft SQL Server](/reference/search-connectors/es-connectors-ms-sql.md)| **GA** | 8.11+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/mssql.py) |
-| [MongoDB](/reference/search-connectors/es-connectors-mongodb.md)| **GA** | 8.8 native/ 8.12 self-managed | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/mongo.py) |
-| [MySQL](/reference/search-connectors/es-connectors-mysql.md)| **GA** | 8.8+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/mysql.py) |
-| [Network drive](/reference/search-connectors/es-connectors-network-drive.md)| **GA** | 8.10+ | 8.14+ | 8.13+ | 8.11+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/network_drive.py) |
-| [Notion](/reference/search-connectors/es-connectors-notion.md)| **GA** | 8.14+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/notion.py) |
-| [OneDrive](/reference/search-connectors/es-connectors-onedrive.md)| **GA** | 8.11+ | 8.11+ | 8.13+ | 8.11+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/onedrive.py) |
-| [Opentext Documentum](/reference/search-connectors/es-connectors-opentext.md)| **Example** | n/a | n/a | n/a | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/opentext_documentum.py) |
-| [Oracle](/reference/search-connectors/es-connectors-oracle.md)| **GA** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/oracle.py) |
-| [Outlook](/reference/search-connectors/es-connectors-outlook.md)| **GA** | - | 8.11+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/outlook.py) |
-| [PostgreSQL](/reference/search-connectors/es-connectors-postgresql.md)| **GA** | 8.11+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/postgresql.py) |
-| [Redis](/reference/search-connectors/es-connectors-redis.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/redis.py) |
-| [Amazon S3](/reference/search-connectors/es-connectors-s3.md)| **GA** | 8.12+ | 8.11+ | - | - |[View code](https://github.com/elastic/connectors/tree/main/connectors/sources/s3.py) |
-| [Salesforce](/reference/search-connectors/es-connectors-salesforce.md)| **GA** | 8.12+ | 8.11+ | 8.13+ | 8.13+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/salesforce.py) |
-| [ServiceNow](/reference/search-connectors/es-connectors-servicenow.md)| **GA** | 8.10+ | 8.11+ | 8.13+ | 8.13+ | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/servicenow.py) |
-| [Sharepoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)| **GA** | 8.9+ | 8.9+ | 8.9+ | 8.9+ |[View code](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_online.py) |
-| [Sharepoint Server](/reference/search-connectors/es-connectors-sharepoint.md)| **Beta** | - | 8.11+ | 8.13+ | 8.15+ |[View code](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py) |
-| [Slack](/reference/search-connectors/es-connectors-slack.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/slack.py) |
-| [Teams](/reference/search-connectors/es-connectors-teams.md)| **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/teams.py) |
-| [Zoom](/reference/search-connectors/es-connectors-zoom.md)| **Preview** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/connectors/sources/zoom.py) |
+| Connector | Status | [Advanced sync rules](./es-sync-rules.md#es-sync-rules-advanced) | [Local binary extraction service](./es-connectors-content-extraction.md#es-connectors-content-extraction-local) | [Incremental syncs](./content-syncs.md#es-connectors-sync-types-incremental) | [Document level security](./document-level-security.md) | Source code                                                                                                                |
+| ------- | --------------- | -- | -- | -- | -- |----------------------------------------------------------------------------------------------------------------------------|
+| [Azure Blob](/reference/search-connectors/es-connectors-azure-blob.md) | **GA** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/azure_blob_storage/) |
+| [Box](/reference/search-connectors/es-connectors-box.md)  | **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/box)                                     |
+| [Confluence Cloud](/reference/search-connectors/es-connectors-confluence.md) | **GA** | 8.9+ | 8.11+ | 8.13+ | 8.10 | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence)                              |
+| [Confluence Data Center](/reference/search-connectors/es-connectors-confluence.md) | **Preview** | 8.13+ | 8.13+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence)                              |
+| [Confluence Server](/reference/search-connectors/es-connectors-confluence.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence)                              |
+| [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)| **GA** | - | 8.11+ | 8.13+ | 8.12+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/dropbox)                                 |
+| [GitHub](/reference/search-connectors/es-connectors-github.md)| **GA** | 8.10+ | 8.11+ | 8.13+ | 8.12+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/github)                                  |
+| [Gmail](/reference/search-connectors/es-connectors-gmail.md)| **GA** | - | - | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/gmail)                                   |
+| [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)| **GA** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/google_cloud_storage)                    |
+| [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)| **GA** | - | 8.11+ | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/google_drive)                            |
+| [GraphQL](/reference/search-connectors/es-connectors-graphql.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/graphql)                                 |
+| [Jira Cloud](/reference/search-connectors/es-connectors-jira.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | 8.10+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/jira)                                    |
+| [Jira Data Center](/reference/search-connectors/es-connectors-jira.md)| **Preview** | 8.13+ | 8.13+ | 8.13+ | 8.13+*| [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/jira)                                    |
+| [Jira Server](/reference/search-connectors/es-connectors-jira.md)| **GA** | 8.9+ | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/jira)                                    |
+| [Microsoft SQL Server](/reference/search-connectors/es-connectors-ms-sql.md)| **GA** | 8.11+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mssql)                                   |
+| [MongoDB](/reference/search-connectors/es-connectors-mongodb.md)| **GA** | 8.8 native/ 8.12 self-managed | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mongo)                                   |
+| [MySQL](/reference/search-connectors/es-connectors-mysql.md)| **GA** | 8.8+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mysql)                                   |
+| [Network drive](/reference/search-connectors/es-connectors-network-drive.md)| **GA** | 8.10+ | 8.14+ | 8.13+ | 8.11+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/network_drive)                           |
+| [Notion](/reference/search-connectors/es-connectors-notion.md)| **GA** | 8.14+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/notion)                                  |
+| [OneDrive](/reference/search-connectors/es-connectors-onedrive.md)| **GA** | 8.11+ | 8.11+ | 8.13+ | 8.11+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/onedrive)                                |
+| [Oracle](/reference/search-connectors/es-connectors-oracle.md)| **GA** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/oracle)                                  |
+| [Outlook](/reference/search-connectors/es-connectors-outlook.md)| **GA** | - | 8.11+ | 8.13+ | 8.14+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/outlook)                                 |
+| [PostgreSQL](/reference/search-connectors/es-connectors-postgresql.md)| **GA** | 8.11+ | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/postgresql)                              |
+| [Redis](/reference/search-connectors/es-connectors-redis.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/redis)                                   |
+| [Amazon S3](/reference/search-connectors/es-connectors-s3.md)| **GA** | 8.12+ | 8.11+ | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/s3)                                      |
+| [Salesforce](/reference/search-connectors/es-connectors-salesforce.md)| **GA** | 8.12+ | 8.11+ | 8.13+ | 8.13+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/salesforce)                              |
+| [ServiceNow](/reference/search-connectors/es-connectors-servicenow.md)| **GA** | 8.10+ | 8.11+ | 8.13+ | 8.13+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/servicenow)                              |
+| [Sharepoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)| **GA** | 8.9+ | 8.9+ | 8.9+ | 8.9+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_online)                       |
+| [Sharepoint Server](/reference/search-connectors/es-connectors-sharepoint.md)| **Beta** | - | 8.11+ | 8.13+ | 8.15+ | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server)                       |
+| [Slack](/reference/search-connectors/es-connectors-slack.md)| **Preview** | - | - | - | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/slack)                                   |
+| [Teams](/reference/search-connectors/es-connectors-teams.md)| **Preview** | - | - | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams)                                   |
+| [Zoom](/reference/search-connectors/es-connectors-zoom.md)| **Preview** | - | 8.11+ | 8.13+ | - | [View code](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/zoom)                                    |
 
 :::{tip}
 Because prerequisites and configuration details vary by data source, you’ll need to refer to the individual connector references for specific details.

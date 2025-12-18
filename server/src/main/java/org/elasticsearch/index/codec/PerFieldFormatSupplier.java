@@ -13,14 +13,15 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -29,10 +30,15 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+
+import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_MAX_CONN;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
@@ -41,6 +47,7 @@ import java.util.Set;
 public class PerFieldFormatSupplier {
 
     private static final Set<String> INCLUDE_META_FIELDS;
+    private static final Set<String> EXCLUDE_MAPPER_TYPES;
 
     static {
         // TODO: should we just allow all fields to use tsdb doc values codec?
@@ -53,31 +60,64 @@ public class PerFieldFormatSupplier {
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
+        EXCLUDE_MAPPER_TYPES = Set.of("geo_shape");
     }
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
+    private final KnnVectorsFormat knnVectorsFormat;
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(true);
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
+    private final ThreadPool threadPool;
 
     private final PostingsFormat defaultPostingsFormat;
 
-    public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
+    public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
+        this.threadPool = threadPool;
+        this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
+        this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
+    }
 
+    private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
+        // we migrated to using a new postings format for the standard indices with Lucene 10.3
         if (mapperService != null
-            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)
-            && mapperService.getIndexSettings().getMode().useDefaultPostingsFormat()) {
-            defaultPostingsFormat = Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
+            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)) {
+            if (IndexSettings.USE_ES_812_POSTINGS_FORMAT.get(mapperService.getIndexSettings().getSettings())) {
+                return es812PostingsFormat;
+            } else {
+                return Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
+            }
         } else {
-            // our own posting format using PFOR
-            defaultPostingsFormat = es812PostingsFormat;
+            // our own posting format using PFOR, used for logsdb and tsdb indices by default
+            return es812PostingsFormat;
         }
+    }
+
+    private static KnnVectorsFormat getDefaultKnnVectorsFormat(final MapperService mapperService, final ThreadPool threadPool) {
+        ExecutorService mergingExecutorService = null;
+        int maxMergingWorkers = 1;
+        if (threadPool != null
+            && mapperService != null
+            && mapperService.getIndexSettings().isIntraMergeParallelismEnabled()
+            && threadPool.info(ThreadPool.Names.MERGE) != null) {
+            maxMergingWorkers = threadPool.info(ThreadPool.Names.MERGE).getMax();
+            if (maxMergingWorkers > 1) {
+                mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
+            }
+        }
+        return new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            maxMergingWorkers,
+            mergingExecutorService
+        );
     }
 
     public PostingsFormat getPostingsFormatForField(String field) {
@@ -120,7 +160,7 @@ public class PerFieldFormatSupplier {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings());
+                return vectorMapper.getKnnVectorsFormatForField(knnVectorsFormat, mapperService.getIndexSettings(), threadPool);
             }
         }
         return knnVectorsFormat;
@@ -128,13 +168,19 @@ public class PerFieldFormatSupplier {
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
         if (useTSDBDocValuesFormat(field)) {
-            return tsdbDocValuesFormat;
+            return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
+                ? tsdbDocValuesFormatLargeNumericBlock
+                : tsdbDocValuesFormat;
         }
         return docValuesFormat;
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
         if (excludeFields(field)) {
+            return false;
+        }
+
+        if (excludeMapperTypes(field)) {
             return false;
         }
 
@@ -147,4 +193,29 @@ public class PerFieldFormatSupplier {
         return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
     }
 
+    private boolean excludeMapperTypes(String fieldName) {
+        var typeName = getMapperType(fieldName);
+        if (typeName == null) {
+            return false;
+        }
+        return EXCLUDE_MAPPER_TYPES.contains(getMapperType(fieldName));
+    }
+
+    private boolean isTimeSeriesModeIndex() {
+        return mapperService != null && IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
+    }
+
+    private boolean isLogsModeIndex() {
+        return mapperService != null && IndexMode.LOGSDB == mapperService.getIndexSettings().getMode();
+    }
+
+    String getMapperType(final String field) {
+        if (mapperService != null) {
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper != null) {
+                return mapper.typeName();
+            }
+        }
+        return null;
+    }
 }

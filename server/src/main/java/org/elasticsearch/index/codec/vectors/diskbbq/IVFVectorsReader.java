@@ -42,6 +42,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CENTROID_EXTENSION;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
@@ -87,20 +89,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             } finally {
                 CodecUtil.checkFooter(ivfMeta, priorE);
             }
-            ivfCentroids = openDataInput(
-                state,
-                versionMeta,
-                ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
-                ES920DiskBBQVectorsFormat.NAME,
-                state.context
-            );
-            ivfClusters = openDataInput(
-                state,
-                versionMeta,
-                ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-                ES920DiskBBQVectorsFormat.NAME,
-                state.context
-            );
+            ivfCentroids = openDataInput(state, versionMeta, CENTROID_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
+            ivfClusters = openDataInput(state, versionMeta, CLUSTER_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
             success = true;
         } finally {
             if (success == false) {
@@ -116,6 +106,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         float[] target,
         IndexInput postingListSlice,
         AcceptDocs acceptDocs,
+        float approximateCost,
+        FloatVectorValues values,
         float visitRatio
     ) throws IOException;
 
@@ -291,11 +283,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         } else {
             esAcceptDocs = null;
         }
-        int numVectors = getReaderForField(field).getFloatVectorValues(field).size();
-        float percentFiltered = Math.max(
-            0f,
-            Math.min(1f, (float) (esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost()) / numVectors)
-        );
+        FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
+        int numVectors = values.size();
+        // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
+        float approximateCost = (float) (esAcceptDocs == null ? acceptDocs.cost()
+            : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
+            : esAcceptDocs.approximateCost());
+        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -322,7 +316,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             entry.centroidSlice(ivfCentroids),
             target,
             postListSlice,
-            esAcceptDocs == null ? acceptDocs : esAcceptDocs,
+            acceptDocs,
+            approximateCost,
+            values,
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
@@ -346,6 +342,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
         }
         if (acceptDocsBits != null) {
+            // TODO Adjust the value here when using centroid filtering
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
@@ -381,12 +378,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
             return raw;
         }
-        return raw;  // for now just return the size of raw
 
-        // TODO: determine desired off off-heap requirements
-        // var centroids = Map.of(EXTENSION, fe.xxxLength());
-        // var clusters = Map.of(EXTENSION, fe.yyyLength());
-        // return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroids, clusters);
+        var centroidsClusters = Map.of(CENTROID_EXTENSION, fe.centroidLength, CLUSTER_EXTENSION, fe.postingListLength);
+        return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroidsClusters);
     }
 
     @Override

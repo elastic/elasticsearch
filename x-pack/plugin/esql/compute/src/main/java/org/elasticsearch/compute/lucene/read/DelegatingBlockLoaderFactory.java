@@ -57,6 +57,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.SingletonBytesRefBuilder singletonBytesRefs(int expectedCount) {
+        return new SingletonBytesRefBuilder(expectedCount, factory);
+    }
+
+    @Override
     public BytesRefBlock constantBytes(BytesRef value, int count) {
         if (count == 1) {
             return factory.newConstantBytesRefBlockWith(value, count);
@@ -185,9 +190,31 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (DoubleBlock) minima,
             (DoubleBlock) maxima,
             (DoubleBlock) sums,
-            (LongBlock) valueCounts,
+            (DoubleBlock) valueCounts,
             (DoubleBlock) zeroThresholds,
             (BytesRefBlock) encodedHistograms
         );
+    }
+
+    @Override
+    public BlockLoader.Block buildTDigestBlockDirect(
+        BlockLoader.Block encodedDigests,
+        BlockLoader.Block minima,
+        BlockLoader.Block maxima,
+        BlockLoader.Block sums,
+        BlockLoader.Block valueCounts
+    ) {
+        return factory.newTDigestBlockFromDocValues(
+            (BytesRefBlock) encodedDigests,
+            (DoubleBlock) minima,
+            (DoubleBlock) maxima,
+            (DoubleBlock) sums,
+            (LongBlock) valueCounts
+        );
+    }
+
+    @Override
+    public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
+        return factory.newTDigestBlockBuilder(count);
     }
 }

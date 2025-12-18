@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.IOUtils;
@@ -211,7 +212,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
         final Store store = this.store;
         store.incRef();
         return new SearcherSupplier(wrapper) {

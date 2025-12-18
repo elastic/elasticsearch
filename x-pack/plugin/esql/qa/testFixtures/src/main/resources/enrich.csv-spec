@@ -651,7 +651,6 @@ fieldsInOtherIndicesBug
 required_capability: enrich_load
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
-required_capability: exponential_histogram
 
 from *
 | keep author.keyword, book_no, scalerank, street, bytes_in, @timestamp, abbrev, city_location, distance, description, birth_date, language_code, intersects, client_ip, event_duration, version
@@ -781,4 +780,73 @@ ROW a = 1, b = 2
 
 values(language_name_a):keyword | values(language_name_b):keyword
 English                         | French
+;
+
+
+circularRefEnrichStats
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| RENAME language_name AS message  
+| ENRICH languages_policy ON language_code 
+| STATS a = count(to_lower(language_name)), b = count(language_name)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats2
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| RENAME language_name AS message  
+| ENRICH languages_policy ON language_code 
+| STATS a = count(to_lower(language_name)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats3
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code
+| RENAME language_name AS message
+| STATS a = count(to_lower(message)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats4
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code WITH message=language_name
+| RENAME language_name AS message
+| STATS a = count(to_lower(message)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats5
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code WITH message=language_name
+| STATS a = count(to_lower(language_name)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
 ;

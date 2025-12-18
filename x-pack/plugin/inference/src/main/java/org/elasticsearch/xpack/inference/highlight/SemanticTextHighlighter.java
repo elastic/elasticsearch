@@ -21,6 +21,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -33,8 +34,11 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -266,17 +270,27 @@ public class SemanticTextHighlighter implements Highlighter {
                 super.consumeTerms(query, terms);
             }
 
+            private void visitLeaf(Query query, Float similarity) {
+                if (query instanceof KnnFloatVectorQuery knnQuery) {
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity));
+                } else if (query instanceof KnnByteVectorQuery knnQuery) {
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity));
+                } else if (query instanceof MatchAllDocsQuery) {
+                    queries.add(Queries.ALL_DOCS_INSTANCE);
+                } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity));
+                } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
+                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity));
+                } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
+                    visitLeaf(rescoreQuery.innerQuery(), similarity);
+                } else if (query instanceof VectorSimilarityQuery similarityQuery) {
+                    visitLeaf(similarityQuery.getInnerKnnQuery(), similarityQuery.getSimilarity());
+                }
+            }
+
             @Override
             public void visitLeaf(Query query) {
-                if (query instanceof KnnFloatVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), null));
-                } else if (query instanceof KnnByteVectorQuery knnQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), null));
-                } else if (query instanceof MatchAllDocsQuery) {
-                    queries.add(new MatchAllDocsQuery());
-                } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
-                    queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), null));
-                }
+                visitLeaf(query, null);
             }
         });
         return queries;
@@ -306,7 +320,7 @@ public class SemanticTextHighlighter implements Highlighter {
             @Override
             public void visitLeaf(Query query) {
                 if (query instanceof MatchAllDocsQuery) {
-                    queries.add(new MatchAllDocsQuery());
+                    queries.add(Queries.ALL_DOCS_INSTANCE);
                 }
             }
         });

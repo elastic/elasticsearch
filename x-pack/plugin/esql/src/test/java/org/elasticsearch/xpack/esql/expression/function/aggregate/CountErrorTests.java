@@ -33,12 +33,27 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            "argument of [dense_vector] must be [any type except counter types or dense_vector], found value [] type [dense_vector]"
+            typeErrorMessage(
+                false,
+                validPerPosition,
+                signature,
+                (v, p) -> "any type except counter types, dense_vector, tdigest, histogram, or exponential_histogram"
+            )
         );
     }
 
     @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat(checked, equalTo(1));
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
+        assertThat(
+            invalidSignatureSamples,
+            equalTo(
+                Set.of(
+                    List.of(DataType.DENSE_VECTOR),
+                    List.of(DataType.EXPONENTIAL_HISTOGRAM),
+                    List.of(DataType.TDIGEST),
+                    List.of(DataType.HISTOGRAM)
+                )
+            )
+        );
     }
 }

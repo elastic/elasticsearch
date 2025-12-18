@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -103,8 +101,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField PER_DEPLOYMENT_MEMORY_BYTES = new ParseField("per_deployment_memory_bytes");
     public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
     public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
-
-    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_11_X;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -279,21 +275,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
         this.modelType = in.readOptionalEnum(TrainedModelType.class);
         this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
-            fullDefinition = in.readOptionalBoolean();
-        } else {
-            modelPackageConfig = null;
-            fullDefinition = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            platformArchitecture = in.readOptionalString();
-        } else {
-            platformArchitecture = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
-        }
+        modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
+        fullDefinition = in.readOptionalBoolean();
+        platformArchitecture = in.readOptionalString();
+        prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
     }
 
     public boolean isPackagedModel() {
@@ -468,18 +453,12 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeOptionalEnum(modelType);
         out.writeOptionalNamedWriteable(location);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalWriteable(modelPackageConfig);
-            out.writeOptionalBoolean(fullDefinition);
-        }
+        out.writeOptionalWriteable(modelPackageConfig);
+        out.writeOptionalBoolean(fullDefinition);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeOptionalString(platformArchitecture);
-        }
+        out.writeOptionalString(platformArchitecture);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(prefixStrings);
-        }
+        out.writeOptionalWriteable(prefixStrings);
     }
 
     @Override

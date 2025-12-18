@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -19,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -94,6 +96,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
         private final Parameter<NamedAnalyzer> analyzer;
         private final Parameter<Boolean> disableTemplating;
+        private final IndexVersion indexCreatedVersion;
 
         public Builder(String name, MappingParserContext context) {
             this(name, context.indexVersionCreated(), context.getIndexSettings(), context.isWithinMultiField());
@@ -104,6 +107,11 @@ public class PatternTextFieldMapper extends FieldMapper {
             this.indexSettings = indexSettings;
             this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
             this.disableTemplating = disableTemplatingParameter(indexSettings);
+            this.indexCreatedVersion = indexCreatedVersion;
+        }
+
+        private boolean useBinaryDocValuesForArgsColumn() {
+            return indexCreatedVersion.onOrAfter(IndexVersions.PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES);
         }
 
         @Override
@@ -121,7 +129,8 @@ public class PatternTextFieldMapper extends FieldMapper {
                 disableTemplating.getValue(),
                 meta.getValue(),
                 context.isSourceSynthetic(),
-                isWithinMultiField()
+                isWithinMultiField(),
+                useBinaryDocValuesForArgsColumn()
             );
         }
 
@@ -168,7 +177,7 @@ public class PatternTextFieldMapper extends FieldMapper {
          * associated index setting, which is set from the current license status.
          */
         private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
-            boolean forceDisable = indexSettings.getValue(DISABLE_TEMPLATING_SETTING);
+            boolean forceDisable = DISABLE_TEMPLATING_SETTING.get(indexSettings.getSettings());
             return Parameter.boolParam(
                 "disable_templating",
                 false,
@@ -207,6 +216,7 @@ public class PatternTextFieldMapper extends FieldMapper {
     private final String indexOptions;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
+    private final boolean useBinaryDocValueArgs;
 
     private PatternTextFieldMapper(
         String simpleName,
@@ -225,6 +235,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         this.indexSettings = builder.indexSettings;
         this.indexOptions = builder.indexOptions.getValue();
         this.templateIdMapper = templateIdMapper;
+        this.useBinaryDocValueArgs = builder.useBinaryDocValuesForArgsColumn();
     }
 
     @Override
@@ -287,7 +298,11 @@ public class PatternTextFieldMapper extends FieldMapper {
             // Add args doc_values
             if (parts.args().isEmpty() == false) {
                 String remainingArgs = Arg.encodeRemainingArgs(parts);
-                context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+                if (useBinaryDocValueArgs) {
+                    context.doc().add(new BinaryDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+                } else {
+                    context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+                }
             }
         }
     }

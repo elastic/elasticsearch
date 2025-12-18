@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
@@ -35,12 +34,12 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
-import org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -50,7 +49,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -918,12 +916,6 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private static final Consumer<DocIdSetIterator> checkClass = disi -> {
-        assertThat(disi, instanceOf(XUpdateableDocIdSetIterator.class));
-        XUpdateableDocIdSetIterator iterator = (XUpdateableDocIdSetIterator) disi;
-        assertThat(iterator.getDelegate().getClass().getName(), containsString("SecondarySortIterator"));
-    };
-
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of(
@@ -934,7 +926,7 @@ public class DateFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "date").field("ignore_malformed", false),
                 b -> b.startObject("host.name").field("type", "keyword").endObject(),
                 b -> b.field("@timestamp", "2025-10-30T00:00:00").field("host.name", "foo"),
-                checkClass
+                Assert::assertNotNull
             ),
             new SortShortcutSupport(b -> b.field("type", "date"), b -> b.field("field", "2025-10-30T00:00:00"), true),
             new SortShortcutSupport(b -> b.field("type", "date_nanos"), b -> b.field("field", "2025-10-30T00:00:00"), true),

@@ -14,10 +14,10 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -71,6 +71,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongLeafFieldData.convertUnsignedLongToDouble;
 
 public class UnsignedLongFieldMapper extends FieldMapper {
@@ -125,9 +126,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             ).acceptsNull();
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
-                if (dimension.get()) {
-                    return indexSettings.useDocValuesSkipper() == false
-                        || indexSettings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return false;
                 }
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
@@ -191,12 +191,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         private IndexType indexType() {
-            if (indexSettings.useDocValuesSkipper()
-                && indexed.get() == false
-                && hasDocValues.get()
-                && dimension.get()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)) {
-                return IndexType.skippers();
+            if (indexed.get() == false && hasDocValues.get()) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return IndexType.skippers();
+                }
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
             }
             return IndexType.points(indexed.get(), hasDocValues.get());
         }
@@ -290,7 +292,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long longValue = parseTerm(value);
             if (longValue == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
         }
@@ -307,7 +309,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             }
             if (upTo == 0) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             if (upTo != lvalues.length) {
                 lvalues = Arrays.copyOf(lvalues, upTo);
@@ -328,15 +330,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
                 Long lt = parseLowerRangeTerm(lowerTerm, includeLower);
-                if (lt == null) return new MatchNoDocsQuery();
+                if (lt == null) return Queries.NO_DOCS_INSTANCE;
                 l = unsignedToSortableSignedLong(lt);
             }
             if (upperTerm != null) {
                 Long ut = parseUpperRangeTerm(upperTerm, includeUpper);
-                if (ut == null) return new MatchNoDocsQuery();
+                if (ut == null) return Queries.NO_DOCS_INSTANCE;
                 u = unsignedToSortableSignedLong(ut);
             }
-            if (l > u) return new MatchNoDocsQuery();
+            if (l > u) return Queries.NO_DOCS_INSTANCE;
 
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {

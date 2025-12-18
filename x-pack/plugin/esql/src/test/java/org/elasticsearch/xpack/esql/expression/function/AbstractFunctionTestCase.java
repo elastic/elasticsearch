@@ -59,6 +59,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.AssumptionViolatedException;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -404,9 +405,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // By definition, functions never support UNSUPPORTED
                 return false;
             }
-            if (t == DataType.DOC_DATA_TYPE || t == DataType.PARTIAL_AGG) {
+            if (t == DataType.DOC_DATA_TYPE) {
                 /*
-                 * Doc and partial_agg are special and functions aren't
+                 * Doc is special and functions aren't
                  * defined to take these. They'll use them implicitly if needed.
                  */
                 return false;
@@ -964,15 +965,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         for (Object p : params) {
             TestCaseSupplier tcs = (TestCaseSupplier) ((Object[]) p)[0];
-            TestCaseSupplier.TestCase tc = tcs.get();
-            if (tc.getExpectedTypeError() != null) {
-                continue;
+            try {
+                TestCaseSupplier.TestCase tc = tcs.get();
+                if (tc.getExpectedTypeError() != null) {
+                    continue;
+                }
+                if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
+                    continue;
+                }
+                List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
+                signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
+            } catch (AssumptionViolatedException ignored) {
+                // Throwing an AssumptionViolatedException in a test is a valid way of ignoring a test in junit.
+                // We catch that exception always to keep filling the signatures collection
             }
-            if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
-                continue;
-            }
-            List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
-            signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
         }
         return signatures;
     }

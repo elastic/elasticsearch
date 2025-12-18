@@ -1,0 +1,127 @@
+---
+setup:
+  - requires:
+      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values"]
+      reason: "testing binary doc values search"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              keyword:
+                type: keyword
+                index: false
+                doc_values:
+                  cardinality: high
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          keyword: "key1"
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          keyword: "key2"
+  - do:
+      indices.refresh: {}
+
+---
+"Test match query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { keyword: { query: "key1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { keyword: [ "key1", "key2" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { keyword: { gte: "key1" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test fuzzy query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { fuzzy: { keyword: { value: "kay1", fuzziness: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test prefix query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { keyword: { value: "key" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test case insensitive term query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { keyword: { value: "KeY1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test wildcard query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "k*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test case insensitive wildcard query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "K*1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test regexp query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { regexp: { keyword: { value: "k.*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test sort on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { sort: [ { keyword: { "order": "desc" } } ] }
+  - length:   { hits.hits: 2  }
+  - match: { hits.hits.0.sort.0: key2 }
+  - match: { hits.hits.1.sort.0: key1 }
+

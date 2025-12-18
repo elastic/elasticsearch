@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -23,11 +24,12 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Similar to {@link Absent}, but it is used to check the absence of values over a time series in the given field.
  */
-public class AbsentOverTime extends TimeSeriesAggregateFunction {
+public class AbsentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AbsentOverTime",
@@ -59,16 +61,26 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
-        ) Expression field
+                "version",
+                "exponential_histogram",
+                "tdigest" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the absent over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
     public AbsentOverTime(Source source, Expression field, Expression filter, Expression window) {

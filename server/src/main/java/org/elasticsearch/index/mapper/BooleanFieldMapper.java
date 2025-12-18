@@ -17,12 +17,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 
 /**
  * A field mapper for boolean fields.
@@ -148,12 +149,11 @@ public class BooleanFieldMapper extends FieldMapper {
             if (docValues.get() == false) {
                 return IndexType.NONE;
             }
-            if (dimension.get()
-                && indexSettings.useDocValuesSkipper()
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS)) {
+            if (indexSettings.useDocValuesSkipper()
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
                 return IndexType.skippers();
             }
-            return IndexType.docValuesOnly();
+            return useTimeSeriesDocValuesSkippers(indexSettings, dimension.get()) ? IndexType.skippers() : IndexType.docValuesOnly();
         }
 
         @Override
@@ -489,7 +489,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     }
                 }
                 if (l > u) {
-                    return new MatchNoDocsQuery();
+                    return Queries.NO_DOCS_INSTANCE;
                 }
                 return SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
             }

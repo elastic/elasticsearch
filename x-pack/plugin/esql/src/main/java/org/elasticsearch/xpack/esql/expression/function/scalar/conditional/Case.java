@@ -47,7 +47,9 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
@@ -81,7 +83,8 @@ public final class Case extends EsqlScalarFunction {
             "keyword",
             "long",
             "unsigned_long",
-            "version" },
+            "version",
+            "exponential_histogram" },
         description = """
             Accepts pairs of conditions and values. The function returns the value that
             belongs to the first condition that evaluates to `true`.
@@ -126,7 +129,8 @@ public final class Case extends EsqlScalarFunction {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "The value that’s returned when the corresponding condition is the first to evaluate to `true`. "
                 + "The default value is returned when no condition matches."
         ) List<Expression> rest
@@ -209,15 +213,15 @@ public final class Case extends EsqlScalarFunction {
             dataType = value.dataType().noText();
             return TypeResolutions.isType(
                 value,
-                t -> t != AGGREGATE_METRIC_DOUBLE,
+                t -> t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST && t != HISTOGRAM,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double"
+                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double, histogram, or tdigest"
             );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE,
+            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST && t != HISTOGRAM,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()

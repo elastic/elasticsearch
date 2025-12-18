@@ -29,7 +29,10 @@
       },
       "accept_enterprise": {
         "type": "boolean",
-        "deprecated": true,
+        "deprecated": {
+          "version": "7.6.0",
+          "description": "This parameter no longer has any effect"
+        },
         "default": true,
         "description": "Supported for backwards compatibility with 7.x. If this param is used it must be set to true"
       }

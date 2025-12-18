@@ -1,0 +1,5 @@
+pr: 139600
+summary: "[DiskBBQ] adding support for dynamic post filtering"
+area: Vector Search
+type: enhancement
+issues: []

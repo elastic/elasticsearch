@@ -18,27 +18,27 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.List;
 
-public class EnsureClusterStateVersionAppliedResponse extends BaseNodesResponse<
-    TransportEnsureClusterStateVersionAppliedAction.NodeResponse> {
-    public EnsureClusterStateVersionAppliedResponse(StreamInput in) throws IOException {
+public class AwaitClusterStateVersionAppliedResponse extends BaseNodesResponse<
+    TransportAwaitClusterStateVersionAppliedAction.NodeResponse> {
+    public AwaitClusterStateVersionAppliedResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public EnsureClusterStateVersionAppliedResponse(
+    public AwaitClusterStateVersionAppliedResponse(
         ClusterName clusterName,
-        List<TransportEnsureClusterStateVersionAppliedAction.NodeResponse> nodeResponses,
+        List<TransportAwaitClusterStateVersionAppliedAction.NodeResponse> nodeResponses,
         List<FailedNodeException> failures
     ) {
         super(clusterName, nodeResponses, failures);
     }
 
     @Override
-    protected List<TransportEnsureClusterStateVersionAppliedAction.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(TransportEnsureClusterStateVersionAppliedAction.NodeResponse::new);
+    protected List<TransportAwaitClusterStateVersionAppliedAction.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+        return in.readCollectionAsList(TransportAwaitClusterStateVersionAppliedAction.NodeResponse::new);
     }
 
     @Override
-    protected void writeNodesTo(StreamOutput out, List<TransportEnsureClusterStateVersionAppliedAction.NodeResponse> nodes)
+    protected void writeNodesTo(StreamOutput out, List<TransportAwaitClusterStateVersionAppliedAction.NodeResponse> nodes)
         throws IOException {
         out.writeCollection(nodes);
     }

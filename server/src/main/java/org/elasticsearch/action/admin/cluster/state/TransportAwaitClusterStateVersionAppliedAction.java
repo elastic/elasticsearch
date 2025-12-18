@@ -43,22 +43,22 @@ import java.util.function.Predicate;
 /**
  * An action that waits for a given cluster state version to be applied on provided set of nodes in the cluster.
  */
-public class TransportEnsureClusterStateVersionAppliedAction extends TransportNodesAction<
-    EnsureClusterStateVersionAppliedRequest,
-    EnsureClusterStateVersionAppliedResponse,
-    TransportEnsureClusterStateVersionAppliedAction.NodeRequest,
-    TransportEnsureClusterStateVersionAppliedAction.NodeResponse,
+public class TransportAwaitClusterStateVersionAppliedAction extends TransportNodesAction<
+    AwaitClusterStateVersionAppliedRequest,
+    AwaitClusterStateVersionAppliedResponse,
+    TransportAwaitClusterStateVersionAppliedAction.NodeRequest,
+    TransportAwaitClusterStateVersionAppliedAction.NodeResponse,
     Void> {
-    public static final ActionType<EnsureClusterStateVersionAppliedResponse> TYPE = new ActionType<>(
+    public static final ActionType<AwaitClusterStateVersionAppliedResponse> TYPE = new ActionType<>(
         "internal:cluster/nodes/state/ensure_version"
     );
 
-    private static final Logger logger = LogManager.getLogger(TransportEnsureClusterStateVersionAppliedAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportAwaitClusterStateVersionAppliedAction.class);
 
     private final ThreadPool threadPool;
 
     @Inject
-    public TransportEnsureClusterStateVersionAppliedAction(
+    public TransportAwaitClusterStateVersionAppliedAction(
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
@@ -76,16 +76,16 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
     }
 
     @Override
-    protected EnsureClusterStateVersionAppliedResponse newResponse(
-        EnsureClusterStateVersionAppliedRequest request,
+    protected AwaitClusterStateVersionAppliedResponse newResponse(
+        AwaitClusterStateVersionAppliedRequest request,
         List<NodeResponse> nodeResponses,
         List<FailedNodeException> failures
     ) {
-        return new EnsureClusterStateVersionAppliedResponse(clusterService.getClusterName(), nodeResponses, failures);
+        return new AwaitClusterStateVersionAppliedResponse(clusterService.getClusterName(), nodeResponses, failures);
     }
 
     @Override
-    protected NodeRequest newNodeRequest(EnsureClusterStateVersionAppliedRequest request) {
+    protected NodeRequest newNodeRequest(AwaitClusterStateVersionAppliedRequest request) {
         return new NodeRequest(request.clusterStateVersion(), request.nodeTimeout());
     }
 
@@ -105,7 +105,7 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
         var cancellableTask = (CancellableTask) task;
 
         Predicate<ClusterState> predicate = (ClusterState state) -> cancellableTask.isCancelled()
-            || state.version() == request.clusterStateVersion;
+            || state.version() >= request.clusterStateVersion;
 
         var clusterStateListener = new ClusterStateObserver.Listener() {
             @Override
@@ -137,7 +137,7 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
             threadPool.getThreadContext(),
             clusterStateListener,
             predicate,
-            request.timeout,
+            request.timeout == TimeValue.MINUS_ONE ? null : request.timeout,
             logger
         );
     }
@@ -149,7 +149,7 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             this.clusterStateVersion = in.readLong();
-            this.timeout = TimeValue.timeValueMillis(in.readLong());
+            this.timeout = in.readTimeValue();
         }
 
         public NodeRequest(long clusterStateVersion, TimeValue timeout) {
@@ -161,7 +161,7 @@ public class TransportEnsureClusterStateVersionAppliedAction extends TransportNo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(clusterStateVersion);
-            out.writeLong(timeout.millis());
+            out.writeTimeValue(timeout);
         }
 
         @Override

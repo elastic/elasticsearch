@@ -1,0 +1,5 @@
+pr: 139747
+summary: "[GPU] Bump cuvs-java to 25.12"
+area: Vector Search
+type: upgrade
+issues: []

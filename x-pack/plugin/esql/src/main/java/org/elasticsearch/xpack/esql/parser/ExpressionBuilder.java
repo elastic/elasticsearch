@@ -80,6 +80,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -793,9 +794,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitLogicalIn(EsqlBaseParser.LogicalInContext ctx) {
         List<Expression> expressions = ctx.valueExpression().stream().map(this::expression).toList();
         Source source = source(ctx);
-        Expression e = expressions.size() == 2
-            ? new Equals(source, expressions.get(0), expressions.get(1))
-            : new In(source, expressions.get(0), expressions.subList(1, expressions.size()));
+        Expression e = null;
+        if (expressions.size() == 2) {
+            if (expressions.get(1) instanceof Literal l && l.value() instanceof List<?> list) {
+                // Using a multivalued literal as IN expression transforms it into a list of expressions, so parameters can be used for IN
+                List<Expression> listExpressions = list.stream()
+                    .map(v -> new Literal(Source.EMPTY, v, l.dataType()))
+                    .collect(Collectors.toCollection(() -> new ArrayList<>(list.size())));
+                e = new In(source, expressions.get(0), listExpressions);
+            } else {
+                e = new Equals(source, expressions.get(0), expressions.get(1));
+            }
+        } else {
+            e = new In(source, expressions.get(0), expressions.subList(1, expressions.size()));
+        }
+
         return ctx.NOT() == null ? e : new Not(source, e);
     }
 

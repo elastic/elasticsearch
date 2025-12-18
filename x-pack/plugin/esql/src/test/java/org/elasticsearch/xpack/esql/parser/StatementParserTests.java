@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -4158,6 +4159,47 @@ public class StatementParserTests extends AbstractStatementParserTests {
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
             expectError("from test | lookup join foo) on bar1 > bar2", "line 1:28: token recognition error at: ')'");
         }
+    }
+
+    public void testInWithMultivalues() {
+        checkInList(List.of(1, 2, 3), statement("from test | where foo in ([1, 2, 3])"));
+        checkInList(
+            List.of(1, 2, 3),
+            statement("from test | where foo in (?n1)", new QueryParams(List.of(paramAsConstant("n1", List.of(1, 2, 3)))))
+        );
+        checkInList(
+            List.of(1, 2, 3),
+            statement("from test | where foo in (?)", new QueryParams(List.of(paramAsConstant(null, List.of(1, 2, 3)))))
+        );
+    }
+
+    public void testInWithListIncludingMultifields() {
+        checkInList(List.of(1, List.of(2, 3), 4), statement("from test | where foo in (1, [2, 3], 4)"));
+    }
+
+    public void testInWithListValue() {
+        checkInList(List.of(1, 2, 3), statement("from test | where foo in (1, 2, 3)"));
+    }
+
+    private static void checkInList(List<Object> expectedValues, LogicalPlan plan) {
+        Filter filter = as(plan, Filter.class);
+        In in = as(filter.condition(), In.class);
+        var field = as(in.singleValueField(), UnresolvedAttribute.class);
+        assertThat(field.name(), is("foo"));
+        List<Expression> list = in.list();
+        assertThat(list.size(), is(3));
+        List<Object> values = list.stream().map(v -> ((Literal) v).value()).toList();
+        assertThat(values, equalTo(expectedValues));
+    }
+
+    public void testInWithSingleValue() {
+        var plan = statement("from test | where foo in (1)");
+        Filter filter = as(plan, Filter.class);
+        Equals eq = as(filter.condition(), Equals.class);
+        var field = as(eq.left(), UnresolvedAttribute.class);
+        assertThat(field.name(), is("foo"));
+        var literal = as(eq.right(), Literal.class);
+        assertThat(literal.value(), is(1));
     }
 
     private void expectErrorForBracketsWithoutQuotes(String pattern) {

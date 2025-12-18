@@ -10,7 +10,6 @@
 import org.elasticsearch.gradle.OS
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.gradleup.shadow'
 
 base {
   archivesName = 'elasticsearch-plugin-cli'
@@ -23,35 +22,24 @@ tasks.named("dependencyLicenses").configure {
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:cli")
-  shadow project(":libs:plugin-api")
-  shadow project(":libs:plugin-scanner")
-  shadow project(":libs:entitlement")
+  implementation project(":libs:plugin-api")
+  implementation project(":libs:plugin-scanner")
+  implementation project(":libs:entitlement")
+  implementation project(path: "bc", configuration: 'shadow')
   // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
-  shadow 'org.ow2.asm:asm:9.9'
-  shadow 'org.ow2.asm:asm-tree:9.9'
+  implementation 'org.ow2.asm:asm:9.9'
+  implementation 'org.ow2.asm:asm-tree:9.9'
 
-  // Only Bouncy Castle gets bundled and relocated into the shadow jar
-  implementation "org.bouncycastle:bcpg-jdk18on:1.83"
-  implementation "org.bouncycastle:bcprov-jdk18on:1.83"
-  implementation "org.bouncycastle:bcutil-jdk18on:1.83"
-
-  testImplementation project(":libs:plugin-scanner")
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
-}
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /bc.*/, to: 'bouncycastle'
-}
-
-tasks.named("shadowJar").configure {
-  relocate 'org.bouncycastle', 'shadow.org.bouncycastle'
+  testImplementation "org.bouncycastle:bcpg-jdk18on:1.83"
+  testImplementation "org.bouncycastle:bcprov-jdk18on:1.83"
+  testImplementation "org.bouncycastle:bcutil-jdk18on:1.83"
 }
 
 tasks.named("test").configure {
-  // Use original classpath, not the shadow JAR, since test code imports non-relocated packages
-  classpath = sourceSets.test.runtimeClasspath
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
   // These tests are "heavy" on the secure number generator. On Linux, the NativePRNG defaults to /dev/random for the seeds, and

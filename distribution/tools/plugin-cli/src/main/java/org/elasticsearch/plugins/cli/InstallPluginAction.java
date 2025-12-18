@@ -12,16 +12,6 @@ package org.elasticsearch.plugins.cli;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
-import org.bouncycastle.bcpg.ArmoredInputStream;
-import org.bouncycastle.openpgp.PGPException;
-import org.bouncycastle.openpgp.PGPPublicKey;
-import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
-import org.bouncycastle.openpgp.PGPSignature;
-import org.bouncycastle.openpgp.PGPSignatureList;
-import org.bouncycastle.openpgp.PGPUtil;
-import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
-import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
-import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -567,12 +557,11 @@ public class InstallPluginAction implements Closeable {
      * @param officialPlugin true if the plugin is an official plugin
      * @return the path to the downloaded plugin ZIP
      * @throws IOException   if an I/O exception occurs download or reading files and resources
-     * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
      * @throws UserException if checksum validation fails
      * @throws URISyntaxException is the url is invalid
      */
     private Path downloadAndValidate(final String urlString, final Path tmpDir, final boolean officialPlugin) throws IOException,
-        PGPException, UserException, URISyntaxException {
+        UserException, URISyntaxException {
         Path zip = downloadZip(urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
@@ -666,41 +655,10 @@ public class InstallPluginAction implements Closeable {
      *
      * @param zip       the path to the downloaded plugin ZIP
      * @param urlString the URL source of the downloaded plugin ZIP
-     * @throws IOException  if an I/O exception occurs reading from various input streams
-     * @throws PGPException if the PGP implementation throws an internal exception during verification
+     * @throws IOException  if an I/O exception occurs reading from various input streams or
+     * if the PGP implementation throws an internal exception during verification
      */
-    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
-        final String ascUrlString = urlString + ".asc";
-        final URL ascUrl = openUrl(ascUrlString);
-        try (
-            // fin is a file stream over the downloaded plugin zip whose signature to verify
-            InputStream fin = pluginZipInputStream(zip);
-            // sin is a URL stream to the signature corresponding to the downloaded plugin zip
-            InputStream sin = urlOpenStream(ascUrl);
-            // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
-            InputStream ain = new ArmoredInputStream(getPublicKey())
-        ) {
-            final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
-            final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);
-
-            // validate the signature has key ID matching our public key ID
-            final String keyId = Long.toHexString(signature.getKeyID()).toUpperCase(Locale.ROOT);
-            if (getPublicKeyId().equals(keyId) == false) {
-                throw new IllegalStateException("key id [" + keyId + "] does not match expected key id [" + getPublicKeyId() + "]");
-            }
-
-            // compute the signature of the downloaded plugin zip, wrapped with long execution warning
-            timedComputeSignatureForDownloadedPlugin(fin, ain, signature);
-
-            // finally we verify the signature of the downloaded plugin zip matches the expected signature
-            if (signature.verify() == false) {
-                throw new IllegalStateException("signature verification for [" + urlString + "] failed");
-            }
-        }
-    }
-
-    private void timedComputeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException,
-        IOException {
+    void verifySignature(final Path zip, final String urlString) throws IOException {
         final Timer timer = new Timer();
 
         try {
@@ -711,22 +669,16 @@ public class InstallPluginAction implements Closeable {
                 }
             }, acceptableSignatureVerificationDelay());
 
-            computeSignatureForDownloadedPlugin(fin, ain, signature);
+            doVerifySignature(zip, urlString);
         } finally {
             timer.cancel();
         }
     }
 
-    // package private for testing
-    void computeSignatureForDownloadedPlugin(InputStream fin, InputStream ain, PGPSignature signature) throws PGPException, IOException {
-        final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
-        final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-        signature.init(new JcaPGPContentVerifierBuilderProvider(), key);
-        final byte[] buffer = new byte[1024];
-        int read;
-        while ((read = fin.read(buffer)) != -1) {
-            signature.update(buffer, 0, read);
-        }
+    void doVerifySignature(final Path zip, final String urlString) throws IOException {
+        final String ascUrlString = urlString + ".asc";
+        final URL ascUrl = openUrl(ascUrlString);
+        PgpSignatureVerifier.verifySignature(getPublicKeyId(), urlString, pluginZipInputStream(zip), urlOpenStream(ascUrl), getPublicKey());
     }
 
     // package private for testing

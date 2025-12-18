@@ -97,6 +97,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -116,9 +117,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
@@ -479,6 +478,22 @@ public class InstallPluginActionTests extends ESTestCase {
             + ".zip";
         final MessageDigest digest = MessageDigest.getInstance("SHA-512");
 
+        // Control for timeout on waiting for signature verification to complete
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        //
+        AtomicBoolean called = new AtomicBoolean(false);
+
+        Runnable callback = () -> {
+            if (called.compareAndSet(false, true)) {
+                try {
+                    countDownLatch.await(); // wait until we trip the timer
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
         InstallPluginAction action = makeActionPluginThatDownloads(
             "analysis-icu",
             url,
@@ -487,13 +502,11 @@ public class InstallPluginActionTests extends ESTestCase {
             ".sha512",
             checksumAndFilename(digest, url),
             newSecretKey(),
-            this::signature
+            this::signature,
+            callback
         );
 
         final InstallPluginAction spied = spy(action);
-
-        // Control for timeout on waiting for signature verification to complete
-        CountDownLatch countDownLatch = new CountDownLatch(1);
 
         doAnswer(i -> {
             i.callRealMethod();
@@ -503,12 +516,6 @@ public class InstallPluginActionTests extends ESTestCase {
 
         // Make the slow verification acceptable delay artificially low for testing
         doReturn(100L).when(spied).acceptableSignatureVerificationDelay();
-
-        doAnswer(i -> {
-            countDownLatch.await(); // wait until we trip the timer
-            i.callRealMethod();
-            return null;
-        }).when(spied).computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
 
         installPlugin(new InstallablePlugin("analysis-icu", null), env.v1(), spied);
         assertThat(terminal.getOutput(), containsString("The plugin installer is trying to verify the signature "));
@@ -520,10 +527,6 @@ public class InstallPluginActionTests extends ESTestCase {
         // Make the timer wait practically indefinitely, probably an overkill, but avoid flaky tests.
         // Divide by two to meet the limitation of the Timer.schedule API.
         doReturn(Long.MAX_VALUE / 2).when(spied).acceptableSignatureVerificationDelay();
-
-        // Make sure we don't see any slow error messages when the signature verification is fast
-        doCallRealMethod().when(spied)
-            .computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
 
         terminal.reset();
 
@@ -1019,7 +1022,8 @@ public class InstallPluginActionTests extends ESTestCase {
             shaExtension,
             shaCalculator,
             secretKey,
-            signature
+            signature,
+            () -> {}
         );
         installPlugin(new InstallablePlugin(pluginId, pluginUrl), env.v1(), action);
         assertPlugin(pluginId, pluginDir, env.v2());
@@ -1034,7 +1038,8 @@ public class InstallPluginActionTests extends ESTestCase {
         final String shaExtension,
         final Function<byte[], String> shaCalculator,
         final PGPSecretKey secretKey,
-        final BiFunction<byte[], PGPSecretKey, String> signature
+        final BiFunction<byte[], PGPSecretKey, String> signature,
+        final Runnable onReadPluginZip
     ) throws Exception {
         InstallablePlugin pluginZip = createPlugin(pluginId, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getLocation()));
@@ -1067,7 +1072,7 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            void verifySignature(Path zip, String urlString) throws IOException, PGPException {
+            void verifySignature(Path zip, String urlString) throws IOException {
                 if (InstallPluginAction.OFFICIAL_PLUGINS.contains(pluginId)) {
                     super.verifySignature(zip, urlString);
                 } else {
@@ -1077,7 +1082,13 @@ public class InstallPluginActionTests extends ESTestCase {
 
             @Override
             InputStream pluginZipInputStream(Path zip) throws IOException {
-                return new ByteArrayInputStream(Files.readAllBytes(zip));
+                return new ByteArrayInputStream(Files.readAllBytes(zip)) {
+                    @Override
+                    public int read(byte[] b) throws IOException {
+                        onReadPluginZip.run();
+                        return super.read(b);
+                    }
+                };
             }
 
             @Override

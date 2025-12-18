@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
@@ -123,18 +124,12 @@ abstract class FetchPhaseDocsIterator {
         List<SearchHit> chunkBuffer = streamingEnabled ? new ArrayList<>(chunkSize) : null;
         ShardId shardId = streamingEnabled ? shardTarget.getShardId() : null;
         SearchHits lastChunk = null;
-
-        // Track sequence numbers for ordering
-        long currentChunkSequenceStart = -1;
         long lastChunkSequenceStart = -1;
 
         for (int index = 0; index < docIds.length; index++) {
             docs[index] = new DocIdToIndex(docIds[index], index);
         }
 
-        // Only sort by doc ID if NOT streaming
-        // Sorting by doc ID is an optimization for sequential index access,
-        // but streaming mode needs to preserve score order from query phase
         if (streamingEnabled == false) {
             Arrays.sort(docs);
         }
@@ -142,112 +137,77 @@ abstract class FetchPhaseDocsIterator {
         int currentDoc = docs[0].docId;
 
         try {
-            int leafOrd = ReaderUtil.subIndex(docs[0].docId, indexReader.leaves());
-            LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
-            int endReaderIdx = endReaderIdx(ctx, 0, docs);
-            int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
+            if (streamingEnabled) {
+                iterateStreaming(
+                    docs,
+                    indexReader,
+                    shardTarget,
+                    allowPartialResults,
+                    querySearchResult,
+                    chunkWriter,
+                    chunkSize,
+                    chunkBuffer,
+                    shardId,
+                    pendingChunks,
+                    maxInFlightChunks,
+                    sendFailure,
+                    docIds.length
+                );
 
-            try {
-                setNextReader(ctx, docsInLeaf);
-            } catch (ContextIndexSearcher.TimeExceededException e) {
-                SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
-                assert allowPartialResults;
-                return new IterateResult(SearchHits.EMPTY, lastChunk, lastChunkSequenceStart);
-            }
+                // Handle final chunk
+                if (chunkBuffer != null && chunkBuffer.isEmpty() == false) {
+                    lastChunkSequenceStart = hitSequenceCounter.get() - chunkBuffer.size();
+                    SearchHit[] lastHitsArray = chunkBuffer.toArray(new SearchHit[0]);
+                    for (SearchHit hit : lastHitsArray) {
+                        hit.decRef();
+                    }
+                    lastChunk = new SearchHits(
+                        lastHitsArray,
+                        new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO),
+                        Float.NaN
+                    );
+                    chunkBuffer.clear();
+                }
+            } else {
+                int leafOrd = ReaderUtil.subIndex(docs[0].docId, indexReader.leaves());
+                LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
+                int endReaderIdx = endReaderIdx(ctx, 0, docs);
+                int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
 
-            for (int i = 0; i < docs.length; i++) {
                 try {
-                    if (i >= endReaderIdx) {
-                        leafOrd = ReaderUtil.subIndex(docs[i].docId, indexReader.leaves());
-                        ctx = indexReader.leaves().get(leafOrd);
-                        endReaderIdx = endReaderIdx(ctx, i, docs);
-                        docsInLeaf = docIdsInLeaf(i, endReaderIdx, docs, ctx.docBase);
-                        setNextReader(ctx, docsInLeaf);
-                    }
-
-                    currentDoc = docs[i].docId;
-                    assert searchHits[docs[i].index] == null;
-                    SearchHit hit = nextDoc(docs[i].docId);
-
-                    if (streamingEnabled) {
-                        hit.incRef();
-
-                        // Mark sequence start when starting new chunk
-                        if (chunkBuffer.isEmpty()) {
-                            currentChunkSequenceStart = hitSequenceCounter.get();
-                        }
-                        // Assign sequence to this hit and increment counter
-                        hitSequenceCounter.getAndIncrement();
-
-                        chunkBuffer.add(hit);
-
-                        // Send intermediate chunks - not when it's the last iteration
-                        if (chunkBuffer.size() >= chunkSize && i < docs.length - 1) {
-                            // fail fast if any earlier send already failed
-                            Throwable knownFailure = sendFailure.get();
-                            if (knownFailure != null) {
-                                throw new RuntimeException("Fetch chunk failed", knownFailure);
-                            }
-
-                            // Send chunk with sequence information
-                            CompletableFuture<Void> chunkFuture = sendChunk(
-                                chunkWriter,
-                                chunkBuffer,
-                                shardId,
-                                currentChunkSequenceStart,
-                                i - chunkBuffer.size() + 1,
-                                docIds.length,
-                                Float.NaN
-                            );
-
-                            // record failures as soon as they happen
-                            chunkFuture.whenComplete((ok, ex) -> {
-                                if (ex != null) {
-                                    sendFailure.compareAndSet(null, ex);
-                                }
-                            });
-
-                            pendingChunks.addLast(chunkFuture);
-
-                            // Backpressure: bound in-flight
-                            if (pendingChunks.size() >= maxInFlightChunks) {
-                                awaitOldestOrFail(pendingChunks, sendFailure);
-                            }
-
-                            chunkBuffer.clear();
-                        }
-                    } else {
-                        searchHits[docs[i].index] = hit;
-                    }
+                    setNextReader(ctx, docsInLeaf);
                 } catch (ContextIndexSearcher.TimeExceededException e) {
-                    if (allowPartialResults == false) {
-                        purgeSearchHits(searchHits);
-                        if (streamingEnabled) {
-                            purgeChunkBuffer(chunkBuffer);
-                        }
-                    }
                     SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                     assert allowPartialResults;
-                    SearchHit[] partialSearchHits = new SearchHit[i];
-                    System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
-                    return new IterateResult(partialSearchHits, lastChunk, lastChunkSequenceStart);
-                }
-            }
-
-            // Return the final partial chunk if streaming is enabled and buffer has remaining hits
-            if (streamingEnabled && chunkBuffer.isEmpty() == false) {
-                // Remember the sequence start for the last chunk
-                lastChunkSequenceStart = currentChunkSequenceStart;
-
-                SearchHit[] lastHitsArray = chunkBuffer.toArray(new SearchHit[0]);
-
-                // DecRef for SearchHits constructor (will increment)
-                for (SearchHit hit : lastHitsArray) {
-                    hit.decRef();
+                    return new IterateResult(SearchHits.EMPTY, lastChunk, lastChunkSequenceStart);
                 }
 
-                lastChunk = new SearchHits(lastHitsArray, new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO), Float.NaN);
-                chunkBuffer.clear();
+                for (int i = 0; i < docs.length; i++) {
+                    try {
+                        if (i >= endReaderIdx) {
+                            leafOrd = ReaderUtil.subIndex(docs[i].docId, indexReader.leaves());
+                            ctx = indexReader.leaves().get(leafOrd);
+                            endReaderIdx = endReaderIdx(ctx, i, docs);
+                            docsInLeaf = docIdsInLeaf(i, endReaderIdx, docs, ctx.docBase);
+                            setNextReader(ctx, docsInLeaf);
+                        }
+
+                        currentDoc = docs[i].docId;
+                        assert searchHits[docs[i].index] == null;
+                        SearchHit hit = nextDoc(docs[i].docId);
+                        searchHits[docs[i].index] = hit;
+
+                    } catch (ContextIndexSearcher.TimeExceededException e) {
+                        if (allowPartialResults == false) {
+                            purgeSearchHits(searchHits);
+                        }
+                        SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                        assert allowPartialResults;
+                        SearchHit[] partialSearchHits = new SearchHit[i];
+                        System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
+                        return new IterateResult(partialSearchHits, lastChunk, lastChunkSequenceStart);
+                    }
+                }
             }
         } catch (SearchTimeoutException e) {
             throw e;
@@ -266,6 +226,167 @@ abstract class FetchPhaseDocsIterator {
         }
 
         return new IterateResult(searchHits, lastChunk, lastChunkSequenceStart);
+    }
+
+    /**
+     * Streaming iteration: Fetches docs in sorted order (per reader) but preserves
+     * score order for chunk streaming.
+     */
+    private void iterateStreaming(
+        DocIdToIndex[] docs,
+        IndexReader indexReader,
+        SearchShardTarget shardTarget,
+        boolean allowPartialResults,
+        QuerySearchResult querySearchResult,
+        FetchPhaseResponseChunk.Writer chunkWriter,
+        int chunkSize,
+        List<SearchHit> chunkBuffer,
+        ShardId shardId,
+        ArrayDeque<CompletableFuture<Void>> pendingChunks,
+        int maxInFlightChunks,
+        AtomicReference<Throwable> sendFailure,
+        int totalDocs
+    ) throws IOException {
+        List<LeafReaderContext> leaves = indexReader.leaves();
+        long currentChunkSequenceStart = -1;
+
+        // Store hits with their original score position
+        SearchHit[] hitsInScoreOrder = new SearchHit[docs.length];
+
+        // Process one reader at a time
+        for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
+            LeafReaderContext ctx = leaves.get(leafOrd);
+            int docBase = ctx.docBase;
+            int maxDoc = ctx.reader().maxDoc();
+            int leafEndDoc = docBase + maxDoc;
+
+            // Collect docs that belong to this reader with their original positions
+            List<DocPosition> docsInReader = new ArrayList<>();
+            for (int i = 0; i < docs.length; i++) {
+                if (docs[i].docId >= docBase && docs[i].docId < leafEndDoc) {
+                    docsInReader.add(new DocPosition(docs[i].docId, i));
+                }
+            }
+
+            if (docsInReader.isEmpty()) {
+                continue;
+            }
+
+            // Sort by doc ID for Lucene
+            docsInReader.sort(Comparator.comparingInt(a -> a.docId));
+
+            // Prepare array for setNextReader
+            int[] docsArray = docsInReader.stream()
+                .mapToInt(dp -> dp.docId - docBase)
+                .toArray();
+
+            try {
+                setNextReader(ctx, docsArray);
+            } catch (ContextIndexSearcher.TimeExceededException e) {
+                if (leafOrd == 0) {
+                    SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                    assert allowPartialResults;
+                    return;
+                }
+                if (allowPartialResults == false) {
+                    purgePartialHits(hitsInScoreOrder);
+                }
+                SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                assert allowPartialResults;
+                return;
+            }
+
+            // Fetch docs in sorted order
+            for (DocPosition dp : docsInReader) {
+                try {
+                    SearchHit hit = nextDoc(dp.docId);
+                    hitsInScoreOrder[dp.scorePosition] = hit;
+                } catch (ContextIndexSearcher.TimeExceededException e) {
+                    if (allowPartialResults == false) {
+                        purgePartialHits(hitsInScoreOrder);
+                    }
+                    SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                    assert allowPartialResults;
+                    return;
+                }
+            }
+        }
+
+        // Now stream hits in score order
+        int processedCount = 0;
+        for (int i = 0; i < hitsInScoreOrder.length; i++) {
+            SearchHit hit = hitsInScoreOrder[i];
+            if (hit == null) {
+                continue; // Defensive
+            }
+
+            hit.incRef();
+
+            if (chunkBuffer.isEmpty()) {
+                currentChunkSequenceStart = hitSequenceCounter.get();
+            }
+            hitSequenceCounter.getAndIncrement();
+
+            chunkBuffer.add(hit);
+            processedCount++;
+
+            // Send chunk if full (but not on last doc)
+            boolean isLastDoc = (i == hitsInScoreOrder.length - 1);
+            if (chunkBuffer.size() >= chunkSize && isLastDoc == false) {
+                Throwable knownFailure = sendFailure.get();
+                if (knownFailure != null) {
+                    throw new RuntimeException("Fetch chunk failed", knownFailure);
+                }
+
+                CompletableFuture<Void> chunkFuture = sendChunk(
+                    chunkWriter,
+                    chunkBuffer,
+                    shardId,
+                    currentChunkSequenceStart,
+                    processedCount - chunkBuffer.size(),
+                    totalDocs,
+                    Float.NaN
+                );
+
+                chunkFuture.whenComplete((ok, ex) -> {
+                    if (ex != null) {
+                        sendFailure.compareAndSet(null, ex);
+                    }
+                });
+
+                pendingChunks.addLast(chunkFuture);
+
+                if (pendingChunks.size() >= maxInFlightChunks) {
+                    awaitOldestOrFail(pendingChunks, sendFailure);
+                }
+
+                chunkBuffer.clear();
+            }
+        }
+    }
+
+    /**
+     * Helper to store doc ID with its original score position
+     */
+    private static class DocPosition {
+        final int docId;
+        final int scorePosition;
+
+        DocPosition(int docId, int scorePosition) {
+            this.docId = docId;
+            this.scorePosition = scorePosition;
+        }
+    }
+
+    /**
+     * Clean up partially fetched hits
+     */
+    private static void purgePartialHits(SearchHit[] hits) {
+        for (SearchHit hit : hits) {
+            if (hit != null) {
+                hit.decRef();
+            }
+        }
     }
 
     private static void awaitOldestOrFail(ArrayDeque<CompletableFuture<Void>> inFlight, AtomicReference<Throwable> sendFailure) {

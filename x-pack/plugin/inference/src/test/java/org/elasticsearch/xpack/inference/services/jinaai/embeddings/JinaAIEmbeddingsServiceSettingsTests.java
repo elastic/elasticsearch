@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,10 +36,10 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings.JINA_AI_EMBEDDING_DIMENSIONS_SUPPORT_ADDED;
 import static org.elasticsearch.xpack.inference.services.settings.RateLimitSettings.REQUESTS_PER_MINUTE_FIELD;
 import static org.hamcrest.Matchers.is;
@@ -72,7 +70,6 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var url = "https://www.abc.com";
         var similarity = SimilarityMeasure.DOT_PRODUCT;
         var dimensions = 1536;
         var maxInputTokens = 512;
@@ -82,15 +79,13 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         var serviceSettings = JinaAIEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    URL,
-                    url,
-                    SIMILARITY,
+                    ServiceFields.SIMILARITY,
                     similarity.toString(),
-                    DIMENSIONS,
+                    ServiceFields.DIMENSIONS,
                     dimensions,
-                    MAX_INPUT_TOKENS,
+                    ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    JinaAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model,
                     EMBEDDING_TYPE,
                     embeddingType.toString(),
@@ -101,11 +96,11 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, new RateLimitSettings(requestsPerMinute)),
+                    new JinaAIServiceSettings(model, new RateLimitSettings(requestsPerMinute)),
                     similarity,
                     dimensions,
                     maxInputTokens,
@@ -120,15 +115,15 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         var url = "https://www.abc.com";
         var model = "model";
         var serviceSettings = JinaAIEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(URL, url, JinaAIServiceSettings.MODEL_ID, model)),
+            new HashMap<>(Map.of(URL, url, ServiceFields.MODEL_ID, model)),
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null),
+                    new JinaAIServiceSettings(model, null),
                     null,
                     null,
                     null,
@@ -159,7 +154,7 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
                     dimensions,
                     MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    JinaAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model,
                     EMBEDDING_TYPE,
                     embeddingType.toString(),
@@ -172,11 +167,11 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, new RateLimitSettings(requestsPerMinute)),
+                    new JinaAIServiceSettings(model, new RateLimitSettings(requestsPerMinute)),
                     similarity,
                     dimensions,
                     maxInputTokens,
@@ -188,35 +183,32 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testFromMap_WithModelId() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var similarity = SimilarityMeasure.DOT_PRODUCT;
         var dimensions = 1536;
         var maxInputTokens = 512;
         var model = "model";
         var serviceSettings = JinaAIEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    URL,
-                    url,
-                    SIMILARITY,
-                    similarity,
+                    ServiceFields.SIMILARITY,
+                    similarity.toString(),
                     DIMENSIONS,
                     dimensions,
                     MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    JinaAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model
                 )
             ),
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null),
-                    SimilarityMeasure.DOT_PRODUCT,
+                    new JinaAIServiceSettings(model, null),
+                    similarity,
                     dimensions,
                     maxInputTokens,
                     JinaAIEmbeddingType.FLOAT,
@@ -227,23 +219,20 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testFromMap_WithEmbeddingType() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var similarity = SimilarityMeasure.DOT_PRODUCT;
         var dimensions = 1536;
         var maxInputTokens = 512;
         var model = "model";
         var serviceSettings = JinaAIEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    URL,
-                    url,
-                    SIMILARITY,
-                    similarity,
+                    ServiceFields.SIMILARITY,
+                    similarity.toString(),
                     DIMENSIONS,
                     dimensions,
                     MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    JinaAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model,
                     EMBEDDING_TYPE,
                     JinaAIEmbeddingType.BIT.toString()
@@ -252,12 +241,12 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             serviceSettings,
             is(
                 new JinaAIEmbeddingsServiceSettings(
-                    new JinaAIServiceSettings(ServiceUtils.createUri(url), model, null),
-                    SimilarityMeasure.DOT_PRODUCT,
+                    new JinaAIServiceSettings(model, null),
+                    similarity,
                     dimensions,
                     maxInputTokens,
                     JinaAIEmbeddingType.BIT,
@@ -272,12 +261,12 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         var thrownException = expectThrows(
             ValidationException.class,
             () -> JinaAIEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(JinaAIServiceSettings.MODEL_ID, "model", SIMILARITY, similarity)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", SIMILARITY, similarity)),
                 ConfigurationParseContext.PERSISTENT
             )
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             thrownException.getMessage(),
             is(
                 "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
@@ -291,12 +280,12 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         var thrownException = expectThrows(
             ValidationException.class,
             () -> JinaAIEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(JinaAIServiceSettings.MODEL_ID, "model", DIMENSIONS, dimensions)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", DIMENSIONS, dimensions)),
                 randomFrom(ConfigurationParseContext.values())
             )
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             thrownException.getMessage(),
             is(
                 Strings.format(
@@ -309,39 +298,52 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
+        var modelName = randomAlphanumericOfLength(10);
+        var requestsPerMinute = randomNonNegativeInt();
+        var similarity = randomSimilarityMeasure();
+        var dimensions = randomNonNegativeInt();
+        var maxInputTokens = randomNonNegativeInt();
+        var embeddingType = randomFrom(JinaAIEmbeddingType.values());
+        var dimensionsSetByUser = false;
         var serviceSettings = new JinaAIEmbeddingsServiceSettings(
-            new JinaAIServiceSettings("url", "model", new RateLimitSettings(3)),
-            SimilarityMeasure.COSINE,
-            5,
-            10,
-            JinaAIEmbeddingType.FLOAT,
-            false
+            new JinaAIServiceSettings(modelName, new RateLimitSettings(requestsPerMinute)),
+            similarity,
+            dimensions,
+            maxInputTokens,
+            embeddingType,
+            dimensionsSetByUser
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is(stripWhitespace("""
+        assertThat(xContentResult, is(stripWhitespace(Strings.format("""
             {
-                "url":"url",
-                "model_id":"model",
-                "rate_limit":{"requests_per_minute":3},
-                "dimensions":5,
-                "embedding_type":"float",
-                "max_input_tokens":10,
-                "similarity":"cosine",
-                "dimensions_set_by_user":false
-            }""")));
+                "model_id":"%s",
+                "rate_limit":{"requests_per_minute":%d},
+                "dimensions":%d,
+                "embedding_type":"%s",
+                "max_input_tokens":%d,
+                "similarity":"%s",
+                "dimensions_set_by_user":%b
+            }""", modelName, requestsPerMinute, dimensions, embeddingType, maxInputTokens, similarity, dimensionsSetByUser))));
     }
 
     public void testToXContentFragmentOfExposedFields_WritesAllValues() throws IOException {
+        var modelName = randomAlphanumericOfLength(10);
+        var requestsPerMinute = randomNonNegativeInt();
+        var similarity = randomSimilarityMeasure();
+        var dimensions = randomNonNegativeInt();
+        var maxInputTokens = randomNonNegativeInt();
+        var embeddingType = randomFrom(JinaAIEmbeddingType.values());
+        var dimensionsSetByUser = false;
         var serviceSettings = new JinaAIEmbeddingsServiceSettings(
-            new JinaAIServiceSettings("url", "model", new RateLimitSettings(3)),
-            SimilarityMeasure.COSINE,
-            5,
-            10,
-            JinaAIEmbeddingType.FLOAT,
-            false
+            new JinaAIServiceSettings(modelName, new RateLimitSettings(requestsPerMinute)),
+            similarity,
+            dimensions,
+            maxInputTokens,
+            embeddingType,
+            dimensionsSetByUser
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -349,16 +351,15 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         serviceSettings.toXContentFragmentOfExposedFields(builder, null);
         builder.endObject();
         String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is(stripWhitespace("""
+        assertThat(xContentResult, is(stripWhitespace(Strings.format("""
             {
-                "url":"url",
-                "model_id":"model",
-                "rate_limit":{"requests_per_minute":3},
-                "dimensions":5,
-                "embedding_type":"float",
-                "max_input_tokens":10,
-                "similarity":"cosine"
-            }""")));
+                "model_id":"%s",
+                "rate_limit":{"requests_per_minute":%d},
+                "dimensions":%d,
+                "embedding_type":"%s",
+                "max_input_tokens":%d,
+                "similarity":"%s"
+            }""", modelName, requestsPerMinute, dimensions, embeddingType, maxInputTokens, similarity))));
     }
 
     @Override
@@ -431,12 +432,8 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         return new NamedWriteableRegistry(entries);
     }
 
-    public static Map<String, Object> getServiceSettingsMap(
-        @Nullable String url,
-        String model,
-        @Nullable JinaAIEmbeddingType embeddingType
-    ) {
-        var map = new HashMap<>(JinaAIServiceSettingsTests.getServiceSettingsMap(url, model));
+    public static Map<String, Object> getServiceSettingsMap(String model, @Nullable JinaAIEmbeddingType embeddingType) {
+        var map = new HashMap<>(JinaAIServiceSettingsTests.getServiceSettingsMap(model));
 
         if (embeddingType != null) {
             map.put(EMBEDDING_TYPE, embeddingType.toString());

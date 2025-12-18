@@ -15,175 +15,190 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.hamcrest.MatcherAssert;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class JinaAIEmbeddingsModelTests extends ESTestCase {
 
-    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
-        var model = createModel("url", "api_key", null, null, "model", JinaAIEmbeddingType.FLOAT);
+    public void testConstructor_usesDefaultUrlWhenNull() {
+        var model = createModel(null, randomAlphaOfLength(10), randomAlphaOfLength(10));
+        assertThat(model.uri().toString(), is("https://api.jina.ai/v1/embeddings"));
+    }
+
+    public void testConstructor_usesUrlWhenSpecified() {
+        String url = "some_URL";
+        var model = createModel(url, randomAlphaOfLength(10), randomAlphaOfLength(10));
+        assertThat(model.uri().toString(), is(url));
+    }
+
+    public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
+        var model = createModel(
+            null,
+            "modelName",
+            new JinaAIEmbeddingsTaskSettings(randomFrom(VALID_INPUT_TYPE_VALUES), randomBoolean()),
+            "api_key"
+        );
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, Map.of());
-        MatcherAssert.assertThat(overriddenModel, is(model));
+        assertThat(overriddenModel, sameInstance(model));
     }
 
-    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
-        var model = createModel("url", "api_key", null, null, "model", JinaAIEmbeddingType.FLOAT);
+    public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
+        var model = createModel(
+            null,
+            "modelName",
+            new JinaAIEmbeddingsTaskSettings(randomFrom(VALID_INPUT_TYPE_VALUES), randomBoolean()),
+            "api_key"
+        );
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, null);
-        MatcherAssert.assertThat(overriddenModel, is(model));
+        assertThat(overriddenModel, sameInstance(model));
     }
 
-    public void testOverrideWith_SetsInputType_FromRequestTaskSettings_IfValid_OverridingStoredTaskSettings() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
+    public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEqual() {
+        JinaAIEmbeddingsTaskSettings taskSettings = new JinaAIEmbeddingsTaskSettings(randomFrom(VALID_INPUT_TYPE_VALUES), randomBoolean());
+        var model = createModel(null, "modelName", taskSettings, "api_key");
+
+        var overriddenModel = JinaAIEmbeddingsModel.of(
+            model,
+            getTaskSettingsMap(taskSettings.getInputType(), taskSettings.getLateChunking())
         );
+        assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testOf_SetsInputType_FromRequestTaskSettings_IfValid_OverridingStoredTaskSettings() {
+        String modelName = "modelName";
+        String apiKey = "api_key";
+        var model = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true), apiKey);
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH));
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings(InputType.SEARCH),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
+        var expectedModel = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.SEARCH, true), apiKey);
+        assertThat(overriddenModel, is(expectedModel));
     }
 
-    public void testOverrideWith_DoesNotOverrideInputType_WhenRequestTaskSettingsIsNull() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
+    public void testOf_SetsLateChunking_FromRequestTaskSettings() {
+        String modelName = "modelName";
+        String apiKey = "api_key";
+        var model = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true), apiKey);
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
-            null,
-            null,
-            "model",
-            JinaAIEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST, false));
+        var expectedModel = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, false), apiKey);
+        assertThat(overriddenModel, is(expectedModel));
     }
 
+    /**
+     * Returns a model with empty task settings, service settings and chunking settings
+     */
+    public static JinaAIEmbeddingsModel createModel(String url, String modelName, String apiKey) {
+        return createModel(url, modelName, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, apiKey);
+    }
+
+    /**
+    * Returns a model with empty service settings and chunking settings
+    */
     public static JinaAIEmbeddingsModel createModel(
-        String url,
-        String apiKey,
-        @Nullable Integer tokenLimit,
-        @Nullable String model,
-        @Nullable JinaAIEmbeddingType embeddingType
-    ) {
-        return createModel(url, apiKey, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, tokenLimit, null, model, embeddingType);
-    }
-
-    public static JinaAIEmbeddingsModel createModel(
-        String url,
-        String apiKey,
-        @Nullable Integer tokenLimit,
-        @Nullable Integer dimensions,
-        String model,
-        @Nullable JinaAIEmbeddingType embeddingType
-    ) {
-        return createModel(url, apiKey, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, tokenLimit, dimensions, model, embeddingType);
-    }
-
-    public static JinaAIEmbeddingsModel createModel(
-        String url,
-        String apiKey,
+        @Nullable String url,
+        String modelName,
         JinaAIEmbeddingsTaskSettings taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Integer tokenLimit,
+        String apiKey
+    ) {
+        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false);
+        return createModel(url, serviceSettings, taskSettings, null, apiKey);
+    }
+
+    /**
+     * Returns a model with empty service settings
+     */
+    public static JinaAIEmbeddingsModel createModel(
+        @Nullable String url,
+        String modelName,
+        JinaAIEmbeddingsTaskSettings taskSettings,
+        @Nullable ChunkingSettings chunkingSettings,
+        String apiKey
+    ) {
+        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false);
+        return createModel(url, serviceSettings, taskSettings, chunkingSettings, apiKey);
+    }
+
+    /**
+     * Convenience method that only sets fields used in constructing the request sent to Jina
+     */
+    public static JinaAIEmbeddingsModel createModel(
+        @Nullable String url,
+        String modelName,
+        @Nullable JinaAIEmbeddingType embeddingType,
+        JinaAIEmbeddingsTaskSettings taskSettings,
+        String apiKey,
+        @Nullable Integer dimensions
+    ) {
+        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, dimensions, null, embeddingType, dimensions != null);
+        return createModel(url, serviceSettings, taskSettings, null, apiKey);
+    }
+
+    public static JinaAIEmbeddingsModel createModel(
+        @Nullable String url,
+        String modelName,
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        String model,
-        @Nullable JinaAIEmbeddingType embeddingType
+        @Nullable Integer maxInputTokens,
+        @Nullable JinaAIEmbeddingType embeddingType,
+        JinaAIEmbeddingsTaskSettings taskSettings,
+        @Nullable ChunkingSettings chunkingSettings,
+        String apiKey,
+        boolean dimensionsSetByUser
+    ) {
+        var serviceSettings = getEmbeddingServiceSettings(
+            modelName,
+            rateLimitSettings,
+            similarity,
+            dimensions,
+            maxInputTokens,
+            embeddingType,
+            dimensionsSetByUser
+        );
+        return createModel(url, serviceSettings, taskSettings, chunkingSettings, apiKey);
+    }
+
+    public static JinaAIEmbeddingsModel createModel(
+        @Nullable String url,
+        JinaAIEmbeddingsServiceSettings serviceSettings,
+        JinaAIEmbeddingsTaskSettings taskSettings,
+        @Nullable ChunkingSettings chunkingSettings,
+        String apiKey
     ) {
         return new JinaAIEmbeddingsModel(
             "id",
-            "service",
-            new JinaAIEmbeddingsServiceSettings(
-                new JinaAIServiceSettings(url, model, null),
-                SimilarityMeasure.DOT_PRODUCT,
-                dimensions,
-                tokenLimit,
-                embeddingType,
-                dimensions != null
-            ),
+            serviceSettings,
             taskSettings,
             chunkingSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            url
         );
     }
 
-    public static JinaAIEmbeddingsModel createModel(
-        String url,
-        String apiKey,
-        JinaAIEmbeddingsTaskSettings taskSettings,
-        @Nullable Integer tokenLimit,
+    public static JinaAIEmbeddingsServiceSettings getEmbeddingServiceSettings(
+        String modelName,
+        @Nullable RateLimitSettings rateLimitSettings,
+        @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        String model,
-        @Nullable JinaAIEmbeddingType embeddingType
+        @Nullable Integer maxInputTokens,
+        @Nullable JinaAIEmbeddingType embeddingType,
+        boolean dimensionsSetByUser
     ) {
-        return new JinaAIEmbeddingsModel(
-            "id",
-            "service",
-            new JinaAIEmbeddingsServiceSettings(
-                new JinaAIServiceSettings(url, model, null),
-                SimilarityMeasure.DOT_PRODUCT,
-                dimensions,
-                tokenLimit,
-                embeddingType,
-                dimensions != null
-            ),
-            taskSettings,
-            null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
-    }
-
-    public static JinaAIEmbeddingsModel createModel(
-        String url,
-        String apiKey,
-        JinaAIEmbeddingsTaskSettings taskSettings,
-        @Nullable Integer tokenLimit,
-        @Nullable Integer dimensions,
-        String model,
-        @Nullable SimilarityMeasure similarityMeasure,
-        @Nullable JinaAIEmbeddingType embeddingType
-    ) {
-        return new JinaAIEmbeddingsModel(
-            "id",
-            "service",
-            new JinaAIEmbeddingsServiceSettings(
-                new JinaAIServiceSettings(url, model, null),
-                similarityMeasure,
-                dimensions,
-                tokenLimit,
-                embeddingType,
-                dimensions != null
-            ),
-            taskSettings,
-            null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        return new JinaAIEmbeddingsServiceSettings(
+            new JinaAIServiceSettings(modelName, rateLimitSettings),
+            similarity,
+            dimensions,
+            maxInputTokens,
+            embeddingType,
+            dimensionsSetByUser
         );
     }
 }

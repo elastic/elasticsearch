@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-import org.hamcrest.MatcherAssert;
 
 import java.nio.charset.StandardCharsets;
 
@@ -33,7 +32,7 @@ public class JinaAIErrorResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
         assertNotNull(errorResponse);
-        MatcherAssert.assertThat(errorResponse.getErrorMessage(), is(message));
+        assertThat(errorResponse.getErrorMessage(), is(message));
     }
 
     public void testFromResponse_noMessage() {
@@ -46,6 +45,6 @@ public class JinaAIErrorResponseEntityTests extends ESTestCase {
         ErrorResponse errorResponse = JinaAIErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        MatcherAssert.assertThat(errorResponse, is(ErrorResponse.UNDEFINED_ERROR));
+        assertThat(errorResponse, is(ErrorResponse.UNDEFINED_ERROR));
     }
 }

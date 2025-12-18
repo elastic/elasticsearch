@@ -19,6 +19,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -44,7 +45,6 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
 
     public static final String NAME = "cohere_service_settings";
     public static final String OLD_MODEL_ID_FIELD = "model";
-    public static final String MODEL_ID = "model_id";
     public static final String API_VERSION = "api_version";
     public static final String MODEL_REQUIRED_FOR_V2_API = "The [service_settings.model_id] field is required for the Cohere V2 API.";
 
@@ -82,7 +82,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             context
         );
 
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
             logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
@@ -256,7 +256,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
         if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
+            builder.field(ServiceFields.MODEL_ID, modelId);
         }
         rateLimitSettings.toXContent(builder, params);
 

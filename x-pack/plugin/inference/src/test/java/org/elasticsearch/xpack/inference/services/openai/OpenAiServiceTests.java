@@ -218,7 +218,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             settingsMap.putAll(Map.of(ServiceFields.SIMILARITY, SIMILARITY.toString(), ServiceFields.DIMENSIONS, DIMENSIONS));
 
             if (parseContext == ConfigurationParseContext.PERSISTENT) {
-                settingsMap.put(OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER);
+                settingsMap.put(ServiceFields.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER);
             }
         }
 

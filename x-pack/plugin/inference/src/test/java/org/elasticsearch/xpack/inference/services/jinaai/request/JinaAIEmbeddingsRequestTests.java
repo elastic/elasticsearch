@@ -17,271 +17,183 @@ import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbedd
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestEntity.convertToString;
+import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestEntity.convertInputType;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_UrlDefined() throws IOException {
-        var inputType = InputTypeTests.randomWithNull();
-        var request = createRequest(
-            List.of("abc"),
-            inputType,
-            JinaAIEmbeddingsModelTests.createModel(
-                "url",
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                null,
-                null,
-                "model",
-                JinaAIEmbeddingType.FLOAT
-            )
-        );
-
-        var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-        MatcherAssert.assertThat(
-            httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(),
-            is(JinaAIUtils.ELASTIC_REQUEST_SOURCE)
-        );
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "embedding_type", "float", "task", convertedInputType))
-            );
-        } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "embedding_type", "float")));
-        }
-    }
-
     public void testCreateRequest_AllOptionsDefined() throws IOException {
         var inputType = InputTypeTests.randomWithNull();
+        boolean lateChunking = randomBoolean();
+        var modelName = "modelName";
+        var url = "url";
+        var embeddingType = randomFrom(JinaAIEmbeddingType.values());
+        var input = List.of("abc");
+        var apiKey = "api-key";
+        var dimensions = 512;
         var request = createRequest(
-            List.of("abc"),
+            input,
             inputType,
             JinaAIEmbeddingsModelTests.createModel(
-                "url",
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                null,
-                null,
-                "model",
-                JinaAIEmbeddingType.FLOAT
+                url,
+                modelName,
+                embeddingType,
+                new JinaAIEmbeddingsTaskSettings(null, lateChunking),
+                apiKey,
+                dimensions
             )
         );
 
         var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-        MatcherAssert.assertThat(
-            httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(),
-            is(JinaAIUtils.ELASTIC_REQUEST_SOURCE)
-        );
+        assertThat(httpPost.getURI().toString(), is(url));
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + apiKey));
+        assertThat(httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            MatcherAssert.assertThat(
+            var convertedInputType = convertInputType(inputType);
+            assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "task", convertedInputType, "embedding_type", "float"))
+                is(
+                    Map.of(
+                        "input",
+                        input,
+                        "model",
+                        modelName,
+                        "embedding_type",
+                        embeddingType.toRequestString(),
+                        "task",
+                        convertedInputType,
+                        "late_chunking",
+                        lateChunking,
+                        "dimensions",
+                        dimensions
+                    )
+                )
             );
         } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "embedding_type", "float")));
+            assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "input",
+                        input,
+                        "model",
+                        modelName,
+                        "embedding_type",
+                        embeddingType.toRequestString(),
+                        "late_chunking",
+                        lateChunking,
+                        "dimensions",
+                        dimensions
+                    )
+                )
+            );
         }
     }
 
     public void testCreateRequest_TaskSettingsInputType() throws IOException {
         var inputType = InputTypeTests.randomWithoutUnspecified();
+        var modelName = "modelName";
+        var url = "url";
+        var embeddingType = randomFrom(JinaAIEmbeddingType.values());
+        List<String> input = List.of("abc");
+        String apiKey = "api-key";
+        int dimensions = 512;
         var request = createRequest(
-            List.of("abc"),
+            input,
             null,
             JinaAIEmbeddingsModelTests.createModel(
-                "url",
-                "secret",
-                new JinaAIEmbeddingsTaskSettings(inputType),
-                null,
-                null,
-                "model",
-                JinaAIEmbeddingType.FLOAT
+                url,
+                modelName,
+                embeddingType,
+                new JinaAIEmbeddingsTaskSettings(inputType, null),
+                apiKey,
+                dimensions
             )
         );
 
         var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-        MatcherAssert.assertThat(
-            httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(),
-            is(JinaAIUtils.ELASTIC_REQUEST_SOURCE)
-        );
+        assertThat(httpPost.getURI().toString(), is(url));
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + apiKey));
+        assertThat(httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            MatcherAssert.assertThat(
+            var convertedInputType = convertInputType(inputType);
+            assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "task", convertedInputType, "embedding_type", "float"))
+                is(
+                    Map.of(
+                        "input",
+                        input,
+                        "model",
+                        modelName,
+                        "embedding_type",
+                        embeddingType.toRequestString(),
+                        "task",
+                        convertedInputType,
+                        "dimensions",
+                        dimensions
+                    )
+                )
             );
         } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "embedding_type", "float")));
+            assertThat(
+                requestMap,
+                is(Map.of("input", input, "model", modelName, "embedding_type", embeddingType.toRequestString(), "dimensions", dimensions))
+            );
         }
     }
 
     public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException {
         var requestInputType = InputTypeTests.randomWithNull();
         var taskSettingsInputType = InputTypeTests.randomWithoutUnspecified();
+        var modelName = "modelName";
+        var url = "url";
+        List<String> input = List.of("abc");
+        String apiKey = "api-key";
         var request = createRequest(
-            List.of("abc"),
+            input,
             requestInputType,
-            JinaAIEmbeddingsModelTests.createModel(
-                "url",
-                "secret",
-                new JinaAIEmbeddingsTaskSettings(taskSettingsInputType),
-                null,
-                null,
-                "model",
-                JinaAIEmbeddingType.FLOAT
-            )
+            JinaAIEmbeddingsModelTests.createModel(url, modelName, new JinaAIEmbeddingsTaskSettings(taskSettingsInputType, null), apiKey)
         );
 
         var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-        MatcherAssert.assertThat(
-            httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(),
-            is(JinaAIUtils.ELASTIC_REQUEST_SOURCE)
-        );
+        assertThat(httpPost.getURI().toString(), is(url));
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + apiKey));
+        assertThat(httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(JinaAIUtils.ELASTIC_REQUEST_SOURCE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(requestInputType)) {
-            var convertedInputType = convertToString(requestInputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "task", convertedInputType, "embedding_type", "float"))
-            );
+            var convertedInputType = convertInputType(requestInputType);
+            assertThat(requestMap, is(Map.of("input", input, "model", modelName, "embedding_type", "float", "task", convertedInputType)));
         } else if (InputType.isSpecified(taskSettingsInputType)) {
-            var convertedInputType = convertToString(taskSettingsInputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "task", convertedInputType, "embedding_type", "float"))
-            );
+            var convertedInputType = convertInputType(taskSettingsInputType);
+            assertThat(requestMap, is(Map.of("input", input, "model", modelName, "embedding_type", "float", "task", convertedInputType)));
         } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "embedding_type", "float")));
-        }
-    }
-
-    public void testCreateRequest_EmbeddingTypeBit() throws IOException {
-        var inputType = InputTypeTests.randomWithNull();
-        var request = createRequest(
-            List.of("abc"),
-            inputType,
-            JinaAIEmbeddingsModelTests.createModel(
-                "url",
-                "secret",
-                new JinaAIEmbeddingsTaskSettings(InputType.SEARCH),
-                null,
-                null,
-                "model",
-                JinaAIEmbeddingType.BIT
-            )
-        );
-
-        var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-        MatcherAssert.assertThat(
-            httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(),
-            is(JinaAIUtils.ELASTIC_REQUEST_SOURCE)
-        );
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "task", convertedInputType, "embedding_type", "binary"))
-            );
-        } else {
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "task", "retrieval.query", "embedding_type", "binary"))
-            );
-        }
-    }
-
-    public void testCreateRequest_EmbeddingTypeBinary() throws IOException {
-        var inputType = InputTypeTests.randomWithNull();
-        var request = createRequest(
-            List.of("abc"),
-            inputType,
-            JinaAIEmbeddingsModelTests.createModel(
-                "url",
-                "secret",
-                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                null,
-                null,
-                "model",
-                JinaAIEmbeddingType.BINARY
-            )
-        );
-
-        var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-        MatcherAssert.assertThat(
-            httpPost.getLastHeader(JinaAIUtils.REQUEST_SOURCE_HEADER).getValue(),
-            is(JinaAIUtils.ELASTIC_REQUEST_SOURCE)
-        );
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "task", convertedInputType, "embedding_type", "binary"))
-            );
-        } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "embedding_type", "binary")));
+            assertThat(requestMap, is(Map.of("input", input, "model", modelName, "embedding_type", "float")));
         }
     }
 

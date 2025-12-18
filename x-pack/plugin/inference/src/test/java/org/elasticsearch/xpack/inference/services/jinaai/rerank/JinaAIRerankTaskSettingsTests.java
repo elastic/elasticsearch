@@ -123,15 +123,15 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
         return new HashMap<>();
     }
 
-    public static Map<String, Object> getTaskSettingsMap(@Nullable Integer topNDocumentsOnly, Boolean returnDocuments) {
+    public static Map<String, Object> getTaskSettingsMap(@Nullable Integer topNDocumentsOnly, @Nullable Boolean returnDocuments) {
         var map = new HashMap<String, Object>();
 
         if (topNDocumentsOnly != null) {
-            map.put(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly.toString());
+            map.put(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly);
         }
 
         if (returnDocuments != null) {
-            map.put(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments.toString());
+            map.put(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments);
         }
 
         return map;

@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;
@@ -144,7 +143,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             projectId,
                             GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
                             provider,
-                            GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                            ServiceFields.URL,
                             url,
                             GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
                             streamingUrl
@@ -480,7 +479,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -533,7 +532,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         projectId,
                         GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
                         provider,
-                        GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                        ServiceFields.URL,
                         url,
                         GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
                         streamingUrl
@@ -588,7 +587,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -638,7 +637,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -714,7 +713,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -766,7 +765,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         "location",
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         "project",
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -813,7 +812,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                     "location",
                     GoogleVertexAiServiceFields.PROJECT_ID,
                     "project",
-                    GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                    ServiceFields.DIMENSIONS_SET_BY_USER,
                     true
                 )
             );
@@ -868,7 +867,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         "location",
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         "project",
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -911,7 +910,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),
@@ -949,7 +948,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
                         projectId,
-                        GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
                         true
                     )
                 ),

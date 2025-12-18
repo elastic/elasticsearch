@@ -197,7 +197,7 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         }
 
         public void stop() {
-            assert timeSpanBuilder != null : "start() should have be called for " + name;
+            assert timeSpanBuilder != null : "start() should have been called for " + name;
             assert allowMultipleCalls || timeSpan == null : "start() should only be called once for " + name;
             timeSpan = timeSpanBuilder.stop();
         }

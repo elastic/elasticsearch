@@ -36,14 +36,6 @@ public interface BytesRefHashTable extends Accountable, Releasable {
      */
     long add(BytesRef key);
 
-    /**
-     * Adds the given keys to the table. Id's are stored in the given ids
-     * array. Each element in the id array is either the newly allocated
-     * id if the key wasn't in the table yet, or {@code -1-id} if it was
-     * already present in the table.
-     */
-    void add(BytesRef[] keys, long[] ids);
-
     /** Returns the size (number of key/value pairs) in the table.*/
     long size();
 

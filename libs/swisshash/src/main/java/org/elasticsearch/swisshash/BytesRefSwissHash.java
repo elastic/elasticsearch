@@ -173,15 +173,6 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     @Override
-    public void add(BytesRef[] keys, long[] ids) {
-        final int[] hashes = new int[keys.length];
-        Murmur3BytesRefUtils.hashAll(keys, hashes);
-        for (int i = 0; i < keys.length; i++) {
-            ids[i] = add(keys[i], BitMixer.mix32(hashes[i]));
-        }
-    }
-
-    @Override
     public Status status() {
         return smallCore != null ? smallCore.status() : bigCore.status();
     }

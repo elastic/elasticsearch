@@ -118,29 +118,15 @@ $if(BytesRef)$
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);
         }
-        int positions = vector.getPositionCount();
-        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
-            long[] ids = new long[1024];
-            for (int base = 0; base < positions; base += 1024) {
-                int chunkLen = Math.min(1024, positions - base);
-                // collect chunk values
-                BytesRef[] values = new BytesRef[chunkLen];
-                for (int i = 0; i < chunkLen; i++) {
-                    values[i] = vector.getBytesRef(base + i, new BytesRef());
-                }
-                hash.add(values, ids); // bulk hash this chunk
-                for (int i = 0; i < chunkLen; i++) { // append results
-                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(ids[i])));
-                }
-            }
-            return builder.build();
-        }
-$else$
+        BytesRef scratch = new BytesRef();
+$endif$
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
 $if(double)$
                 long v = Double.doubleToLongBits(vector.getDouble(i));
+$elseif(BytesRef)$
+                BytesRef v = vector.getBytesRef(i, scratch);
 $else$
                 $type$ v = vector.get$Type$(i);
 $endif$
@@ -148,7 +134,6 @@ $endif$
             }
             return builder.build();
         }
-$endif$
     }
 
     /**

@@ -4,7 +4,6 @@
       features: ["allowed_warnings", "headers"]
 
   - do:
-      headers: { Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # x_pack_rest_user, an operator
       indices.put_index_template:
         name: ds-template
         body:
@@ -20,7 +19,6 @@
       indices.create_data_stream:
         name: failure-data-stream
   - do:
-      headers: { Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # x_pack_rest_user, an operator
       cluster.health:
         wait_for_status: green
   # Initialize failure store

@@ -204,6 +204,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @throws IllegalArgumentException if the repository name is not empty and the repository doesn't exist or is not empty and read-only
      */
     private void validateDefaultRepository(String repositoryName) {
+        if (repositoryName.equals(this.defaultRepository)) {
+            return;
+        }
         // Only validate on the master update thread to avoid validation issues at node start time
         // when repositories may not be initialized yet.
         if (MasterService.isMasterUpdateThread() == false) {
@@ -214,6 +217,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             logger.info("Default repository cleared");
             return;
         }
+        validateRepositoryName(repositoryName);
         Repository repository = repositories.getOrDefault(ProjectId.DEFAULT, Map.of()).get(repositoryName);
         if (repository == null) {
             throw new IllegalArgumentException(

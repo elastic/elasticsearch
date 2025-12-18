@@ -566,13 +566,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
             if (localIndices != null) {
-                Cluster c = new Cluster(originClusterLabel, String.join(",", localIndices.indices()), false);
-                m.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, c);
+                String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+                Cluster c = new Cluster(localKey, String.join(",", localIndices.indices()), false, originClusterLabel);
+                m.put(localKey, c);
             }
             for (Map.Entry<String, OriginalIndices> remote : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remote.getKey();
                 boolean skipOnFailure = skipOnFailurePredicate.test(clusterAlias);
-                Cluster c = new Cluster(clusterAlias, String.join(",", remote.getValue().indices()), skipOnFailure);
+                Cluster c = new Cluster(clusterAlias, String.join(",", remote.getValue().indices()), skipOnFailure, null);
                 m.put(clusterAlias, c);
             }
             this.clusterInfo = m;
@@ -871,6 +872,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final List<ShardSearchFailure> failures;
         private final TimeValue took;  // search latency in millis for this cluster sub-search
         private final boolean timedOut;
+        @Nullable // will be null for remote/linked clusters
+        private final String originClusterLabel;  // "(local)" or "_origin" in the XContent response
 
         /**
          * Marks the status of a Cluster search involved in a Cross-Cluster search.
@@ -895,9 +898,25 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *                     for the local cluster
          * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
          * @param skipUnavailable whether this Cluster is marked as skip_unavailable in remote cluster settings
+         * @param originClusterLabel if clusterAlias is "" (representing the local/origin cluster), the originClusterLabel
+         *                           must be specified in order to know how to represent this cluster in XContent rendering.
+         *                           Should be "(local)" for stateful and "_origin" for serverless.
          */
-        public Cluster(String clusterAlias, String indexExpression, boolean skipUnavailable) {
-            this(clusterAlias, indexExpression, skipUnavailable, Status.RUNNING, null, null, null, null, null, null, false);
+        public Cluster(String clusterAlias, String indexExpression, boolean skipUnavailable, String originClusterLabel) {
+            this(
+                clusterAlias,
+                indexExpression,
+                skipUnavailable,
+                Status.RUNNING,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                originClusterLabel
+            );
         }
 
         public Cluster(
@@ -911,11 +930,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             Integer failedShards,
             List<ShardSearchFailure> failures,
             TimeValue took,
-            boolean timedOut
+            boolean timedOut,
+            String originClusterLabel
         ) {
             assert clusterAlias != null : "clusterAlias cannot be null";
             assert indexExpression != null : "indexExpression of Cluster cannot be null";
             assert status != null : "status of Cluster cannot be null";
+            assert clusterAlias.isEmpty() == false || originClusterLabel != null
+                : "originClusterLabel must be non-null when clusterAlias is empty (represents the local/origin cluster)";
             this.clusterAlias = clusterAlias;
             this.indexExpression = indexExpression;
             this.skipUnavailable = skipUnavailable;
@@ -927,6 +949,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.failures = failures == null ? Collections.emptyList() : Collections.unmodifiableList(failures);
             this.took = took;
             this.timedOut = timedOut;
+            this.originClusterLabel = originClusterLabel;
         }
 
         public Cluster(StreamInput in) throws IOException {
@@ -946,6 +969,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
             this.skipUnavailable = in.readBoolean();
+            // TODO: wrap in new version check
+            this.originClusterLabel = in.readOptionalString();
         }
 
         /**
@@ -989,7 +1014,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     failedShards != null ? failedShards : original.getFailedShards(),
                     failures != null ? failures : original.getFailures(),
                     took != null ? took : original.getTook(),
-                    timedOut != null ? timedOut : original.isTimedOut()
+                    timedOut != null ? timedOut : original.isTimedOut(),
+                    original.getOriginClusterLabel()
                 );
             }
 
@@ -1047,13 +1073,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
             out.writeBoolean(skipUnavailable);
+            // TODO: wrap in new Transport version check
+            out.writeOptionalString(originClusterLabel);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
             if (clusterAlias.isEmpty()) {
-                name = LOCAL_CLUSTER_NAME_REPRESENTATION;
+                name = originClusterLabel;
             }
             builder.startObject(name);
             {
@@ -1133,6 +1161,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             return failedShards;
         }
 
+        @Nullable
+        public String getOriginClusterLabel() {
+            return originClusterLabel;
+        }
+
         @Override
         public String toString() {
             return "Cluster{"
@@ -1160,6 +1193,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 + '\''
                 + ", skipUnavailable="
                 + skipUnavailable
+                + ", originClusterLabel='"
+                + originClusterLabel
+                + '\''
                 + '}';
         }
     }

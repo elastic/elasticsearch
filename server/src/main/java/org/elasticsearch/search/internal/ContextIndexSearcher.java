@@ -617,6 +617,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     private static void verifyQueryLimit(Query query) {
         final int[] numClauses = new int[1];
+        final int maxClauseCount = getMaxClauseCount();
         query.visit(new QueryVisitor() {
             @Override
             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
@@ -626,7 +627,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
             @Override
             public void visitLeaf(Query query) {
-                if (numClauses[0] > getMaxClauseCount()) {
+                if (numClauses[0] > maxClauseCount) {
                     throw new TooManyNestedClauses();
                 }
                 ++numClauses[0];
@@ -634,7 +635,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
             @Override
             public void consumeTerms(Query query, Term... terms) {
-                if (numClauses[0] > getMaxClauseCount()) {
+                if (numClauses[0] > maxClauseCount) {
                     throw new TooManyNestedClauses();
                 }
                 numClauses[0] += terms.length;
@@ -642,14 +643,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
             @Override
             public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
-                if (numClauses[0] > getMaxClauseCount()) {
+                if (numClauses[0] > maxClauseCount) {
                     throw new TooManyNestedClauses();
                 }
                 ++numClauses[0];
             }
         });
 
-        if (numClauses[0] > getMaxClauseCount()) {
+        if (numClauses[0] > maxClauseCount) {
             throw new TooManyNestedClauses();
         }
     }

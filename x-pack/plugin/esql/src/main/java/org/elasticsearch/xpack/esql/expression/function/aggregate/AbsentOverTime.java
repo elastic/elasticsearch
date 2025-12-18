@@ -61,6 +61,7 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",

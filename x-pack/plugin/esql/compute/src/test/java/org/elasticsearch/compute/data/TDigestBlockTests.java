@@ -80,7 +80,7 @@ public class TDigestBlockTests extends ComputeTestCase {
             if (randomBoolean()) {
                 builder.appendNull();
             } else {
-                builder.append(BlockTestUtils.randomTDigest());
+                builder.appendTDigest(BlockTestUtils.randomTDigest());
             }
         }
         return builder.build();

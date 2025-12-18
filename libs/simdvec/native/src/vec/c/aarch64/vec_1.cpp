@@ -415,3 +415,83 @@ EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCou
 
     return result;
 }
+
+EXPORT int64_t vec_dot_bit_int4(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int64_t subRet0 = 0;
+    int64_t subRet1 = 0;
+    int64_t subRet2 = 0;
+    int64_t subRet3 = 0;
+    int r = 0;
+    int upperBound = dims & -sizeof(int64_t);
+    for (; r < upperBound; r += sizeof(int64_t)) {
+        int64_t value = *((int64_t*)(b + r));
+        int64_t q0 = *((int64_t*)(a + r));
+        subRet0 += __builtin_popcountll(q0 & value);
+        int64_t q1 = *((int64_t*)(a + r + dims));
+        subRet1 += __builtin_popcountll(q1 & value);
+        int64_t q2 = *((int64_t*)(a + r + 2 * dims));
+        subRet2 += __builtin_popcountll(q2 & value);
+        int64_t q3 = *((int64_t*)(a + r + 3 * dims));
+        subRet3 += __builtin_popcountll(q3 & value);
+    }
+    upperBound = dims & -sizeof(int32_t);
+    for (; r < upperBound; r += sizeof(int32_t)) {
+        int32_t value = *((int32_t*)(b + r));
+        int32_t q0 = *((int32_t*)(a + r));
+        subRet0 += __builtin_popcount(q0 & value);
+        int32_t q1 = *((int32_t*)(a + r + dims));
+        subRet1 += __builtin_popcount(q1 & value);
+        int32_t q2 = *((int32_t*)(a + r + 2 * dims));
+        subRet2 += __builtin_popcount(q2 & value);
+        int32_t q3 = *((int32_t*)(a + r + 3 * dims));
+        subRet3 += __builtin_popcount(q3 & value);
+    }
+    for (; r < dims; r++) {
+        int8_t value = *(b + r);
+        int8_t q0 = *(a + r);
+        subRet0 += __builtin_popcount(q0 & value & 0xFF);
+        int8_t q1 = *(a + r + dims);
+        subRet1 += __builtin_popcount(q1 & value & 0xFF);
+        int8_t q2 = *(a + r + 2 * dims);
+        subRet2 += __builtin_popcount(q2 & value & 0xFF);
+        int8_t q3 = *(a + r + 3 * dims);
+        subRet3 += __builtin_popcount(q3 & value & 0xFF);
+    }
+    return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+}
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dot_bit_int4_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    for (size_t c = 0; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_dot_bit_int4(a0, b, dims);
+    }
+}
+
+EXPORT void vec_dot_bit_int4_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    dot_bit_int4_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_dot_bit_int4_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot_bit_int4_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+}

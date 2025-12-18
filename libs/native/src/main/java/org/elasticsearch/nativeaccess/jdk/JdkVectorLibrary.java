@@ -25,6 +25,7 @@ import java.util.Objects;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
@@ -34,6 +35,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle dot7u$mh;
     static final MethodHandle dot7uBulk$mh;
     static final MethodHandle dot7uBulkWithOffsets$mh;
+
+    static final MethodHandle doti4b1$mh;
+    static final MethodHandle doti4b1Bulk$mh;
+    static final MethodHandle doti4b1BulkWithOffsets$mh;
+
     static final MethodHandle sqr7u$mh;
     static final MethodHandle cosf32$mh;
     static final MethodHandle dotf32$mh;
@@ -62,6 +68,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     );
                     dot7uBulkWithOffsets$mh = downcallHandle(
                         "vec_dot7u_bulk_offsets_2",
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
+                        LinkerHelperUtil.critical()
+                    );
+                    doti4b1$mh = downcallHandle(
+                        "vec_dot_bit_int4_2",
+                        FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    doti4b1Bulk$mh = downcallHandle(
+                        "vec_dot_bit_int4_bulk_2",
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS),
+                        LinkerHelperUtil.critical()
+                    );
+                    doti4b1BulkWithOffsets$mh = downcallHandle(
+                        "vec_dot_bit_int4_bulk_offsets_2",
                         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
@@ -101,6 +122,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
+                    doti4b1$mh = downcallHandle(
+                        "vec_dot_bit_int4_2",
+                        FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_INT),
+                        LinkerHelperUtil.critical()
+                    );
+                    doti4b1Bulk$mh = downcallHandle(
+                        "vec_dot_bit_int4_bulk_2",
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS),
+                        LinkerHelperUtil.critical()
+                    );
+                    doti4b1BulkWithOffsets$mh = downcallHandle(
+                        "vec_dot_bit_int4_bulk_offsets_2",
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
+                        LinkerHelperUtil.critical()
+                    );
                     sqr7u$mh = downcallHandle(
                         "vec_sqr7u",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
@@ -132,6 +168,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 dot7u$mh = null;
                 dot7uBulk$mh = null;
                 dot7uBulkWithOffsets$mh = null;
+                doti4b1$mh = null;
+                doti4b1Bulk$mh = null;
+                doti4b1BulkWithOffsets$mh = null;
                 sqr7u$mh = null;
                 cosf32$mh = null;
                 dotf32$mh = null;
@@ -183,6 +222,40 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MemorySegment result
         ) {
             dot7uBulkWithOffsets(a, b, length, pitch, offsets, count, result);
+        }
+
+        /**
+         * Computes the dot product of a given int4 vector with a give bit vector (1 bit per element).
+         *
+         * @param a      address of the int4 vector
+         * @param b      address of the bit vector
+         * @param length the vector dimensions
+         */
+        static long dotProductI4B1(MemorySegment a, MemorySegment b, int length) {
+            if (a.byteSize() != 4L * length) {
+                throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + 4L * length);
+            }
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return doti4b1(a, b, length);
+        }
+
+        static void dotProductI4B1Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            Objects.checkFromIndexSize(0, length * count, (int) a.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) b.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
+            doti4b1Bulk(a, b, length, count, result);
+        }
+
+        static void dotProductI4B1BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            doti4b1BulkWithOffsets(a, b, length, pitch, offsets, count, result);
         }
 
         /**
@@ -277,6 +350,38 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static long doti4b1(MemorySegment a, MemorySegment b, int length) {
+            try {
+                return (long) JdkVectorLibrary.doti4b1$mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static void doti4b1Bulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            try {
+                JdkVectorLibrary.doti4b1Bulk$mh.invokeExact(a, b, length, count, result);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static void doti4b1BulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            try {
+                JdkVectorLibrary.doti4b1BulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         private static int sqr7u(MemorySegment a, MemorySegment b, int length) {
             try {
                 return (int) JdkVectorLibrary.sqr7u$mh.invokeExact(a, b, length);
@@ -312,6 +417,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static final MethodHandle DOT_HANDLE_7U;
         static final MethodHandle DOT_HANDLE_7U_BULK;
         static final MethodHandle DOT_HANDLE_7U_BULK_WITH_OFFSETS;
+
+        static final MethodHandle DOT_HANDLE_I4B1;
+        static final MethodHandle DOT_HANDLE_I4B1_BULK;
+        static final MethodHandle DOT_HANDLE_I4B1_BULK_WITH_OFFSETS;
+
         static final MethodHandle SQR_HANDLE_7U;
         static final MethodHandle COS_HANDLE_FLOAT32;
         static final MethodHandle DOT_HANDLE_FLOAT32;
@@ -330,6 +440,31 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 DOT_HANDLE_7U_BULK_WITH_OFFSETS = lookup.findStatic(
                     JdkVectorSimilarityFunctions.class,
                     "dotProduct7uBulkWithOffsets",
+                    MethodType.methodType(
+                        void.class,
+                        MemorySegment.class,
+                        MemorySegment.class,
+                        int.class,
+                        int.class,
+                        MemorySegment.class,
+                        int.class,
+                        MemorySegment.class
+                    )
+                );
+
+                DOT_HANDLE_I4B1 = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "dotProductI4B1",
+                    MethodType.methodType(long.class, MemorySegment.class, MemorySegment.class, int.class)
+                );
+                DOT_HANDLE_I4B1_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "dotProductI4B1Bulk",
+                    MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, int.class, int.class, MemorySegment.class)
+                );
+                DOT_HANDLE_I4B1_BULK_WITH_OFFSETS = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "dotProductI4B1BulkWithOffsets",
                     MethodType.methodType(
                         void.class,
                         MemorySegment.class,
@@ -364,6 +499,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
         @Override
         public MethodHandle dotProductHandle7uBulkWithOffsets() {
             return DOT_HANDLE_7U_BULK_WITH_OFFSETS;
+        }
+
+        @Override
+        public MethodHandle dotProductHandleI4B1() {
+            return DOT_HANDLE_I4B1;
+        }
+
+        @Override
+        public MethodHandle dotProductHandleI4B1Bulk() {
+            return DOT_HANDLE_I4B1_BULK;
+        }
+
+        @Override
+        public MethodHandle dotProductHandleI4B1BulkWithOffsets() {
+            return DOT_HANDLE_I4B1_BULK_WITH_OFFSETS;
         }
 
         @Override

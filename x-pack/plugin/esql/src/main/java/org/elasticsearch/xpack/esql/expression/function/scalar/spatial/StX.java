@@ -43,7 +43,7 @@ public class StX extends SpatialUnaryDocValuesFunction {
     @FunctionInfo(
         returnType = "double",
         description = "Extracts the `x` coordinate from the supplied point.\n"
-            + "If the points is of type `geo_point` this is equivalent to extracting the `longitude` value.",
+            + "If the point is of type `geo_point` this is equivalent to extracting the `longitude` value.",
         examples = @Example(file = "spatial", tag = "st_x_y"),
         depthOffset = 1  // So this appears as a subsection of geometry functions
     )

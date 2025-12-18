@@ -42,6 +42,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/st_npoints.md
 :::
 
+:::{include} ../_snippets/functions/layout/st_simplify.md
+:::
+
 :::{include} ../_snippets/functions/layout/st_envelope.md
 :::
 
@@ -66,7 +69,4 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/st_geohash.md
-:::
-
-:::{include} ../_snippets/functions/layout/st_simplify.md
 :::

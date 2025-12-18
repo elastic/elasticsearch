@@ -1507,8 +1507,8 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestUpdateModelSnapshotAction());
             restHandlers.add(new RestGetDatafeedsAction());
             restHandlers.add(new RestGetDatafeedStatsAction());
-            restHandlers.add(new RestPutDatafeedAction());
-            restHandlers.add(new RestUpdateDatafeedAction());
+            restHandlers.add(new RestPutDatafeedAction(settings));
+            restHandlers.add(new RestUpdateDatafeedAction(settings));
             restHandlers.add(new RestDeleteDatafeedAction());
             restHandlers.add(new RestPreviewDatafeedAction());
             restHandlers.add(new RestStartDatafeedAction());

@@ -106,6 +106,10 @@ public final class DatafeedManager {
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
+                // Note: This filter excludes both CCS (cluster:index) and CPS (project:index) patterns from
+                // up-front privilege validation. For CCS, privileges cannot be checked locally. For CPS,
+                // privilege enforcement happens at search execution time via UIAM. This is by design -
+                // RemoteClusterLicenseChecker.isRemoteIndex() returns true for both patterns.
                 final String[] indices = request.getDatafeed()
                     .getIndices()
                     .stream()

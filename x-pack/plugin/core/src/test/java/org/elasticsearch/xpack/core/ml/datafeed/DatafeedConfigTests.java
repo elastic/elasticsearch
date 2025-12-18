@@ -1061,6 +1061,47 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         return builder.build();
     }
 
+    public void testCrossProjectIndicesOptionsAllowed() {
+        IndicesOptions cpsOptions = IndicesOptions.builder()
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-df", "test-job").setIndices(List.of("logs-*"))
+            .setIndicesOptions(cpsOptions);
+
+        DatafeedConfig config = builder.build(); // Should not throw
+        assertTrue(config.getIndicesOptions().resolveCrossProjectIndexExpression());
+    }
+
+    public void testCrossProjectIndicesOptionsXContentRoundTrip() throws IOException {
+        // Create a datafeed with CPS enabled, using SearchRequest.DEFAULT_INDICES_OPTIONS as base
+        // to match what fromMap() will use as defaults for unparsed fields
+        IndicesOptions cpsOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-df-cps", "test-job").setIndices(List.of("logs-*"))
+            .setIndicesOptions(cpsOptions);
+
+        DatafeedConfig original = builder.build();
+        assertTrue("Original config should have CPS enabled", original.getIndicesOptions().resolveCrossProjectIndexExpression());
+
+        // Serialize to XContent
+        BytesReference bytes = XContentHelper.toXContent(original, XContentType.JSON, false);
+
+        // Parse back from XContent
+        DatafeedConfig parsed;
+        try (XContentParser xContentParser = parser(bytes)) {
+            parsed = DatafeedConfig.STRICT_PARSER.apply(xContentParser, null).build();
+        }
+
+        // Verify CPS flag survives round-trip (the main goal of this test)
+        assertTrue(
+            "CPS flag should survive XContent round-trip serialization",
+            parsed.getIndicesOptions().resolveCrossProjectIndexExpression()
+        );
+    }
+
     private XContentParser parser(String json) throws IOException {
         return JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
     }

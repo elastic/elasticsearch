@@ -597,6 +597,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public IndicesOptions getIndicesOptions() {
+            return indicesOptions;
+        }
+
         public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {
             this.runtimeMappings = runtimeMappings;
             return this;

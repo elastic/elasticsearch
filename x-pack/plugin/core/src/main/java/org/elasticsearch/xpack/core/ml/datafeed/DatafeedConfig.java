@@ -127,6 +127,8 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField DELAYED_DATA_CHECK_CONFIG = new ParseField("delayed_data_check_config");
     public static final ParseField MAX_EMPTY_SEARCHES = new ParseField("max_empty_searches");
     public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
+    // Field for cross-project search option within indices_options (not part of core IndicesOptions.toXContent)
+    private static final String RESOLVE_CROSS_PROJECT_INDEX_EXPRESSION = "resolve_cross_project_index_expression";
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -204,11 +206,18 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             DELAYED_DATA_CHECK_CONFIG
         );
         parser.declareInt(Builder::setMaxEmptySearches, MAX_EMPTY_SEARCHES);
-        parser.declareObject(
-            Builder::setIndicesOptions,
-            (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
-            INDICES_OPTIONS
-        );
+        parser.declareObject(Builder::setIndicesOptions, (p, c) -> {
+            Map<String, Object> map = p.map();
+            IndicesOptions baseOptions = IndicesOptions.fromMap(map, SearchRequest.DEFAULT_INDICES_OPTIONS);
+            // Handle cross-project option which is not part of core IndicesOptions.fromMap/toXContent
+            Object crossProjectValue = map.get(RESOLVE_CROSS_PROJECT_INDEX_EXPRESSION);
+            if (crossProjectValue instanceof Boolean && (Boolean) crossProjectValue) {
+                return IndicesOptions.builder(baseOptions)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build();
+            }
+            return baseOptions;
+        }, INDICES_OPTIONS);
         parser.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         return parser;
     }
@@ -563,15 +572,24 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             }
             builder.startObject(INDICES_OPTIONS.getPreferredName());
             indicesOptions.toXContent(builder, params);
+            // Cross-project option is not part of core IndicesOptions.toXContent, serialize it explicitly
+            if (indicesOptions.resolveCrossProjectIndexExpression()) {
+                builder.field(RESOLVE_CROSS_PROJECT_INDEX_EXPRESSION, true);
+            }
             builder.endObject();
         } else { // Don't include random defaults or unnecessary defaults in export
             if (queryDelay.equals(defaultRandomQueryDelay(jobId)) == false) {
                 builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             }
             // Indices options are a pretty advanced feature, better to not include them if they are just the default ones
-            if (indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+            // Also serialize if CPS is enabled (even if other options are default)
+            if (indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false
+                || indicesOptions.resolveCrossProjectIndexExpression()) {
                 builder.startObject(INDICES_OPTIONS.getPreferredName());
                 indicesOptions.toXContent(builder, params);
+                if (indicesOptions.resolveCrossProjectIndexExpression()) {
+                    builder.field(RESOLVE_CROSS_PROJECT_INDEX_EXPRESSION, true);
+                }
                 builder.endObject();
             }
             // Removing the default chunking config as it is determined by OTHER fields
@@ -665,6 +683,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
             && Objects.equals(this.runtimeMappings, that.runtimeMappings);
+        // CPS: Add new cross-project search fields here (e.g., projectRouting)
     }
 
     @Override
@@ -685,6 +704,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             maxEmptySearches,
             indicesOptions,
             runtimeMappings
+            // CPS: Add new cross-project search fields here (e.g., projectRouting)
         );
     }
 
@@ -1051,9 +1071,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             setDefaultQueryDelay();
             if (indicesOptions == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
-            }
-            if (indicesOptions.resolveCrossProjectIndexExpression()) {
-                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
             }
 
             return new DatafeedConfig(

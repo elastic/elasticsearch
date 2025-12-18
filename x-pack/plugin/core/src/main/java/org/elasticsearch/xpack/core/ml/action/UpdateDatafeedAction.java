@@ -32,9 +32,30 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
         public static Request parseRequest(String datafeedId, @Nullable IndicesOptions indicesOptions, XContentParser parser) {
+            return parseRequest(datafeedId, indicesOptions, false, parser);
+        }
+
+        public static Request parseRequest(
+            String datafeedId,
+            @Nullable IndicesOptions indicesOptions,
+            boolean enableCrossProjectSearch,
+            XContentParser parser
+        ) {
             DatafeedUpdate.Builder update = DatafeedUpdate.PARSER.apply(parser, null);
             if (indicesOptions != null) {
                 update.setIndicesOptions(indicesOptions);
+            }
+            // If CPS is enabled cluster-wide, ensure the CPS flag is set on indices_options
+            // regardless of whether it came from request params or body
+            if (enableCrossProjectSearch && update.getIndicesOptions() != null) {
+                IndicesOptions currentOptions = update.getIndicesOptions();
+                if (currentOptions.resolveCrossProjectIndexExpression() == false) {
+                    update.setIndicesOptions(
+                        IndicesOptions.builder(currentOptions)
+                            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                            .build()
+                    );
+                }
             }
             update.setId(datafeedId);
             return new Request(update.build());

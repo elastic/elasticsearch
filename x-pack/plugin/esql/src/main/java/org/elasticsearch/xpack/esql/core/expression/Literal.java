@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -77,7 +77,7 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     private static Literal readFrom(StreamInput in) throws IOException {
-        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        Source source = Source.readFrom((PlanStreamInput) in);
         Object value = in.readGenericValue();
         DataType dataType = DataType.readFrom(in);
         return new Literal(source, value, dataType);

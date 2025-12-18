@@ -18,8 +18,8 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -86,21 +86,13 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     public static MetadataAttribute readFrom(StreamInput in) throws IOException {
-        /*
-         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
-         * because we're in esql-core here and the real PlanStreamInput is in
-         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
-         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
-         * and NameId. This should become a hard cast when we move everything out
-         * of esql-core.
-         */
         return ((PlanStreamInput) in).readAttributeWithCache(stream -> {
-            Source source = Source.readFrom((StreamInput & PlanStreamInput) stream);
+            Source source = Source.readFrom((PlanStreamInput) stream);
             String name = stream.readString();
             DataType dataType = DataType.readFrom(stream);
             String qualifier = stream.readOptionalString(); // qualifier, no longer used
             Nullability nullability = stream.readEnum(Nullability.class);
-            NameId id = NameId.readFrom((StreamInput & PlanStreamInput) stream);
+            NameId id = NameId.readFrom((PlanStreamInput) stream);
             boolean synthetic = stream.readBoolean();
             boolean searchable = stream.readBoolean();
             return new MetadataAttribute(source, name, dataType, nullability, id, synthetic, searchable);
@@ -168,6 +160,10 @@ public class MetadataAttribute extends TypedAttribute {
 
     public static boolean isScoreAttribute(Expression a) {
         return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
+    }
+
+    public static boolean isTimeSeriesAttribute(Expression a) {
+        return a instanceof Attribute ma && ma.name().equals(TIMESERIES);
     }
 
     @Override

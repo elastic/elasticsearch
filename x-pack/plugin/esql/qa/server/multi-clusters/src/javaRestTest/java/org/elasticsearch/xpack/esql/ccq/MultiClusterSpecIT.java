@@ -12,12 +12,16 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
@@ -40,6 +44,8 @@ import java.net.URL;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -75,6 +81,7 @@ import static org.mockito.Mockito.when;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
+    private static final Logger LOGGER = LogManager.getLogger(MultiClusterSpecIT.class);
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
 
@@ -261,6 +268,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         when(twoClients.performRequest(any())).then(invocation -> {
             Request request = invocation.getArgument(0);
             String endpoint = request.getEndpoint();
+            LOGGER.info("Request: " + request.getMethod() + " " + endpoint);
             if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
             } else if (endpoint.startsWith("/_inference")) {
@@ -272,11 +280,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 && LOOKUP_ENDPOINTS.contains(endpoint) == false) {
                     return bulkClient.performRequest(request);
                 } else {
+                    LOGGER.info("Performing parallel request with 2 clones");
                     Request[] clones = cloneRequests(request, 2);
-                    Response resp1 = remoteClient.performRequest(clones[0]);
-                    Response resp2 = localClient.performRequest(clones[1]);
-                    assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
-                    return resp2;
+                    return runInParallel(localClient, remoteClient, clones);
                 }
         });
         doAnswer(invocation -> {
@@ -296,6 +302,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         for (int i = 0; i < clones.length; i++) {
             clones[i] = new Request(orig.getMethod(), orig.getEndpoint());
             clones[i].addParameters(orig.getParameters());
+            setTimeouts(clones[i]);
         }
         HttpEntity entity = orig.getEntity();
         if (entity != null) {
@@ -309,6 +316,68 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             }
         }
         return clones;
+    }
+
+    private static void setTimeouts(Request request) {
+        RequestConfig config = request.getOptions().getRequestConfig();
+        if (config == null) {
+            config = RequestConfig.DEFAULT;
+        }
+        RequestConfig.Builder builder = RequestConfig.copy(config);
+        builder.setConnectTimeout(120000);
+        builder.setConnectionRequestTimeout(120000);
+        request.setOptions(request.getOptions().toBuilder().setRequestConfig(builder.build()));
+        config = request.getOptions().getRequestConfig();
+        LOGGER.info("Request connect timeout: " + config.getConnectTimeout());
+        LOGGER.info("Request connection request timeout: " + config.getConnectionRequestTimeout());
+    }
+
+    /**
+     * Run {@link #cloneRequests cloned} requests in parallel.
+     */
+    static Response runInParallel(RestClient localClient, RestClient remoteClient, Request[] clones) throws Throwable {
+        CompletableFuture<Response> remoteResponse = new CompletableFuture<>();
+        CompletableFuture<Response> localResponse = new CompletableFuture<>();
+        LOGGER.info("Running parallel clones");
+        remoteClient.performRequestAsync(clones[0], new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                LOGGER.info("Received remote response: " + response.getStatusLine());
+                remoteResponse.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                LOGGER.info("Received remote failure: " + exception.getMessage());
+                remoteResponse.completeExceptionally(exception);
+            }
+        });
+        localClient.performRequestAsync(clones[1], new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                LOGGER.info("Received local response: " + response.getStatusLine());
+                localResponse.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                LOGGER.info("Received local failure: " + exception.getMessage());
+                localResponse.completeExceptionally(exception);
+            }
+        });
+        try {
+            LOGGER.info("Waiting for clones to complete");
+            Response remote = remoteResponse.get();
+            Response local = localResponse.get();
+            LOGGER.info("Finished running parallel clones");
+            LOGGER.info("remote: " + remote);
+            LOGGER.info("local: " + local);
+            assertEquals(remote.getStatusLine().getStatusCode(), local.getStatusLine().getStatusCode());
+            return local;
+        } catch (ExecutionException e) {
+            LOGGER.info("Exception during clone execution: " + e.getMessage());
+            throw e.getCause();
+        }
     }
 
     /**

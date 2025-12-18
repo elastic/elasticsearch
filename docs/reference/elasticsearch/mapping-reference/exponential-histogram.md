@@ -34,7 +34,7 @@ An exponential histogram field has the following structure:
 }
 ```
 
-The `scale` controls  the bucket density and precision. Larger scales produce finer buckets.
+The `scale` controls the bucket density and precision. Larger scales produce finer buckets.
 Exponential histograms can represent both positive and negative values, which are split into separate bucket ranges.
 Each bucket range is an object with two parallel arrays:
 - `indices`: array of the bucket indices defining the bucket boundaries
@@ -47,11 +47,11 @@ In order to represent zero values or values close to zero, there is a special `z
   - `threshold`: that defines the upper bound considered "zero".
   - `count`: number of values in the zero bucket.
 
-Optionally you can include precomputed summary statistics:
+Optionally, you can include precomputed summary statistics:
 
-- `sum` (double): The sum of all values in the histogram
-- `min` (double): The minimum value in the histogram
-- `max` (double): The maximum value in the histogram
+- `sum`: The sum of all values in the histogram
+- `min`: The minimum value in the histogram
+- `max`: The maximum value in the histogram
 
 When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these values during indexing.
 
@@ -177,4 +177,4 @@ Exponential histograms use exponentially growing bucket widths. All bucket bound
 Changing the scale adjusts bucket widths:
 
 - Increasing the scale by 1 splits each bucket into two adjacent buckets.
-- Decreasing the scale by 1 merges each pair of adjacent buckets into a single bucket without introducing additional error due to e.g. rounding or interpolation.
+- Decreasing the scale by 1 merges each pair of adjacent buckets into a single bucket without introducing additional error due to, e.g., rounding or interpolation.

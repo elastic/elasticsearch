@@ -222,7 +222,7 @@ public class ElasticInferenceService extends SenderService {
                     new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
                         DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
                         defaultDenseTextEmbeddingsSimilarity(),
-                        null,
+                        DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
                         null
                     ),
                     EmptyTaskSettings.INSTANCE,

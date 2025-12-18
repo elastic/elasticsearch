@@ -224,9 +224,6 @@ tests:
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
-- class: org.elasticsearch.qa.verify_version_constants.VerifyVersionConstantsIT
-  method: testLuceneVersionConstant
-  issue: https://github.com/elastic/elasticsearch/issues/125638
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
@@ -540,9 +537,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/46_downsample/Sort from multiple indices one with aggregate metric double}
-  issue: https://github.com/elastic/elasticsearch/issues/139125
 
 # Examples:
 #

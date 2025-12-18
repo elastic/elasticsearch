@@ -88,17 +88,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 public class TextFieldMapperTests extends MapperTestCase {
@@ -339,6 +333,38 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
 
+        // the field shouldn't be stored anywhere, only indexed
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
+
+        // the value for the field should be in regular _source since synthetic source is not enabled
+        List<IndexableField> sourceFields = doc.rootDoc().getFields("_source");
+        assertThat(sourceFields, hasSize(1));
+    }
+
+    public void testStoringWhenStoreIsSet() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", true);
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to be set
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+
+        // the field to be stored in a stored field since store was explicitly set
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
         // the value for the field should be in regular _source since synthetic source is not enabled
         List<IndexableField> sourceFields = doc.rootDoc().getFields("_source");
         assertThat(sourceFields, hasSize(1));
@@ -364,13 +390,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
 
-        // verify that the field is stored in a fallback stored field
-        IndexableField textFallbackField = doc.rootDoc().getField("name._original");
-        assertThat(textFallbackField, notNullValue());
+        // the field should be stored in a fallback stored field name._original
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
 
-        // verify that the field wasn't double stored in ignored source
-        List<IndexableField> ignoredSourceFields = doc.rootDoc().getFields("_ignored_source");
-        assertThat(ignoredSourceFields, empty());
+        assertIgnoredSourceIsEmpty(doc);
     }
 
     public void testStoringWhenSyntheticSourceIsEnabledInLegacyIndexVersion() throws IOException {
@@ -396,13 +419,37 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(true));
 
-        // verify that the field wasn't double stored in a fallback stored field
-        IndexableField textFallbackField = doc.rootDoc().getField("name._original");
-        assertThat(textFallbackField, nullValue());
+        // the field should be stored in a fallback stored field named._original
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
 
-        // verify that the field wasn't double stored in ignored source
-        List<IndexableField> ignoredSourceFields = doc.rootDoc().getFields("_ignored_source");
-        assertThat(ignoredSourceFields, empty());
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndStoreIsSet() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", true);
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to be set
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+
+        // the field should be stored in a stored field since store was explicitly set
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
     }
 
     public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiField() throws IOException {
@@ -430,13 +477,13 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
 
-        // verify that the field wasn't double stored in a fallback stored field since here the keyword field can be using for loading
-        IndexableField textFallbackField = doc.rootDoc().getField("name._original");
-        assertThat(textFallbackField, nullValue());
+        // the field not to be stored by its corresponding field mapper, but...
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
 
-        // verify that the field wasn't double stored in ignored source
-        List<IndexableField> ignoredSourceFields = doc.rootDoc().getFields("_ignored_source");
-        assertThat(ignoredSourceFields, empty());
+        // by the keyword multi field, since keywords have doc_values by default
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
     }
 
     public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldInLegacyIndexVersion() throws IOException {
@@ -470,16 +517,125 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
 
-        // verify that the field wasn't double stored in a fallback stored field since here the keyword field can be using for loading
-        IndexableField textFallbackField = doc.rootDoc().getField("name._original");
-        assertThat(textFallbackField, nullValue());
+        // the field should not to be stored by its corresponding field mapper, but...
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
 
-        // verify that the field wasn't double stored in ignored source
-        List<IndexableField> ignoredSourceFields = doc.rootDoc().getFields("_ignored_source");
-        assertThat(ignoredSourceFields, empty());
+        // by the keyword multi field, since keywords have doc_values by default
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldAndStoreIsSet() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("store", true);
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to be set
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+
+        // the field should be double stored:
+
+        // the field should be stored in a stored field since store was explicitly set
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        // the field should also be stored by the keyword multi field since it'll have doc values by default
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldAndValueExceedsIgnoreAbove() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("ignore_above", 5);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field should be stored in a fallback stored field name._original since the keyword cannot act as the delegate
+        // due to the value exceeding ignore_above
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+
+        // there should be nothing stored by the keyword multi field since the value exceeds ignore_above
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).verify();
+
+        assertIgnoredSourceIsEmpty(doc);
+    }
+
+    public void testStoringWhenSyntheticSourceIsEnabledAndThereIsAKeywordMultiFieldAndValueDoesNotExceedIgnoreAbove() throws IOException {
+        // given
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("ignore_above", 50);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+
+        // when
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping).documentMapper();
+
+        // then
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+
+        // expect store to default to false
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(false));
+
+        // the field should not to be stored by its corresponding field mapper, but...
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
+
+        // by its delegate keyword field
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
     }
 
     public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiField() throws IOException {
+        // given
         var indexSettingsBuilder = getIndexSettingsBuilder();
         indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
         var indexSettings = indexSettingsBuilder.build();
@@ -495,14 +651,24 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         });
 
+        // when
         IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
         DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, mapping).documentMapper();
 
         var source = source(b -> b.field("name", "quick brown fox"));
         ParsedDocument doc = mapper.parse(source);
+
         List<IndexableField> fields = doc.rootDoc().getFields("name.text");
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
+
+        // the text multi-field should not store anything - the parent keyword field handles storage
+        FieldStorageVerifier.forField("name.text", doc.rootDoc()).verify();
+
+        // the parent keyword field should store in doc values
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
     }
 
     public void testStoreParameterDefaultsSyntheticSourceTextFieldIsMultiFieldBwc() throws IOException {
@@ -525,45 +691,18 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         var source = source(b -> b.field("name", "quick brown fox"));
         ParsedDocument doc = mapper.parse(source);
+
         List<IndexableField> fields = doc.rootDoc().getFields("name.text");
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(true));
-    }
 
-    public void testDelegatesSyntheticSourceToKeywordMultiField() throws IOException {
-        var indexSettingsBuilder = getIndexSettingsBuilder();
-        indexSettingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic");
-        var indexSettings = indexSettingsBuilder.build();
+        // this is double stored, but we expect it to be in legacy index versions:
 
-        var mapping = mapping(b -> {
-            b.startObject("name");
-            b.field("type", "text");
-            b.field("store", false);
-            b.startObject("fields");
-            b.startObject("keyword");
-            b.field("type", "keyword");
-            b.endObject();
-            b.endObject();
-            b.endObject();
-        });
-        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        // in legacy index versions, the text multi-field was stored as a stored field
+        FieldStorageVerifier.forField("name.text", doc.rootDoc()).expectStoredField().verify();
 
-        var source = source(b -> b.field("name", "QUICK Brown fox"));
-        ParsedDocument doc = mapper.parse(source);
-        IndexableField textFallbackField = doc.rootDoc().getField("name._original");
-        assertThat(textFallbackField, nullValue());
-        IndexableFieldType keywordFieldType = doc.rootDoc().getField("name.keyword").fieldType();
-        assertThat(keywordFieldType.docValuesType(), not(is(DocValuesType.NONE)));
-
-        Set<String> ignoredFields = doc.rootDoc()
-            .getFields(IgnoredSourceFieldMapper.NAME)
-            .stream()
-            .flatMap(field -> IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decode(field.binaryValue()).stream())
-            .map(IgnoredSourceFieldMapper.NameValue::name)
-            .collect(Collectors.toSet());
-        assertThat("name", not(in(ignoredFields)));
-
-        assertThat(syntheticSource(mapper, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"QUICK Brown fox\"}"));
+        // the parent keyword field should store in doc values
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
     }
 
     public void testDoesNotDelegateSyntheticSourceForNormalizedKeywordMultiFieldWhenStoreOriginalValue() throws IOException {
@@ -589,19 +728,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         var source = source(b -> b.field("name", "QUICK Brown fox"));
         ParsedDocument doc = mapper.parse(source);
 
-        // expect the original, non-normalized value to be stored in a fallback stored field
-        IndexableField textFallbackField = doc.rootDoc().getField("name._original");
-        assertThat(textFallbackField, notNullValue());
+        // expect the original, non-normalized value to be stored in a fallback stored field name._original
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
 
-        // verify that we're not double storing the value in ignored source
-        Set<String> ignoredFields = doc.rootDoc()
-            .getFields(IgnoredSourceFieldMapper.NAME)
-            .stream()
-            .flatMap(field -> IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decode(field.binaryValue()).stream())
-            .map(IgnoredSourceFieldMapper.NameValue::name)
-            .collect(Collectors.toSet());
-        assertThat(ignoredFields, empty());
+        assertIgnoredSourceIsEmpty(doc);
 
+        // verify that source is synthesized correctly
         assertThat(syntheticSource(mapper, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"QUICK Brown fox\"}"));
     }
 
@@ -627,16 +759,14 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         var source = source(b -> b.field("name", "QUICK Brown fox"));
         ParsedDocument doc = mapper.parse(source);
-        IndexableField textFallbackField = doc.rootDoc().getField("name._original");
-        assertThat(textFallbackField, nullValue());
 
-        Set<String> ignoredFields = doc.rootDoc()
-            .getFields(IgnoredSourceFieldMapper.NAME)
-            .stream()
-            .flatMap(field -> IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decode(field.binaryValue()).stream())
-            .map(IgnoredSourceFieldMapper.NameValue::name)
-            .collect(Collectors.toSet());
-        assertThat("name", not(in(ignoredFields)));
+        // the field not to be stored by its corresponding field mapper, but...
+        FieldStorageVerifier.forField("name", doc.rootDoc()).verify();
+
+        // by the keyword multi field, since keywords have doc_values by default
+        FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).expectDocValues().verify();
+
+        assertIgnoredSourceIsEmpty(doc);
 
         assertThat(syntheticSource(mapper, b -> b.field("name", "QUICK Brown fox")), equalTo("{\"name\":\"quick brown fox\"}"));
     }
@@ -663,6 +793,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         assertTrue(fields.get(0).fieldType().stored());
+
+        // we enabled store, so the field should be stored in a stored field
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectStoredField().verify();
     }
 
     public void testDisableIndex() throws IOException {

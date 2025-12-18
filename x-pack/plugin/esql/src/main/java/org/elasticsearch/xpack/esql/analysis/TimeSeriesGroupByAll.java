@@ -90,7 +90,6 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             if (Functions.isGrouping(Alias.unwrap(grouping)) == false) {
                 throw new IllegalArgumentException(
                     "Cannot mix time-series aggregate and grouping attributes. Found [" + grouping.sourceText() + "]."
-
                 );
             }
             groupings.add(grouping);

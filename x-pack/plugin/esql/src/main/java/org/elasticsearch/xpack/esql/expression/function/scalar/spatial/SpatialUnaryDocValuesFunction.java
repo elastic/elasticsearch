@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +29,7 @@ public abstract class SpatialUnaryDocValuesFunction extends SpatialDocValuesFunc
     }
 
     protected SpatialUnaryDocValuesFunction(StreamInput in) throws IOException {
-        this(Source.readFrom((StreamInput & PlanStreamInput) in), in.readNamedWriteable(Expression.class), false);
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), false);
     }
 
     @Override

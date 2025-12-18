@@ -226,6 +226,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
                     ? randomBoolean() ? ResettableValue.undefined() : ResettableValue.reset()
                     : randomDownsamplingMethod()
             )
+            .frozenAfter(randomFrozenAfter())
             .buildTemplate();
     }
 
@@ -295,7 +296,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractWireSerializingTes
         return switch (randomIntBetween(0, 2)) {
             case 0 -> ResettableValue.undefined();
             case 1 -> ResettableValue.reset();
-            case 2 -> ResettableValue.create(TimeValue.timeValueDays(randomIntBetween(1, 100)));
+            case 2 -> ResettableValue.create(randomPositiveTimeValue());
             default -> throw new IllegalStateException("Unknown randomisation path");
         };
     }

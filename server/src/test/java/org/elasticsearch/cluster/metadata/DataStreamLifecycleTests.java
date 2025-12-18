@@ -493,6 +493,15 @@ public class DataStreamLifecycleTests extends AbstractWireSerializingTestCase<Da
         }
     }
 
+    public void testNegativeFrozenAfter() {
+        final var frozenAfter = randomBoolean() ? TimeValue.ZERO : TimeValue.MINUS_ONE;
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> DataStreamLifecycle.dataLifecycleBuilder().frozenAfter(frozenAfter).build()
+        );
+        assertThat(exception.getMessage(), equalTo("frozen_after must be a positive time value"));
+    }
+
     public void testEffectiveRetentionParams() {
         Map<String, String> initialParams = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         ToXContent.Params params = DataStreamLifecycle.addEffectiveRetentionParams(new ToXContent.MapParams(initialParams));

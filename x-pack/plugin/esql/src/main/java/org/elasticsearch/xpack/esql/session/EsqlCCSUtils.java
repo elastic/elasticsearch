@@ -344,7 +344,11 @@ public class EsqlCCSUtils {
                 // so that the CCS telemetry handler can recognize that this error is CCS-related
                 try {
                     groupedIndices.forEach((clusterAlias, indices) -> {
-                        executionInfo.initCluster(clusterAlias, Strings.arrayToCommaDelimitedString(indices.indices()));
+                        executionInfo.initCluster(
+                            clusterAlias,
+                            EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION,
+                            Strings.arrayToCommaDelimitedString(indices.indices())
+                        );
                     });
                 } finally {
                     executionInfo.clusterInfoInitializing(false);
@@ -365,7 +369,11 @@ public class EsqlCCSUtils {
 
     public static void initCrossClusterState(EsIndex esIndex, EsqlExecutionInfo executionInfo) {
         esIndex.originalIndices().forEach((clusterAlias, indices) -> {
-            executionInfo.initCluster(clusterAlias, Strings.collectionToCommaDelimitedString(indices));
+            executionInfo.initCluster(
+                clusterAlias,
+                EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION,
+                Strings.collectionToCommaDelimitedString(indices)
+            );
         });
     }
 

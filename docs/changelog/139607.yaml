@@ -1,0 +1,5 @@
+pr: 139607
+summary: Add a dedicated field type for T-Digests
+area: Mapping
+type: enhancement
+issues: []

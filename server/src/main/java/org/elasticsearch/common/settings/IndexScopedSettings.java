@@ -167,6 +167,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 FieldMapper.COERCE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
+                MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
@@ -208,8 +209,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
                 IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING,
+                IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
                 IndexSettings.USE_ES_812_POSTINGS_FORMAT,
+                IndexSettings.USE_DOC_VALUES_SKIPPER,
+                IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -246,9 +250,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             )
         );
 
-        if (IndexSettings.DOC_VALUES_SKIPPER) {
-            settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
-        }
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settings.add(IndexSettings.USE_SYNTHETIC_ID);
         }

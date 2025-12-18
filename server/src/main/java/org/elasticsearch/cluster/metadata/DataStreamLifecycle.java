@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.Diff;
@@ -57,7 +56,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final FeatureFlag DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG = new FeatureFlag("dlm_searchable_snapshots");
 
     // Versions over the wire
-    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
     private static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = TransportVersion.fromName("introduce_lifecycle_template");
     public static final TransportVersion ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM = TransportVersion.fromName("add_sample_method_downsample_dlm");
     public static final TransportVersion SEARCHABLE_SNAPSHOTS_DLM_TV = TransportVersion.fromName("searchable_snapshots_dlm");
@@ -366,22 +364,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                out.writeOptionalTimeValue(dataRetention);
-            } else {
-                writeLegacyOptionalValue(dataRetention, out, StreamOutput::writeTimeValue);
-            }
-
+        if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            out.writeOptionalTimeValue(dataRetention);
+        } else {
+            writeLegacyOptionalValue(dataRetention, out, StreamOutput::writeTimeValue);
         }
-        if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                out.writeOptionalCollection(downsamplingRounds);
-            } else {
-                writeLegacyOptionalValue(downsamplingRounds, out, StreamOutput::writeCollection);
-            }
-            out.writeBoolean(enabled());
+        if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            out.writeOptionalCollection(downsamplingRounds);
+        } else {
+            writeLegacyOptionalValue(downsamplingRounds, out, StreamOutput::writeCollection);
         }
+        out.writeBoolean(enabled());
         if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
             lifecycleType.writeTo(out);
         }
@@ -394,26 +387,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                dataRetention = in.readOptionalTimeValue();
-            } else {
-                dataRetention = readLegacyOptionalValue(in, StreamInput::readTimeValue);
-            }
+        if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            dataRetention = in.readOptionalTimeValue();
         } else {
-            dataRetention = null;
+            dataRetention = readLegacyOptionalValue(in, StreamInput::readTimeValue);
         }
-        if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                downsamplingRounds = in.readOptionalCollectionAsList(DownsamplingRound::read);
-            } else {
-                downsamplingRounds = readLegacyOptionalValue(in, is -> is.readCollectionAsList(DownsamplingRound::read));
-            }
-            enabled = in.readBoolean();
+        if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            downsamplingRounds = in.readOptionalCollectionAsList(DownsamplingRound::read);
         } else {
-            downsamplingRounds = null;
-            enabled = true;
+            downsamplingRounds = readLegacyOptionalValue(in, is -> is.readCollectionAsList(DownsamplingRound::read));
         }
+        enabled = in.readBoolean();
         lifecycleType = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? LifecycleType.read(in) : LifecycleType.DATA;
         downsamplingMethod = in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
             ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
@@ -741,21 +725,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // The order of the fields is like this for bwc reasons
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
-                } else {
-                    writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
-                }
+            if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
+            } else {
+                writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
             }
-            if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    ResettableValue.write(out, downsamplingRounds, StreamOutput::writeCollection);
-                } else {
-                    writeLegacyValue(out, downsamplingRounds, StreamOutput::writeCollection);
-                }
-                out.writeBoolean(enabled);
+            if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                ResettableValue.write(out, downsamplingRounds, StreamOutput::writeCollection);
+            } else {
+                writeLegacyValue(out, downsamplingRounds, StreamOutput::writeCollection);
             }
+            out.writeBoolean(enabled);
             if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
                 lifecycleType.writeTo(out);
             }
@@ -807,21 +787,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             ResettableValue<List<DownsamplingRound>> downsamplingRounds = ResettableValue.undefined();
 
             // The order of the fields is like this for bwc reasons
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
-                } else {
-                    dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
-                }
+            if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
+            } else {
+                dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
             }
-            if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    downsamplingRounds = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
-                } else {
-                    downsamplingRounds = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));
-                }
-                enabled = in.readBoolean();
+            if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                downsamplingRounds = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+            } else {
+                downsamplingRounds = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));
             }
+            enabled = in.readBoolean();
             var lifecycleTarget = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
                 ? LifecycleType.read(in)
                 : LifecycleType.DATA;

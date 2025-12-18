@@ -50,7 +50,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
     TransportAwaitClusterStateVersionAppliedAction.NodeResponse,
     Void> {
     public static final ActionType<AwaitClusterStateVersionAppliedResponse> TYPE = new ActionType<>(
-        "internal:cluster/nodes/state/ensure_version"
+        "internal:cluster/nodes/state/await_version"
     );
 
     private static final Logger logger = LogManager.getLogger(TransportAwaitClusterStateVersionAppliedAction.class);

@@ -12,12 +12,17 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -103,6 +108,57 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
         assertTrue(twoPlusVersionResponse.getNodes().stream().anyMatch(r -> r.getNode().getName().equals(node1)));
     }
 
+    public void testNodeNotProcessingClusterState() throws InterruptedException {
+        var masterNode = internalCluster().getMasterName();
+        var node1 = internalCluster().getNonMasterNodeName();
+
+        var initialState = internalCluster().clusterService(masterNode).state();
+
+        String masterNodeId = initialState.nodes().resolveNode(masterNode).getId();
+        String node1Id = initialState.nodes().resolveNode(node1).getId();
+
+        // Wait for the future version of the cluster state.
+        var future = client().execute(
+            TransportAwaitClusterStateVersionAppliedAction.TYPE,
+            new AwaitClusterStateVersionAppliedRequest(initialState.version() + 1, TimeValue.MINUS_ONE, masterNodeId, node1Id)
+        );
+
+        assertFalse(future.isDone());
+
+        // Now we'll block node1 from processing cluster state updates.
+        var clusterStatePublishLatch = new CountDownLatch(1);
+        final var node1TransportService = MockTransportService.getInstance(node1);
+        node1TransportService.addRequestHandlingBehavior(
+            PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                if (clusterStatePublishLatch.getCount() > 0) {
+                    clusterStatePublishLatch.await();
+                }
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        // And publish a new state.
+        var publishLatch = new CountDownLatch(1);
+        dummyClusterStateUpdate(masterNode, publishLatch);
+        publishLatch.await();
+
+        try {
+            // We don't get a response since we are waiting for node1.
+            assertThrows(ElasticsearchTimeoutException.class, () -> future.actionGet(TimeValue.timeValueMillis(500)));
+        } finally {
+            clusterStatePublishLatch.countDown();
+        }
+
+        // Once node1 gets the new cluster state we get a response.
+        var response = future.actionGet();
+        assertFalse(response.hasFailures());
+        assertTrue(response.failures().isEmpty());
+        assertEquals(2, response.getNodes().size());
+        assertTrue(response.getNodes().stream().anyMatch(r -> r.getNode().getName().equals(masterNode)));
+        assertTrue(response.getNodes().stream().anyMatch(r -> r.getNode().getName().equals(node1)));
+    }
+
     public void testNodeLevelTimeout() {
         var currentlyAppliedVersion = internalCluster().getInstance(ClusterService.class).state().version();
 
@@ -115,6 +171,11 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
         // The structure is FailedNodeException -> RemoteTransportException -> ElasticsearchTimeoutException
         assertTrue(response.failures().get(0).getCause().getCause() instanceof ElasticsearchTimeoutException);
         assertEquals(0, response.getNodes().size());
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
     }
 
     private void dummyClusterStateUpdate(String masterNode, CountDownLatch latch) {
@@ -141,10 +202,5 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
                 fail(e);
             }
         });
-    }
-
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
     }
 }

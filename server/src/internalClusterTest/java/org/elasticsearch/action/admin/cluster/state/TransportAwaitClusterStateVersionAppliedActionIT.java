@@ -26,7 +26,7 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
     public void testVersionsThatAreAlreadyApplied() throws InterruptedException {
         // Sample some of the nodes for asserts.
         var masterNode = internalCluster().getMasterName();
-        var node1 = internalCluster().getRandomDataNodeName();
+        var node1 = internalCluster().getNonMasterNodeName();
 
         Consumer<Long> checkAppliedVersion = version -> {
             var response = client().execute(
@@ -53,7 +53,7 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
 
     public void testWaitingForVersion() throws InterruptedException {
         var masterNode = internalCluster().getMasterName();
-        var node1 = internalCluster().getRandomDataNodeName();
+        var node1 = internalCluster().getNonMasterNodeName();
 
         var currentState = internalCluster().clusterService(masterNode).state();
 

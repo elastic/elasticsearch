@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -28,8 +27,8 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
 
     public void testTermQuery() {
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.termQuery("foo", null));
-        assertEquals(new MatchAllDocsQuery(), ft.termQueryCaseInsensitive("fOo", null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.termQuery("foo", null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.termQueryCaseInsensitive("fOo", null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("bar", null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQueryCaseInsensitive("bAr", null));
         ConstantKeywordFieldType bar = new ConstantKeywordFieldType("f", "bar");
@@ -41,8 +40,8 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         ConstantKeywordFieldType bar = new ConstantKeywordFieldType("f", "bar");
         assertEquals(Queries.NO_DOCS_INSTANCE, bar.termsQuery(Collections.singletonList("foo"), null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Collections.singletonList("foo"), null));
-        assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("bar", "foo", "quux"), null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.termsQuery(Collections.singletonList("foo"), null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.termsQuery(Arrays.asList("bar", "foo", "quux"), null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(Collections.emptyList(), null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(Collections.singletonList("bar"), null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(Arrays.asList("bar", "quux"), null));
@@ -53,8 +52,8 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, bar.wildcardQuery("f*o", null, false, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, bar.wildcardQuery("F*o", null, true, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("f*o", null, false, null));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("F*o", null, true, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("f*o", null, false, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("F*o", null, true, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("b*r", null, false, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("B*r", null, true, null));
     }
@@ -64,8 +63,8 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, bar.prefixQuery("fo", null, false, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, bar.prefixQuery("fO", null, true, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("fo", null, false, null));
-        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("fO", null, true, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.prefixQuery("fo", null, false, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.prefixQuery("fO", null, true, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.prefixQuery("ba", null, false, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.prefixQuery("Ba", null, true, null));
     }
@@ -74,7 +73,7 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
         assertEquals(Queries.NO_DOCS_INSTANCE, none.existsQuery(null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.existsQuery(null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.existsQuery(null));
     }
 
     public void testRangeQuery() {
@@ -83,12 +82,12 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, none.rangeQuery(null, "foo", randomBoolean(), randomBoolean(), null, null, null, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, none.rangeQuery("foo", null, randomBoolean(), randomBoolean(), null, null, null, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null));
-        assertEquals(new MatchAllDocsQuery(), ft.rangeQuery("foo", null, true, randomBoolean(), null, null, null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.rangeQuery("foo", null, true, randomBoolean(), null, null, null, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("foo", null, false, randomBoolean(), null, null, null, null));
-        assertEquals(new MatchAllDocsQuery(), ft.rangeQuery(null, "foo", randomBoolean(), true, null, null, null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.rangeQuery(null, "foo", randomBoolean(), true, null, null, null, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery(null, "foo", randomBoolean(), false, null, null, null, null));
-        assertEquals(new MatchAllDocsQuery(), ft.rangeQuery("abc", "xyz", randomBoolean(), randomBoolean(), null, null, null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.rangeQuery("abc", "xyz", randomBoolean(), randomBoolean(), null, null, null, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("abc", "def", randomBoolean(), randomBoolean(), null, null, null, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.rangeQuery("mno", "xyz", randomBoolean(), randomBoolean(), null, null, null, null));
     }
@@ -97,7 +96,7 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
         assertEquals(Queries.NO_DOCS_INSTANCE, none.fuzzyQuery("fooquux", Fuzziness.AUTO, 3, 50, randomBoolean(), null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foobar");
-        assertEquals(new MatchAllDocsQuery(), ft.fuzzyQuery("foobaz", Fuzziness.AUTO, 3, 50, randomBoolean(), null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.fuzzyQuery("foobaz", Fuzziness.AUTO, 3, 50, randomBoolean(), null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.fuzzyQuery("fooquux", Fuzziness.AUTO, 3, 50, randomBoolean(), null));
     }
 
@@ -105,7 +104,7 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
         assertEquals(Queries.NO_DOCS_INSTANCE, none.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
-        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("f.o", RegExp.ALL, 0, 10, null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.regexpQuery("f.o", RegExp.ALL, 0, 10, null, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
     }
 

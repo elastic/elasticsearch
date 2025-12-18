@@ -22,6 +22,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -40,21 +41,19 @@ import java.security.cert.CertificateException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SamlRestTestCase extends ESRestTestCase {
     protected static final String SAML_SIGNING_CRT = "/saml/signing.crt";
     protected static final String SAML_SIGNING_KEY = "/saml/signing.key";
 
     private static HttpsServer httpsServer;
-    private static final Map<Integer, Boolean> metadataAvailable = new HashMap<>();
+    private static final Map<Integer, Boolean> metadataAvailable = new ConcurrentHashMap<>();
     public static final ElasticsearchCluster cluster = initTestCluster();
     private static Path caPath;
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlRestTestCase::initWebserver))
-        .around(cluster)
-        // during the startup, the metadata remains unavailable to prevent caching. After cluster init, make metadata available.
-        .around(new RunnableTestRuleAdapter(() -> makeMetadataAvailable(1, 2, 3)));
+    public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlRestTestCase::initWebserver)).around(cluster);
 
     private static void initWebserver() {
         try {
@@ -158,7 +157,7 @@ public class SamlRestTestCase extends ESRestTestCase {
     }
 
     private static void configureMetadataResource(int realmNumber) throws CertificateException, IOException, URISyntaxException {
-        metadataAvailable.putIfAbsent(realmNumber, false);
+        metadataAvailable.put(realmNumber, false);
 
         var signingCert = getDataResource(SAML_SIGNING_CRT);
         var metadataBody = new SamlIdpMetadataBuilder().entityId(getIdpEntityId(realmNumber)).sign(signingCert).asString();
@@ -191,6 +190,22 @@ public class SamlRestTestCase extends ESRestTestCase {
             throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
         caPath = PathUtils.get(resource.toURI());
+    }
+
+    /**
+     * Make metadata available by default before each test, but make this behaviour controllable by subclasses.
+     */
+    @Before
+    public void initMetadata() {
+        if (isMetadataAvailable()) {
+            makeMetadataAvailable(1, 2, 3);
+        } else {
+            makeAllMetadataUnavailable();
+        }
+    }
+
+    protected boolean isMetadataAvailable() {
+        return true;
     }
 
     @Override

@@ -98,7 +98,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             uri,
-            new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, false, null, null, null, null),
+            new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, false, null, null, null, null, null),
             new GoogleVertexAiEmbeddingsTaskSettings(Boolean.FALSE, null),
             new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray()))
         );
@@ -120,6 +120,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 false,
                 null,
                 null,
+                null,
                 similarityMeasure,
                 null
             ),
@@ -139,6 +140,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 "projectId",
                 modelId,
                 false,
+                null,
                 null,
                 null,
                 SimilarityMeasure.DOT_PRODUCT,
@@ -164,6 +166,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 randomAlphaOfLength(8),
                 modelId,
                 false,
+                null,
                 null,
                 null,
                 SimilarityMeasure.DOT_PRODUCT,

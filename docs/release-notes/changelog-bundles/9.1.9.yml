@@ -1,0 +1,51 @@
+version: 9.1.9
+released: false
+generated: 2025-12-13T00:13:16.356358962Z
+changelogs:
+  - pr: 137558
+    summary: Improve security migration resilience by handling version conflicts
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 138115
+    summary: GET /_migration/deprecations doesn't check disk watermarks against correct settings values
+    area: Infra/Core
+    type: bug
+    issues:
+      - 137005
+  - pr: 138624
+    summary: Handle individual doc parsing failure in bulk request with pipeline
+    area: Ingest Node
+    type: bug
+    issues:
+      - 138445
+  - pr: 138632
+    summary: Correctly handle empty inputs in `chunkedInfer()`
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 138806
+    summary: Bump lz4 dependency
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 138854
+    summary: Upgrade ECS logging layout
+    area: Infra/Logging
+    type: upgrade
+    issues: []
+  - pr: 138869
+    summary: Fix multi fields in downsampling
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 139028
+    summary: More reliable trigger for security index migration
+    area: Security
+    type: bug
+    issues: []
+  - pr: 139080
+    summary: "[ES|QL] Compare query builders using identity"
+    area: ES|QL
+    type: bug
+    issues: []

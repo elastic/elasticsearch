@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -49,6 +51,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
+import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -678,14 +681,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
-    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
-        "index.mapping.use_doc_values_skipper",
-        true,
-        Property.IndexScope,
-        Property.Final
-    );
-
     public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(
         "index.mapping.use_synthetic_id",
@@ -723,12 +718,26 @@ public final class IndexSettings {
                             )
                         );
                     }
+
+                    var codecName = (String) settings.get(INDEX_CODEC_SETTING);
+                    if (codecName.equals(CodecService.DEFAULT_CODEC) == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                                USE_SYNTHETIC_ID.getKey(),
+                                INDEX_CODEC_SETTING.getKey(),
+                                CodecService.DEFAULT_CODEC,
+                                codecName
+                            )
+                        );
+                    }
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> list = List.of(MODE);
+                List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING);
                 return list.iterator();
             }
         },
@@ -761,6 +770,31 @@ public final class IndexSettings {
         Property.Final,
         Property.ServerlessPublic
     );
+
+    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
+        IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
+        if (MODE.get(s) == IndexMode.TIME_SERIES) {
+            if (DiscoveryNode.isStateless(s)) {
+                if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
+                    return "true";
+                } else {
+                    return "false";
+                }
+            }
+            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+                return "true";
+            }
+            return "false";
+        } else {
+            if (DiscoveryNode.isStateless(s)) {
+                return "false";
+            }
+            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
+                return "true";
+            }
+            return "false";
+        }
+    }, Property.IndexScope, Property.Final);
 
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
@@ -942,6 +976,14 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final Setting<Boolean> INTRA_MERGE_PARALLELISM_ENABLED_SETTING = Setting.boolSetting(
+        "index.merge.intra_merge_parallelism_enabled",
+        // default to true with snapshot for now, false otherwise.
+        Build.current().isSnapshot(),
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -1032,6 +1074,7 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
+    private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeBlockSize;
@@ -1050,6 +1093,11 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
+
+    /**
+     * Is intra merge parallelism enabled
+     */
+    private volatile boolean intraMergeParallelismEnabled;
 
     private final IndexRouting indexRouting;
     private final SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions;
@@ -1221,11 +1269,15 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
-        useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
+        useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
+            ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
+            : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
+        intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
             assert false;
@@ -1362,6 +1414,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
+        scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1989,6 +2042,12 @@ public final class IndexSettings {
         return useDocValuesSkipper;
     }
 
+    // Necessary because we accidentally made host.name use skippers before the feature flag was
+    // removed in serverless
+    public boolean useDocValuesSkipperForHostName() {
+        return useDocValuesSkipperForHostname;
+    }
+
     /**
      * @return Whether the index is a time-series index that use synthetic ids.
      */
@@ -2055,5 +2114,16 @@ public final class IndexSettings {
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {
         return seqNoIndexOptions;
+    }
+
+    /**
+     * @return is intra-merge parallelism enabled for this index
+     */
+    public boolean isIntraMergeParallelismEnabled() {
+        return this.intraMergeParallelismEnabled;
+    }
+
+    private void setIntraMergeParallelismEnabled(boolean enabled) {
+        this.intraMergeParallelismEnabled = enabled;
     }
 }

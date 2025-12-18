@@ -18,7 +18,7 @@ cost:double       | time_bucket:datetime
 ;
 
 avg_over_time_of_double_no_grouping_promql
-required_capability: promql_pre_tech_preview_v6
+required_capability: promql_pre_tech_preview_v7
 PROMQL index=k8s step=1m cost=(sum(avg_over_time(network.cost[1m])))
 | SORT cost DESC, step DESC | LIMIT 10;
 
@@ -46,7 +46,7 @@ cost:double       | time_bucket:datetime
 ;
 
 avg_over_time_of_double_no_grouping_single_bucket_promql
-required_capability: promql_pre_tech_preview_v6
+required_capability: promql_pre_tech_preview_v7
 PROMQL index=k8s step=1h cost=(sum(avg_over_time(network.cost[1h])));
 
 cost:double       | step:datetime

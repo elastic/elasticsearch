@@ -35,8 +35,8 @@ public class PgpSignatureVerifier {
     /**
      * @param publicKeyId the public key ID of the signing key that is expected to have signed the official plugin.
      * @param urlString the URL source of the downloaded plugin ZIP
-     * @param pluginZipInputStream an input stream to the raw bytes of the plugin ZIP.
-     * @param ascInputStream the URL source of the PGP signature for the downloaded plugin ZIP
+     * @param pluginZipInputStream an input stream to the raw bytes of the plugin ZIP
+     * @param ascInputStream an input stream to the signature corresponding to the downloaded plugin zip
      * @param publicKeyInputStream an input stream to the public key of the signing key.
      */
     public static void verifySignature(
@@ -48,12 +48,9 @@ public class PgpSignatureVerifier {
     ) throws IOException {
 
         try (
-            // fin is a file stream over the downloaded plugin zip whose signature to verify
             InputStream fin = pluginZipInputStream;
-            // sin is a URL stream to the signature corresponding to the downloaded plugin zip
             InputStream sin = ascInputStream;
-            // ain is a input stream to the public key in ASCII-Armor format (RFC4880)
-            InputStream ain = new ArmoredInputStream(publicKeyInputStream)
+            InputStream ain = new ArmoredInputStream(publicKeyInputStream) // input stream to the public key in ASCII-Armor format (RFC4880)
         ) {
             final JcaPGPObjectFactory factory = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(sin));
             final PGPSignature signature = ((PGPSignatureList) factory.nextObject()).get(0);

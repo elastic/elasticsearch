@@ -199,7 +199,7 @@ public class VectorScorerInt7uBenchmark {
         writeInt7VectorData(dir, vectorData.vectorData, vectorData.offsets);
 
         in = dir.openInput("vector.data", IOContext.DEFAULT);
-        var values = vectorValues(dims, numVectors, in, VectorSimilarityType.of(function));
+        var values = vectorValues(dims, numVectors, in, function.function());
         float scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
 
         switch (implementation) {
@@ -222,16 +222,15 @@ public class VectorScorerInt7uBenchmark {
                 };
                 break;
             case LUCENE:
-                scorer = luceneScoreSupplier(values, VectorSimilarityType.of(function)).scorer();
+                scorer = luceneScoreSupplier(values, function.function()).scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = luceneScorer(values, VectorSimilarityType.of(function), vectorData.queryVector);
+                    queryScorer = luceneScorer(values, function.function(), vectorData.queryVector);
                 }
                 break;
             case NATIVE:
                 scorer = factory.getInt7SQVectorScorerSupplier(function, in, values, scoreCorrectionConstant).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(function), values, vectorData.queryVector)
-                        .orElseThrow();
+                    queryScorer = factory.getInt7SQVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
                 }
                 break;
         }

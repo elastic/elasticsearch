@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
 public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTestCase {
-    public void testVersionThatIsAlreadyApplied() throws InterruptedException {
+    public void testVersionsThatAreAlreadyApplied() throws InterruptedException {
         // Sample some of the nodes for asserts.
         var masterNode = internalCluster().getMasterName();
         var node1 = internalCluster().getRandomDataNodeName();
@@ -41,15 +41,13 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
         };
 
         var currentlyAppliedVersion = internalCluster().getInstance(ClusterService.class, node1).state().version();
+        // Succeeds because the version is applied already.
         checkAppliedVersion.accept(currentlyAppliedVersion);
 
-        var submitUpdate = new CountDownLatch(1);
-        dummyClusterStateUpdate(masterNode, submitUpdate);
-        submitUpdate.await();
-
+        dummyClusterStateUpdate(masterNode, null);
         awaitClusterState(masterNode, state -> state.version() == currentlyAppliedVersion + 1);
 
-        // We should succeed again since currentlyAppliedVersion was already applied
+        // We should succeed again since the previous execution succeeded.
         checkAppliedVersion.accept(currentlyAppliedVersion);
     }
 

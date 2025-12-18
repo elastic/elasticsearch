@@ -83,8 +83,11 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns(
         "indices:data/read/*",
+        "internal:transport/proxy/indices:data/read/*",
         ResolveIndexAction.NAME,
-        TransportResolveClusterAction.NAME
+        TransportResolveClusterAction.NAME,
+        TransportClusterSearchShardsAction.TYPE.name(),
+        TransportSearchShardsAction.TYPE.name()
     );
     private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(

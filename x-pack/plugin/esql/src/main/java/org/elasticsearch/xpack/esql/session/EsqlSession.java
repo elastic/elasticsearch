@@ -102,7 +102,11 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSub
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 /**
- * Combines all components necessary for the coordinating node to plan and execute an ESQL query.
+ * Combines all components necessary for the coordinating node to plan and execute an ESQL query,
+ * including (pre-)analyzing, optimizing and running the physical plan.
+ * <p>
+ * In particular, this is where we perform remote calls to pre-analyze the query,
+ * that is, to resolve indices, enrich policies and their mappings.
  * <p>
  * Note that this is not a session in the traditional sense of a stateful connection. This will
  * produce a single result set that is either returned to the user directly or stored for

@@ -53,8 +53,8 @@ import static java.util.stream.Collectors.toMap;
  * {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute}s.
  * <p>
  * When such a type gets support in ES|QL, query plans cannot contain it
- * unless all nodes in the cluster (and remote clusters) support it to avoid
- * serialization errors and semantically invalid results.
+ * unless all nodes in the cluster (and remote clusters participating in the query)
+ * support it to avoid serialization errors and semantically invalid results.
  * This is an example of version-aware query planning,
  * see {@link org.elasticsearch.xpack.esql.session.Versioned}.
  *

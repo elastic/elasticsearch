@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
@@ -2041,7 +2040,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testReductionPlanForTopNWithPushedDownFunctions() {
-        assumeTrue("Reduction is just enabled for snapshot builds", Build.current().isSnapshot());
+        assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL score = V_DOT_PRODUCT(dense_vector, [1.0, 2.0, 3.0])
@@ -2104,7 +2103,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testReductionPlanForTopNWithPushedDownFunctionsInOrder() {
-        assumeTrue("Reduction is just enabled for snapshot builds", Build.current().isSnapshot());
+        assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL fieldLength = LENGTH(text)

@@ -508,7 +508,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         /**
          * For use with cross-cluster searches in stateful. Serverless (cross-project search) based code should
-         * not use this constructor, since it defaults the originClusterLabel "(local)".
+         * not use this constructor, since it defaults the originClusterLabel to "(local)".
          *
          * When minimizing roundtrips, the number of successful, skipped, running, partial and failed clusters
          * is not known until the end of the search and it the information in SearchResponse.Cluster object
@@ -549,7 +549,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *                               we should be in CPS environment and allow_partial_results=true, or,
          *                               skip_unavailable=true.
          * @param originClusterLabel "(local)" in stateful and "_origin" in serverless. For use in the _cluster/details
-         *                           metadata of search response JSON
+         *                           metadata of search response XContent
          */
         public Clusters(
             @Nullable OriginalIndices localIndices,

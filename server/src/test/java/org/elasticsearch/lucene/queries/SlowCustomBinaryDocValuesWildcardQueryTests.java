@@ -10,7 +10,6 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;

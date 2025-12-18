@@ -1,6 +1,6 @@
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.2.0
+serverless: ga
+stack: preview 9.2.0, ga 9.3.0
 ```
 
 The `INLINE STATS` processing command groups rows according to a common value

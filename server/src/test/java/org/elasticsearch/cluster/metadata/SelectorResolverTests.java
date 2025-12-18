@@ -72,52 +72,54 @@ public class SelectorResolverTests extends ESTestCase {
         // Selectors inside of date math expressions will trip an exception because they do not match an existing component name exactly
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "<test-{now/d}::failures>"));
 
+        // === CCS Expressions
+        // Cluster names are left as-is (handled much earlier in the resolution call stack)
+        assertThat(resolve(selectorsAllowed, "cluster:index::data"), equalTo(new ResolvedExpression("cluster:index", DATA)));
+        assertThat(resolve(selectorsAllowed, "cluster:index::failures"), equalTo(new ResolvedExpression("cluster:index", FAILURES)));
+        // Wildcard on cluster name is allowed
+        assertThat(resolve(selectorsAllowed, "cluster-*:index::data"), equalTo(new ResolvedExpression("cluster-*:index", DATA)));
+        assertThat(resolve(selectorsAllowed, "cluster-*:index::failures"), equalTo(new ResolvedExpression("cluster-*:index", FAILURES)));
+        // Wildcard on both cluster and index allowed
+        assertThat(resolve(selectorsAllowed, "cluster-*:index-*::data"), equalTo(new ResolvedExpression("cluster-*:index-*", DATA)));
+        assertThat(resolve(selectorsAllowed, "cluster-*:index-*::failures"), equalTo(new ResolvedExpression("cluster-*:index-*", FAILURES)));
+        // Searching all indices on wildcard cluster names
+        assertThat(resolve(selectorsAllowed, "cluster-*:*::data"), equalTo(new ResolvedExpression("cluster-*:*", DATA)));
+        assertThat(resolve(selectorsAllowed, "cluster-*:*::failures"), equalTo(new ResolvedExpression("cluster-*:*", FAILURES)));
+        // Searching multiple indices on all clusters
+        assertThat(resolve(selectorsAllowed, "*:index-*::data"), equalTo(new ResolvedExpression("*:index-*", DATA)));
+        assertThat(resolve(selectorsAllowed, "*:index-*::failures"), equalTo(new ResolvedExpression("*:index-*", FAILURES)));
+        // All indices on all clusters
+        assertThat(resolve(selectorsAllowed, "*:*::data"), equalTo(new ResolvedExpression("*:*", DATA)));
+        assertThat(resolve(selectorsAllowed, "*:*::failures"), equalTo(new ResolvedExpression("*:*", FAILURES)));
+        // Exclusions are parsed as-is and handled in the wildcard resolver
+        assertThat(resolve(selectorsAllowed, "*:-test*,*::data"), equalTo(new ResolvedExpression("*:-test*,*", DATA)));
+        assertThat(resolve(selectorsAllowed, "*:-test*,*::failures"), equalTo(new ResolvedExpression("*:-test*,*", FAILURES)));
+        // Be sure to not get tripped up on parsing cluster and index names that match selector names
+        assertThat(resolve(selectorsAllowed, "failures:index::data"), equalTo(new ResolvedExpression("failures:index", DATA)));
+        assertThat(resolve(selectorsAllowed, "failures:index::failures"), equalTo(new ResolvedExpression("failures:index", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "data:index::data"), equalTo(new ResolvedExpression("data:index", DATA)));
+        assertThat(resolve(selectorsAllowed, "data:index::failures"), equalTo(new ResolvedExpression("data:index", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "failures:failures::data"), equalTo(new ResolvedExpression("failures:failures", DATA)));
+        assertThat(resolve(selectorsAllowed, "failures:failures::failures"), equalTo(new ResolvedExpression("failures:failures", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "data:data::data"), equalTo(new ResolvedExpression("data:data", DATA)));
+        assertThat(resolve(selectorsAllowed, "data:data::failures"), equalTo(new ResolvedExpression("data:data", FAILURES)));
+
         // === Corner Cases
         // Empty index name is not necessarily disallowed, but will be filtered out in the next steps of resolution
         assertThat(resolve(selectorsAllowed, "::data"), equalTo(new ResolvedExpression("", DATA)));
         assertThat(resolve(selectorsAllowed, "::failures"), equalTo(new ResolvedExpression("", FAILURES)));
-        // CCS with an empty index and cluster name is not necessarily disallowed, though other code in the resolution logic will likely
+        // CCS with an empty index or cluster name is not necessarily disallowed, though other code in the resolution logic will likely
         // throw
         assertThat(resolve(selectorsAllowed, ":::data"), equalTo(new ResolvedExpression(":", DATA)));
         assertThat(resolve(selectorsAllowed, ":::failures"), equalTo(new ResolvedExpression(":", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "cluster:::failures"), equalTo(new ResolvedExpression("cluster:", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "cluster:::data"), equalTo(new ResolvedExpression("cluster:", DATA)));
         // Any more prefix colon characters will trigger the multiple separators error logic
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::data"));
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::failures"));
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, ":::::failures"));
         // Suffix case is not supported because there is no component named with the empty string
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "index::"));
-
-        // remote cluster syntax is not allowed with :: selectors
-        final Set<String> remoteClusterExpressionsWithSelectors = Set.of(
-            "cluster:index::failures",
-            "cluster-*:index::failures",
-            "cluster-*:index-*::failures",
-            "cluster-*:*::failures",
-            "*:index-*::failures",
-            "*:*::failures",
-            "*:-test*,*::failures",
-            "cluster:::failures",
-            "failures:index::failures",
-            "data:index::failures",
-            "failures:failures::failures",
-            "data:data::failures",
-            "cluster:index::data",
-            "cluster-*:index::data",
-            "cluster-*:index-*::data",
-            "cluster-*:*::data",
-            "*:index-*::data",
-            "*:*::data",
-            "cluster:::data",
-            "failures:index::data",
-            "data:index::data",
-            "failures:failures::data",
-            "data:data::data",
-            "*:-test*,*::data"
-        );
-        for (String expression : remoteClusterExpressionsWithSelectors) {
-            var e = expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, expression));
-            assertThat(e.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
-        }
     }
 
     public void testResolveMatchAllToSelectors() {

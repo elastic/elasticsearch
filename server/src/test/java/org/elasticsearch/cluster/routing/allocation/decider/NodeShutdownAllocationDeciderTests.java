@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -32,11 +33,18 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REMOVE;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Set.of(DiscoveryNodeRole.DATA_ROLE));
@@ -205,6 +213,51 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             Decision.Type.YES,
             "this node is not shutting down"
         );
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119843")
+    public void testShouldKeepAllShardOnRemainingNodes() {
+
+        var indexMetadata = IndexMetadata.builder(idxName)
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+            .build();
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        var desiredNodeCount = randomIntBetween(3, 10);
+
+        var nodes = DiscoveryNodes.builder();
+        for (int i = 0; i < desiredNodeCount; i++) {
+            nodes.add(newNode("node-" + i, "node-" + i, Set.of(DATA_ROLE)));
+        }
+
+        var allocator = createAllocationService();
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(nodes.build())
+            .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata)))
+            .routingTable(RoutingTable.builder(DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+        state = applyStartedShardsUntilNoChange(state, allocator);
+
+        assertThat(state.metadata().index(idxName).getNumberOfReplicas(), equalTo(desiredNodeCount - 1));
+
+        // register node replacement
+        var nodeToShutdown = "node-" + randomIntBetween(0, desiredNodeCount - 1);
+
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(NodesShutdownMetadata.TYPE, createNodesShutdownMetadata(randomFrom(SIGTERM, REMOVE), nodeToShutdown))
+            )
+            .build();
+        state = startInitializingShardsAndReroute(allocator, state);
+
+        assertThat(state.metadata().index(idxName).getNumberOfReplicas(), equalTo(desiredNodeCount - 2));
+        for (int i = 0; i < desiredNodeCount; i++) {
+            if (Objects.equals("node-" + i, nodeToShutdown) == false) {
+                assertThat(state.getRoutingNodes().node("node-" + i).getByShardId(shardId).state(), equalTo(STARTED));
+            }
+        }
+        assertThat(state.getRoutingNodes().node(nodeToShutdown).getByShardId(shardId), nullValue());
     }
 
     private ClusterState prepareState(SingleNodeShutdownMetadata.Type shutdownType) {

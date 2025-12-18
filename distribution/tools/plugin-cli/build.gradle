@@ -23,16 +23,19 @@ tasks.named("dependencyLicenses").configure {
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:cli")
-  implementation project(":libs:plugin-api")
-  implementation project(":libs:plugin-scanner")
-  implementation project(":libs:entitlement")
+  shadow project(":libs:plugin-api")
+  shadow project(":libs:plugin-scanner")
+  shadow project(":libs:entitlement")
   // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
-  implementation 'org.ow2.asm:asm:9.9'
-  implementation 'org.ow2.asm:asm-tree:9.9'
+  shadow 'org.ow2.asm:asm:9.9'
+  shadow 'org.ow2.asm:asm-tree:9.9'
 
-  api "org.bouncycastle:bcpg-jdk18on:1.83"
-  api "org.bouncycastle:bcprov-jdk18on:1.83"
-  api "org.bouncycastle:bcutil-jdk18on:1.83"
+  // Only Bouncy Castle gets bundled and relocated into the shadow jar
+  implementation "org.bouncycastle:bcpg-jdk18on:1.83"
+  implementation "org.bouncycastle:bcprov-jdk18on:1.83"
+  implementation "org.bouncycastle:bcutil-jdk18on:1.83"
+
+  testImplementation project(":libs:plugin-scanner")
   testImplementation project(":test:framework")
   testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"

@@ -71,6 +71,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -333,6 +334,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Deprecated()
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(hasDocValues ? DEFAULT_DOC_VALUES_PARAMS : DocValuesParameter.Values.DISABLED);
+            return this;
+        }
+
+        public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
+            this.docValuesParameters.setValue(new DocValuesParameter.Values(true, cardinality));
             return this;
         }
 
@@ -635,13 +641,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else if (storedInBinaryDocValues()) {
-                return new StringScriptFieldTermQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
-                    false
-                );
+                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }

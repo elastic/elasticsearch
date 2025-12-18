@@ -874,7 +874,6 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final TransportVersion version = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -883,7 +882,9 @@ public class AuthenticationTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
             .build();
-        final TransportVersion maybeOldVersion = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
+        final TransportVersion maybeOldVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS == version
+            ? version
+            : randomTransportVersionBetween(Authentication.VERSION_CROSS_CLUSTER_ACCESS, version);
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
@@ -1263,20 +1264,20 @@ public class AuthenticationTests extends ESTestCase {
     public static TransportVersion randomTransportVersionBetween(TransportVersion minVersion, TransportVersion maxVersion) {
         return randomFrom(
             Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS)
-                .filter(v -> v.onOrAfter(minVersion) && v.before(maxVersion))
+                .filter(v -> v.supports(minVersion) && v.supports(maxVersion) == false)
                 .toArray(TransportVersion[]::new)
         );
     }
 
     public static TransportVersion randomTransportVersionBefore(TransportVersion maxVersion) {
         return randomFrom(
-            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.before(maxVersion)).toArray(TransportVersion[]::new)
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.supports(maxVersion) == false).toArray(TransportVersion[]::new)
         );
     }
 
     public static TransportVersion randomTransportVersion(TransportVersion minVersion) {
         return randomFrom(
-            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.onOrAfter(minVersion)).toArray(TransportVersion[]::new)
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.supports(minVersion)).toArray(TransportVersion[]::new)
         );
     }
 

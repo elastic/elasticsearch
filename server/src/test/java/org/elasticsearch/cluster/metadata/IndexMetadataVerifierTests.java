@@ -294,6 +294,27 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         }
     }
 
+    public void testSkippingArchiveOrDeletePreservesBrokenSettings() {
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
+        IndexMetadata src = newIndexMeta(
+            "foo",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put("index.refresh_interval", "-200")
+                .build()
+        );
+
+        IndexMetadata result = service.verifyIndexMetadata(
+            src,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            false
+        );
+
+        assertEquals("-200", result.getSettings().get("index.refresh_interval"));
+        assertNull(result.getSettings().get("archived.index.refresh_interval"));
+    }
+
     private IndexMetadataVerifier getIndexMetadataVerifier() {
         return new IndexMetadataVerifier(
             Settings.EMPTY,

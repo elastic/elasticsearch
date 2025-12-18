@@ -17,13 +17,10 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Set;
-
 import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -81,7 +78,10 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(resolve(selectorsAllowed, "cluster-*:index::failures"), equalTo(new ResolvedExpression("cluster-*:index", FAILURES)));
         // Wildcard on both cluster and index allowed
         assertThat(resolve(selectorsAllowed, "cluster-*:index-*::data"), equalTo(new ResolvedExpression("cluster-*:index-*", DATA)));
-        assertThat(resolve(selectorsAllowed, "cluster-*:index-*::failures"), equalTo(new ResolvedExpression("cluster-*:index-*", FAILURES)));
+        assertThat(
+            resolve(selectorsAllowed, "cluster-*:index-*::failures"),
+            equalTo(new ResolvedExpression("cluster-*:index-*", FAILURES))
+        );
         // Searching all indices on wildcard cluster names
         assertThat(resolve(selectorsAllowed, "cluster-*:*::data"), equalTo(new ResolvedExpression("cluster-*:*", DATA)));
         assertThat(resolve(selectorsAllowed, "cluster-*:*::failures"), equalTo(new ResolvedExpression("cluster-*:*", FAILURES)));
@@ -100,7 +100,10 @@ public class SelectorResolverTests extends ESTestCase {
         assertThat(resolve(selectorsAllowed, "data:index::data"), equalTo(new ResolvedExpression("data:index", DATA)));
         assertThat(resolve(selectorsAllowed, "data:index::failures"), equalTo(new ResolvedExpression("data:index", FAILURES)));
         assertThat(resolve(selectorsAllowed, "failures:failures::data"), equalTo(new ResolvedExpression("failures:failures", DATA)));
-        assertThat(resolve(selectorsAllowed, "failures:failures::failures"), equalTo(new ResolvedExpression("failures:failures", FAILURES)));
+        assertThat(
+            resolve(selectorsAllowed, "failures:failures::failures"),
+            equalTo(new ResolvedExpression("failures:failures", FAILURES))
+        );
         assertThat(resolve(selectorsAllowed, "data:data::data"), equalTo(new ResolvedExpression("data:data", DATA)));
         assertThat(resolve(selectorsAllowed, "data:data::failures"), equalTo(new ResolvedExpression("data:data", FAILURES)));
 

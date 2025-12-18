@@ -37,8 +37,6 @@ class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchCon
 
     @Override
     public synchronized ComputeSearchContext get(int shardId) {
-        // Since the main instance is shared between the node-reduce and data drivers, it's critial to use getAcquire here to ensure that
-        // any thread reading the element after it's been added sees a fully constructed object.
         var result = contexts[shardId];
         if (result == null) {
             throw new IndexOutOfBoundsException("shardId " + shardId + " out of bounds [0, " + nextAddIndex + ")");

@@ -106,6 +106,10 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
         this.compress = compress;
     }
 
+    public FlatVectorsFormat getRawVectorFormat() {
+        return rawVectorFormat;
+    }
+
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new Lucene99ScalarQuantizedVectorsWriter(
@@ -148,16 +152,12 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
             + ")";
     }
 
-    public static class ES93FlatVectorReader extends KnnVectorsReader {
+    static class ES93FlatVectorReader extends KnnVectorsReader {
 
         private final FlatVectorsReader reader;
 
         ES93FlatVectorReader(FlatVectorsReader reader) {
             this.reader = reader;
-        }
-
-        public FlatVectorsReader getFlatVectorsReader() {
-            return reader;
         }
 
         @Override

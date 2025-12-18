@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
+import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
@@ -82,10 +83,13 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        var reader = scalarQuantizedFormat.fieldsReader(state);
         return new Lucene99HnswVectorsReader(
             state,
-            ((ES93ScalarQuantizedVectorsFormat.ES93FlatVectorReader) reader).getFlatVectorsReader()
+            new Lucene99ScalarQuantizedVectorsReader(
+                state,
+                scalarQuantizedFormat.getRawVectorFormat().fieldsReader(state),
+                ES93ScalarQuantizedVectorsFormat.flatVectorScorer
+            )
         );
     }
 

@@ -63,6 +63,7 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",

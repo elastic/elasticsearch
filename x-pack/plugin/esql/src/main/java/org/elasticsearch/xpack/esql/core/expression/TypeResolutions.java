@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
@@ -92,10 +93,11 @@ public final class TypeResolutions {
                 && dt != DENSE_VECTOR
                 && dt != AGGREGATE_METRIC_DOUBLE
                 && dt != EXPONENTIAL_HISTOGRAM
+                && dt != HISTOGRAM
                 && dt != TDIGEST,
             operationName,
             paramOrd,
-            "any type except counter types, dense_vector, aggregate_metric_double, tdigest or exponential_histogram"
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
         );
     }
 
@@ -111,10 +113,11 @@ public final class TypeResolutions {
                 && t != DENSE_VECTOR
                 && t != AGGREGATE_METRIC_DOUBLE
                 && t != EXPONENTIAL_HISTOGRAM
+                && t != HISTOGRAM
                 && t != TDIGEST,
             operationName,
             paramOrd,
-            "any type except counter, spatial types, dense_vector, aggregate_metric_double, tdigest or exponential_histogram"
+            "any type except counter, spatial types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
         );
     }
 

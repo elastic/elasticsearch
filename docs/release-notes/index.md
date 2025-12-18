@@ -20,16 +20,79 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.1.9 [elasticsearch-9.1.9-release-notes]
+## 9.2.3 [elasticsearch-9.2.3-release-notes]
 ```{applies_to}
-stack: ga 9.1.9
+stack: ga 9.2.3
 ```
 
-### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
+### Features and enhancements [elasticsearch-9.2.3-features-enhancements]
 
 Infra/Core:
 * Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
 
+Infra/Logging:
+* Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
+
+Ingest Node:
+* Upgrading tika to 3.2.3 [#139267](https://github.com/elastic/elasticsearch/pull/139267)
+
+Security:
+* Improve security migration resilience by handling version conflicts [#137558](https://github.com/elastic/elasticsearch/pull/137558)
+
+Vector Search:
+* Add node scoped `vectors.indexing.use_gpu` setting [#138738](https://github.com/elastic/elasticsearch/pull/138738)
+
+
+### Fixes [elasticsearch-9.2.3-fixes]
+
+Data streams:
+* Improving performance of get data streams API by avoiding getting effective mappings [#138948](https://github.com/elastic/elasticsearch/pull/138948)
+
+Downsampling:
+* Fix downsampling with disabled subobjects [#138715](https://github.com/elastic/elasticsearch/pull/138715)
+* Fix multi fields in downsampling [#138869](https://github.com/elastic/elasticsearch/pull/138869)
+
+ES|QL:
+* Do not pack non-dimension fields in TS [#138929](https://github.com/elastic/elasticsearch/pull/138929)
+* Fix columns ordering when pruning an INLINE STATS [#136827](https://github.com/elastic/elasticsearch/pull/136827) (issue: [#136797](https://github.com/elastic/elasticsearch/issues/136797))
+* Fix enrich and lookup join resolution based on min transport version [#137431](https://github.com/elastic/elasticsearch/pull/137431)
+* Fixes esql class cast bug in STATS at planning level [#137511](https://github.com/elastic/elasticsearch/pull/137511) (issues: [#133992](https://github.com/elastic/elasticsearch/issues/133992), [#136598](https://github.com/elastic/elasticsearch/issues/136598))
+* [ES|QL] Compare query builders using identity [#139080](https://github.com/elastic/elasticsearch/pull/139080)
+
+Inference:
+* [Inference API] Use dimensions field in JinaAI `text_embedding` requests [#139413](https://github.com/elastic/elasticsearch/pull/139413)
+
+Infra/Core:
+* GET /_migration/deprecations doesn't check disk watermarks against correct settings values [#138115](https://github.com/elastic/elasticsearch/pull/138115) (issue: [#137005](https://github.com/elastic/elasticsearch/issues/137005))
+
+Machine Learning:
+* Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
+
+Mapping:
+* Fix offset maths bug in `InetAddress` parsing [#139420](https://github.com/elastic/elasticsearch/pull/139420)
+
+Search:
+* Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder` [#136732](https://github.com/elastic/elasticsearch/pull/136732)
+* Speed up `LeafCollector#setScorer` in `TopHitsAggregator` [#138883](https://github.com/elastic/elasticsearch/pull/138883)
+
+Security:
+* More reliable trigger for security index migration [#139028](https://github.com/elastic/elasticsearch/pull/139028)
+
+Stats:
+* Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
+
+Vector Search:
+* Disallow index types updates to bbq_disk, revert [#139061](https://github.com/elastic/elasticsearch/pull/139061)
+
+
+
+## 9.1.9 [elasticsearch-9.1.9-release-notes]
+```{applies_to}
+stack: ga 9.1.9
+```
+### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
+Infra/Core:
+* Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
 Infra/Logging:
 * Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
 
@@ -63,7 +126,6 @@ Infra/Core:
 
 Ingest Node:
 * Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
-
 Machine Learning:
 * Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
 
@@ -75,7 +137,6 @@ Security:
 
 Stats:
 * Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
-
 
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]
@@ -689,9 +750,6 @@ Machine Learning:
 * Track inference deployments [#131442](https://github.com/elastic/elasticsearch/pull/131442)
 * [ML] Add Azure AI Rerank support to the Inference Plugin [#129848](https://github.com/elastic/elasticsearch/pull/129848)
 * [ML] Add IBM watsonx Completion and Chat Completion support to the Inference Plugin [#129146](https://github.com/elastic/elasticsearch/pull/129146)
-* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
-* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
-* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
 
 Mapping:
 * Add new `pattern_text` field mapper in tech preview [#135370](https://github.com/elastic/elasticsearch/pull/135370)

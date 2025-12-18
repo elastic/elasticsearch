@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.JINA_AI_EMBEDDING_REFACTOR;
 import static org.hamcrest.Matchers.is;
 
 public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIServiceSettings> {
@@ -115,10 +114,6 @@ public class JinaAIServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected JinaAIServiceSettings mutateInstanceForVersion(JinaAIServiceSettings instance, TransportVersion version) {
-        if (version.supports(JINA_AI_EMBEDDING_REFACTOR)) {
-            return instance;
-        } else {
-            return instance;
-        }
+        return instance;
     }
 }

@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -34,7 +34,7 @@
           "name" : "field",
           "type" : "cartesian_point",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -46,7 +46,7 @@
           "name" : "field",
           "type" : "cartesian_shape",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -58,7 +58,7 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -70,7 +70,7 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -82,7 +82,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -94,7 +94,7 @@
           "name" : "field",
           "type" : "exponential_histogram",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -106,7 +106,7 @@
           "name" : "field",
           "type" : "geo_point",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -118,7 +118,7 @@
           "name" : "field",
           "type" : "geo_shape",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -130,7 +130,7 @@
           "name" : "field",
           "type" : "geohash",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -142,7 +142,7 @@
           "name" : "field",
           "type" : "geohex",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -154,7 +154,19 @@
           "name" : "field",
           "type" : "geotile",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "histogram",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -166,7 +178,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -178,7 +190,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -190,7 +202,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -202,7 +214,19 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -214,7 +238,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -226,7 +250,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -238,7 +262,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,

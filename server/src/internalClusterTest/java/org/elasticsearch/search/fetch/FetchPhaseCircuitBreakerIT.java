@@ -290,16 +290,20 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             .addSort(SORT_FIELD, SortOrder.ASC)
             .get();
 
-        assertThat(response1.getHits().getHits().length, equalTo(10));
-        Object[] sortValues = response1.getHits().getHits()[9].getSortValues();
+        try {
+            assertThat(response1.getHits().getHits().length, equalTo(10));
+            Object[] sortValues = response1.getHits().getHits()[9].getSortValues();
 
-        // Second page using search_after
-        assertNoFailuresAndResponse(
-            prepareSearch(INDEX_SMALL).setQuery(matchAllQuery()).setSize(10).addSort(SORT_FIELD, SortOrder.ASC).searchAfter(sortValues),
-            response2 -> {
-                assertThat(response2.getHits().getHits().length, greaterThan(0));
-            }
-        );
+            // Second page using search_after
+            assertNoFailuresAndResponse(
+                prepareSearch(INDEX_SMALL).setQuery(matchAllQuery()).setSize(10).addSort(SORT_FIELD, SortOrder.ASC).searchAfter(sortValues),
+                response2 -> {
+                    assertThat(response2.getHits().getHits().length, greaterThan(0));
+                }
+            );
+        } finally {
+            response1.decRef();
+        }
 
         assertThat(
             "Circuit breaker should be released after search_after completes",

@@ -234,8 +234,10 @@ public class KnnIndexTester {
             System.out.println("--warmUp is the number of warm up iterations");
             System.out.println();
             System.out.println("Run multiple searches with different configurations by adding extra values to the array parameters.");
-            System.out.println("Array options of different lengths are merged by taking the last element of the shorter array.");
-            System.out.println("This example configuration object runs 2 searches with different num_candidates settings:");
+            System.out.println("Every combination of each parameter will be run.");
+            System.out.println(
+                "This example configuration runs 4 searches with different combinations of num_candidates and early_termination:"
+            );
             System.out.println(TestConfiguration.exampleFormatForHelp());
             return;
         }

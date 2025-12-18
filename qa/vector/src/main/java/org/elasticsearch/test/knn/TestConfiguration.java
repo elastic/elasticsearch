@@ -149,7 +149,8 @@ record TestConfiguration(
         var b = new TestConfiguration.Builder().setDimensions(64)
             .setDocVectors(List.of("/doc/vectors/path"))
             .setQueryVectors("/query/vectors/path")
-            .setNumCandidates(List.of(100, 1000));
+            .setNumCandidates(List.of(100, 1000))
+            .setEarlyTermination(List.of(Boolean.TRUE, Boolean.FALSE));
 
         return Strings.toString(b, true, false);
     }
@@ -361,19 +362,6 @@ record TestConfiguration(
                 );
             }
 
-            var baseSearchParams = new SearchParameters(
-                numCandidates.getFirst(),
-                k.getFirst(),
-                visitPercentages.getFirst(),
-                overSamplingFactor.getFirst(),
-                searchThreads.getFirst(),
-                numSearchers.getFirst(),
-                filterSelectivity.getFirst(),
-                filterCached.getFirst(),
-                earlyTermination.getFirst(),
-                seed.getFirst()
-            );
-
             // length of the longest array parameter
             int longestParam = longestParameter();
             if (longestParam > 1 && (searchParams != null && searchParams.isEmpty() == false)) {
@@ -387,16 +375,24 @@ record TestConfiguration(
             }
 
             List<SearchParameters> searchRuns = new ArrayList<>();
-            searchRuns.add(baseSearchParams);
-
             if (searchParams == null || searchParams.isEmpty()) {
-                // Build the search runs from the array parameters.
-                // There will be longestParam search runs. If the parameter arrays
-                // are of unequal lengths, then the last items in the shorter arrays are used.
-                for (int i = 1; i < longestParam; i++) {
-                    searchRuns.add(searchParamsAtIndex(i));
-                }
+                searchRuns.addAll(allCombinations());
             } else {
+                // Using the search_param format.
+                // Create a search run for each search param object
+                var baseSearchParams = new SearchParameters(
+                    numCandidates.getFirst(),
+                    k.getFirst(),
+                    visitPercentages.getFirst(),
+                    overSamplingFactor.getFirst(),
+                    searchThreads.getFirst(),
+                    numSearchers.getFirst(),
+                    filterSelectivity.getFirst(),
+                    filterCached.getFirst(),
+                    earlyTermination.getFirst(),
+                    seed.getFirst()
+                );
+
                 for (var so : searchParams) {
                     searchRuns.add(so.buildWithDefaults(baseSearchParams));
                 }
@@ -442,7 +438,6 @@ record TestConfiguration(
             builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
             builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
             builder.field(K_FIELD.getPreferredName(), k);
-            // builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentages);
             builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
             builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
@@ -490,27 +485,44 @@ record TestConfiguration(
             return lengths.stream().max(Integer::compareTo).get();
         }
 
-        SearchParameters searchParamsAtIndex(int n) {
-            return new SearchParameters(
-                nthOrLastItem(numCandidates, n),
-                nthOrLastItem(k, n),
-                nthOrLastItem(visitPercentages, n),
-                nthOrLastItem(overSamplingFactor, n),
-                nthOrLastItem(searchThreads, n),
-                nthOrLastItem(numSearchers, n),
-                nthOrLastItem(filterSelectivity, n),
-                nthOrLastItem(filterCached, n),
-                nthOrLastItem(earlyTermination, n),
-                nthOrLastItem(seed, n)
-            );
-        }
+        List<SearchParameters> allCombinations() {
+            List<SearchParameters> allCombinations = new ArrayList<>();
+            for (var candidates : numCandidates) {
+                for (var kValue : k) {
+                    for (var visitPercentage : visitPercentages) {
+                        for (var overSampleFactor : overSamplingFactor) {
+                            for (var searchThread : searchThreads) {
+                                for (var numSearch : numSearchers) {
+                                    for (var filterSelect : filterSelectivity) {
+                                        for (var filterCache : filterCached) {
+                                            for (var earlyTerm : earlyTermination) {
+                                                for (var seedValue : seed) {
+                                                    allCombinations.add(
+                                                        new SearchParameters(
+                                                            candidates,
+                                                            kValue,
+                                                            visitPercentage,
+                                                            overSampleFactor,
+                                                            searchThread,
+                                                            numSearch,
+                                                            filterSelect,
+                                                            filterCache,
+                                                            earlyTerm,
+                                                            seedValue
+                                                        )
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
-        <T> T nthOrLastItem(List<T> list, int n) {
-            if (list.size() > n) {
-                return list.get(n);
-            } else {
-                return list.getLast();
+                }
             }
+            return allCombinations;
         }
     }
 }

@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.toInferenceStringList;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.hamcrest.Matchers.contains;
@@ -31,12 +32,14 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         String stringValue = "a string";
         var input = new InferenceStringGroup(stringValue);
         assertThat(input.inferenceStrings(), contains(new InferenceString(DataType.TEXT, DataFormat.TEXT, stringValue)));
+        assertThat(input.containsNonTextEntry(), is(false));
     }
 
     public void testSingleArgumentConstructor() {
         InferenceString inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "a string");
         var input = new InferenceStringGroup(inferenceString);
         assertThat(input.inferenceStrings(), contains(inferenceString));
+        assertThat(input.containsNonTextEntry(), is(true));
     }
 
     public void testValue_withMoreThanOneElement_throws() {
@@ -75,6 +78,20 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
         var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
         assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList"));
+    }
+
+    public void testContainsNonTextEntry_withOnlyTextInputs() {
+        var inputs = List.of(new InferenceStringGroup("string1"), new InferenceStringGroup("string2"));
+        assertThat(containsNonTextEntry(inputs), is(false));
+    }
+
+    public void testContainsNonTextEntry_withNonTextInput() {
+        DataType nonTextDataType = randomValueOtherThan(DataType.TEXT, () -> randomFrom(DataType.values()));
+        var inputs = List.of(
+            new InferenceStringGroup("string1"),
+            new InferenceStringGroup(new InferenceString(nonTextDataType, "non text"))
+        );
+        assertThat(containsNonTextEntry(inputs), is(true));
     }
 
     @Override

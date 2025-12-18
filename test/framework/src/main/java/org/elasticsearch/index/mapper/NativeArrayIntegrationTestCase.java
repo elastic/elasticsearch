@@ -260,15 +260,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     private XContentBuilder arrayToSource(Object obj) throws IOException {
         var source = jsonBuilder().startObject();
         if (obj != null) {
-            if (obj instanceof Object[] array) {
-                source.startArray("field");
-                for (Object arrayValue : array) {
-                    source.value(arrayValue);
-                }
-                source.endArray();
-            } else {
-                source.field("field", obj);
-            }
+            source.field("field", obj);
         } else {
             source.field("field").nullValue();
         }

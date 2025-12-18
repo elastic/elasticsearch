@@ -168,7 +168,6 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
@@ -990,7 +989,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return false;
         }
 
-       // TODO add a check for remote clusters e.g. ccs
+        // TODO add a check for remote clusters e.g. ccs
         return true;
     }
 

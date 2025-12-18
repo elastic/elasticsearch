@@ -95,6 +95,75 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
         }
     }
 
+    /**
+     * The test creates a scenario with 2 different groups (different timestamps) but with
+     * shard IDs that could trigger the bug. Position 0 has shard 0, and position 1 has shard 2.
+     * When processing position 1, if shardRefCounted was called with shard ID 2 instead of
+     * position 1, it would try to access position 2 in a vector with only 2 positions (0 and 1),
+     * causing ArrayIndexOutOfBoundsException.
+     */
+    public void testOneGroupWithMultipleShards() {
+        DriverContext driverContext = driverContext();
+        final long START_TIME = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        BytesRef tsid1 = new BytesRef("tsid1");
+        BytesRef tsid2 = new BytesRef("tsid2");
+
+        long timestamp1 = timeBucket.round(START_TIME);
+        long timestamp2 = timeBucket.round(START_TIME + 2 * 60 * 1000);
+
+        List<RowData> rows = new ArrayList<>();
+        Map<Integer, RefCounted> shardRefs = new HashMap<>();
+
+        // Position 0: shard 0, first tbucket
+        rows.add(new RowData(tsid1, timestamp1, new Doc(0, 0, 0)));
+        shardRefs.put(0, AbstractRefCounted.of(() -> {}));
+
+        // Position 1: shard 2, second tbucket
+        rows.add(new RowData(tsid2, timestamp2, new Doc(2, 0, 1)));
+        shardRefs.put(2, AbstractRefCounted.of(() -> {}));
+
+        SourceOperator source = new TimeSeriesDocIdSourceOperator(driverContext.blockFactory(), rows, shardRefs);
+        List<Page> input = CannedSourceOperator.collectPages(source);
+        List<Page> results = new ArrayList<>();
+
+        try (
+            Driver d = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(input.iterator()),
+                List.of(simple().get(driverContext)),
+                new TestResultPageSinkOperator(results::add)
+            )
+        ) {
+            runDriver(d);
+        }
+
+        assertThat("Should have at least one result page", results.size(), equalTo(1));
+        Page resultPage = results.get(0);
+        assertThat("Should have 2 groups (same tsid1, different timestamps)", resultPage.getPositionCount(), equalTo(2));
+
+        DocBlock docBlock = resultPage.getBlock(2);
+        DocVector docVector = docBlock.asVector();
+
+        // First group should have shard 0
+        assertThat("First group shard should be 0", docVector.shards().getInt(0), equalTo(0));
+        assertThat("First group segment should be 0", docVector.segments().getInt(0), equalTo(0));
+        assertThat("First group doc ID should be 0", docVector.docs().getInt(0), equalTo(0));
+
+        // Second group should have shard 2
+        assertThat("Second group shard should be 2", docVector.shards().getInt(1), equalTo(2));
+        assertThat("Second group segment should be 0", docVector.segments().getInt(1), equalTo(0));
+        assertThat("Second group doc ID should be 1", docVector.docs().getInt(1), equalTo(1));
+
+        assertDriverContext(driverContext);
+
+        for (Page page : results) {
+            page.close();
+        }
+        for (Page page : input) {
+            page.close();
+        }
+    }
+
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         final long START_TIME = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");

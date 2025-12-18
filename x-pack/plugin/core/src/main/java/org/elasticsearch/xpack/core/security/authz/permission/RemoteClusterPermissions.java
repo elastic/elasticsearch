@@ -266,7 +266,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     private Set<String> getAllowedPermissionsPerVersion(TransportVersion outboundVersion) {
         return allowedRemoteClusterPermissions.entrySet()
             .stream()
-            .filter((entry) -> entry.getKey().onOrBefore(outboundVersion))
+            .filter((entry) -> outboundVersion.supports(entry.getKey()))
             .map(Map.Entry::getValue)
             .flatMap(Set::stream)
             .map(s -> s.toLowerCase(Locale.ROOT))

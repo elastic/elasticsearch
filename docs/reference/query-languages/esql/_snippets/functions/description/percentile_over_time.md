@@ -2,5 +2,5 @@
 
 **Description**
 
-Calculates the percentile over time of a numeric field.
+Calculates the percentile over time of a field.
 

@@ -312,7 +312,7 @@ EXPORT void vec_sqr7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dim
     sqr7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_sqrt7u_bulk_offsets_2(
+EXPORT void vec_sqr7u_bulk_offsets_2(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,

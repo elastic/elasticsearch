@@ -123,6 +123,9 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
             if (vectorValues == null || vectorValues.size() == 0) {
                 return null;
             }
+            if (vectorValues.size() == 0) {
+                return vectorValues;
+            }
             FieldInfo info = state.fieldInfos.fieldInfo(field);
             return new RescorerOffHeapVectorValues(vectorValues, info.getVectorSimilarityFunction(), vectorScorer);
         }
@@ -173,6 +176,11 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         @Override
         public DocIndexIterator iterator() {
             return inner.iterator();
+        }
+
+        @Override
+        public int ordToDoc(int ord) {
+            return inner.ordToDoc(ord);
         }
 
         @Override

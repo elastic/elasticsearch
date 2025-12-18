@@ -494,6 +494,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
 
                 @Override
+                public VectorScorer.Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
+                    return scorer.bulk(matchingDocs);
+                }
+
+                @Override
                 public float score() throws IOException {
                     return scorer.score();
                 }
@@ -571,6 +576,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             DocIdSetIterator scorerIterator = scorer.iterator();
             return new VectorScorer() {
                 private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
+
+                @Override
+                public VectorScorer.Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
+                    return scorer.bulk(matchingDocs);
+                }
 
                 @Override
                 public float score() throws IOException {

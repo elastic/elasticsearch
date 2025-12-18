@@ -337,6 +337,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
+            this.docValuesParameters.setValue(new DocValuesParameter.Values(true, cardinality));
+            return this;
+        }
+
         public DocValuesParameter.Values docValuesParameters() {
             return docValuesParameters.getValue();
         }

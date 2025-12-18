@@ -21,9 +21,11 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFlatVectorsFormat {
 
@@ -118,6 +121,36 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
 
         @Override
+        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+            return inner.getOffHeapByteSize(fieldInfo);
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            inner.finishMerge();
+        }
+
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return inner.getMergeInstance();
+        }
+
+        @Override
+        public FlatVectorsScorer getFlatVectorScorer() {
+            return inner.getFlatVectorScorer();
+        }
+
+        @Override
+        public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            inner.search(field, target, knnCollector, acceptDocs);
+        }
+
+        @Override
+        public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            inner.search(field, target, knnCollector, acceptDocs);
+        }
+
+        @Override
         public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
             return inner.getRandomVectorScorer(field, target);
         }
@@ -135,8 +168,11 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             FloatVectorValues vectorValues = inner.getFloatVectorValues(field);
-            if (vectorValues == null || vectorValues.size() == 0) {
+            if (vectorValues == null) {
                 return null;
+            }
+            if (vectorValues.size() == 0) {
+                return vectorValues;
             }
             FieldInfo info = state.fieldInfos.fieldInfo(field);
             return new RescorerOffHeapVectorValues(vectorValues, info.getVectorSimilarityFunction(), vectorScorer, forcePreFetching);
@@ -211,7 +247,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         public BulkVectorScorer bulkScorer(float[] target) throws IOException {
             DocIndexIterator indexIterator = inner.iterator();
             RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
-            return forcePreFetching
+            return forcePreFetching && inputSlice != null
                 ? new PreFetchingFloatBulkVectorScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES)
                 : new FloatBulkVectorScorer(randomScorer, indexIterator);
         }
@@ -219,6 +255,11 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         @Override
         public VectorScorer scorer(float[] target) throws IOException {
             return inner.scorer(target);
+        }
+
+        @Override
+        public int ordToDoc(int ord) {
+            return inner.ordToDoc(ord);
         }
     }
 

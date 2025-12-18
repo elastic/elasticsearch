@@ -77,6 +77,7 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
                 "geotile",
                 "geohex",
                 "integer",
+                "histogram",
                 "ip",
                 "keyword",
                 "long",

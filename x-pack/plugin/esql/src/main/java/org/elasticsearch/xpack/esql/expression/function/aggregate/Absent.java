@@ -75,6 +75,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",

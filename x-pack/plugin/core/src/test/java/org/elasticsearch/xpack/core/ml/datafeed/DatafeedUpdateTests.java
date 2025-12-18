@@ -330,6 +330,37 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(updatedDatafeed.getIndicesOptions(), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN));
     }
 
+    public void testCrossProjectIndicesOptionsAllowed() {
+        IndicesOptions cpsOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-df").setIndicesOptions(cpsOptions).build();
+
+        assertThat("Update should have CPS enabled", update.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testCrossProjectIndicesOptionsXContentRoundTrip() throws IOException {
+        IndicesOptions cpsOptions = IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        DatafeedUpdate original = new DatafeedUpdate.Builder("test-df-cps").setIndicesOptions(cpsOptions).build();
+
+        assertThat("Original should have CPS enabled", original.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+
+        // Serialize to XContent and parse back
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), org.elasticsearch.common.Strings.toString(original))) {
+            DatafeedUpdate parsed = DatafeedUpdate.PARSER.apply(parser, null).build();
+
+            assertThat(
+                "CPS flag should survive XContent round-trip",
+                parsed.getIndicesOptions().resolveCrossProjectIndexExpression(),
+                is(true)
+            );
+        }
+    }
+
     public void testApply_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());

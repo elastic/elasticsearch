@@ -223,6 +223,23 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         return parser;
     }
 
+    /**
+     * Ensures the cross-project search flag is enabled on the given IndicesOptions if not already set.
+     * Returns the options unchanged if they are null or already have CPS enabled.
+     *
+     * @param options the IndicesOptions to potentially update
+     * @param enableCrossProjectSearch whether CPS should be enabled
+     * @return the updated IndicesOptions with CPS enabled, or the original options if no change is needed
+     */
+    public static IndicesOptions ensureCrossProjectSearchEnabled(IndicesOptions options, boolean enableCrossProjectSearch) {
+        if (enableCrossProjectSearch && options != null && options.resolveCrossProjectIndexExpression() == false) {
+            return IndicesOptions.builder(options)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+        return options;
+    }
+
     private final String id;
     private final String jobId;
 

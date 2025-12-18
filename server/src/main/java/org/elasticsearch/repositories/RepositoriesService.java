@@ -214,7 +214,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             logger.info("Default repository cleared");
             return;
         }
-        Repository repository = repositoryOrNull(ProjectId.DEFAULT, repositoryName);
+        Repository repository = repositories.getOrDefault(ProjectId.DEFAULT, Map.of()).get(repositoryName);
         if (repository == null) {
             throw new IllegalArgumentException(
                 "Repository ["

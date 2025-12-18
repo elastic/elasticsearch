@@ -481,7 +481,6 @@ public class InstallPluginActionTests extends ESTestCase {
         // Control for timeout on waiting for signature verification to complete
         CountDownLatch countDownLatch = new CountDownLatch(1);
 
-        //
         AtomicBoolean called = new AtomicBoolean(false);
 
         Runnable callback = () -> {

@@ -164,6 +164,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "histogram",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for absence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "Expression that outputs values to be checked for absence."
@@ -201,6 +213,18 @@
         {
           "name" : "field",
           "type" : "long",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for absence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
           "optional" : false,
           "description" : "Expression that outputs values to be checked for absence."
         }

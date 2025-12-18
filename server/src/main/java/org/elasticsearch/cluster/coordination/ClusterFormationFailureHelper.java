@@ -156,6 +156,19 @@ public class ClusterFormationFailureHelper {
     }
 
     /**
+     * A helper record containing the subset of the {@link ClusterState} that the {@link ClusterFormationState} requires
+     */
+    public record ClusterFormationClusterStateView(
+        DiscoveryNode localNode,
+        Map<String, DiscoveryNode> masterEligibleNodes,
+        long lastAcceptedVersion,
+        long lastAcceptedTerm,
+        VotingConfiguration lastAcceptedConfiguration,
+        VotingConfiguration lastCommittedConfiguration,
+        long currentTerm
+    ) {};
+
+    /**
      * This record provides node state information that can be used to determine why cluster formation has failed.
      */
     public record ClusterFormationState(
@@ -177,36 +190,35 @@ public class ClusterFormationFailureHelper {
 
         public ClusterFormationState(
             Settings settings,
-            ClusterState clusterState,
+            ClusterFormationClusterStateView clusterFormationClusterStateView,
             List<TransportAddress> resolvedAddresses,
             List<DiscoveryNode> foundPeers,
             Set<DiscoveryNode> mastersOfPeers,
-            long currentTerm,
             ElectionStrategy electionStrategy,
             StatusInfo statusInfo,
             List<JoinStatus> inFlightJoinStatuses
         ) {
             this(
                 INITIAL_MASTER_NODES_SETTING.get(settings),
-                clusterState.nodes().getLocalNode(),
-                clusterState.nodes().getMasterNodes(),
-                clusterState.version(),
-                clusterState.term(),
-                clusterState.getLastAcceptedConfiguration(),
-                clusterState.getLastCommittedConfiguration(),
+                clusterFormationClusterStateView.localNode,
+                clusterFormationClusterStateView.masterEligibleNodes,
+                clusterFormationClusterStateView.lastAcceptedVersion,
+                clusterFormationClusterStateView.lastAcceptedTerm,
+                clusterFormationClusterStateView.lastAcceptedConfiguration,
+                clusterFormationClusterStateView.lastCommittedConfiguration,
                 resolvedAddresses,
                 foundPeers,
                 mastersOfPeers,
-                currentTerm,
+                clusterFormationClusterStateView.currentTerm,
                 calculateHasDiscoveredQuorum(
                     foundPeers,
                     electionStrategy,
-                    clusterState.nodes().getLocalNode(),
-                    currentTerm,
-                    clusterState.term(),
-                    clusterState.version(),
-                    clusterState.getLastCommittedConfiguration(),
-                    clusterState.getLastAcceptedConfiguration()
+                    clusterFormationClusterStateView.localNode,
+                    clusterFormationClusterStateView.currentTerm,
+                    clusterFormationClusterStateView.lastAcceptedTerm,
+                    clusterFormationClusterStateView.lastAcceptedVersion,
+                    clusterFormationClusterStateView.lastCommittedConfiguration,
+                    clusterFormationClusterStateView.lastAcceptedConfiguration
                 ),
                 statusInfo,
                 inFlightJoinStatuses

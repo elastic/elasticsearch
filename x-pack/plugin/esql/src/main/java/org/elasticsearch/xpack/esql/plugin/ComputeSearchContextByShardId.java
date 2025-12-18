@@ -11,10 +11,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -22,31 +19,31 @@ import java.util.stream.IntStream;
  * An implementation backed by an array. We use an array, instead of the much more natural ArrayList, to make explicit the assumption that
  * the total number of shards is known in advance (even though, due to failure handling and such, we might not allocate all the elements).
  *<br>
- * This class is mutable and "mostly" {@code synchronized}; the only unsynchronized part is the {@link #get} method, which uses
- * {@link VarHandle} to ensure safe publication of the elements once added so it <i>should</i> be fine 🐶🔥.
+ * This class is mutable but {@code synchronized}; it is assumed that the elements are never modified after being added to the
+ * array, nor are any indices reused (i.e., elements are only added in incrementing indices). While it's possible avoid synchronization for
+ * {@link #get}, for now we're opting for the simpler solution.
  */
 class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchContext>, Releasable {
-    private static final VarHandle HANDLE = MethodHandles.arrayElementVarHandle(Object[].class);
-    private final ComputeSearchContext[] array;
+    private final ComputeSearchContext[] contexts;
     private int nextAddIndex = 0;
 
     ComputeSearchContextByShardId(int size) {
-        this.array = new ComputeSearchContext[size];
+        this.contexts = new ComputeSearchContext[size];
     }
 
     public synchronized void add(ComputeSearchContext cse) {
-        HANDLE.setRelease(array, nextAddIndex++, cse);
+        contexts[nextAddIndex++] = cse;
     }
 
     @Override
-    public ComputeSearchContext get(int shardId) {
+    public synchronized ComputeSearchContext get(int shardId) {
         // Since the main instance is shared between the node-reduce and data drivers, it's critial to use getAcquire here to ensure that
         // any thread reading the element after it's been added sees a fully constructed object.
-        var result = HANDLE.getAcquire(array, shardId);
+        var result = contexts[shardId];
         if (result == null) {
             throw new IndexOutOfBoundsException("shardId " + shardId + " out of bounds [0, " + nextAddIndex + ")");
         }
-        return (ComputeSearchContext) result;
+        return result;
     }
 
     public synchronized boolean isEmpty() {
@@ -54,13 +51,13 @@ class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchCon
     }
 
     @Override
-    public synchronized Collection<ComputeSearchContext> collection() {
-        return Arrays.asList(array).subList(0, nextAddIndex);
+    public synchronized Iterable<ComputeSearchContext> iterable() {
+        return Arrays.asList(contexts).subList(0, nextAddIndex);
     }
 
     @Override
     public <S> IndexedByShardId<S> map(Function<ComputeSearchContext, S> mapper) {
-        return new Mapped<>(this, array.length, 0, mapper);
+        return new Mapped<>(this, contexts.length, 0, mapper);
     }
 
     /**
@@ -68,7 +65,7 @@ class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchCon
      * This has consequences:
      * <ol>
      * <li>{@link #get} fails if the index is out of range.</li>
-     * <li>{@link #collection} only returns the elements in the specified range.</li>
+     * <li>{@link #iterable} only returns the elements in the specified range.</li>
      * <li>{@link #map} creates a cache in the specified range size.</li>
      * </ol>
      */
@@ -76,16 +73,17 @@ class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchCon
         if (fromIndex < 0 || toIndex > nextAddIndex || fromIndex > toIndex) {
             throw new IndexOutOfBoundsException("Invalid subrange: [" + fromIndex + ", " + toIndex + ") in [0, " + nextAddIndex + ")");
         }
-        return new SubRanged<>(array, fromIndex, toIndex);
+        return new SubRanged<>(contexts, fromIndex, toIndex);
     }
 
-    public synchronized int length() {
+    @Override
+    public synchronized int size() {
         return nextAddIndex;
     }
 
     @Override
     public synchronized void close() {
-        Releasables.close(collection());
+        Releasables.close(iterable());
     }
 
     // This class doesn't need synchronization since it's created from a synchronized context and it doesn't read past its initial bounds.
@@ -110,8 +108,13 @@ class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchCon
         }
 
         @Override
-        public Collection<? extends T> collection() {
+        public Iterable<? extends T> iterable() {
             return Arrays.asList(array).subList(from, to);
+        }
+
+        @Override
+        public int size() {
+            return to - from;
         }
 
         @Override
@@ -149,8 +152,13 @@ class ComputeSearchContextByShardId implements IndexedByShardId<ComputeSearchCon
         }
 
         @Override
-        public Collection<? extends S> collection() {
-            return IntStream.range(offset, original.collection().size() + offset).mapToObj(this::get).toList();
+        public Iterable<? extends S> iterable() {
+            return IntStream.range(offset, original.size() + offset).mapToObj(this::get).toList();
+        }
+
+        @Override
+        public int size() {
+            return original.size();
         }
 
         @Override

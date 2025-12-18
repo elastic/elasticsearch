@@ -333,7 +333,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     }
                     if (singleShardPipeline) {
                         try (ComputeListener sub = new ComputeListener(threadPool, () -> {}, batchListener)) {
-                            for (ComputeSearchContext searchContext : acquiredSearchContexts.collection()) {
+                            for (ComputeSearchContext searchContext : acquiredSearchContexts.iterable()) {
                                 var computeContext = new ComputeContext(
                                     sessionId,
                                     "data",
@@ -396,7 +396,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final var doAcquire = ActionRunnable.supply(listener, () -> {
                 // We synchronize here to ensure the added search contexts are continuous in the list.
                 synchronized (searchContexts) {
-                    int startingIndex = searchContexts.length();
+                    int startingIndex = searchContexts.size();
                     int endingIndex = startingIndex;
                     for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                         SearchContext context = null;
@@ -422,7 +422,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 IOUtils.close(context);
                             } else {
                                 var subList = searchContexts.subRange(startingIndex, endingIndex);
-                                IOUtils.closeWhileHandlingException(context, () -> IOUtils.close(subList.collection()));
+                                IOUtils.closeWhileHandlingException(context, () -> IOUtils.close(subList.iterable()));
                                 throw e;
                             }
                         }

@@ -118,6 +118,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     public static final Setting<String> DEFAULT_REPOSITORY_SETTING = Setting.simpleString(
         "repositories.default_repository",
+        RepositoriesService::validateDefaultRepositoryName,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -204,7 +205,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @throws IllegalArgumentException if the repository name is not empty and the repository doesn't exist or is not empty and read-only
      */
     private void validateDefaultRepository(String repositoryName) {
-        if (repositoryName.equals(this.defaultRepository)) {
+        if (Objects.equals(defaultRepository, repositoryName)) {
             return;
         }
         // Only validate on the master update thread to avoid validation issues at node start time
@@ -217,7 +218,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             logger.info("Default repository cleared");
             return;
         }
-        validateRepositoryName(repositoryName);
+        validateDefaultRepositoryName(repositoryName);
         Repository repository = repositories.getOrDefault(ProjectId.DEFAULT, Map.of()).get(repositoryName);
         if (repository == null) {
             throw new IllegalArgumentException(
@@ -1200,6 +1201,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         if (Strings.validFileName(repositoryName) == false) {
             throw new RepositoryException(repositoryName, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
+    }
+
+    public static void validateDefaultRepositoryName(final String repositoryName) {
+        if (Strings.isEmpty(repositoryName)) {
+            return;
+        }
+        validateRepositoryName(repositoryName);
     }
 
     private static void ensureRepositoryNotInUseForWrites(ProjectState projectState, String repository) {

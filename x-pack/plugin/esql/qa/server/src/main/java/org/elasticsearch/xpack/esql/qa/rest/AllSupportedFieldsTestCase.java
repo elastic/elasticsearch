@@ -63,11 +63,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Creates indices with all supported fields and fetches values from them to
- * confirm that release builds correctly handle data types, even if they were
- * introduced in later versions.
+ * Queries like {@code FROM * | KEEP *} can include columns of unsupported types,
+ * and we can run into serialization and correctness issues in mixed version clusters/CCS
+ * when support for a type is added in a later version.
  * <p>
- *     Entirely skipped in snapshot builds; data types that are under
+ * This creates indices with all index-able fields and fetches values from them to
+ * confirm that we correctly handle data types, even if they were introduced in later versions.
+ * Generally, this means that a type is treated as unsupported if any older node is involved.
+ * See {@link org.elasticsearch.xpack.esql.session.Versioned} for more details on how ESQL
+ * handles planning for mixed version clusters.
+ * <p>
+ *     This suite is entirely skipped in snapshot builds; data types that are under
  *     construction are normally tested well enough in spec tests, skipping
  *     old versions via {@link org.elasticsearch.xpack.esql.action.EsqlCapabilities}.
  * <p>

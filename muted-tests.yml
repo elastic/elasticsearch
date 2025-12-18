@@ -376,9 +376,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
   method: testConcurrentStatusFetchWhileTaskCloses
   issue: https://github.com/elastic/elasticsearch/issues/138543
-- class: org.elasticsearch.xpack.core.security.authc.AuthenticationTests
-  method: testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata
-  issue: https://github.com/elastic/elasticsearch/issues/139167
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/139196

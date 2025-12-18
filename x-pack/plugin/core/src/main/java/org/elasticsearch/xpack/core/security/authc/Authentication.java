@@ -174,7 +174,7 @@ public final class Authentication implements ToXContentObject {
 
         final TransportVersion version = in.getTransportVersion();
         final Map<String, Object> metadata;
-        if (version.onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
+        if (version.supports(VERSION_AUTHENTICATION_TYPE)) {
             type = AuthenticationType.values()[in.readVInt()];
             metadata = readMetadata(in);
         } else {
@@ -211,7 +211,7 @@ public final class Authentication implements ToXContentObject {
 
     private User copyUserWithRolesRemovedForLegacyApiKeys(TransportVersion version, User user) {
         // API keys prior to 7.8 had synthetic role names. Strip these out to maintain the invariant that API keys don't have role names
-        if (type == AuthenticationType.API_KEY && version.onOrBefore(VERSION_SYNTHETIC_ROLE_NAMES) && user.roles().length > 0) {
+        if (type == AuthenticationType.API_KEY && VERSION_SYNTHETIC_ROLE_NAMES.supports(version) && user.roles().length > 0) {
             logger.debug(
                 "Stripping [{}] roles from API key user [{}] for legacy version [{}]",
                 user.roles().length,
@@ -265,7 +265,7 @@ public final class Authentication implements ToXContentObject {
 
         // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is
         // not possible
-        if (isCrossClusterAccess() && olderVersion.before(VERSION_CROSS_CLUSTER_ACCESS)) {
+        if (isCrossClusterAccess() && olderVersion.supports(VERSION_CROSS_CLUSTER_ACCESS) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
@@ -645,7 +645,7 @@ public final class Authentication implements ToXContentObject {
         // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we
         // should not send them across the wire to older nodes
         final boolean isCrossClusterAccess = effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
-        if (isCrossClusterAccess && out.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS)) {
+        if (isCrossClusterAccess && out.getTransportVersion().supports(VERSION_CROSS_CLUSTER_ACCESS) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
@@ -688,7 +688,7 @@ public final class Authentication implements ToXContentObject {
             out.writeBoolean(false);
         }
         final Map<String, Object> metadata = authenticatingSubject.getMetadata();
-        if (out.getTransportVersion().onOrAfter(VERSION_AUTHENTICATION_TYPE)) {
+        if (out.getTransportVersion().supports(VERSION_AUTHENTICATION_TYPE)) {
             out.writeVInt(type.ordinal());
             writeMetadata(out, metadata);
         } else {
@@ -848,7 +848,7 @@ public final class Authentication implements ToXContentObject {
     );
 
     private static Map<String, Object> readMetadata(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(VERSION_METADATA_BEYOND_GENERIC_MAP)) {
+        if (in.getTransportVersion().supports(VERSION_METADATA_BEYOND_GENERIC_MAP)) {
             final int size = in.readVInt();
             final Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
@@ -874,7 +874,7 @@ public final class Authentication implements ToXContentObject {
     );
 
     private static void writeMetadata(StreamOutput out, Map<String, Object> metadata) throws IOException {
-        if (out.getTransportVersion().onOrAfter(VERSION_METADATA_BEYOND_GENERIC_MAP)) {
+        if (out.getTransportVersion().supports(VERSION_METADATA_BEYOND_GENERIC_MAP)) {
             out.writeVInt(metadata.size());
             for (Map.Entry<String, Object> entry : metadata.entrySet()) {
                 out.writeString(entry.getKey());
@@ -1155,7 +1155,7 @@ public final class Authentication implements ToXContentObject {
             this.nodeName = in.readString();
             this.name = in.readString();
             this.type = in.readString();
-            if (in.getTransportVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+            if (in.getTransportVersion().supports(VERSION_REALM_DOMAINS)) {
                 this.domain = in.readOptionalWriteable(RealmDomain::readFrom);
             } else {
                 this.domain = null;
@@ -1167,7 +1167,7 @@ public final class Authentication implements ToXContentObject {
             out.writeString(nodeName);
             out.writeString(name);
             out.writeString(type);
-            if (out.getTransportVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
+            if (out.getTransportVersion().supports(VERSION_REALM_DOMAINS)) {
                 out.writeOptionalWriteable(domain);
             }
         }
@@ -1470,7 +1470,7 @@ public final class Authentication implements ToXContentObject {
 
     // pkg-private for testing
     static RealmRef maybeRewriteRealmRef(TransportVersion streamVersion, RealmRef realmRef) {
-        if (realmRef != null && realmRef.getDomain() != null && streamVersion.before(VERSION_REALM_DOMAINS)) {
+        if (realmRef != null && realmRef.getDomain() != null && streamVersion.supports(VERSION_REALM_DOMAINS) == false) {
             logger.info("Rewriting realm [" + realmRef + "] without domain");
             // security domain erasure
             return new RealmRef(realmRef.getName(), realmRef.getType(), realmRef.getNodeName(), null);
@@ -1491,8 +1491,8 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
-            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CROSS_CLUSTER_ACCESS)
-                && streamVersion.before(VERSION_CROSS_CLUSTER_ACCESS)) {
+            if (authentication.getEffectiveSubject().getTransportVersion().supports(VERSION_CROSS_CLUSTER_ACCESS)
+                && streamVersion.supports(VERSION_CROSS_CLUSTER_ACCESS) == false) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
@@ -1508,8 +1508,8 @@ public final class Authentication implements ToXContentObject {
                 );
             }
 
-            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
-                && streamVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            if (authentication.getEffectiveSubject().getTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS)
+                && streamVersion.supports(ROLE_REMOTE_CLUSTER_PRIVS) == false) {
                 // the authentication understands the remote_cluster field but the stream does not
                 metadata = new HashMap<>(metadata);
                 metadata.put(
@@ -1524,8 +1524,8 @@ public final class Authentication implements ToXContentObject {
                         (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                     )
                 );
-            } else if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
-                && streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            } else if (authentication.getEffectiveSubject().getTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS)
+                && streamVersion.supports(ROLE_REMOTE_CLUSTER_PRIVS)) {
                     // both the authentication object and the stream understand the remote_cluster field
                     // check each individual permission and remove as needed
                     metadata = new HashMap<>(metadata);
@@ -1545,8 +1545,8 @@ public final class Authentication implements ToXContentObject {
                     );
                 }
 
-            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
-                && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
+            if (authentication.getEffectiveSubject().getTransportVersion().supports(VERSION_API_KEY_ROLES_AS_BYTES)
+                && streamVersion.supports(VERSION_API_KEY_ROLES_AS_BYTES) == false) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
@@ -1558,8 +1558,8 @@ public final class Authentication implements ToXContentObject {
                         (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                     )
                 );
-            } else if (authentication.getEffectiveSubject().getTransportVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
-                && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
+            } else if (authentication.getEffectiveSubject().getTransportVersion().supports(VERSION_API_KEY_ROLES_AS_BYTES) == false
+                && streamVersion.supports(VERSION_API_KEY_ROLES_AS_BYTES)) {
                     metadata = new HashMap<>(metadata);
                     metadata.put(
                         AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
@@ -1589,7 +1589,7 @@ public final class Authentication implements ToXContentObject {
             : "metadata must contain authentication object for cross cluster access authentication";
         final Authentication authenticationFromMetadata = (Authentication) metadata.get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         final TransportVersion effectiveSubjectVersion = authenticationFromMetadata.getEffectiveSubject().getTransportVersion();
-        if (effectiveSubjectVersion.after(olderVersion)) {
+        if (olderVersion.supports(effectiveSubjectVersion) == false) {
             logger.trace(
                 () -> "Cross cluster access authentication has authentication field in metadata ["
                     + authenticationFromMetadata

@@ -12,10 +12,10 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -109,7 +109,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         double minimumSupport = randomDoubleBetween(0.13, 0.41, true);
         int minimumSetSize = randomIntBetween(2, 5);
         int size = randomIntBetween(1, 100);
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD1);
 
         List<FrequentItemSet> expectedResults = List.of(
@@ -288,7 +288,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         int minimumSetSize = randomIntBetween(2, 6);
         int size = randomIntBetween(1, 100);
 
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         MappedFieldType keywordType1 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD1);
         MappedFieldType keywordType2 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD2);
         MappedFieldType keywordType3 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD3);
@@ -481,7 +481,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         int minimumSetSize = randomIntBetween(2, 6);
         int size = randomIntBetween(1, 100);
 
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         MappedFieldType keywordType1 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD1);
         MappedFieldType keywordType2 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD2);
         MappedFieldType keywordType3 = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD3);

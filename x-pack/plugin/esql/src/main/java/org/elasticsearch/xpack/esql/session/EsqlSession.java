@@ -42,6 +42,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -101,6 +102,17 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
+/**
+ * Combines all components necessary for the coordinating node to plan and execute an ESQL query,
+ * including (pre-)analyzing, optimizing and running the physical plan.
+ * <p>
+ * In particular, this is where we perform remote calls to pre-analyze the query,
+ * that is, to resolve indices, enrich policies and their mappings.
+ * <p>
+ * Note that this is not a session in the traditional sense of a stateful connection. This will
+ * produce a single result set that is either returned to the user directly or stored for
+ * later retrieval if the query was async.
+ */
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
@@ -193,10 +205,14 @@ public class EsqlSession {
         PlanRunner planRunner,
         ActionListener<Versioned<Result>> listener
     ) {
+        executionInfo.planningProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
+        PlanningProfile.TimeSpanMarker parsingProfile = executionInfo.planningProfile().parsing();
+        parsingProfile.start();
         EsqlStatement statement = parse(request);
+        parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
         Configuration configuration = new Configuration(
             request.timeZone() == null
@@ -574,7 +590,10 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
+        PlanningProfile.TimeSpanMarker preAnalysisProfile = executionInfo.planningProfile().preAnalysis();
+        preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
@@ -604,6 +623,8 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
+        PlanningProfile.TimeSpanMarker dependencyResolutionProfile = executionInfo.planningProfile().dependencyResolution();
+        dependencyResolutionProfile.start();
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {
@@ -665,9 +686,10 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
-            .<Versioned<LogicalPlan>>andThen(
-                (l, r) -> analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l)
-            )
+            .<Versioned<LogicalPlan>>andThen((l, r) -> {
+                dependencyResolutionProfile.stop();
+                analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
+            })
             .addListener(logicalPlanListener);
     }
 
@@ -1052,7 +1074,10 @@ public class EsqlSession {
                     requestFilter != null
                 );
             }
+            PlanningProfile.TimeSpanMarker analysisProfile = executionInfo.planningProfile().analysis();
+            analysisProfile.start();
             LogicalPlan plan = analyzedPlan(parsed, configuration, result, executionInfo);
+            analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
             listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));

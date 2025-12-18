@@ -16,4 +16,7 @@
 | long | double | double |
 | long | integer | double |
 | long | long | double |
+| tdigest | double | double |
+| tdigest | integer | double |
+| tdigest | long | double |
 

@@ -7,10 +7,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Expression for which to calculate the variance over time."
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -19,10 +19,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Expression for which to calculate the variance over time."
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -31,10 +31,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Expression for which to calculate the variance over time."
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,

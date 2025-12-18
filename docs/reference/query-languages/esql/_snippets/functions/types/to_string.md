@@ -18,6 +18,7 @@
 | geohash | keyword |
 | geohex | keyword |
 | geotile | keyword |
+| histogram | keyword |
 | integer | keyword |
 | ip | keyword |
 | keyword | keyword |

@@ -234,7 +234,9 @@ public class Enrich extends UnaryPlan
             if (enrichField.name().equals(newName)) {
                 newEnrichFields.add(enrichField);
             } else if (enrichField instanceof ReferenceAttribute ra) {
-                newEnrichFields.add(new Alias(ra.source(), newName, ra, new NameId(), ra.synthetic()));
+                // It's safe to generate new name ids when assigning new names - the original attribute representing
+                // the field in the enrich index cannot be directly referenced in downstream plans, anyway
+                newEnrichFields.add(new Alias(ra.source(), newName, ra.withId(new NameId()), new NameId(), ra.synthetic()));
             } else if (enrichField instanceof Alias a) {
                 newEnrichFields.add(new Alias(a.source(), newName, a.child(), new NameId(), a.synthetic()));
             } else {

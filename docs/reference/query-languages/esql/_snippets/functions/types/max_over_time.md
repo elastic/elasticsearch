@@ -14,6 +14,7 @@
 | ip | time_duration {applies_to}`stack: preview 9.3.0` | ip |
 | keyword | time_duration {applies_to}`stack: preview 9.3.0` | keyword |
 | long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | text | time_duration {applies_to}`stack: preview 9.3.0` | keyword |
 | unsigned_long {applies_to}`stack: ga 9.2.0` | time_duration {applies_to}`stack: preview 9.3.0` | unsigned_long |
 | version | time_duration {applies_to}`stack: preview 9.3.0` | version |

@@ -66,6 +66,8 @@ import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighte
 public class SemanticTextHighlighter implements Highlighter {
     public static final String NAME = "semantic";
 
+    private static final String CHUNK_DELIMITER = " ";
+
     private record OffsetAndScore(int index, OffsetSourceFieldMapper.OffsetSource offset, float score) {}
 
     @Override
@@ -106,6 +108,10 @@ public class SemanticTextHighlighter implements Highlighter {
             ? 1 // we return the best fragment by default
             : fieldContext.field.fieldOptions().numberOfFragments();
 
+        // TODO: Right now this will default to 100 if not set. If the user does not set fragmentSize for
+        // the semantic highlighter, we probably just want to return unadulterated chunks instead.
+        int fragmentCharSize = fieldContext.field.fieldOptions().fragmentCharSize();
+
         List<OffsetAndScore> chunks = extractOffsetAndScores(
             fieldContext.context.getSearchExecutionContext(),
             fieldContext.hitContext.reader(),
@@ -113,17 +119,17 @@ public class SemanticTextHighlighter implements Highlighter {
             fieldContext.hitContext.docId(),
             queries
         );
-        if (chunks.size() == 0) {
+        if (chunks.isEmpty()) {
             return null;
         }
 
         chunks.sort(Comparator.comparingDouble(OffsetAndScore::score).reversed());
-        int size = Math.min(chunks.size(), numberOfFragments);
+        int maxSnippets = Math.min(chunks.size(), numberOfFragments);
         if (fieldContext.field.fieldOptions().scoreOrdered() == false) {
-            chunks = chunks.subList(0, size);
+            chunks = chunks.subList(0, maxSnippets);
             chunks.sort(Comparator.comparingInt(c -> c.index));
         }
-        Text[] snippets = new Text[size];
+        List<Text> snippetsList = new ArrayList<>();
         final Function<OffsetAndScore, String> offsetToContent;
         if (fieldType.useLegacyFormat()) {
             List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources(
@@ -148,7 +154,13 @@ public class SemanticTextHighlighter implements Highlighter {
                 return content.substring(entry.offset().start(), entry.offset().end());
             };
         }
-        for (int i = 0; i < size; i++) {
+        // Track which chunks have already been consumed to avoid duplication
+        boolean[] consumedChunks = new boolean[chunks.size()];
+        for (int i = 0; i < chunks.size() && snippetsList.size() < maxSnippets; i++) {
+            if (consumedChunks[i]) {
+                continue;
+            }
+
             var chunk = chunks.get(i);
             String content = offsetToContent.apply(chunk);
             if (content == null) {
@@ -156,14 +168,75 @@ public class SemanticTextHighlighter implements Highlighter {
                     String.format(
                         Locale.ROOT,
 
-                        "Invalid content detected for field [%s]: missing text for the chunk at offset [%d].",
+                        "Invalid content detected for field [%s]: missing text for the chunk at offset [%s].",
                         fieldType.name(),
                         chunk.offset
                     )
                 );
             }
-            snippets[i] = new Text(content);
+            consumedChunks[i] = true;
+
+            if (fragmentCharSize > 0 && content.length() < fragmentCharSize) {
+                var cur = chunk.offset();
+                if (cur != null) {
+                    int prevIdx = -1, nextIdx = -1;
+                    long bestPrevEnd = Long.MIN_VALUE;   // nearest previous by largest end()
+                    long bestNextStart = Long.MAX_VALUE; // nearest next by smallest start()
+
+                    for (int j = 0; j < chunks.size(); j++) {
+                        if (j == i || consumedChunks[j]) continue;
+
+                        var cand = chunks.get(j);
+                        var off = cand.offset();
+                        if (off == null) continue;
+
+                        if (off.end() <= cur.start()) {
+                            // candidate is before current
+                            if (off.end() > bestPrevEnd) {
+                                bestPrevEnd = off.end();
+                                prevIdx = j;
+                            }
+                        } else if (off.start() >= cur.end()) {
+                            // candidate is after current
+                            if (off.start() < bestNextStart) {
+                                bestNextStart = off.start();
+                                nextIdx = j;
+                            }
+                        }
+                    }
+
+                    double prevScore = (prevIdx != -1) ? chunks.get(prevIdx).score() : Double.NEGATIVE_INFINITY;
+                    double nextScore = (nextIdx != -1) ? chunks.get(nextIdx).score() : Double.NEGATIVE_INFINITY;
+
+                    int pick = (nextScore > prevScore) ? nextIdx : prevIdx;
+                    if (pick != -1) {
+                        String extra = offsetToContent.apply(chunks.get(pick));
+                        int remaining = fragmentCharSize - content.length() - CHUNK_DELIMITER.length();
+                        if (extra != null) {
+                            if (pick == nextIdx) {
+                                String toAppend = extra.length() > remaining ? extra.substring(0, remaining) : extra;
+                                content = content + CHUNK_DELIMITER + toAppend;        // expand forward
+                            } else {
+                                String toPrepend = extra.length() > remaining ? extra.substring(extra.length() - remaining) : extra;
+                                content = toPrepend + CHUNK_DELIMITER + content;        // expand backward
+                            }
+                            consumedChunks[pick] = true;
+                        }
+                    }
+                }
+            }
+
+            // Truncate content if it exceeds fragmentCharSize
+            // TODO: This could potentially truncate the most relevant part of the snippet.
+            if (fragmentCharSize > 0 && content.length() > fragmentCharSize) {
+                content = content.substring(0, fragmentCharSize);
+            }
+
+            snippetsList.add(new Text(content));
         }
+
+        // Convert list to array with the actual number of snippets produced
+        Text[] snippets = snippetsList.toArray(new Text[0]);
         return new HighlightField(fieldContext.fieldName, snippets);
     }
 

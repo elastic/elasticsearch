@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 
@@ -40,7 +42,7 @@ public class TransportVersionUtils {
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion() {
-        return VersionUtils.randomFrom(random(), allReleasedVersions());
+        return RandomPicks.randomFrom(random(), allReleasedVersions());
     }
 
     /** Returns a random {@link TransportVersion} from all available versions without the ignore set */
@@ -50,7 +52,7 @@ public class TransportVersionUtils {
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion(Random random) {
-        return VersionUtils.randomFrom(random, allReleasedVersions());
+        return RandomPicks.randomFrom(random, allReleasedVersions());
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
@@ -59,7 +61,7 @@ public class TransportVersionUtils {
         @Nullable TransportVersion minVersion,
         @Nullable TransportVersion maxVersion
     ) {
-        if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
+        if (minVersion != null && maxVersion != null && maxVersion.supports(minVersion) == false) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
         assertNotPatch(minVersion);
@@ -79,12 +81,12 @@ public class TransportVersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return VersionUtils.randomFrom(random, versions);
+        return RandomPicks.randomFrom(random, versions);
     }
 
     public static TransportVersion getPreviousVersion() {
         TransportVersion version = getPreviousVersion(TransportVersion.current());
-        assert version.before(TransportVersion.current());
+        assert version.supports(TransportVersion.current()) == false;
         return version;
     }
 

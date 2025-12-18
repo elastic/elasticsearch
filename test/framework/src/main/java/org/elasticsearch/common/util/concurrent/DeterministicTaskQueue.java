@@ -381,7 +381,7 @@ public class DeterministicTaskQueue {
         protected final Function<Runnable, Runnable> runnableWrapper;
 
         protected DeterministicThreadPool(Function<Runnable, Runnable> runnableWrapper) {
-            this.runnableWrapper = runnableWrapper;
+            this.runnableWrapper = runnable -> getThreadContext().preserveContext(runnableWrapper.apply(runnable));
         }
 
         @Override
@@ -435,13 +435,12 @@ public class DeterministicTaskQueue {
             final int STARTED = 1;
             final int CANCELLED = 2;
             final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
-            final Runnable contextPreservingRunnable = getThreadContext().preserveContext(command);
 
             scheduleAt(currentTimeMillis + delay.millis(), runnableWrapper.apply(new Runnable() {
                 @Override
                 public void run() {
                     if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
-                        contextPreservingRunnable.run();
+                        command.run();
                     }
                 }
 
@@ -501,14 +500,13 @@ public class DeterministicTaskQueue {
                     final int CANCELLED = 2;
                     final int DONE = 3;
                     final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
-                    final Runnable contextPreservingRunnable = getThreadContext().preserveContext(command);
 
                     scheduleAt(currentTimeMillis + new TimeValue(delay, unit).millis(), runnableWrapper.apply(new Runnable() {
                         @Override
                         public void run() {
                             if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
                                 try {
-                                    contextPreservingRunnable.run();
+                                    command.run();
                                 } finally {
                                     taskState.compareAndSet(STARTED, DONE);
                                 }

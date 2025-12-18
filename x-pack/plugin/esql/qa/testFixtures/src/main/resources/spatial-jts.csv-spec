@@ -42,6 +42,7 @@ FROM airport_city_boundaries
 | EVAL o_len = LENGTH(TO_STRING(city_boundary))
 | EVAL city_boundary = ST_SIMPLIFY(city_boundary, 0.05)
 | EVAL s_len = LENGTH(TO_STRING(city_boundary))
+| SORT city
 | KEEP city, o_len, s_len, city_boundary
 // end::st_simplify_city_boundaries[]
 ;

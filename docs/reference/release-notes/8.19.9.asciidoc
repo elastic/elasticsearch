@@ -9,11 +9,21 @@ Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
 [float]
 === Bug fixes
 
+CCS::
+* Fix: Correctly pickup MRT value for `msearch`'s search requests {es-pull}138583[#138583]
+
+Cluster Coordination::
+* Avoid stack overflow in `IndicesClusterStateService` `applyClusterState` {es-pull}132536[#132536]
+
 Downsampling::
 * Fix multi fields in downsampling {es-pull}138869[#138869]
 
 ES|QL::
+* Fixes esql class cast bug in STATS at planning level {es-pull}137511[#137511] (issues: {es-issue}133992[#133992], {es-issue}136598[#136598])
 * [ES|QL] Compare query builders using identity {es-pull}139080[#139080]
+
+Inference::
+* [Inference API] Use dimensions field in JinaAI `text_embedding` requests {es-pull}139413[#139413]
 
 Infra/Core::
 * GET /_migration/deprecations doesn't check disk watermarks against correct settings values {es-pull}138115[#138115] (issue: {es-issue}137005[#137005])
@@ -24,8 +34,15 @@ Ingest Node::
 Machine Learning::
 * Correctly handle empty inputs in `chunkedInfer()` {es-pull}138632[#138632]
 
+Search::
+* Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder` {es-pull}136732[#136732]
+
 Security::
+* Add comma delimiter validation to index name expressions in roles and API keys {es-pull}139023[#139023]
 * More reliable trigger for security index migration {es-pull}139028[#139028]
+
+Stats::
+* Improving performance of stats APIs when the number of shards is very large {es-pull}138126[#138126] (issue: {es-issue}97222[#97222])
 
 [[enhancement-8.19.9]]
 [float]
@@ -43,5 +60,8 @@ Infra/Core::
 
 Infra/Logging::
 * Upgrade ECS logging layout {es-pull}138854[#138854]
+
+Ingest Node::
+* Upgrading tika to 3.2.3 {es-pull}139267[#139267]
 
 

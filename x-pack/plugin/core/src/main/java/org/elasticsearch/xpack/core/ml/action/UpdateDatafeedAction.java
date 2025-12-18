@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 
 import java.io.IOException;
@@ -46,17 +47,9 @@ public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response>
                 update.setIndicesOptions(indicesOptions);
             }
             // If CPS is enabled cluster-wide, ensure the CPS flag is set on indices_options
-            // regardless of whether it came from request params or body
-            if (enableCrossProjectSearch && update.getIndicesOptions() != null) {
-                IndicesOptions currentOptions = update.getIndicesOptions();
-                if (currentOptions.resolveCrossProjectIndexExpression() == false) {
-                    update.setIndicesOptions(
-                        IndicesOptions.builder(currentOptions)
-                            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                            .build()
-                    );
-                }
-            }
+            update.setIndicesOptions(
+                DatafeedConfig.ensureCrossProjectSearchEnabled(update.getIndicesOptions(), enableCrossProjectSearch)
+            );
             update.setId(datafeedId);
             return new Request(update.build());
         }

@@ -46,17 +46,9 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
                 datafeed.setIndicesOptions(indicesOptions);
             }
             // If CPS is enabled cluster-wide, ensure the CPS flag is set on indices_options
-            // regardless of whether it came from request params or body
-            if (enableCrossProjectSearch && datafeed.getIndicesOptions() != null) {
-                IndicesOptions currentOptions = datafeed.getIndicesOptions();
-                if (currentOptions.resolveCrossProjectIndexExpression() == false) {
-                    datafeed.setIndicesOptions(
-                        IndicesOptions.builder(currentOptions)
-                            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                            .build()
-                    );
-                }
-            }
+            datafeed.setIndicesOptions(
+                DatafeedConfig.ensureCrossProjectSearchEnabled(datafeed.getIndicesOptions(), enableCrossProjectSearch)
+            );
             datafeed.setId(datafeedId);
             return new Request(datafeed.build());
         }

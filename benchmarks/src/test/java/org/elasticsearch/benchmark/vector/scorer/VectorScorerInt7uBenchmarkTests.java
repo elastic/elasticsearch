@@ -19,7 +19,6 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
@@ -43,7 +42,7 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             VectorScorerInt7uBenchmark.VectorData data = new VectorScorerInt7uBenchmark.VectorData(dims);
             Float expected = null;
-            for (var impl : VectorScorerInt7uBenchmark.Implementation.values()) {
+            for (var impl : VectorImplementation.values()) {
                 var bench = new VectorScorerInt7uBenchmark();
                 bench.function = function;
                 bench.implementation = impl;
@@ -53,7 +52,7 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
                 try {
                     float result = bench.score();
                     if (expected == null) {
-                        assert impl == VectorScorerInt7uBenchmark.Implementation.SCALAR;
+                        assert impl == VectorImplementation.SCALAR;
                         expected = result;
                         continue;
                     }
@@ -71,7 +70,7 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             VectorScorerInt7uBenchmark.VectorData data = new VectorScorerInt7uBenchmark.VectorData(dims);
             Float expected = null;
-            for (var impl : List.of(VectorScorerInt7uBenchmark.Implementation.LUCENE, VectorScorerInt7uBenchmark.Implementation.NATIVE)) {
+            for (var impl : List.of(VectorImplementation.LUCENE, VectorImplementation.NATIVE)) {
                 var bench = new VectorScorerInt7uBenchmark();
                 bench.function = function;
                 bench.implementation = impl;
@@ -81,7 +80,7 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
                 try {
                     float result = bench.scoreQuery();
                     if (expected == null) {
-                        assert impl == VectorScorerInt7uBenchmark.Implementation.LUCENE;
+                        assert impl == VectorImplementation.LUCENE;
                         expected = result;
                         continue;
                     }
@@ -97,12 +96,11 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         try {
-            var params = VectorScorerInt7uBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(params)
+            String[] dims = VectorScorerInt7uBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
+            String[] functions = VectorScorerInt7uBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0].value();
+            return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
-                .flatMap(
-                    i -> Stream.of(new Object[] { VectorSimilarityType.DOT_PRODUCT, i }, new Object[] { VectorSimilarityType.EUCLIDEAN, i })
-                )
+                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
                 .iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);

@@ -15,6 +15,7 @@ base {
 
 dependencies {
   api project(path: xpackModule('mapper-version'))
+  api "org.locationtech.jts:jts-core:${versions.jts}"
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }

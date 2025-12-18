@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -1174,7 +1175,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, dense_vector, date_range or exponential_histogram],"
+                    + " [any type except counter types, dense_vector, tdigest, histogram, exponential_histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -3422,7 +3423,64 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo("1:29: 'num_words' option must be a positive integer, found [0]")
         );
+    }
 
+    public void testTimeSeriesWithUnsupportedDataType() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS.isEnabled());
+
+        // GroupByAll
+        assertThat(
+            error("TS k8s | STATS rate(network.eth0.tx)", k8s),
+            equalTo(
+                "1:16: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+
+        assertThat(
+            error("TS k8s | STATS rate(network.eth0.tx) by tbucket(1m)", k8s),
+            equalTo(
+                "1:16: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+
+        assertThat(
+            error("TS k8s | STATS avg(rate(network.eth0.tx))", k8s),
+            equalTo(
+                "1:20: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+    }
+
+    public void testMvIntersectionValidatesDataTypesAreEqual() {
+        List<Tuple<String, String>> values = List.of(
+            new Tuple<>("[\"one\", \"two\", \"three\", \"four\", \"five\"]", "keyword"),
+            new Tuple<>("[1, 2, 3, 4, 5]", "integer"),
+            new Tuple<>("[1, 2, 3, 4, 5]::long", "long"),
+            new Tuple<>("[1.1, 2.2, 3.3, 4.4, 5.5]", "double"),
+            new Tuple<>("[false, true, true, false]", "boolean")
+        );
+        for (int i = 0; i < values.size(); i++) {
+            for (int j = 0; j < values.size(); j++) {
+                if (i == j) {
+                    continue;
+                }
+
+                String query = "ROW a = "
+                    + values.get(i).v1()
+                    + ", b = "
+                    + values.get(j).v1()
+                    + " | EVAL finalValue = MV_INTERSECTION(a, b)";
+                String expected = "second argument of [MV_INTERSECTION(a, b)] must be ["
+                    + values.get(i).v2()
+                    + "], found value [b] type ["
+                    + values.get(j).v2()
+                    + "]";
+                assertThat(error(query, tsdb), containsString(expected));
+            }
+        }
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,6 +42,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -83,6 +85,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(GEOHEX, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
         Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new),
         Map.entry(DATE_RANGE, ToStringFromDateRangeEvaluator.Factory::new),
+        Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new)
     );
 
@@ -111,6 +114,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
@@ -233,5 +237,10 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromExponentialHistogram")
     static BytesRef fromExponentialHistogram(ExponentialHistogram histogram) {
         return new BytesRef(exponentialHistogramToString(histogram));
+    }
+
+    @ConvertEvaluator(extraName = "FromHistogram", warnExceptions = { IllegalArgumentException.class })
+    static BytesRef fromHistogram(BytesRef histogram) {
+        return new BytesRef(EsqlDataTypeConverter.histogramToString(histogram));
     }
 }

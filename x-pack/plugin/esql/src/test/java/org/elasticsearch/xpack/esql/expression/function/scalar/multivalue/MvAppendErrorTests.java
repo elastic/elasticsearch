@@ -36,8 +36,10 @@ public class MvAppendErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         var unsupportedTypes = List.of(
             DataType.AGGREGATE_METRIC_DOUBLE,
             DataType.DENSE_VECTOR,
-            DataType.DATE_RANGE,
-            DataType.EXPONENTIAL_HISTOGRAM
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.HISTOGRAM,
+            DataType.TDIGEST,
+            DataType.DATE_RANGE
         );
         if (unsupportedTypes.contains(signature.getFirst())
             || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
@@ -46,7 +48,8 @@ public class MvAppendErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     false,
                     validPerPosition,
                     signature,
-                    (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double, exponential_histogram or date_range"
+                    (v, p) -> "any type except counter types, dense_vector, "
+                        + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
                 )
             );
         } else {

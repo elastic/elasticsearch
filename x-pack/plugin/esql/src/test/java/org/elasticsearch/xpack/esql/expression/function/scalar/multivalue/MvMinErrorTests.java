@@ -37,8 +37,8 @@ public class MvMinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter, spatial types, dense_vector, aggregate_metric_double, "
-                    + "exponential_histogram or date_range"
+                (v, p) -> "any type except counter, spatial types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
             )
         );
     }

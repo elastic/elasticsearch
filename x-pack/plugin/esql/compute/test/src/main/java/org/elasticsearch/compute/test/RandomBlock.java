@@ -183,7 +183,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                         case TDIGEST -> {
                             TDigestBlockBuilder b = (TDigestBlockBuilder) builder;
                             TDigestHolder digest = BlockTestUtils.randomTDigest();
-                            b.append(digest);
+                            b.appendTDigest(digest);
                             valuesAtPosition.add(digest);
                         }
                         case LONG_RANGE -> {

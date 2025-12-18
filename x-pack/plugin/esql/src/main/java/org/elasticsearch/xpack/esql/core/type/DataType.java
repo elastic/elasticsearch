@@ -16,8 +16,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -44,7 +44,22 @@ import static java.util.stream.Collectors.toMap;
  * processing pipeline, and types which the language doesn't support, but require
  * special handling anyway (e.g. {@link DataType#OBJECT})
  *
+ * <h2>Behavior of new, previously unsupported data types</h2>
+ *
+ * Data types that have support in ES indices, but are not yet supported in ES|QL, are
+ * treated as {@link #UNSUPPORTED} by ES|QL. Fields of that type are filled with
+ * {@code null} values, and no functions support them.
+ * In query plans, these fields amount to
+ * {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute}s.
+ * <p>
+ * When such a type gets support in ES|QL, query plans cannot contain it
+ * unless all nodes in the cluster (and remote clusters participating in the query)
+ * support it to avoid serialization errors and semantically invalid results.
+ * This is an example of version-aware query planning,
+ * see {@link org.elasticsearch.xpack.esql.session.Versioned}.
+ *
  * <h2>Process for adding a new data type</h2>
+ *
  * We assume that the data type is already supported in ES indices, but not in
  * ES|QL. Types that aren't yet enabled in ES will require some adjustments to
  * the process.

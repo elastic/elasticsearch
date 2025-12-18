@@ -105,3 +105,38 @@ row hex_str = "0102030405060708090a0b0c0d0e0f"
 vector:dense_vector
  [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
 ;
+
+denseVectorWithEnrich
+required_capability: enrich_load
+
+from colors 
+| enrich colors_policy
+| sort color_name
+| limit 10
+| keep color_name, cmyk_vector
+;
+
+color_name:text | cmyk_vector:dense_vector
+aqua marine     | [50.0, 0.0, 17.0, 0.0]
+azure           | [6.0, 0.0, 0.0, 0.0]
+beige           | [0.0, 0.0, 10.0, 4.0]
+bisque          | [0.0, 11.0, 23.0, 0.0]
+black           | [0.0, 0.0, 0.0, 100.0]
+blue            | [100.0, 100.0, 0.0, 0.0]
+brown           | [0.0, 75.0, 75.0, 35.0]
+burly wood      | [0.0, 17.0, 39.0, 13.0]
+chartreuse      | [50.0, 0.0, 100.0, 0.0]
+chocolate       | [0.0, 50.0, 86.0, 18.0]
+;
+
+denseVectorRowWithEnrich
+required_capability: enrich_load
+
+row id=0
+| enrich colors_policy
+| keep color_name, cmyk_vector
+;
+
+color_name:text | cmyk_vector:dense_vector
+maroon          | [0.0, 100.0, 100.0, 50.0]
+;

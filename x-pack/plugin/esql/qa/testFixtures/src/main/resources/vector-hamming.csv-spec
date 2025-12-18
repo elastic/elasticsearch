@@ -200,22 +200,22 @@ required_capability: enrich_load
 from colors
 | eval s = v_hamming(rgb_byte_vector, [1, 2, 3])
 | enrich colors_policy
-| keep color_name, s
+| keep color_name, cmyk_vector, s  
 | sort s desc, color_name asc
 | limit 10
 ;
 
-color_name:text | s:double
-aqua marine     | 18.0
-coral           | 18.0
-corn silk       | 17.0
-ivory           | 17.0
-sea shell       | 17.0
-white           | 17.0
-beige           | 16.0
-chartreuse      | 16.0
-crimson         | 16.0
-gainsboro       | 16.0
+color_name:text | cmyk_vector:dense_vector | s:double     
+aqua marine     | [50.0, 0.0, 17.0, 0.0]   | 18.0
+coral           | [0.0, 50.0, 69.0, 0.0]   | 18.0
+corn silk       | [0.0, 3.0, 14.0, 0.0]    | 17.0
+ivory           | [0.0, 0.0, 6.0, 0.0]     | 17.0
+sea shell       | [0.0, 4.0, 7.0, 0.0]     | 17.0
+white           | [0.0, 0.0, 0.0, 0.0]     | 17.0
+beige           | [0.0, 0.0, 10.0, 4.0]    | 16.0
+chartreuse      | [50.0, 0.0, 100.0, 0.0]  | 16.0
+crimson         | [0.0, 91.0, 73.0, 14.0]  | 16.0
+gainsboro       | [0.0, 0.0, 0.0, 14.0]    | 16.0     
 ;
 
 similarityWithFork

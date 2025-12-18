@@ -200,22 +200,22 @@ required_capability: enrich_load
 from colors
 | eval s = v_dot_product(rgb_vector, [1, 2, 3])
 | enrich colors_policy
-| keep color_name, s
+| keep color_name, cmyk_vector, s
 | sort s desc, color_name asc
 | limit 10
 ;
 
-color_name:text | s:double
-white           | 1530.0
-azure           | 1515.0
-mint cream      | 1505.0
-snow            | 1505.0
-ivory           | 1485.0
-honeydew        | 1470.0
-sea shell       | 1459.0
-lavender        | 1440.0
-old lace        | 1433.0
-linen           | 1420.0
+color_name:text | cmyk_vector:dense_vector | s:double
+white           | [0.0, 0.0, 0.0, 0.0]     | 1530.0
+azure           | [6.0, 0.0, 0.0, 0.0]     | 1515.0
+mint cream      | [4.0, 0.0, 2.0, 0.0]     | 1505.0
+snow            | [0.0, 2.0, 2.0, 0.0]     | 1505.0
+ivory           | [0.0, 0.0, 6.0, 0.0]     | 1485.0
+honeydew        | [6.0, 0.0, 6.0, 0.0]     | 1470.0
+sea shell       | [0.0, 4.0, 7.0, 0.0]     | 1459.0
+lavender        | [8.0, 8.0, 0.0, 2.0]     | 1440.0
+old lace        | [0.0, 3.0, 9.0, 1.0]     | 1433.0
+linen           | [0.0, 4.0, 8.0, 2.0]     | 1420.0
 ;
 
 similarityWithFork

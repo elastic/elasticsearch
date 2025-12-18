@@ -183,22 +183,22 @@ from colors
 | where color != "black" 
 | eval s = v_cosine(rgb_vector, [1, 2, 3])
 | enrich colors_policy
-| keep color_name, s
+| keep color_name, cmyk_vector, s  
 | sort s desc, color_name asc
 | limit 10
 ;
 
-color_name:text | s:double
-turquoise       | 0.9721468091011047
-aqua marine     | 0.9580987691879272
-cyan            | 0.9449111819267273
-teal            | 0.9449111819267273
-lavender        | 0.9381157159805298
-azure           | 0.9347044825553894
-mint cream      | 0.9287823438644409
-gainsboro       | 0.9258201122283936
-gray            | 0.9258201122283936
-silver          | 0.9258201122283936
+color_name:text | cmyk_vector:dense_vector | s:double     
+turquoise       | [71.0, 0.0, 7.0, 12.0]   | 0.9721468091011047
+aqua marine     | [50.0, 0.0, 17.0, 0.0]   | 0.9580987691879272
+cyan            | [100.0, 0.0, 0.0, 0.0]   | 0.9449111819267273
+teal            | [100.0, 0.0, 0.0, 50.0]  | 0.9449111819267273
+lavender        | [8.0, 8.0, 0.0, 2.0]     | 0.9381157159805298
+azure           | [6.0, 0.0, 0.0, 0.0]     | 0.9347044825553894
+mint cream      | [4.0, 0.0, 2.0, 0.0]     | 0.9287823438644409
+gainsboro       | [0.0, 0.0, 0.0, 14.0]    | 0.9258201122283936
+gray            | [0.0, 0.0, 0.0, 50.0]    | 0.9258201122283936
+silver          | [0.0, 0.0, 0.0, 25.0]    | 0.9258201122283936    
 ;
 
 similarityWithFork

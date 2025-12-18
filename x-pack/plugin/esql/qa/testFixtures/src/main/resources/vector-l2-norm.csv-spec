@@ -200,22 +200,22 @@ required_capability: enrich_load
 from colors
 | eval s = v_l2_norm(rgb_vector, [1, 2, 3])
 | enrich colors_policy
-| keep color_name, s
+| keep color_name, cmyk_vector, s  
 | sort s desc, color_name asc
 | limit 10
 ;
 
-color_name:text | s:double
-white           | 438.2111511230469
-snow            | 432.468505859375
-ivory           | 429.7604064941406
-azure           | 429.6905822753906
-mint cream      | 429.59747314453125
-sea shell       | 422.8356628417969
-honeydew        | 421.0688781738281
-old lace        | 417.2313537597656
-corn silk       | 414.87469482421875
-linen           | 412.5215148925781
+color_name:text | cmyk_vector:dense_vector | s:double
+white           | [0.0, 0.0, 0.0, 0.0]     | 438.2111511230469
+snow            | [0.0, 2.0, 2.0, 0.0]     | 432.468505859375
+ivory           | [0.0, 0.0, 6.0, 0.0]     | 429.7604064941406
+azure           | [6.0, 0.0, 0.0, 0.0]     | 429.6905822753906
+mint cream      | [4.0, 0.0, 2.0, 0.0]     | 429.59747314453125
+sea shell       | [0.0, 4.0, 7.0, 0.0]     | 422.8356628417969
+honeydew        | [6.0, 0.0, 6.0, 0.0]     | 421.0688781738281
+old lace        | [0.0, 3.0, 9.0, 1.0]     | 417.2313537597656
+corn silk       | [0.0, 3.0, 14.0, 0.0]    | 414.87469482421875
+linen           | [0.0, 4.0, 8.0, 2.0]     | 412.5215148925781
 ;
 
 similarityWithFork

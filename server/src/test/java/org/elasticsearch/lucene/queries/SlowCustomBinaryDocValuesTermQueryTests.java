@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SlowMultiBinaryDocValuesTermQueryTests extends ESTestCase {
+public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
 
     public void testBasics() throws Exception {
         String fieldName = "field";
@@ -59,7 +59,7 @@ public class SlowMultiBinaryDocValuesTermQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     for (var entry : expectedCounts.entrySet()) {
-                        long count = searcher.count(new SlowMultiBinaryDocValuesTermQuery(fieldName, new BytesRef(entry.getKey())));
+                        long count = searcher.count(new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef(entry.getKey())));
                         assertEquals(entry.getValue().longValue(), count);
                     }
                 }
@@ -76,7 +76,7 @@ public class SlowMultiBinaryDocValuesTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowMultiBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
+                    Query query = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -99,7 +99,7 @@ public class SlowMultiBinaryDocValuesTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowMultiBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
+                    Query query = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
                     assertEquals(1, searcher.count(query));
                 }
             }

@@ -436,16 +436,7 @@ public class TopNOperator implements Operator, Accountable {
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
                 } else {
-                    // The queue is full
-                    // TODO Nacho Is this correct?
-                    var oldTop = inputQueue.top();
-                    var newSpare = inputQueue.insertWithOverflow(spare);
-
-                    if (sortedInput && oldTop == inputQueue.top()) {
-                        break;
-                    }
-
-                    spare = newSpare;
+                    break;
                 }
             }
         } finally {

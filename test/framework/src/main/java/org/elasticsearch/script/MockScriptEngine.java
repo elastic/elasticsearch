@@ -881,19 +881,29 @@ public class MockScriptEngine implements ScriptEngine {
 
         @Override
         public StringSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
-            return docReader -> new StringSortScript(parameters, docReader) {
+            return new StringSortScript.LeafFactory() {
                 @Override
-                public String execute() {
-                    Map<String, Object> vars = new HashMap<>(parameters);
-                    vars.put("params", parameters);
-                    vars.put("doc", getDoc());
-                    try {
-                        vars.put("_score", get_score());
-                    } catch (Exception ignore) {
-                        // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
-                        // which is ok if _score was not requested e.g. top_hits.
-                    }
-                    return String.valueOf(script.apply(vars));
+                public StringSortScript newInstance(DocReader reader) throws IOException {
+                    return new StringSortScript(parameters, reader) {
+                        @Override
+                        public String execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            try {
+                                vars.put("_score", get_score());
+                            } catch (Exception ignore) {
+                                // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                                // which is ok if _score was not requested e.g. top_hits.
+                            }
+                            return String.valueOf(script.apply(vars));
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return false;
                 }
             };
         }
@@ -913,19 +923,29 @@ public class MockScriptEngine implements ScriptEngine {
 
         @Override
         public BytesRefSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
-            return docReader -> new BytesRefSortScript(parameters, docReader) {
+            return new BytesRefSortScript.LeafFactory() {
                 @Override
-                public BytesRefProducer execute() {
-                    Map<String, Object> vars = new HashMap<>(parameters);
-                    vars.put("params", parameters);
-                    vars.put("doc", getDoc());
-                    try {
-                        vars.put("_score", get_score());
-                    } catch (Exception ignore) {
-                        // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
-                        // which is ok if _score was not requested e.g. top_hits.
-                    }
-                    return (BytesRefProducer) script.apply(vars);
+                public BytesRefSortScript newInstance(DocReader reader) throws IOException {
+                    return new BytesRefSortScript(parameters, reader) {
+                        @Override
+                        public BytesRefProducer execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            try {
+                                vars.put("_score", get_score());
+                            } catch (Exception ignore) {
+                                // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                                // which is ok if _score was not requested e.g. top_hits.
+                            }
+                            return (BytesRefProducer) script.apply(vars);
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return false;
                 }
             };
         }

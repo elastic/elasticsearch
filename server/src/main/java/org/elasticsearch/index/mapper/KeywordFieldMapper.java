@@ -1322,7 +1322,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
-                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(
+                            fieldName,
+                            MultiValuedBinaryDocValuesField.Ordering.INSERTION
+                        );
                         context.doc().addWithKey(fieldName, field);
                     }
                     field.add(bytesRef);
@@ -1369,7 +1372,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
 
-            MultiValuedBinaryDocValuesField.SeparateCount field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getField(fieldType().name());
+            MultiValuedBinaryDocValuesField.SeparateCount field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc()
+                .getField(fieldType().name());
             var countField = (UpdatableNumericDocValuesField) context.doc().getByKey(fieldType().name() + ".counts");
             if (field == null) {
                 field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder(fieldType().name());
@@ -1546,6 +1550,5 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
-
 
 }

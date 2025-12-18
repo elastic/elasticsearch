@@ -35,8 +35,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         this.values = values;
     }
 
-    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName)
-        throws IOException {
+    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
 
         // Obtain counts directly from leafReader so that null is returned rather than an empty doc values.

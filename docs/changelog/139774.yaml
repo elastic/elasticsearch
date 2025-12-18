@@ -1,5 +1,5 @@
 pr: 139774
-summary: ES|QL - fix dense vector enrich bug
+summary: ES|QL - fix ENRICH command when using dense_vector columns
 area: ES|QL
 type: bug
 issues:

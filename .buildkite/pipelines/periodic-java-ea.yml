@@ -461,6 +461,25 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
+      - label: 9.4.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.4.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 9.4.0
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
   - label: concurrent-search-tests
     command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
     timeout_in_minutes: 420

@@ -223,16 +223,16 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "tdigest",
           "optional" : false,
-          "description" : "Expression that outputs values to calculate the percentile of."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "percentile",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the percentile value to compute (between 0 and 100)"
         }
       ],
       "variadic" : false,
@@ -241,16 +241,16 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "tdigest",
           "optional" : false,
-          "description" : "Expression that outputs values to calculate the percentile of."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "percentile",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the percentile value to compute (between 0 and 100)"
         }
       ],
       "variadic" : false,
@@ -259,16 +259,16 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "tdigest",
           "optional" : false,
-          "description" : "Expression that outputs values to calculate the percentile of."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "percentile",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the percentile value to compute (between 0 and 100)"
         }
       ],
       "variadic" : false,

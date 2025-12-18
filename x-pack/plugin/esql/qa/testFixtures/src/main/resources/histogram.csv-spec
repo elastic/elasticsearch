@@ -1,7 +1,8 @@
 Make sure we can even load histogram data
+// TODO: probably need a new capability here
 required_capability: histogram_field_support_v0
 
-FROM histogram_standard_index ;
+FROM histogram_standard_index | WHERE instance == "hand-rolled";
 
 @timestamp:date      | instance:keyword  | responseTime:histogram
 2025-01-01T00:00:00Z | hand-rolled       | "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
@@ -10,9 +11,163 @@ FROM histogram_standard_index ;
 Convert histogram into tdigest
 required_capability: histogram_to_tdigest_cast
 
-FROM histogram_standard_index | EVAL tdigest = to_tdigest(responseTime) | KEEP responseTime, tdigest ;
+FROM histogram_standard_index 
+ | WHERE instance starts_with("hand-rolled")
+ | EVAL tdigest = to_tdigest(responseTime) 
+ | KEEP responseTime, tdigest ;
 
 
 responseTime:histogram                                         | tdigest:tdigest
 "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+"{""values"":[], ""counts"":[]}" | "{""centroids"":[], ""counts"":[]}"
 ;
+
+Core supported t-digest aggs on histogram field, without grouping
+
+FROM histogram_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | EVAL digest = to_tdigest(responseTime)
+ | STATS min = MIN(digest),
+         max = MAX(digest),
+         p90 = PERCENTILE(digest,90),
+         sum = SUM(digest),
+         avg = AVG(digest) 
+ | EVAL p90 = ROUND(p90, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP min, max, p90, sum, avg
+;
+
+min:double | max:double | p90:double | sum:double  | avg:double
+2.17E-4    | 6.786232   | 0.4       | 1536.648714 | 0.0993245
+;
+
+
+
+
+Core supported T-digest aggs on Histogram field, with grouping
+
+FROM histogram_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | EVAL digest = to_tdigest(responseTime)
+ | STATS min = MIN(digest),
+         max = MAX(digest),
+         p95 = PERCENTILE(digest,95),
+         sum = SUM(digest),
+         avg = AVG(digest) 
+         BY instance
+ | EVAL p95 = ROUND(p95 + 0.025, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP instance, min, max, p95, sum, avg
+ | SORT instance
+;
+
+instance:keyword | min:double | max:double | p95:double | sum:double  | avg:double
+instance-0       | 2.4E-4     | 6.786232   | 0.7       | 1472.744209 | 0.1665812
+instance-1       | 2.17E-4    | 3.190723   | 0.1        | 36.198484   | 0.011138
+instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
+;
+
+
+
+
+Percentiles on Histogram with Multiple Values and No Grouping
+
+FROM histogram_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | EVAL digest = to_tdigest(responseTime)
+ | STATS p0 = PERCENTILE(digest,0),  p50 = PERCENTILE(digest,50),  p95 = PERCENTILE(digest, 95),  p100 = PERCENTILE(digest,100)
+ | EVAL p50 = ROUND(p50, 1), p95 = ROUND(p95, 1) // rounding to avoid floating point precision issues, min and max are exact so no rounding needed
+ | KEEP p0, p50, p95, p100
+;
+
+p0:double | p50:double | p95:double | p100:double
+2.17E-4   | 0.0        | 0.6        | 6.786232
+;
+
+
+
+Percentile on Histogram with Multiple Values and Grouping
+
+FROM histogram_standard_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | EVAL digest = to_tdigest(responseTime)
+ | STATS p0 = PERCENTILE(digest,0),  p50 = PERCENTILE(digest,50),  p95 = PERCENTILE(digest, 95),  p100 = PERCENTILE(digest,100) BY instance
+ | EVAL p50 = ROUND(p50, 1), p95 = ROUND(p95 + 0.025, 1) // rounding to avoid floating point precision issues, min and max are exact so no rounding needed
+ | KEEP instance, p0, p50, p95, p100
+ | SORT instance
+;
+
+instance:keyword | p0:double | p50:double | p95:double | p100:double
+instance-0       | 2.4E-4    | 0.0        | 0.7       | 6.786232
+instance-1       | 2.17E-4   | 0.0        | 0.1       | 3.190723
+instance-2       | 2.2E-4    | 0.0        | 0.1       | 2.744054
+;
+
+
+
+Percentile Aggregation on Empty Histogram
+
+FROM histogram_standard_index 
+ | WHERE instance == "hand-rolled-empty"
+ | EVAL digest = to_tdigest(responseTime)
+ | STATS  p50 = PERCENTILE(digest,50)
+ | KEEP p50
+;
+
+p50:double
+NULL
+;
+
+
+Core supported t-digest aggregations on histogram with filtering and inline conversion
+
+FROM histogram_standard_index 
+ | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "instance-0",
+         max = MAX(to_tdigest(responseTime)) WHERE instance == "instance-1",
+         p95 = PERCENTILE(to_tdigest(responseTime),95) WHERE instance == "instance-0",
+         sum = SUM(to_tdigest(responseTime)) WHERE instance == "instance-1",
+         avg = AVG(to_tdigest(responseTime)) WHERE instance == "instance-2"
+ | EVAL p95 = ROUND(p95, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP min, max, p95, sum, avg
+;
+
+min:double | max:double | p95:double | sum:double | avg:double
+2.4E-4     | 3.190723   | 0.7       | 36.198484  | 0.008197
+;
+
+
+
+Core supported aggs on histogram with filtering and grouping
+
+FROM histogram_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "instance-0",
+         max = MAX(to_tdigest(responseTime)) WHERE instance == "instance-1",
+         p95 = PERCENTILE(to_tdigest(responseTime),95) WHERE instance == "instance-0",
+         sum = SUM(to_tdigest(responseTime)) WHERE instance == "instance-1",
+         avg = AVG(to_tdigest(responseTime)) WHERE instance == "instance-2"
+         BY instance
+ | EVAL p95 = ROUND(p95, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP instance, min, max, p95, sum, avg
+ | SORT instance
+;
+
+instance:keyword | min:double | max:double | p95:double | sum:double | avg:double
+instance-0       | 2.4E-4     | null       | 0.7        | null       | null
+instance-1       | null       | 3.190723   | null       | 36.198484  | null
+instance-2       | null       | null       | null       | null       | 0.008197
+;
+
+Core supported aggs on histogram with non-existant filter group
+
+FROM histogram_standard_index 
+ | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "idontexist" ,
+         max = MAX(to_tdigest(responseTime)) WHERE instance == "idontexist",
+         p75 = PERCENTILE(to_tdigest(responseTime),75) WHERE instance == "idontexist",
+         sum = SUM(to_tdigest(responseTime)) WHERE instance == "idontexist",
+         avg = AVG(to_tdigest(responseTime)) WHERE instance == "idontexist"
+ | KEEP min, max, p75, sum, avg
+;
+
+min:double | max:double | p75:double | sum:double | avg:double
+NULL       | NULL       | NULL       | NULL       | NULL
+;
+

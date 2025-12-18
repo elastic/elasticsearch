@@ -124,4 +124,5 @@ public final class VectorScoringUtils {
             }
             knnCollector.incVisitedCount(count);
         }
+    }
 }

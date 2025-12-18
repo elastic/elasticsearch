@@ -42,6 +42,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -262,7 +263,11 @@ public class BooleanFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.scriptValues != null) {
-                return FieldValues.valueFetcher(this.scriptValues, context);
+                return new DocValueFetcher(
+                    docValueFormat(format, null),
+                    context.getForField(this, FielddataOperation.SEARCH),
+                    StoredFieldsSpec.NO_REQUIREMENTS
+                );
             }
             return sourceValueFetcher(
                 context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),

@@ -44,6 +44,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentString;
@@ -318,7 +319,11 @@ public class IpFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (scriptValues != null) {
-                return FieldValues.valueFetcher(scriptValues, v -> InetAddresses.toAddrString((InetAddress) v), context);
+                return new DocValueFetcher(
+                    docValueFormat(format, null),
+                    context.getForField(this, FielddataOperation.SEARCH),
+                    StoredFieldsSpec.NO_REQUIREMENTS
+                );
             }
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override

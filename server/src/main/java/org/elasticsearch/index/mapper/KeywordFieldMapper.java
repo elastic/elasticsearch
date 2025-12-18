@@ -1371,17 +1371,26 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
 
-            MultiValuedBinaryNoCount field = (MultiValuedBinaryNoCount) context.doc().getField(fieldType().name());
-            var countField = (MultiValuedBinaryNoCount.UpdateableNumericField) context.doc().getByKey(fieldType().name() + ".counts");
-            if (field == null) {
-                field = new MultiValuedBinaryNoCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
-                context.doc().addWithKey(fieldType().name(), field);
-                countField = new MultiValuedBinaryNoCount.UpdateableNumericField(fieldType().name() + ".counts");
-                context.doc().addWithKey(countField.name(), countField);
-            }
+            if (multiValueFormatUsedSeparateCountColumns()) {
+                MultiValuedBinaryNoCount field = (MultiValuedBinaryNoCount) context.doc().getField(fieldType().name());
+                var countField = (MultiValuedBinaryNoCount.UpdateableNumericField) context.doc().getByKey(fieldType().name() + ".counts");
+                if (field == null) {
+                    field = new MultiValuedBinaryNoCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
+                    context.doc().addWithKey(fieldType().name(), field);
+                    countField = new MultiValuedBinaryNoCount.UpdateableNumericField(fieldType().name() + ".counts");
+                    context.doc().addWithKey(countField.name(), countField);
+                }
 
-            field.add(binaryValue);
-            countField.setValue(field.count());
+                field.add(binaryValue);
+                countField.setValue(field.count());
+            } else {
+                MultiValuedBinaryWithCount field = (MultiValuedBinaryWithCount) context.doc().getField(fieldType().name());
+                if (field == null) {
+                    field = new MultiValuedBinaryWithCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
+                    context.doc().addWithKey(fieldType().name(), field);
+                }
+                field.add(binaryValue);
+            }
         }
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)

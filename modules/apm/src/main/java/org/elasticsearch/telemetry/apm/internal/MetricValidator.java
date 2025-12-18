@@ -14,10 +14,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -178,12 +181,19 @@ public class MetricValidator {
         return metricName;
     }
 
+    /**
+     * Validates attribute names as per guidelines in Naming.md
+     *
+     * Validation will be skipped instantly if assertions are disabled.
+     * If enabled, a validation failure will fail an assertion except for attributes in the skip list {@link #ATTRIBUTE_SKIP_VALIDATION}.
+     * If skipped, a warning will be logged at most every 1 minute instead.
+     */
     public static void assertValidAttributeNames(Map<String, Object> attributes) {
         if (Assertions.ENABLED == false) {
             return;
         }
 
-        if (attributes == null && attributes.isEmpty()) {
+        if (attributes == null || attributes.isEmpty()) {
             return;
         }
 
@@ -192,23 +202,49 @@ public class MetricValidator {
 
             boolean isValid = ATTRIBUTE_PATTERN.matcher(attribute).matches();
             boolean isDenied = ATTRIBUTE_DENY_PATTERNS.test(attribute);
-            if (isValid && isDenied == false) {
+            if (isValid && (isDenied == false)) {
                 continue;
             }
 
-            var message = isDenied
-                ? Strings.format(
-                    "Attribute name [%s] is forbidden due to potential mapping conflicts or assumed high cardinality.",
-                    attribute
-                )
-                : Strings.format(
-                    "Attribute name [%s] does not match the required naming pattern [%s], see the naming guidelines.",
-                    attribute,
-                    ATTRIBUTE_PATTERN
-                );
-            // we cannot log a deprecation here, that would fail too many tests
-            logger.warn(message);
-            assert ATTRIBUTE_SKIP_VALIDATION.contains(attribute) : message;
+            assert isDenied == false : Strings.format(LoggingThrottle.FORBIDDEN_MSG, attribute);
+            assert ATTRIBUTE_SKIP_VALIDATION.contains(attribute)
+                : Strings.format(LoggingThrottle.VALIDATION_FAILURE_MSG, attribute, ATTRIBUTE_PATTERN);
+
+            // otherwise log a throttled warning. we cannot log a deprecation here, that would fail too many tests
+            LoggingThrottle.logValidationFailure(attribute);
+        }
+    }
+
+    // throttles logging of validation failures for attributes when assertions are enabled
+    private static class LoggingThrottle {
+
+        private static final String VALIDATION_FAILURE_MSG =
+            "Attribute name [%s] does not match the required naming pattern [%s], see the naming guidelines.";
+
+        private static final String FORBIDDEN_MSG =
+            "Attribute name [%s] is forbidden due to potential mapping conflicts or assumed high cardinality.";
+
+        private static final long LOG_THROTTLE_NANOS = TimeValue.timeValueMinutes(1).getNanos();
+
+        private static final Map<String, LoggingThrottle> THROTTLES = new ConcurrentHashMap<>();
+
+        private static final BiFunction<String, LoggingThrottle, LoggingThrottle> THROTTLED_LOG = (attribute, throttle) -> {
+            if (throttle == null) {
+                throttle = new LoggingThrottle();
+            }
+            final long now = System.nanoTime();
+            if (now - throttle.lastLogNanoTime > LOG_THROTTLE_NANOS) {
+                throttle.lastLogNanoTime = now;
+                logger.warn(Strings.format(VALIDATION_FAILURE_MSG, attribute, ATTRIBUTE_PATTERN));
+                return throttle;
+            }
+            return throttle;
+        };
+
+        private long lastLogNanoTime = 0;
+
+        static void logValidationFailure(String attribute) {
+            THROTTLES.compute(attribute, THROTTLED_LOG);
         }
     }
 

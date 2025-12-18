@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -97,10 +96,8 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -124,13 +121,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -153,65 +147,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class LocalLogicalPlanOptimizerTests extends ESTestCase {
-
-    private static Analyzer analyzer;
-    private static Analyzer allTypesAnalyzer;
-    private static Analyzer tsAnalyzer;
-    private static LogicalPlanOptimizer logicalOptimizer;
-    private static Map<String, EsField> mapping;
-
-    @BeforeClass
-    public static void init() {
-        mapping = loadMapping("mapping-basic.json");
-        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
-
-        analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(test),
-                defaultLookupResolution(),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-
-        var allTypesMapping = loadMapping("mapping-all-types.json");
-        EsIndex testAll = EsIndexGenerator.esIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
-        allTypesAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(testAll),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-
-        var tsMapping = loadMapping("k8s-mappings.json");
-        var tsIndex = EsIndexGenerator.esIndex("k8s", tsMapping, Map.of("k8s", IndexMode.TIME_SERIES));
-        var tsDownsampledMapping = loadMapping("k8s-downsampled-mappings.json");
-        var tsDownsampledIndex = EsIndexGenerator.esIndex(
-            "k8s-downsampled",
-            tsDownsampledMapping,
-            Map.of("k8s-downsampled", IndexMode.TIME_SERIES)
-        );
-
-        tsAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(tsIndex, tsDownsampledIndex),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-    }
+public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOptimizerTests {
 
     /**
      * Expects
@@ -2104,6 +2040,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testReductionPlanForTopNWithPushedDownFunctions() {
+        assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL score = V_DOT_PRODUCT(dense_vector, [1.0, 2.0, 3.0])
@@ -2166,6 +2103,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testReductionPlanForTopNWithPushedDownFunctionsInOrder() {
+        assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL fieldLength = LENGTH(text)
@@ -2426,28 +2364,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         return empty;
     }
 
-    private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
-        return logicalOptimizer.optimize(analyzed);
-    }
-
-    protected LogicalPlan plan(String query) {
-        return plan(query, analyzer);
-    }
-
-    protected LogicalPlan localPlan(LogicalPlan plan, Configuration configuration, SearchStats searchStats) {
-        var localContext = new LocalLogicalOptimizerContext(configuration, FoldContext.small(), searchStats);
-        return new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
-    }
-
-    protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
-        return localPlan(plan, EsqlTestUtils.TEST_CFG, searchStats);
-    }
-
-    private LogicalPlan localPlan(String query) {
-        return localPlan(plan(query), TEST_SEARCH_STATS);
-    }
-
     private static Analyzer analyzerWithUnionTypeMapping() {
         InvalidMappedField unionTypeField = new InvalidMappedField(
             "integer_long_field",
@@ -2470,11 +2386,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
-    }
-
-    @Override
-    protected List<String> filteredWarnings() {
-        return withDefaultLimitWarning(super.filteredWarnings());
     }
 
     public static EsRelation relation() {

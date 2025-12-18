@@ -59,3 +59,6 @@ mapped_pages:
 
 :::{include} ../_snippets/functions/layout/st_geohash.md
 :::
+
+:::{include} ../_snippets/functions/layout/st_simplify.md
+:::

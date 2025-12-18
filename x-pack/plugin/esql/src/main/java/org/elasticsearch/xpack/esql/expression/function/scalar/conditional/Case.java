@@ -47,6 +47,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 
@@ -212,15 +213,15 @@ public final class Case extends EsqlScalarFunction {
             dataType = value.dataType().noText();
             return TypeResolutions.isType(
                 value,
-                t -> t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST,
+                t -> t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST && t != HISTOGRAM,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double or tdigest"
+                originalWasNull ? NULL.typeName() : "any but aggregate_metric_double, histogram, or tdigest"
             );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST,
+            t -> t.noText() == dataType && t != AGGREGATE_METRIC_DOUBLE && t != TDIGEST && t != HISTOGRAM,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()

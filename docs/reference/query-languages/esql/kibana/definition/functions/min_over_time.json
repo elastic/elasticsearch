@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -28,7 +28,7 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -46,7 +46,7 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -64,7 +64,7 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -82,7 +82,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -100,7 +100,7 @@
           "name" : "field",
           "type" : "exponential_histogram",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -118,7 +118,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -136,7 +136,7 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -154,7 +154,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -172,7 +172,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -190,7 +190,7 @@
           "name" : "field",
           "type" : "tdigest",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -208,7 +208,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -226,7 +226,7 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -244,7 +244,7 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",

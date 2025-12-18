@@ -1477,7 +1477,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES_V2(Build.current().isSnapshot()),
+        ENABLE_FORK_FOR_REMOTE_INDICES_V2,
 
         /**
          * Support for the Present function
@@ -1614,6 +1614,10 @@ public class EsqlCapabilities {
          */
         HISTOGRAM_FIELD_SUPPORT_V0,
 
+        /**
+         * histogram to tdigest conversion function
+         */
+        HISTOGRAM_TO_TDIGEST_CAST,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */

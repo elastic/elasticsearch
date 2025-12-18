@@ -758,12 +758,13 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         nodeRoleCombinationsToTest.add(nodeRoles);
         logger.info("Testing {} roles", nodeRoles);
 
-        MockLog.PatternNotSeenEventExpectation snapshotShutdownProgressTrackerToNotRunExpectation = new MockLog.PatternNotSeenEventExpectation(
-            "Expect SnapshotShutdownProgressTracker to not run",
-            SnapshotShutdownProgressTracker.class.getCanonicalName(),
-            Level.INFO,
-            "Shard snapshot completion stats since shutdown began*"
-        );
+        MockLog.PatternNotSeenEventExpectation snapshotShutdownProgressTrackerToNotRunExpectation =
+            new MockLog.PatternNotSeenEventExpectation(
+                "Expect SnapshotShutdownProgressTracker to not run",
+                SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                Level.INFO,
+                "Shard snapshot completion stats since shutdown began*"
+            );
         snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
 
         // Now test each combination of node roles
@@ -794,12 +795,13 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
         );
 
-        MockLog.PatternNotSeenEventExpectation snapshotShutdownProgressTrackerToNotRunExpectation = new MockLog.PatternNotSeenEventExpectation(
-            "Expect SnapshotShutdownProgressTracker to not run",
-            SnapshotShutdownProgressTracker.class.getCanonicalName(),
-            Level.INFO,
-            "Shard snapshot completion stats since shutdown began*"
-        );
+        MockLog.PatternNotSeenEventExpectation snapshotShutdownProgressTrackerToNotRunExpectation =
+            new MockLog.PatternNotSeenEventExpectation(
+                "Expect SnapshotShutdownProgressTracker to not run",
+                SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                Level.INFO,
+                "Shard snapshot completion stats since shutdown began*"
+            );
         snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
 
         // Put shutdown metadata to trigger shutdown progress tracker

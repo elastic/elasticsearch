@@ -1611,11 +1611,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Function<T, FetchSearchResult> fetchResultExtractor
     ) {
         return ActionListener.wrap(response -> {
-            listener.onResponse(response);
-            // Release bytes after the response handler completes
-            FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
-            if (fetchResult != null) {
-                fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
+            try {
+                listener.onResponse(response);
+            } finally {
+                // Release bytes after the response handler completes
+                FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
+                if (fetchResult != null) {
+                    fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
+                }
             }
         }, listener::onFailure);
     }

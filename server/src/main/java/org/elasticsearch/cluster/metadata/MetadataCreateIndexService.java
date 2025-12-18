@@ -123,6 +123,15 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
  * Service responsible for submitting create index requests
  */
 public class MetadataCreateIndexService {
+
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<Priority> CREATE_INDEX_PRIORITY_SETTING = Setting.enumSetting(
+        Priority.class,
+        "cluster.service.create_index.priority",
+        Priority.URGENT,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(MetadataCreateIndexService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataCreateIndexService.class);
 
@@ -151,6 +160,7 @@ public class MetadataCreateIndexService {
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
     private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
+    private final Priority clusterStateUpdateTaskPriority;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -179,6 +189,7 @@ public class MetadataCreateIndexService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
+        this.clusterStateUpdateTaskPriority = CREATE_INDEX_PRIORITY_SETTING.get(settings);
     }
 
     /**
@@ -338,7 +349,7 @@ public class MetadataCreateIndexService {
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
             "create-index [" + request.index() + "], in project [" + request.projectId() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
+            new AckedClusterStateUpdateTask(clusterStateUpdateTaskPriority, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {

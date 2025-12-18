@@ -508,6 +508,11 @@ public class BlockFactory {
         return TDigestArrayBlock.createConstant(value, positions, this);
     }
 
+    public final TDigestBlock newConstantTDigestBlockWith(TDigestHolder value, int positions) {
+        // TODO: how is the "with" variant meant to be different?
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
     public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
         DoubleBlock minima,
         DoubleBlock maxima,

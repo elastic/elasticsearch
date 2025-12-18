@@ -320,7 +320,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     );
                     expBuilder.append(histo);
                 }
-                case TDIGEST -> ((TDigestBlockBuilder) builder).append(EsqlTestUtils.randomTDigest());
+                case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest(EsqlTestUtils.randomTDigest());
                 case HISTOGRAM -> ((BytesRefBlock.Builder) builder).appendBytesRef(EsqlTestUtils.randomHistogram());
                 default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -1347,7 +1347,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             if (parsed == null) {
                                 tDigestBlockBuilder.appendNull();
                             } else {
-                                tDigestBlockBuilder.append(parsed);
+                                tDigestBlockBuilder.appendTDigest(parsed);
                             }
                         } catch (UnsupportedOperationException | IOException e) {
                             fail("Unable to parse TDigestBlockBuilder: " + e.getMessage());

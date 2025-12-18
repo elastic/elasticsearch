@@ -7,11 +7,13 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FirstDocIdGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -212,7 +215,64 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 super.evaluateAggregator(aggregator, blocks, offset, valuesSelected, evaluationContext);
             }
         } else {
-            super.evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
+            if (aggregator.aggregatorFunction() instanceof FirstDocIdGroupingAggregatorFunction) {
+                try (IntVector dedup = selectedForDocIdsAggregator(evaluationContext.blockFactory(), selected)) {
+                    super.evaluateAggregator(aggregator, blocks, offset, dedup, evaluationContext);
+                }
+            } else {
+                super.evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
+            }
+        }
+    }
+
+    /*
+     * The {@link FirstDocIdGroupingAggregatorFunction} collects the first doc id for each group. With time-buckets, the same
+     * tsid can appear in multiple groups. When loading the dimension field, this may result in loading multiple documents for
+     * the same tsid several times.
+     *
+     * There are two options:
+     * 1. Load only one document per tsid and apply tsid ordinals to the dimension values. This requires a separate value source
+     *    reader for dimension fields, or modifying the current reader to understand ordinals and apply them to the dictionary.
+     * 2. Remap the group ids in the selected vector so that all groups with the same tsid use a single group id. This means we
+     *    may load the same document multiple times for the same tsid, but not different documents. The overhead of loading the
+     *    same document multiple times is small compared to loading different documents for the same tsid.
+
+     * This method uses the second option as it is a more contained change.
+     *
+     * Example:
+     *   _tsid key:     [t1, t2, t1, t3, t2]
+     *   selected:      [0,  1,  2,  3,  4]
+     *   first doc ids: [10, 20, 30, 40, 50]
+     *
+     *   re-mapped selected:            [0, 1, 0, 3, 1]
+     *   first doc ids with re-mapped : [10, 20, 10, 40, 20]
+     *   Loading docs: [10, 10, 20, 20, 40], which is not much more expensive than [10, 20, 40].
+     */
+    private IntVector selectedForDocIdsAggregator(BlockFactory blockFactory, IntVector selected) {
+        if (blockHash instanceof BytesRefLongBlockHash == false) {
+            // Without time bucket, one tsid per group already; no need to re-map
+            selected.incRef();
+            return selected;
+        }
+        final BytesRefLongBlockHash tsidHash = (BytesRefLongBlockHash) blockHash;
+        try (var builder = blockFactory.newIntVectorFixedBuilder(selected.getPositionCount())) {
+            int[] firstGroups = new int[selected.getPositionCount() + 1];
+            Arrays.fill(firstGroups, -1);
+            for (int p = 0; p < selected.getPositionCount(); p++) {
+                int groupId = selected.getInt(p);
+                int tsidOrdinal = Math.toIntExact(tsidHash.getBytesRefKeyFromGroup(groupId));
+                if (firstGroups.length <= tsidOrdinal) {
+                    int prevSize = firstGroups.length;
+                    firstGroups = ArrayUtil.grow(firstGroups, tsidOrdinal);
+                    Arrays.fill(firstGroups, prevSize, firstGroups.length, -1);
+                }
+                int first = firstGroups[tsidOrdinal];
+                if (first == -1) {
+                    first = firstGroups[tsidOrdinal] = groupId;
+                }
+                builder.appendInt(p, first);
+            }
+            return builder.build();
         }
     }
 
@@ -260,7 +320,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public long rangeEndInMillis(int groupId) {
-                return timeResolution.roundDownToMillis(timeBucket.nextRoundingValue(timestamps.getLong(groupId)));
+                return timeBucket.nextRoundingValue(timeResolution.roundDownToMillis(timestamps.getLong(groupId)));
             }
 
             @Override
@@ -277,6 +337,23 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     }
                 }
                 return results;
+            }
+
+            @Override
+            public int previousGroupId(int currentGroupId) {
+                long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
+                long currentBucketTs = timestamps.getLong(currentGroupId);
+                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
+                long previousBucketTS = currentBucketTs - (nextBucketTs - currentBucketTs);
+                return Math.toIntExact(hash.getGroupId(tsid, previousBucketTS));
+            }
+
+            @Override
+            public int nextGroupId(int currentGroupId) {
+                long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
+                long currentBucketTs = timestamps.getLong(currentGroupId);
+                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
+                return Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
             }
         };
     }

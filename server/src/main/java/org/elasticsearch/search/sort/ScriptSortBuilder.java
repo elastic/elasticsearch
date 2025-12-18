@@ -17,7 +17,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,7 +31,6 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -112,13 +110,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
-                throw new IOException(
-                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
-                );
-            }
-        }
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
     }
 
@@ -128,10 +119,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(null);
-            out.writeOptionalNamedWriteable(null);
-        }
         out.writeOptionalWriteable(nestedSort);
     }
 
@@ -251,6 +238,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
             scriptResultValueFormat == null ? DocValueFormat.RAW : scriptResultValueFormat
         );
+    }
+
+    @Override
+    public String name() {
+        return NAME;
     }
 
     @Override

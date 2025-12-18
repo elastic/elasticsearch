@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankR
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder.RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_AUTO_PREFILTERING;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_BFLOAT16_SUPPORT;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS;
@@ -64,10 +67,19 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
     public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
     public static final NodeFeature INFERENCE_AUTH_POLLER_PERSISTENT_TASK = new NodeFeature("inference.auth_poller.persistent_task");
+    public static final NodeFeature INFERENCE_CCM_ENABLEMENT_SERVICE = new NodeFeature("inference.ccm.enablement_service");
+
+    public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(INFERENCE_ENDPOINT_CACHE, INFERENCE_CCM_CACHE, INFERENCE_AUTH_POLLER_PERSISTENT_TASK);
+        return Set.of(
+            INFERENCE_ENDPOINT_CACHE,
+            INFERENCE_CCM_CACHE,
+            INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
+            INFERENCE_CCM_ENABLEMENT_SERVICE,
+            EMBEDDING_TASK_TYPE
+        );
     }
 
     @Override
@@ -107,6 +119,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID,
                 SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT,
                 SEMANTIC_TEXT_HIGHLIGHTER_VECTOR_SIMILARITY_SUPPORT,
+                SEMANTIC_TEXT_AUTO_PREFILTERING,
+                SEMANTIC_TEXT_BFLOAT16_SUPPORT,
                 SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
@@ -114,7 +128,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
                 ModelStats.SEMANTIC_TEXT_USAGE,
                 SEARCH_USAGE_EXTENDED_DATA,
-                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS
+                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS,
+                RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER
             )
         );
         testFeatures.addAll(getFeatures());

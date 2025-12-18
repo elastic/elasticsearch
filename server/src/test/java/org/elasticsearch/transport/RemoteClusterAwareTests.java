@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -185,6 +186,9 @@ public class RemoteClusterAwareTests extends ESTestCase {
 
         @Override
         public void updateLinkedProject(LinkedProjectConfig config) {}
+
+        @Override
+        public void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {}
 
         @Override
         public Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {

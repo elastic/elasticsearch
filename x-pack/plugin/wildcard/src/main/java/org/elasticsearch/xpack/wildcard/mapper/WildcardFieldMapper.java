@@ -17,10 +17,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -29,7 +27,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.PrefixQuery;
@@ -43,9 +40,9 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
@@ -58,6 +55,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
+import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -319,7 +317,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery approxQuery = rewritten.build();
                 return BinaryDvConfirmedQuery.fromWildcardQuery(approxQuery, name(), wildcardPattern, caseInsensitive);
             } else {
-                return BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), name(), wildcardPattern, caseInsensitive);
+                return BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, name(), wildcardPattern, caseInsensitive);
             }
         }
 
@@ -398,7 +396,7 @@ public class WildcardFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             if (value.length() == 0) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
             // Check for simple "match all expressions e.g. .*
@@ -451,7 +449,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     break;
                 case REGEXP_REPEAT:
                     // Repeat is zero or more times so zero matches = match all
-                    result = new MatchAllDocsQuery();
+                    result = Queries.ALL_DOCS_INSTANCE;
                     break;
                 case REGEXP_REPEAT_MIN:
                 case REGEXP_REPEAT_MINMAX:
@@ -467,12 +465,12 @@ public class WildcardFieldMapper extends FieldMapper {
                         }
                     } else {
                         // Expressions like (a){0,3} match empty string or up to 3 a's.
-                        result = new MatchAllDocsQuery();
+                        result = Queries.ALL_DOCS_INSTANCE;
                     }
                     break;
                 case REGEXP_ANYSTRING:
                     // optimisation for .* queries - match all and no verification stage required.
-                    result = new MatchAllDocsQuery();
+                    result = Queries.ALL_DOCS_INSTANCE;
                     break;
                 // All other kinds of expression cannot be represented as a boolean or term query so return an object
                 // that indicates verification is required
@@ -485,7 +483,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_EMPTY:
                 case REGEXP_AUTOMATON:
                     // case REGEXP_PRE_CLASS:
-                    result = new MatchAllDocsQuery();
+                    result = Queries.ALL_DOCS_INSTANCE;
                     break;
             }
             assert result != null; // All regex types are understood and translated to a query.
@@ -518,7 +516,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return combined;
             }
             // There's something in the regex we couldn't represent as a query - resort to a match all with verification
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
 
         }
 
@@ -526,7 +524,7 @@ public class WildcardFieldMapper extends FieldMapper {
             // TODO: consider expanding this to allow for character ranges as well (need additional tests and performance eval)
             List<Query> queries = new ArrayList<>();
             if (r.from.length > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             }
             for (int i = 0; i < r.from.length; i++) {
                 // only handle character classes for now not ranges
@@ -536,7 +534,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     queries.add(new TermQuery(new Term("", normalizedChar)));
                 } else {
                     // immediately exit because we can't currently optimize a combination of range and classes
-                    return new MatchAllDocsQuery();
+                    return Queries.ALL_DOCS_INSTANCE;
                 }
             }
             return formQuery(queries);
@@ -570,7 +568,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
             }
             // There's something in the regex we couldn't represent as a query - resort to a match all with verification
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         private static void findLeaves(RegExp exp, org.apache.lucene.util.automaton.RegExp.Kind kind, List<Query> queries) {
@@ -619,7 +617,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 // Remove simple terms that are only string beginnings or ends.
                 String s = tq.getTerm().text();
                 if (s.equals(WildcardFieldMapper.TOKEN_START_STRING) || s.equals(WildcardFieldMapper.TOKEN_END_STRING)) {
-                    return new MatchAllDocsQuery();
+                    return Queries.ALL_DOCS_INSTANCE;
                 }
 
                 // Break term into tokens
@@ -676,7 +674,7 @@ public class WildcardFieldMapper extends FieldMapper {
             if (tokenSize < 2 || token.equals(WildcardFieldMapper.TOKEN_END_STRING)) {
                 // there's something concrete to be searched but it's too short
                 // Require verification.
-                bqBuilder.add(new BooleanClause(new MatchAllDocsQuery(), occur));
+                bqBuilder.add(new BooleanClause(Queries.ALL_DOCS_INSTANCE, occur));
                 return;
             }
             if (tokenSize == NGRAM_SIZE) {
@@ -746,7 +744,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             if (accelerationQuery == null) {
-                return BinaryDvConfirmedQuery.fromRangeQuery(new MatchAllDocsQuery(), name(), lower, upper, includeLower, includeUpper);
+                return BinaryDvConfirmedQuery.fromRangeQuery(Queries.ALL_DOCS_INSTANCE, name(), lower, upper, includeLower, includeUpper);
             }
             return BinaryDvConfirmedQuery.fromRangeQuery(accelerationQuery, name(), lower, upper, includeLower, includeUpper);
         }
@@ -837,7 +835,7 @@ public class WildcardFieldMapper extends FieldMapper {
                         rewriteMethod
                     );
                 if (ngramQ.clauses().size() == 0) {
-                    return BinaryDvConfirmedQuery.fromFuzzyQuery(new MatchAllDocsQuery(), name(), searchTerm, fq);
+                    return BinaryDvConfirmedQuery.fromFuzzyQuery(Queries.ALL_DOCS_INSTANCE, name(), searchTerm, fq);
                 }
                 return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq);
             } catch (IOException ioe) {
@@ -864,7 +862,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 Query approxQuery = rewritten.build();
                 return BinaryDvConfirmedQuery.fromTerms(approxQuery, name(), new BytesRef(searchTerm));
             } else {
-                return BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), name(), new BytesRef(searchTerm));
+                return BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, name(), new BytesRef(searchTerm));
             }
         }
 
@@ -1106,7 +1104,7 @@ public class WildcardFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new WildcardSyntheticFieldLoader());
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
             if (ignoreAbove.valuesPotentiallyIgnored()) {
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                     @Override
@@ -1120,54 +1118,4 @@ public class WildcardFieldMapper extends FieldMapper {
         });
     }
 
-    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
-        private final ByteArrayStreamInput docValuesStream = new ByteArrayStreamInput();
-        private int docValueCount;
-        private BytesRef docValueBytes;
-
-        @Override
-        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            BinaryDocValues values = leafReader.getBinaryDocValues(fullPath());
-            if (values == null) {
-                docValueCount = 0;
-                return null;
-            }
-
-            return docId -> {
-                if (values.advanceExact(docId) == false) {
-                    docValueCount = 0;
-                    return hasValue();
-                }
-                docValueBytes = values.binaryValue();
-                docValuesStream.reset(docValueBytes.bytes);
-                docValuesStream.setPosition(docValueBytes.offset);
-                docValueCount = docValuesStream.readVInt();
-                return hasValue();
-            };
-        }
-
-        @Override
-        public boolean hasValue() {
-            return docValueCount > 0;
-        }
-
-        @Override
-        public long valueCount() {
-            return docValueCount;
-        }
-
-        @Override
-        public void write(XContentBuilder b) throws IOException {
-            for (int i = 0; i < docValueCount; i++) {
-                int length = docValuesStream.readVInt();
-                b.utf8Value(docValueBytes.bytes, docValuesStream.getPosition(), length);
-                docValuesStream.skipBytes(length);
-            }
-        }
-
-        @Override
-        public String fieldName() {
-            return fullPath();
-        }
-    }
 }

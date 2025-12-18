@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -93,7 +94,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class VerifierTests extends ESTestCase {
 
-    private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer fullTextAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-full_text_search.json", "test"));
     private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
@@ -411,7 +411,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
-                + " exponential_histogram or numeric except unsigned_long or counter types],"
+                + " exponential_histogram, tdigest or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -840,7 +840,7 @@ public class VerifierTests extends ESTestCase {
     public void testSumOnDate() {
         assertEquals(
             "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
-                + " exponential_histogram or numeric except unsigned_long or counter types],"
+                + " exponential_histogram, tdigest or numeric except unsigned_long or counter types],"
                 + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
@@ -1156,7 +1156,7 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:19: argument of [min(network.bytes_in)] must be"
                     + " [boolean, date, ip, string, version, aggregate_metric_double,"
-                    + " exponential_histogram or numeric except counter types],"
+                    + " exponential_histogram, tdigest or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1165,8 +1165,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [max(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram"
-                    + " or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram,"
+                    + " tdigest or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1175,7 +1175,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, dense_vector or exponential_histogram],"
+                    + " [any type except counter types, dense_vector, tdigest, histogram, or exponential_histogram],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -2591,7 +2591,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
-        fullTextAnalyzer.analyze(parser.createStatement("from test | where " + functionInvocation));
+        fullTextAnalyzer.analyze(EsqlParser.INSTANCE.parseQuery("from test | where " + functionInvocation));
     }
 
     public void testInsistNotOnTopOfFrom() {
@@ -2706,28 +2706,18 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_cosine(null, vector)");
-            checkVectorFunctionsNullArgs("v_cosine(vector, null)");
-        }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_dot_product(null, vector)");
-            checkVectorFunctionsNullArgs("v_dot_product(vector, null)");
-        }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_l1_norm(null, vector)");
-            checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
-        }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
-            checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
-        }
+        checkVectorFunctionsNullArgs("v_cosine(null, vector)");
+        checkVectorFunctionsNullArgs("v_cosine(vector, null)");
+        checkVectorFunctionsNullArgs("v_dot_product(null, vector)");
+        checkVectorFunctionsNullArgs("v_dot_product(vector, null)");
+        checkVectorFunctionsNullArgs("v_l1_norm(null, vector)");
+        checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
+        checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
+        checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
+        checkVectorFunctionsNullArgs("v_hamming(null, vector)");
+        checkVectorFunctionsNullArgs("v_hamming(vector, null)");
         if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
             checkVectorFunctionsNullArgs("v_magnitude(null)");
-        }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_hamming(null, vector)");
-            checkVectorFunctionsNullArgs("v_hamming(vector, null)");
         }
     }
 
@@ -3335,6 +3325,164 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testTopSnippetsFunctionInvalidInputs() {
+        // Null field allowed
+        query("from test | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
+
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(42, \"query\")", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: first argument of [TOP_SNIPPETS(42, \"query\")] must be [string], found value [42] type [integer]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, 42)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: second argument of [TOP_SNIPPETS(body, 42)] must be [string], found value [42] type [integer]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", null)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: third argument of [TOP_SNIPPETS(body, \"query\", null)] cannot be null, received [null]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", \"notamap\")", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: third argument of [TOP_SNIPPETS(body, \"query\", \"notamap\")] must be a map expression, received [\"notamap\"]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": null})",
+                fullTextAnalyzer,
+                ParsingException.class
+            ),
+            equalTo("1:57: Invalid named parameter [\"num_snippets\":null], NULL is not supported")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": null})",
+                fullTextAnalyzer,
+                ParsingException.class
+            ),
+            equalTo("1:57: Invalid named parameter [\"num_words\":null], NULL is not supported")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            startsWith("1:29: Invalid option [invalid] in [TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})], "
+                    + "cannot cast [foobar] to [integer]"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})], "
+                    + "cannot cast [foobar] to [integer]"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": -1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_snippets' option must be a positive integer, found [-1]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": 0})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_snippets' option must be a positive integer, found [0]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": -1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_words' option must be a positive integer, found [-1]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": 0})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_words' option must be a positive integer, found [0]")
+        );
+    }
+
+    public void testTimeSeriesWithUnsupportedDataType() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS.isEnabled());
+
+        // GroupByAll
+        assertThat(
+            error("TS k8s | STATS rate(network.eth0.tx)", k8s),
+            equalTo(
+                "1:16: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+
+        assertThat(
+            error("TS k8s | STATS rate(network.eth0.tx) by tbucket(1m)", k8s),
+            equalTo(
+                "1:16: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+
+        assertThat(
+            error("TS k8s | STATS avg(rate(network.eth0.tx))", k8s),
+            equalTo(
+                "1:20: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+    }
+
+    public void testMvIntersectionValidatesDataTypesAreEqual() {
+        List<Tuple<String, String>> values = List.of(
+            new Tuple<>("[\"one\", \"two\", \"three\", \"four\", \"five\"]", "keyword"),
+            new Tuple<>("[1, 2, 3, 4, 5]", "integer"),
+            new Tuple<>("[1, 2, 3, 4, 5]::long", "long"),
+            new Tuple<>("[1.1, 2.2, 3.3, 4.4, 5.5]", "double"),
+            new Tuple<>("[false, true, true, false]", "boolean")
+        );
+        for (int i = 0; i < values.size(); i++) {
+            for (int j = 0; j < values.size(); j++) {
+                if (i == j) {
+                    continue;
+                }
+
+                String query = "ROW a = "
+                    + values.get(i).v1()
+                    + ", b = "
+                    + values.get(j).v1()
+                    + " | EVAL finalValue = MV_INTERSECTION(a, b)";
+                String expected = "second argument of [MV_INTERSECTION(a, b)] must be ["
+                    + values.get(i).v2()
+                    + "], found value [b] type ["
+                    + values.get(j).v2()
+                    + "]";
+                assertThat(error(query, tsdb), containsString(expected));
+            }
+        }
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
@@ -3344,7 +3492,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query));
+        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
     }
 
     private String error(String query) {
@@ -3379,7 +3527,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, new QueryParams(parameters)))
         );
         assertThat(e, instanceOf(exception));
 

@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
@@ -206,13 +205,13 @@ public class TokenService {
     static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
-    public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
+    static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     static final TransportVersion VERSION_HASHED_TOKENS = TransportVersion.fromId(7_02_00_99);
     static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersion.fromId(7_02_00_99);
     static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersion.fromId(7_02_00_99);
     static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersion.fromId(7_02_00_99);
-    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersions.V_8_2_0;
-    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersions.V_8_10_X;
+    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersion.fromId(8_02_00_99);
+    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersion.fromId(8_500_0_61);
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -365,7 +364,7 @@ public class TokenService {
             final BytesReference tokenDocument;
             try {
                 final String userTokenId;
-                if (tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (tokenVersion.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_TOTAL_LENGTH;
                     MessageDigest userTokenIdDigest = sha256();
                     userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
@@ -386,7 +385,7 @@ public class TokenService {
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
-                } else if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                } else if (tokenVersion.supports(VERSION_HASHED_TOKENS)) {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
                     userTokenId = hashTokenString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
                     accessTokenToStore = null;
@@ -418,7 +417,7 @@ public class TokenService {
                 listener.onFailure(traceLog("create token", e));
                 return;
             }
-            final RefreshPolicy tokenCreationRefreshPolicy = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
+            final RefreshPolicy tokenCreationRefreshPolicy = tokenVersion.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)
                 ? RefreshPolicy.NONE
                 : RefreshPolicy.WAIT_UNTIL;
             final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
@@ -585,7 +584,7 @@ public class TokenService {
                     }
                     Map<String, Object> accessSource = (Map<String, Object>) response.getSource().get("access_token");
                     Map<String, Object> refreshSource = (Map<String, Object>) response.getSource().get("refresh_token");
-                    boolean versionGetForRefresh = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+                    boolean versionGetForRefresh = tokenVersion.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
                     if (accessSource == null) {
                         onFailure.accept(new IllegalStateException("token document is missing the access_token field"));
                     } else if (accessSource.containsKey("user_token") == false) {
@@ -640,7 +639,7 @@ public class TokenService {
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final TransportVersion version = TransportVersion.readVersion(in);
             in.setTransportVersion(version);
-            if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+            if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                 byte[] accessTokenBytes = in.readByteArray();
                 if (accessTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
                     logger.debug(
@@ -656,7 +655,7 @@ public class TokenService {
                 final String userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest());
                 final String storedAccessToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256().digest(accessTokenBytes));
                 getAndValidateUserToken(userTokenId, version, storedAccessToken, validateUserToken, listener);
-            } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            } else if (version.supports(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
                 if (in.available() < MINIMUM_BYTES) {
                     logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BYTES);
@@ -858,12 +857,12 @@ public class TokenService {
         final Set<String> idsOfOlderTokens = new HashSet<>();
         boolean anyOlderTokensBeforeRefreshViaGet = false;
         for (UserToken userToken : userTokens) {
-            if (userToken.getTransportVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+            if (userToken.getTransportVersion().supports(VERSION_TOKENS_INDEX_INTRODUCED)) {
                 idsOfRecentTokens.add(userToken.getId());
             } else {
                 idsOfOlderTokens.add(userToken.getId());
             }
-            anyOlderTokensBeforeRefreshViaGet |= userToken.getTransportVersion().before(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+            anyOlderTokensBeforeRefreshViaGet |= userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH) == false;
         }
         final RefreshPolicy tokensInvalidationRefreshPolicy = anyOlderTokensBeforeRefreshViaGet
             ? RefreshPolicy.WAIT_UNTIL
@@ -1114,7 +1113,7 @@ public class TokenService {
             try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
                 final TransportVersion version = TransportVersion.readVersion(in);
                 in.setTransportVersion(version);
-                if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                     final byte[] refreshTokenBytes = in.readByteArray();
                     if (refreshTokenBytes.length != RAW_TOKEN_BYTES_TOTAL_LENGTH) {
                         logger.debug(
@@ -1133,7 +1132,7 @@ public class TokenService {
                         );
                         getTokenDocById(userTokenId, version, null, storedRefreshToken, listener);
                     }
-                } else if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
+                } else if (version.supports(VERSION_HASHED_TOKENS)) {
                     final String unencodedRefreshToken = in.readString();
                     if (unencodedRefreshToken.length() != TOKEN_LENGTH) {
                         logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, version);
@@ -1273,7 +1272,7 @@ public class TokenService {
             final Tuple<byte[], byte[]> newTokenBytes = getRandomTokenBytes(newTokenVersion, true);
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
-            if (newTokenVersion.onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
+            if (newTokenVersion.supports(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
                 updateMap.put("refresh_time", clock.instant().toEpochMilli());
                 try {
                     final byte[] iv = getRandomBytes(IV_BYTES);
@@ -1296,7 +1295,7 @@ public class TokenService {
             assert tokenDoc.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert tokenDoc.primaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
             final RefreshPolicy tokenRefreshUpdateRefreshPolicy = refreshTokenStatus.getTransportVersion()
-                .onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH) ? RefreshPolicy.NONE : RefreshPolicy.IMMEDIATE;
+                .supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH) ? RefreshPolicy.NONE : RefreshPolicy.IMMEDIATE;
             logger.debug(
                 () -> format(
                     "Using refresh policy [%s] when updating token doc [%s] for refresh in the security index [%s]",
@@ -1453,7 +1452,7 @@ public class TokenService {
                 // We expect this to protect against race conditions that manifest within few ms
                 final Iterator<TimeValue> backoff = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(10), 8).iterator();
                 final String tokenDocId;
-                if (refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                if (refreshTokenStatus.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                     MessageDigest userTokenIdDigest = sha256();
                     userTokenIdDigest.update(
                         Base64.getUrlDecoder().decode(decryptedTokens[0]),
@@ -1703,7 +1702,7 @@ public class TokenService {
         RefreshTokenStatus refreshTokenStatus
     ) {
         if (refreshTokenStatus.isRefreshed()) {
-            if (refreshTokenStatus.getTransportVersion().onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
+            if (refreshTokenStatus.getTransportVersion().supports(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
                 if (refreshRequested.isAfter(refreshTokenStatus.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
                     return Optional.of(invalidGrantException("token has already been refreshed more than 30 seconds in the past"));
                 }
@@ -1880,7 +1879,7 @@ public class TokenService {
                     .field("refreshed", false)
                     .startObject("client")
                     .field("type", "unassociated_client");
-                if (userToken.getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+                if (userToken.getTransportVersion().supports(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
                     builder.field(
                         "authentication",
                         originatingClientAuth.maybeRewriteForOlderVersion(userToken.getTransportVersion()).encode()
@@ -2000,7 +1999,7 @@ public class TokenService {
      * consider both the new and the old indices.
      */
     private SecurityIndexManager getTokensIndexForVersion(TransportVersion version) {
-        if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+        if (version.supports(VERSION_TOKENS_INDEX_INTRODUCED)) {
             return securityTokensIndex;
         } else {
             return securityMainIndex;
@@ -2028,14 +2027,14 @@ public class TokenService {
 
     public String prependVersionAndEncodeAccessToken(TransportVersion version, byte[] accessTokenBytes) throws IOException,
         GeneralSecurityException {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
                 out.writeByteArray(accessTokenBytes);
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
-        } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+        } else if (version.supports(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
@@ -2074,7 +2073,7 @@ public class TokenService {
     }
 
     public static String prependVersionAndEncodeRefreshToken(TransportVersion version, byte[] refreshTokenBytes) throws IOException {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + RAW_TOKEN_BYTES_TOTAL_LENGTH)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
@@ -2171,7 +2170,7 @@ public class TokenService {
     }
 
     Tuple<byte[], byte[]> getRandomTokenBytes(TransportVersion version, boolean includeRefreshToken) {
-        if (version.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (version.supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             byte[] accessTokenBytes = getRandomBytes(RAW_TOKEN_BYTES_TOTAL_LENGTH);
             if (includeRefreshToken) {
                 byte[] refreshTokenBytes = new byte[RAW_TOKEN_BYTES_TOTAL_LENGTH];
@@ -2595,7 +2594,7 @@ public class TokenService {
             String iv,
             String salt
         ) {
-            assert associatedAuthentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
+            assert associatedAuthentication.getEffectiveSubject().getTransportVersion().supports(VERSION_CLIENT_AUTH_FOR_REFRESH);
             this.invalidated = invalidated;
             // not used, filled-in for consistency's sake
             this.associatedUser = associatedAuthentication.getEffectiveSubject().getUser().principal();

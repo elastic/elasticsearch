@@ -286,6 +286,8 @@ public class TopNOperator implements Operator, Accountable {
                 + encoders
                 + ", sortOrders="
                 + sortOrders
+                + ", sortedInput="
+                + sortedInput
                 + "]";
         }
     }
@@ -435,9 +437,10 @@ public class TopNOperator implements Operator, Accountable {
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
-                } else {
-                    break;
                 }
+                // else {
+                // break;
+                // }
             }
         } finally {
             page.releaseBlocks();
@@ -646,7 +649,7 @@ public class TopNOperator implements Operator, Accountable {
             + encoders
             + ", sortOrders="
             + sortOrders
-            + "sortedInput="
+            + ", sortedInput="
             + sortedInput
             + "]";
     }

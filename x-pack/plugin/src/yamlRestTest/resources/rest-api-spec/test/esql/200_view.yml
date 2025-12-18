@@ -230,6 +230,12 @@ setup:
         name: myview
 
   - do:
+      catch: /Invalid index name \[myview\], already exists as an ESQL view/
+      indices.clone:
+        index: myindex
+        target: myview
+
+  - do:
       allowed_warnings:
         - "index template [mytemplate] has index patterns [myvie*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [mytemplate] will take precedence during new index creation"
       indices.put_index_template:

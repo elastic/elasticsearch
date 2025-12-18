@@ -60,6 +60,7 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
+        .setting("xpack.ml.enabled", "false")
         .build();
 
     @Override

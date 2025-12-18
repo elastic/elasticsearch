@@ -400,9 +400,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit array synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/139300
-- class: org.elasticsearch.xpack.downsample.DownsampleIT
-  method: testAggregateMethod
-  issue: https://github.com/elastic/elasticsearch/issues/139382
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012

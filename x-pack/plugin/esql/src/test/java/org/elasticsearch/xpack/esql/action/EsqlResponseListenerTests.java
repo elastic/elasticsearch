@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -58,10 +59,11 @@ public class EsqlResponseListenerTests extends ESTestCase {
     }
 
     public void testLogPartialFailures() {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(false);
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(false);
         executionInfo.swapCluster(
             LOCAL_CLUSTER_ALIAS,
             (k, v) -> new EsqlExecutionInfo.Cluster(
+                LOCAL_CLUSTER_ALIAS,
                 LOCAL_CLUSTER_ALIAS,
                 "idx",
                 false,
@@ -91,10 +93,11 @@ public class EsqlResponseListenerTests extends ESTestCase {
     }
 
     public void testLogPartialFailuresRemote() {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(false);
+        EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(false);
         executionInfo.swapCluster(
             "remote_cluster",
             (k, v) -> new EsqlExecutionInfo.Cluster(
+                "remote_cluster",
                 "remote_cluster",
                 "idx",
                 false,

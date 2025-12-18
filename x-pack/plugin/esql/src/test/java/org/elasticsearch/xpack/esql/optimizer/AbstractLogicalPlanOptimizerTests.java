@@ -179,6 +179,12 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
             );
         }
+        if (EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V4.isEnabled()) {
+            Map<String, EsField> mapping = loadMapping("tdigest_timeseries_index-mappings.json");
+            metricIndices.add(
+                EsIndexGenerator.esIndex("tdigest_timeseries_index", mapping, Map.of("tdigest_timeseries_index", IndexMode.TIME_SERIES))
+            );
+        }
         metricMapping = loadMapping("k8s-mappings.json");
         metricIndices.add(EsIndexGenerator.esIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(

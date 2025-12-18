@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.tools;
 
-import org.elasticsearch.core.Tuple;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
@@ -55,7 +54,9 @@ public class AccessibleJdkMethods {
             .thenComparing(ModuleClass::clazz);
     }
 
-    public static Stream<Tuple<ModuleClass, AccessibleMethod>> loadAccessibleMethods(Predicate<String> modulePredicate) throws IOException {
+    public record Result(ModuleClass moduleClass, AccessibleMethod accessibleMethod) {}
+
+    public static Stream<Result> loadAccessibleMethods(Predicate<String> modulePredicate) throws IOException {
         // 1st: map class names to module names (including later excluded modules) for lookup in 2nd step
         final Map<String, String> moduleNameByClass = Utils.loadClassToModuleMapping();
         final Map<String, Set<String>> exportsByModule = Utils.loadExportsByModule();
@@ -68,7 +69,7 @@ public class AccessibleJdkMethods {
             }
         });
 
-        return visitor.getAccessibleMethods().entrySet().stream().flatMap(e -> e.getValue().stream().map(m -> Tuple.tuple(e.getKey(), m)));
+        return visitor.getAccessibleMethods().entrySet().stream().flatMap(e -> e.getValue().stream().map(m -> new Result(e.getKey(), m)));
     }
 
     private static class AccessibleMethodsVisitor extends ClassVisitor {
@@ -132,7 +133,7 @@ public class AccessibleJdkMethods {
                 visitOnce(superModuleClass);
                 currentInheritedAccess.addAll(inheritableAccessByClass.getOrDefault(superModuleClass, emptySet()));
             }
-            if (interfaces != null && interfaces.length > 0) {
+            if (interfaces != null) {
                 for (var interfaceName : interfaces) {
                     var interfaceModuleClass = getModuleClassFromName(interfaceName);
                     visitOnce(interfaceModuleClass);

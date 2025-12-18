@@ -85,10 +85,8 @@ public class DatafeedCpsIT extends MlSingleNodeTestCase {
         assertThat(response.getResponse().getId(), equalTo(datafeedId));
 
         // Verify datafeed can be retrieved
-        GetDatafeedsAction.Response getResponse = client().execute(
-            GetDatafeedsAction.INSTANCE,
-            new GetDatafeedsAction.Request(datafeedId)
-        ).actionGet();
+        GetDatafeedsAction.Response getResponse = client().execute(GetDatafeedsAction.INSTANCE, new GetDatafeedsAction.Request(datafeedId))
+            .actionGet();
         DatafeedConfig storedConfig = getResponse.getResponse().results().get(0);
         assertThat(storedConfig.getId(), equalTo(datafeedId));
         assertThat(storedConfig.getIndices(), equalTo(List.of("logs-*")));
@@ -123,10 +121,8 @@ public class DatafeedCpsIT extends MlSingleNodeTestCase {
         client().execute(PutDatafeedAction.INSTANCE, request).actionGet();
 
         // Retrieve the datafeed (comes back through XContent deserialization from cluster state)
-        GetDatafeedsAction.Response getResponse = client().execute(
-            GetDatafeedsAction.INSTANCE,
-            new GetDatafeedsAction.Request(datafeedId)
-        ).actionGet();
+        GetDatafeedsAction.Response getResponse = client().execute(GetDatafeedsAction.INSTANCE, new GetDatafeedsAction.Request(datafeedId))
+            .actionGet();
         DatafeedConfig storedConfig = getResponse.getResponse().results().get(0);
 
         // Verify CPS flag survives the round-trip through cluster state
@@ -294,4 +290,3 @@ public class DatafeedCpsIT extends MlSingleNodeTestCase {
         }
     }
 }
-

@@ -56,6 +56,6 @@
   "examples" : [
     "FROM airport_city_boundaries\n| WHERE abbrev == \"CPH\"\n| EVAL points = ST_NPOINTS(city_boundary)\n| KEEP abbrev, airport, points"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

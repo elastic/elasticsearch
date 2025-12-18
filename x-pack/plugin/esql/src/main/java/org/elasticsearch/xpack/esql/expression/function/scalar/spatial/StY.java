@@ -44,7 +44,8 @@ public class StY extends SpatialUnaryDocValuesFunction {
         returnType = "double",
         description = "Extracts the `y` coordinate from the supplied point.\n"
             + "If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.",
-        examples = @Example(file = "spatial", tag = "st_x_y")
+        examples = @Example(file = "spatial", tag = "st_x_y"),
+        depthOffset = 1  // So this appears as a subsection of geometry functions
     )
     public StY(
         Source source,

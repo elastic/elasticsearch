@@ -229,7 +229,8 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
             Computes the distance between two points.
             For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
             For geographic geometries, this is the circular distance along the great circle in meters.""",
-        examples = @Example(file = "spatial", tag = "st_distance-airports")
+        examples = @Example(file = "spatial", tag = "st_distance-airports"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )
     public StDistance(
         Source source,

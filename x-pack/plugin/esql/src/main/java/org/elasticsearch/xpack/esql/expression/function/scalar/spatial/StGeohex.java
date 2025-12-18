@@ -125,7 +125,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geohex_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).""",
-        examples = @Example(file = "spatial-grid", tag = "st_geohex-grid")
+        examples = @Example(file = "spatial-grid", tag = "st_geohex-grid"),
+        depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )
     public StGeohex(
         Source source,

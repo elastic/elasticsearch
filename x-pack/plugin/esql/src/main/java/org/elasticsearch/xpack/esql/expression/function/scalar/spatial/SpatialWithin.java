@@ -78,7 +78,8 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         description = """
             Returns whether the first geometry is within the second geometry.
             This is the inverse of the <<esql-st_contains,ST_CONTAINS>> function.""",
-        examples = @Example(file = "spatial_shapes", tag = "st_within-airport_city_boundaries")
+        examples = @Example(file = "spatial_shapes", tag = "st_within-airport_city_boundaries"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )
     public SpatialWithin(
         Source source,

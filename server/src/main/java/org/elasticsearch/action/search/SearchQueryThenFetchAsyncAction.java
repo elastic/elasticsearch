@@ -100,6 +100,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     private final boolean batchQueryPhase;
     private long phaseStartTimeNanos;
     private final TransportFetchPhaseCoordinationAction fetchPhaseCoordinationAction;
+    private final boolean fetchPhaseChunked;
 
     SearchQueryThenFetchAsyncAction(
         Logger logger,
@@ -121,7 +122,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         boolean batchQueryPhase,
         SearchResponseMetrics searchResponseMetrics,
         Map<String, Object> searchRequestAttributes,
-        TransportFetchPhaseCoordinationAction fetchPhaseCoordinationAction
+        TransportFetchPhaseCoordinationAction fetchPhaseCoordinationAction,
+        boolean fetchPhaseChunked
     ) {
         super(
             "query",
@@ -154,6 +156,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             notifyListShards(progressListener, clusters, request, shardsIts);
         }
         this.fetchPhaseCoordinationAction = fetchPhaseCoordinationAction;
+        this.fetchPhaseChunked = fetchPhaseChunked;
     }
 
     @Override
@@ -213,18 +216,26 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         AbstractSearchAsyncAction<?> context,
         SearchPhaseResults<SearchPhaseResult> queryResults,
         AggregatedDfs aggregatedDfs,
-        TransportFetchPhaseCoordinationAction fetchCoordinationAction
+        TransportFetchPhaseCoordinationAction fetchCoordinationAction,
+        boolean fetchPhaseChunked
     ) {
         var rankFeaturePhaseCoordCtx = RankFeaturePhase.coordinatorContext(context.getRequest().source(), client);
         if (rankFeaturePhaseCoordCtx == null) {
-            return new FetchSearchPhase(queryResults, aggregatedDfs, context, null, fetchCoordinationAction);
+            return new FetchSearchPhase(queryResults, aggregatedDfs, context, null, fetchCoordinationAction, fetchPhaseChunked);
         }
-        return new RankFeaturePhase(queryResults, aggregatedDfs, context, rankFeaturePhaseCoordCtx, fetchCoordinationAction);
+        return new RankFeaturePhase(
+            queryResults,
+            aggregatedDfs,
+            context,
+            rankFeaturePhaseCoordCtx,
+            fetchCoordinationAction,
+            fetchPhaseChunked
+        );
     }
 
     @Override
     protected SearchPhase getNextPhase() {
-        return nextPhase(client, this, results, null, fetchPhaseCoordinationAction);
+        return nextPhase(client, this, results, null, fetchPhaseCoordinationAction, fetchPhaseChunked);
     }
 
     /**

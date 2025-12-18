@@ -71,7 +71,6 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
-import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE_FEATURE_FLAG;
 
 /**
  * An encapsulation of {@link SearchService} operations exposed through
@@ -547,7 +546,7 @@ public class SearchTransportService {
         );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
-            boolean featureFlagEnabled = CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled();
+            boolean fetchedPhaseChunkedEnabled = searchService.fetchPhaseChunked();
             boolean hasCoordinator = request instanceof ShardFetchSearchRequest fetchSearchReq
                 && fetchSearchReq.getCoordinatingNode() != null;
 
@@ -565,9 +564,9 @@ public class SearchTransportService {
 
             if (logger.isTraceEnabled()) {
                 logger.info(
-                    "CHUNKED_FETCH decision: featureFlag={}, versionSupported={}, hasCoordinator={}, "
+                    "CHUNKED_FETCH decision: enabled={}, versionSupported={}, hasCoordinator={}, "
                         + "canConnectToCoordinator={}, channelVersion={}, request_from={}",
-                    featureFlagEnabled,
+                    fetchedPhaseChunkedEnabled,
                     versionSupported,
                     hasCoordinator,
                     canConnectToCoordinator,
@@ -577,7 +576,7 @@ public class SearchTransportService {
             }
 
             // Only use chunked fetch if we can actually connect back to the coordinator
-            if (featureFlagEnabled && versionSupported && hasCoordinator && canConnectToCoordinator) {
+            if (fetchedPhaseChunkedEnabled && versionSupported && hasCoordinator && canConnectToCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
 

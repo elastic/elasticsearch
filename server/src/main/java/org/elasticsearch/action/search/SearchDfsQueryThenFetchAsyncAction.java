@@ -33,6 +33,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     private final SearchProgressListener progressListener;
     private final Client client;
     private final TransportFetchPhaseCoordinationAction fetchCoordinationAction;
+    private final boolean fetchPhaseChunked;
 
     SearchDfsQueryThenFetchAsyncAction(
         Logger logger,
@@ -53,7 +54,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         Client client,
         SearchResponseMetrics searchResponseMetrics,
         Map<String, Object> searchRequestAttributes,
-        TransportFetchPhaseCoordinationAction fetchCoordinationAction
+        TransportFetchPhaseCoordinationAction fetchCoordinationAction,
+        boolean fetchPhaseChunked
     ) {
         super(
             "dfs",
@@ -85,6 +87,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         }
         this.client = client;
         this.fetchCoordinationAction = fetchCoordinationAction;
+        this.fetchPhaseChunked = fetchPhaseChunked;
     }
 
     @Override
@@ -98,7 +101,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
 
     @Override
     protected SearchPhase getNextPhase() {
-        return new DfsQueryPhase(queryPhaseResultConsumer, client, this, fetchCoordinationAction);
+        return new DfsQueryPhase(queryPhaseResultConsumer, client, this, fetchCoordinationAction, fetchPhaseChunked);
     }
 
     @Override

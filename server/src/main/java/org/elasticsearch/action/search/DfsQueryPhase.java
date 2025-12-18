@@ -58,12 +58,14 @@ class DfsQueryPhase extends SearchPhase {
     private final SearchProgressListener progressListener;
     private long phaseStartTimeInNanos;
     private final TransportFetchPhaseCoordinationAction fetchCoordinationAction;
+    private final boolean fetchPhaseChunked;
 
     DfsQueryPhase(
         SearchPhaseResults<SearchPhaseResult> queryResult,
         Client client,
         AbstractSearchAsyncAction<?> context,
-        TransportFetchPhaseCoordinationAction fetchCoordinationAction
+        TransportFetchPhaseCoordinationAction fetchCoordinationAction,
+        boolean fetchPhaseChunked
     ) {
         super(NAME);
         this.progressListener = context.getTask().getProgressListener();
@@ -71,11 +73,12 @@ class DfsQueryPhase extends SearchPhase {
         this.client = client;
         this.context = context;
         this.fetchCoordinationAction = fetchCoordinationAction;
+        this.fetchPhaseChunked = fetchPhaseChunked;
     }
 
     // protected for testing
     protected SearchPhase nextPhase(AggregatedDfs dfs) {
-        return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs, fetchCoordinationAction);
+        return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs, fetchCoordinationAction, fetchPhaseChunked);
     }
 
     @SuppressWarnings("unchecked")

@@ -50,13 +50,15 @@ public class RankFeaturePhase extends SearchPhase {
     private final SearchProgressListener progressListener;
     private final RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext;
     private final TransportFetchPhaseCoordinationAction fetchCoordinationAction;
+    private final boolean fetchPhaseChunked;
 
     RankFeaturePhase(
         SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
         AggregatedDfs aggregatedDfs,
         AbstractSearchAsyncAction<?> context,
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
-        TransportFetchPhaseCoordinationAction fetchCoordinationAction
+        TransportFetchPhaseCoordinationAction fetchCoordinationAction,
+        boolean fetchPhaseChunked
     ) {
         super(NAME);
         assert rankFeaturePhaseRankCoordinatorContext != null;
@@ -76,6 +78,7 @@ public class RankFeaturePhase extends SearchPhase {
         context.addReleasable(rankPhaseResults);
         this.progressListener = context.getTask().getProgressListener();
         this.fetchCoordinationAction = fetchCoordinationAction;
+        this.fetchPhaseChunked = fetchPhaseChunked;
     }
 
     @Override
@@ -273,7 +276,7 @@ public class RankFeaturePhase extends SearchPhase {
     void moveToNextPhase(SearchPhaseResults<SearchPhaseResult> phaseResults, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
         context.executeNextPhase(
             NAME,
-            () -> new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase, fetchCoordinationAction)
+            () -> new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase, fetchCoordinationAction, fetchPhaseChunked)
         );
     }
 }

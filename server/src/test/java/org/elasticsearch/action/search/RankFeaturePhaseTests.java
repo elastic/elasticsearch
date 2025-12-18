@@ -452,7 +452,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 null,
                 mockSearchPhaseContext,
                 defaultRankFeaturePhaseRankCoordinatorContext(DEFAULT_SIZE, DEFAULT_FROM, DEFAULT_RANK_WINDOW_SIZE),
-                null
+                null,
+                false
             ) {
                 @Override
                 void innerRun(RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext) {
@@ -1024,7 +1025,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
             null,
             mockSearchPhaseContext,
             RankFeaturePhase.coordinatorContext(mockSearchPhaseContext.getRequest().source(), null),
-            null
+            null,
+            false
         ) {
             @Override
             public void moveToNextPhase(

@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
-import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE_FEATURE_FLAG;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -53,13 +52,15 @@ class FetchSearchPhase extends SearchPhase {
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
     private final TransportFetchPhaseCoordinationAction fetchCoordinationAction;
+    private final boolean fetchPhaseChunked;
 
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
         AbstractSearchAsyncAction<?> context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
-        TransportFetchPhaseCoordinationAction fetchCoordinationAction
+        TransportFetchPhaseCoordinationAction fetchCoordinationAction,
+        boolean fetchPhaseChunked
     ) {
         super(NAME);
         if (context.getNumShards() != resultConsumer.getNumShards()) {
@@ -78,6 +79,7 @@ class FetchSearchPhase extends SearchPhase {
         this.reducedQueryPhase = reducedQueryPhase;
         this.resultConsumer = reducedQueryPhase == null ? resultConsumer : null;
         this.fetchCoordinationAction = fetchCoordinationAction;
+        this.fetchPhaseChunked = fetchPhaseChunked;
     }
 
     // protected for tests
@@ -272,27 +274,31 @@ class FetchSearchPhase extends SearchPhase {
             aggregatedDfs
         );
 
-        TransportVersion dataNodeVersion = connection.getTransportVersion();
-        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
-        boolean isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection;
+        boolean dataNodeSupports = false;
+        boolean isCCSQuery = false;
+        if (connection != null) {
+            TransportVersion dataNodeVersion = connection.getTransportVersion();
+            dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
+            isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection;
 
-        if (logger.isTraceEnabled()) {
-            logger.info(
-                "FetchSearchPhase decision for shard {}: featureFlag={}, dataNodeSupports={}, "
-                    + "dataNodeVersion={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
-                    + "targetNode={}, isCCSQuery={}",
-                shardIndex,
-                CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled(),
-                dataNodeSupports,
-                dataNodeVersion,
-                dataNodeVersion.id(),
-                CHUNKED_FETCH_PHASE.id(),
-                connection.getNode(),
-                isCCSQuery
-            );
+            if (logger.isTraceEnabled()) {
+                logger.info(
+                    "FetchSearchPhase decision for shard {}: chunkEnabled={}, dataNodeSupports={}, "
+                        + "dataNodeVersion={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
+                        + "targetNode={}, isCCSQuery={}",
+                    shardIndex,
+                    fetchPhaseChunked,
+                    dataNodeSupports,
+                    dataNodeVersion,
+                    dataNodeVersion.id(),
+                    CHUNKED_FETCH_PHASE.id(),
+                    connection.getNode(),
+                    isCCSQuery
+                );
+            }
         }
 
-        if (CHUNKED_FETCH_PHASE_FEATURE_FLAG.isEnabled() && dataNodeSupports && isCCSQuery == false) {
+        if (fetchPhaseChunked && dataNodeSupports && isCCSQuery == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
 

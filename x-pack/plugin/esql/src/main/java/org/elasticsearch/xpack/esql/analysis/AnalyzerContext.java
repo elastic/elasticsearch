@@ -80,11 +80,11 @@ public class AnalyzerContext {
         this(
             configuration,
             functionRegistry,
-            result.indexResolution(),
-            result.lookupIndices(),
-            result.enrichResolution(),
-            result.inferenceResolution(),
-            result.minimumTransportVersion()
+            result.indexResolution,
+            result.lookupIndices,
+            result.enrichResolution,
+            result.inferenceResolution,
+            result.minimumTransportVersion
         );
     }
 }

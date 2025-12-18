@@ -3181,7 +3181,7 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     private void assertFieldNames(String query, boolean hasEnriches, Set<String> expected, Set<String> wildCardIndices) {
         var preAnalysisResult = FieldNameUtils.resolveFieldNames(EsqlParser.INSTANCE.parseQuery(query), hasEnriches);
-        assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
-        assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
+        assertThat("Query-wide field names", preAnalysisResult.fieldNames, equalTo(expected));
+        assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices, equalTo(wildCardIndices));
     }
 }

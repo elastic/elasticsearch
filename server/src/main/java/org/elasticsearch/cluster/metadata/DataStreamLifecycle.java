@@ -199,6 +199,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
         }
         this.downsamplingMethod = downsamplingMethod;
+        if (frozenAfter != null && frozenAfter.compareTo(TimeValue.ZERO) <= 0) {
+            throw new IllegalArgumentException("frozen_after must be a positive time value");
+        }
         this.frozenAfter = frozenAfter;
     }
 

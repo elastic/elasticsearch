@@ -24,7 +24,6 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ZipDocIdSetIterator;
-import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
@@ -60,40 +59,22 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
                     return null;
                 }
 
-                final TwoPhaseIterator iterator;
-                if (counts == null) {
-                    iterator = new TwoPhaseIterator(values) {
-                        final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
+                var valuesWithCounts = new ZipDocIdSetIterator(values, counts);
+                TwoPhaseIterator iterator = new TwoPhaseIterator(valuesWithCounts) {
+                    MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
-                        @Override
-                        public boolean matches() throws IOException {
-                            BytesRef binaryValue = values.binaryValue();
-                            return reader.match(binaryValue, term::equals);
-                        }
+                    @Override
+                    public boolean matches() throws IOException {
+                        BytesRef binaryValue = values.binaryValue();
+                        int count = Math.toIntExact(counts.longValue());
+                        return reader.match(binaryValue, count, term::equals);
+                    }
 
-                        @Override
-                        public float matchCost() {
-                            return 10; // because one comparison
-                        }
-                    };
-                } else {
-                    var valuesWithCounts = new ZipDocIdSetIterator(values, counts);
-                    iterator = new TwoPhaseIterator(valuesWithCounts) {
-                        MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
-
-                        @Override
-                        public boolean matches() throws IOException {
-                            BytesRef binaryValue = values.binaryValue();
-                            int count = Math.toIntExact(counts.longValue());
-                            return reader.match(binaryValue, count, term::equals);
-                        }
-
-                        @Override
-                        public float matchCost() {
-                            return 10; // because one comparison
-                        }
-                    };
-                }
+                    @Override
+                    public float matchCost() {
+                        return 10; // because one comparison
+                    }
+                };
 
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }

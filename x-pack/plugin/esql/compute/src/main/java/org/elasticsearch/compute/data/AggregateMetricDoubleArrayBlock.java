@@ -35,6 +35,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         this.sumBlock = sumBlock;
         this.countBlock = countBlock;
         this.positionCount = minBlock.getPositionCount();
+
         for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
             if (b.getPositionCount() != positionCount) {
                 assert false : "expected positionCount=" + positionCount + " but was " + b;

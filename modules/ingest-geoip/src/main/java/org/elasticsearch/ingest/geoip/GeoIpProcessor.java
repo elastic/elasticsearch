@@ -250,9 +250,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             Map<String, Object> locationMap = (Map<String, Object>) value;
             Double lat = (Double) locationMap.get("lat");
             Double lon = (Double) locationMap.get("lon");
-            if (lat != null && lon != null) {
-                return newMutableLocationList(lon, lat); // GeoJSON order: [lon, lat]
-            }
+            return newMutableLocationList(lon, lat);
         } else {
             // Assert that we don't have any unexpected Map values (only location should be a Map)
             assert value instanceof Map == false : "unexpected Map value for key [" + key + "]";

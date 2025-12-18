@@ -17,8 +17,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -444,4 +446,36 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, contains("periodic-0", "periodic-1", "periodic-2"));
     }
 
+    public void testThreadPoolPreservesTaskThreadContext() {
+        final var counter = new AtomicInteger(0);
+        final var taskQueue = new DeterministicTaskQueue();
+        final boolean hasWrapper = randomBoolean();
+        final var threadPool = hasWrapper ? taskQueue.getThreadPool(r -> {
+            counter.incrementAndGet();
+            return r;
+        }) : taskQueue.getThreadPool();
+
+        final var threadContext = threadPool.getThreadContext();
+        final var testHeader = randomAlphaOfLength(10);
+        final var testHeaderValue = randomAlphaOfLength(10);
+        threadContext.putHeader(testHeader, testHeaderValue);
+
+        final Runnable threadContextRunnable = () -> {
+            counter.incrementAndGet();
+            assertThat(threadContext.getHeaders(), equalTo(Map.of(testHeader, testHeaderValue)));
+            threadContext.putHeader(randomAlphaOfLength(12), randomAlphaOfLength(12));
+        };
+
+        threadPool.executor(randomAlphaOfLengthBetween(5, 10)).execute(threadContextRunnable);
+        threadPool.schedule(
+            threadContextRunnable,
+            TimeValue.timeValueSeconds(randomLongBetween(1, 60)),
+            threadPool.executor(randomAlphaOfLengthBetween(5, 10))
+        );
+        threadPool.scheduler().schedule(threadContextRunnable, randomLongBetween(1, 60), TimeUnit.SECONDS);
+
+        taskQueue.runAllTasks();
+        assertThat(counter.get(), equalTo(hasWrapper ? 6 : 3));
+        assertThat(threadContext.getHeaders(), equalTo(Map.of(testHeader, testHeaderValue)));
+    }
 }

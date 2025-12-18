@@ -120,7 +120,8 @@ public class MockLog implements Releasable {
         awaitAllExpectationsMatched(ESTestCase.SAFE_AWAIT_TIMEOUT);
     }
 
-    public void awaitAllExpectationsMatched(TimeValue waitTime) {
+    // exposed for testing
+    void awaitAllExpectationsMatched(TimeValue waitTime) {
         final var deadlineNanos = System.nanoTime() + waitTime.nanos();
         final var nanosPerMilli = TimeValue.timeValueMillis(1).nanos();
         try {

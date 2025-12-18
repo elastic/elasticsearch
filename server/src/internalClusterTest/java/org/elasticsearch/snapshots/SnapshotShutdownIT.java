@@ -731,7 +731,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     /**
      * Tests that nodes that do not snapshot data do not log snapshot shutdown progress.
      */
-    public void testStatefulNodesThatDoNotContainDataDoesNotLogSnapshotShuttingDownProgress() {
+    public void testStatefulNodesThatDoNotContainDataDoesNotLogSnapshotShuttingDownProgress() throws InterruptedException {
         // A node can have multiple roles. This list stores each combination of roles to test
         List<List<String>> nodeRoleCombinationsToTest = new ArrayList<>();
 
@@ -758,14 +758,13 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         nodeRoleCombinationsToTest.add(nodeRoles);
         logger.info("Testing {} roles", nodeRoles);
 
-        mockLog.addExpectation(
-            new MockLog.PatternNotSeenEventExpectation(
-                "Expect SnapshotShutdownProgressTracker to not run",
-                SnapshotShutdownProgressTracker.class.getCanonicalName(),
-                Level.INFO,
-                "Shard snapshot completion stats since shutdown began*"
-            )
+        MockLog.PatternNotSeenEventExpectation snapshotShutdownProgressTrackerToNotRunExpectation = new MockLog.PatternNotSeenEventExpectation(
+            "Expect SnapshotShutdownProgressTracker to not run",
+            SnapshotShutdownProgressTracker.class.getCanonicalName(),
+            Level.INFO,
+            "Shard snapshot completion stats since shutdown began*"
         );
+        snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
 
         // Now test each combination of node roles
         for (List<String> roles : nodeRoleCombinationsToTest) {
@@ -782,34 +781,33 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
             putShutdownForRemovalMetadata(nodeName, clusterService);
         }
-        mockLog.awaitAllExpectationsMatched(TimeValue.timeValueSeconds(1));
+        mockLog.assertAllExpectationsMatched();
     }
 
     /**
      * We only expect nodes that contain data to log snapshot shutdown progress.
      * A coordinating only node has no role, does not contain any data, hence has no snapshotting, and so we do not expect any logging
      */
-    public void testStatefulCoordinatingOnlyNodeDoesNotLogSnapshotShuttingDownProgress() {
+    public void testStatefulCoordinatingOnlyNodeDoesNotLogSnapshotShuttingDownProgress() throws InterruptedException {
         final var nodeName = internalCluster().startCoordinatingOnlyNode(
             // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
             Settings.builder().put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200)).build()
         );
 
-        mockLog.addExpectation(
-            new MockLog.PatternNotSeenEventExpectation(
-                "Expect SnapshotShutdownProgressTracker to not run",
-                SnapshotShutdownProgressTracker.class.getCanonicalName(),
-                Level.INFO,
-                "Shard snapshot completion stats since shutdown began*"
-            )
+        MockLog.PatternNotSeenEventExpectation snapshotShutdownProgressTrackerToNotRunExpectation = new MockLog.PatternNotSeenEventExpectation(
+            "Expect SnapshotShutdownProgressTracker to not run",
+            SnapshotShutdownProgressTracker.class.getCanonicalName(),
+            Level.INFO,
+            "Shard snapshot completion stats since shutdown began*"
         );
+        snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
 
         // Put shutdown metadata to trigger shutdown progress tracker
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         putShutdownForRemovalMetadata(nodeName, clusterService);
 
         // Wait for log expectation to be matched
-        mockLog.awaitAllExpectationsMatched(TimeValue.timeValueSeconds(1));
+        mockLog.assertAllExpectationsMatched();
     }
 
     private static void addUnassignedShardsWatcher(ClusterService clusterService, String indexName) {

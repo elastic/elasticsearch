@@ -283,9 +283,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=field_caps/10_basic/Field caps for number field with only doc values}
   issue: https://github.com/elastic/elasticsearch/issues/136244
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/200_dense_vector_docvalue_fields/Enable docvalue_fields parameter for dense_vector fields}
-  issue: https://github.com/elastic/elasticsearch/issues/136443
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testRemoteClusterOnlyCCSWithFailuresOnAllShards
   issue: https://github.com/elastic/elasticsearch/issues/136894

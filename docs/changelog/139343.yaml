@@ -1,0 +1,6 @@
+pr: 139343
+summary: "Introduce `SwissTable-based` hashing (LongSwissHash, `BytesRefSwissHash)`\
+  \ for ES|QL STATS"
+area: "Compute Engine, ES|QL"
+type: enhancement
+issues: []

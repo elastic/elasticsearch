@@ -1,0 +1,6 @@
+pr: 139774
+summary: ES|QL - fix dense vector enrich bug
+area: ES|QL
+type: bug
+issues:
+ - 137699

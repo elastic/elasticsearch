@@ -82,30 +82,28 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     }
 
     public void testRepositoryExistenceForExistingRepo() {
-        ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
+        ProjectMetadata metadata = ProjectMetadata.builder(projectId).build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> SnapshotLifecycleService.validateRepositoryExists("repo", state)
+            () -> SnapshotLifecycleService.validateRepositoryExists(metadata, "repo")
         );
 
         assertThat(e.getMessage(), containsString("no such repository [repo]"));
 
         RepositoryMetadata repo = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
         RepositoriesMetadata repoMeta = new RepositoriesMetadata(Collections.singletonList(repo));
-        ClusterState stateWithRepo = ClusterState.builder(state)
-            .metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, repoMeta))
-            .build();
+        ProjectMetadata metadataWithRepo = ProjectMetadata.builder(projectId).putCustom(RepositoriesMetadata.TYPE, repoMeta).build();
 
-        SnapshotLifecycleService.validateRepositoryExists("repo", stateWithRepo);
+        SnapshotLifecycleService.validateRepositoryExists(metadataWithRepo, "repo");
     }
 
     public void testRepositoryExistenceForMissingRepo() {
-        ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
+        ProjectMetadata metadata = ProjectMetadata.builder(projectId).build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> SnapshotLifecycleService.validateRepositoryExists("repo", state)
+            () -> SnapshotLifecycleService.validateRepositoryExists(metadata, "repo")
         );
 
         assertThat(e.getMessage(), containsString("no such repository [repo]"));

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 
 import java.util.Collection;
@@ -27,7 +27,7 @@ public class ReservedLifecycleStateHandlerProvider implements ReservedStateHandl
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<?>> clusterHandlers() {
-        return plugin.reservedClusterStateHandlers();
+    public Collection<ReservedProjectStateHandler<?>> projectHandlers() {
+        return plugin.reservedProjectStateHandlers();
     }
 }

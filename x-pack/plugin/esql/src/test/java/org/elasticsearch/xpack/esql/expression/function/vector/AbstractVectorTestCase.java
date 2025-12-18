@@ -14,6 +14,8 @@ import java.util.List;
 
 public abstract class AbstractVectorTestCase extends AbstractScalarFunctionTestCase {
 
+    static final double DELTA = 0.000001f;
+
     protected static float[] listToFloatArray(List<Float> floatList) {
         float[] floatArray = new float[floatList.size()];
         for (int i = 0; i < floatList.size(); i++) {

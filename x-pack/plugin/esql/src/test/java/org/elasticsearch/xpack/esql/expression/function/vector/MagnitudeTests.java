@@ -67,7 +67,7 @@ public class MagnitudeTests extends AbstractVectorTestCase {
                 List.of(new TestCaseSupplier.TypedData(input, DENSE_VECTOR, "vector")),
                 evaluatorName,
                 DOUBLE,
-                closeTo(expected, 0.000001f)
+                closeTo(expected, DELTA)
             );
         }));
 

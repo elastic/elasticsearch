@@ -10,10 +10,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -61,7 +61,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testSimple() throws IOException {
 
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
@@ -83,7 +83,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAllNull() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
@@ -100,7 +100,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNonCardinalityAgg() {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);

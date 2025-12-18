@@ -129,7 +129,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
 
         matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQueryOption.ALL);
-        assertEquals(new MatchAllDocsQuery(), matchQuery.doToQuery(createSearchExecutionContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, matchQuery.doToQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {

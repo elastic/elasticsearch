@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -518,8 +517,8 @@ public class ComputeService {
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
                     // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
-                    // only if it is behind a snapshot build and this is a fork or subquery branch (exchangeSinkSupplier is not null).
-                    EsqlExecutionInfo.Cluster.Status clusterStatus = Build.current().isSnapshot() && exchangeSinkSupplier != null
+                    // only if this is a fork or subquery branch (exchangeSinkSupplier is not null).
+                    EsqlExecutionInfo.Cluster.Status clusterStatus = exchangeSinkSupplier != null
                         ? initialClusterStatuses.get(clusterAlias)
                         : execInfo.getCluster(clusterAlias).getStatus();
                     if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING) {

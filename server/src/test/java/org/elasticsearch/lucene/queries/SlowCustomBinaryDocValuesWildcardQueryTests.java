@@ -9,8 +9,9 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
@@ -19,8 +20,10 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -44,7 +47,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
             expectedCounts.put("c", 1L);
             expectedCounts.put("d", 3L);
             expectedCounts.put("e", 10L);
-            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
                 for (var entry : expectedCounts.entrySet()) {
                     for (int i = 0; i < entry.getValue(); i++) {
                         Document document = new Document();
@@ -77,7 +80,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
         // no field in index
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
@@ -89,7 +92,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
         // no field in segment
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
                 Document document = new Document();
                 document.add(new BinaryFieldMapper.CustomBinaryDocValuesField("field", "a".getBytes(StandardCharsets.UTF_8)));
                 writer.addDocument(document);
@@ -106,15 +109,21 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
     public void testAgainstWildcardQuery() throws IOException {
         List<String> randomValues = randomList(8, 32, () -> randomAlphaOfLength(8));
-
         try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
                 for (String randomValue : randomValues) {
                     Document document = new Document();
-                    document.add(new SortedDocValuesField("baseline_field", new BytesRef(randomValue)));
-                    document.add(
-                        new BinaryFieldMapper.CustomBinaryDocValuesField("contender_field", randomValue.getBytes(StandardCharsets.UTF_8))
+                    document.add(new SortedSetDocValuesField("baseline_field", new BytesRef(randomValue)));
+                    var binaryDVField = new BinaryFieldMapper.CustomBinaryDocValuesField(
+                        "contender_field",
+                        randomValue.getBytes(StandardCharsets.UTF_8)
                     );
+                    document.add(binaryDVField);
+                    if (randomBoolean()) {
+                        String extraRandomValue = randomFrom(randomValues);
+                        binaryDVField.add(extraRandomValue.getBytes(StandardCharsets.UTF_8));
+                        document.add(new SortedSetDocValuesField("baseline_field", new BytesRef(extraRandomValue)));
+                    }
                     writer.addDocument(document);
                 }
 
@@ -142,6 +151,14 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private static RandomIndexWriter newRandomIndexWriter(Directory dir) throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        if (randomBoolean()) {
+            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+        }
+        return new RandomIndexWriter(random(), dir, iwc);
     }
 
 }

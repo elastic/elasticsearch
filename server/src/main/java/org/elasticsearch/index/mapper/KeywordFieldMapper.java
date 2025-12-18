@@ -1090,10 +1090,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
-                StringFieldScript.LeafFactory leafFactory = storedInBinaryDocValues()
-                    ? ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx)
-                    : ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-
+                StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
                 return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
             }
         }

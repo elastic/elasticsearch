@@ -15,10 +15,19 @@ import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeForkRestTest;
 import org.junit.ClassRule;
 
+import java.util.Map;
+
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class GenerativeForkIT extends GenerativeForkRestTest {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
+        spec.plugin("inference-service-test");
+        if (LOGGING_CLUSTER_SETTINGS.isEmpty() == false) {
+            for (Map.Entry<String, String> entry : LOGGING_CLUSTER_SETTINGS.entrySet()) {
+                spec.setting(entry.getKey(), entry.getValue());
+            }
+        }
+    });
 
     @Override
     protected String getTestRestCluster() {

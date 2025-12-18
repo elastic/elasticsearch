@@ -43,14 +43,18 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled = new AtomicBoolean(false);
 
         FetchSearchResult result = new FetchSearchResult();
-        result.setCircuitBreakerBytes(5000L);
+        try {
+            result.setCircuitBreakerBytes(5000L);
 
-        fetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
+            fetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
 
-        assertThat(successCalled.get(), is(true));
-        assertThat(failureCalled.get(), is(false));
-        assertThat(breakerUsed.get(), equalTo(0L));
-        assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(successCalled.get(), is(true));
+            assertThat(failureCalled.get(), is(false));
+            assertThat(breakerUsed.get(), equalTo(0L));
+            assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+        } finally {
+            result.decRef();
+        }
     }
 
     /**
@@ -64,16 +68,25 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled = new AtomicBoolean(false);
 
         FetchSearchResult fetchResult = new FetchSearchResult();
-        fetchResult.setCircuitBreakerBytes(3000L);
+        QueryFetchSearchResult queryFetchResult = null;
+        try {
+            fetchResult.setCircuitBreakerBytes(3000L);
 
-        QueryFetchSearchResult queryFetchResult = new QueryFetchSearchResult(new QuerySearchResult(), fetchResult);
+            queryFetchResult = new QueryFetchSearchResult(new QuerySearchResult(), fetchResult);
 
-        queryFetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(queryFetchResult);
+            queryFetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(queryFetchResult);
 
-        assertThat(successCalled.get(), is(true));
-        assertThat(failureCalled.get(), is(false));
-        assertThat(breakerUsed.get(), equalTo(0L));
-        assertThat(fetchResult.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(successCalled.get(), is(true));
+            assertThat(failureCalled.get(), is(false));
+            assertThat(breakerUsed.get(), equalTo(0L));
+            assertThat(fetchResult.getCircuitBreakerBytes(), equalTo(0L));
+        } finally {
+            if (queryFetchResult != null) {
+                queryFetchResult.decRef();
+            } else {
+                fetchResult.decRef();
+            }
+        }
     }
 
     /**
@@ -87,17 +100,26 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled = new AtomicBoolean(false);
 
         FetchSearchResult fetchResult = new FetchSearchResult();
-        fetchResult.setCircuitBreakerBytes(4000L);
+        ScrollQueryFetchSearchResult scrollResult = null;
+        try {
+            fetchResult.setCircuitBreakerBytes(4000L);
 
-        QueryFetchSearchResult queryFetchResult = new QueryFetchSearchResult(new QuerySearchResult(), fetchResult);
-        ScrollQueryFetchSearchResult scrollResult = new ScrollQueryFetchSearchResult(queryFetchResult, null);
+            QueryFetchSearchResult queryFetchResult = new QueryFetchSearchResult(new QuerySearchResult(), fetchResult);
+            scrollResult = new ScrollQueryFetchSearchResult(queryFetchResult, null);
 
-        scrollQueryFetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(scrollResult);
+            scrollQueryFetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(scrollResult);
 
-        assertThat(successCalled.get(), is(true));
-        assertThat(failureCalled.get(), is(false));
-        assertThat(breakerUsed.get(), equalTo(0L));
-        assertThat(fetchResult.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(successCalled.get(), is(true));
+            assertThat(failureCalled.get(), is(false));
+            assertThat(breakerUsed.get(), equalTo(0L));
+            assertThat(fetchResult.getCircuitBreakerBytes(), equalTo(0L));
+        } finally {
+            if (scrollResult != null) {
+                scrollResult.decRef();
+            } else {
+                fetchResult.decRef();
+            }
+        }
     }
 
     /**
@@ -143,17 +165,21 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
 
         FetchSearchResult result = new FetchSearchResult();
-        result.setCircuitBreakerBytes(2000L);
+        try {
+            result.setCircuitBreakerBytes(2000L);
 
-        // First release
-        result.releaseCircuitBreakerBytes(breaker);
-        assertThat(breakerUsed.get(), equalTo(0L));
-        assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+            // First release
+            result.releaseCircuitBreakerBytes(breaker);
+            assertThat(breakerUsed.get(), equalTo(0L));
+            assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
 
-        // Next release - should be no-op
-        result.releaseCircuitBreakerBytes(breaker);
-        assertThat(breakerUsed.get(), equalTo(0L));
-        assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+            // Next release - should be no-op
+            result.releaseCircuitBreakerBytes(breaker);
+            assertThat(breakerUsed.get(), equalTo(0L));
+            assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+        } finally {
+            result.decRef();
+        }
     }
 
     /**
@@ -168,13 +194,17 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled = new AtomicBoolean(false);
 
         FetchSearchResult result = new FetchSearchResult();
-        result.setCircuitBreakerBytes(largeBytes);
+        try {
+            result.setCircuitBreakerBytes(largeBytes);
 
-        fetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
+            fetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
 
-        assertThat(successCalled.get(), is(true));
-        assertThat(breakerUsed.get(), equalTo(0L));
-        assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+            assertThat(successCalled.get(), is(true));
+            assertThat(breakerUsed.get(), equalTo(0L));
+            assertThat(result.getCircuitBreakerBytes(), equalTo(0L));
+        } finally {
+            result.decRef();
+        }
     }
 
     /**
@@ -188,18 +218,24 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         FetchSearchResult result2 = new FetchSearchResult();
         FetchSearchResult result3 = new FetchSearchResult();
 
-        result1.setCircuitBreakerBytes(1000L);
-        result2.setCircuitBreakerBytes(2000L);
-        result3.setCircuitBreakerBytes(3000L);
+        try {
+            result1.setCircuitBreakerBytes(1000L);
+            result2.setCircuitBreakerBytes(2000L);
+            result3.setCircuitBreakerBytes(3000L);
 
-        result1.releaseCircuitBreakerBytes(breaker);
-        assertThat(breakerUsed.get(), equalTo(5000L));
+            result1.releaseCircuitBreakerBytes(breaker);
+            assertThat(breakerUsed.get(), equalTo(5000L));
 
-        result2.releaseCircuitBreakerBytes(breaker);
-        assertThat(breakerUsed.get(), equalTo(3000L));
+            result2.releaseCircuitBreakerBytes(breaker);
+            assertThat(breakerUsed.get(), equalTo(3000L));
 
-        result3.releaseCircuitBreakerBytes(breaker);
-        assertThat(breakerUsed.get(), equalTo(0L));
+            result3.releaseCircuitBreakerBytes(breaker);
+            assertThat(breakerUsed.get(), equalTo(0L));
+        } finally {
+            result1.decRef();
+            result2.decRef();
+            result3.decRef();
+        }
     }
 
     /**

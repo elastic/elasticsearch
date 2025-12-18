@@ -24,7 +24,7 @@ An exponential histogram field has the following structure:
     "count": <long, non-negative>                  // optional; default 0
   },
   "positive": {                                    // optional
-    "indices": [<long>...],                        // unique, sorted; each in range [-((2^62) - 1), (2^62) - 1]
+    "indices": [<long>...],                        // unique, preferably sorted; each in range [-((2^62) - 1), (2^62) - 1]
     "counts":  [<long>...]                         // same length as indices; each > 0
   },
   "negative": {                                    // optional

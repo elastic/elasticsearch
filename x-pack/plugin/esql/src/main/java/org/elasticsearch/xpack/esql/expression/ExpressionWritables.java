@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
@@ -236,6 +237,7 @@ public class ExpressionWritables {
         entries.add(ToLongBase.ENTRY);
         entries.add(ToRadians.ENTRY);
         entries.add(ToString.ENTRY);
+        entries.add(ToTDigest.ENTRY);
         entries.add(ToUnsignedLong.ENTRY);
         entries.add(ToVersion.ENTRY);
         entries.add(Trim.ENTRY);

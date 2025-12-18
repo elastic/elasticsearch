@@ -10,11 +10,9 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -320,27 +318,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     int doc = buffer.docs[i];
                     queue.add(new ScoreDoc(doc + docBase, score));
                 }
-            }
-        }
-
-        private void rescoreIndividually(
-            int docBase,
-            FloatVectorValues knnVectorValues,
-            VectorSimilarityFunction function,
-            List<ScoreDoc> queue,
-            DocIdSetIterator filterIterator
-        ) throws IOException {
-            int doc;
-            KnnVectorValues.DocIndexIterator knnVectorIterator = knnVectorValues.iterator();
-            var conjunction = ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
-            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                assert doc == knnVectorIterator.docID();
-                float[] vector = knnVectorValues.vectorValue(knnVectorIterator.index());
-                float score = function.compare(floatTarget, vector);
-                if (Float.isNaN(score)) {
-                    continue;
-                }
-                queue.add(new ScoreDoc(doc + docBase, score));
             }
         }
     }

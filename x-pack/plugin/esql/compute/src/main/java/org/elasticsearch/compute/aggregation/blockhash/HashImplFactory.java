@@ -33,7 +33,7 @@ public class HashImplFactory {
         }
     }
 
-    /** Creates a new LongHashTable. */
+    /** Creates a new BytesRefHashTable. */
     public static BytesRefHashTable newBytesRefHash(BlockFactory bf) {
         if (SWISS_HASH_FACTORY != null) {
             return SWISS_HASH_FACTORY.newBytesRefSwissHash(bf.bigArrays().recycler(), bf.breaker(), bf.bigArrays());

@@ -26,7 +26,7 @@ public class SortedBinaryDocValuesStringFieldScript extends StringFieldScript {
     public SortedBinaryDocValuesStringFieldScript(String fieldName, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, Map.of(), searchLookup, OnScriptError.FAIL, ctx);
         try {
-            sortedBinaryDocValues = MultiValuedSortedBinaryDocValues.from(ctx.reader(), fieldName, fieldName + ".counts");
+            sortedBinaryDocValues = MultiValuedSortedBinaryDocValues.from(ctx.reader(), fieldName);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

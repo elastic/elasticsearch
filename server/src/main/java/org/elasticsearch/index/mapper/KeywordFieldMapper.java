@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -19,13 +18,10 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -44,8 +40,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -99,19 +93,16 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1331,7 +1322,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
-                        field = new MultiValuedBinaryWithCount(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
                         context.doc().addWithKey(fieldName, field);
                     }
                     field.add(bytesRef);
@@ -1378,12 +1369,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
 
-            MultiValuedBinaryNoCount field = (MultiValuedBinaryNoCount) context.doc().getField(fieldType().name());
-            var countField = (MultiValuedBinaryNoCount.UpdateableNumericField) context.doc().getByKey(fieldType().name() + ".counts");
+            MultiValuedBinaryDocValuesField.SeparateCount field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getField(fieldType().name());
+            var countField = (UpdatableNumericDocValuesField) context.doc().getByKey(fieldType().name() + ".counts");
             if (field == null) {
-                field = new MultiValuedBinaryNoCount(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
+                field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder(fieldType().name());
                 context.doc().addWithKey(fieldType().name(), field);
-                countField = new MultiValuedBinaryNoCount.UpdateableNumericField(fieldType().name() + ".counts");
+                countField = new UpdatableNumericDocValuesField(fieldType().name() + ".counts");
                 context.doc().addWithKey(countField.name(), countField);
             }
 
@@ -1556,169 +1547,5 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 
-    /**
-     * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
-     * binary doc values for fields with multiple values per document.
-     */
-    public abstract static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
-        public enum Ordering {
-            INSERTION,
-            NATURAL
-        }
 
-        protected final Set<BytesRef> uniqueValues;
-        protected int docValuesByteCount = 0;
-
-        MultiValuedBinaryDocValuesField(String name, Ordering ordering) {
-            super(name);
-
-            uniqueValues = switch (ordering) {
-                case INSERTION -> new LinkedHashSet<>();
-                case NATURAL -> new TreeSet<>();
-            };
-        }
-
-        public void add(BytesRef value) {
-            if (uniqueValues.add(value)) {
-                // might as well track these on the go as opposed to having to loop through all entries later
-                docValuesByteCount += value.length;
-            }
-        }
-
-        public int count() {
-            return uniqueValues.size();
-        }
-
-        @Override
-        public abstract BytesRef binaryValue();
-    }
-
-    private static class MultiValuedBinaryWithCount extends MultiValuedBinaryDocValuesField {
-        MultiValuedBinaryWithCount(String name, Ordering ordering) {
-            super(name, ordering);
-        }
-
-        /**
-         * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}. This array takes
-         * the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
-         */
-        @Override
-        public BytesRef binaryValue() {
-            int docValuesCount = uniqueValues.size();
-            // the + 1 is for the total doc values count, which is prefixed at the start of the array
-            int streamSize = docValuesByteCount + (docValuesCount + 1) * Integer.BYTES;
-
-            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                out.writeVInt(docValuesCount);
-                for (BytesRef value : uniqueValues) {
-                    int valueLength = value.length;
-                    out.writeVInt(valueLength);
-                    out.writeBytes(value.bytes, value.offset, valueLength);
-                }
-                return out.bytes().toBytesRef();
-            } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get binary value", e);
-            }
-        }
-    }
-
-    public static class MultiValuedBinaryNoCount extends MultiValuedBinaryDocValuesField {
-        public MultiValuedBinaryNoCount(String name, Ordering ordering) {
-            super(name, ordering);
-        }
-
-        public static MultiValuedBinaryNoCount naturalOrder(String name) {
-            return new MultiValuedBinaryNoCount(name, Ordering.NATURAL);
-        }
-
-        @Override
-        public BytesRef binaryValue() {
-            int docValuesCount = uniqueValues.size();
-            // the + 1 is for the total doc values count, which is prefixed at the start of the array
-            int streamSize = docValuesByteCount + (docValuesCount + 1) * Integer.BYTES;
-
-            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                if (docValuesCount == 1) {
-                    BytesRef value = uniqueValues.stream().findFirst().get();
-                    out.writeBytes(value.bytes, value.offset, value.length);
-                } else {
-                    for (BytesRef value : uniqueValues) {
-                        int valueLength = value.length;
-                        out.writeVInt(valueLength);
-                        out.writeBytes(value.bytes, value.offset, valueLength);
-                    }
-                }
-                return out.bytes().toBytesRef();
-            } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get binary value", e);
-            }
-        }
-
-        public static class UpdateableNumericField implements IndexableField {
-
-            public static final FieldType TYPE;
-            static {
-                FieldType ft = new FieldType();
-                ft.setDocValuesType(DocValuesType.NUMERIC);
-                ft.setOmitNorms(true);
-                TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
-            }
-
-            private final String name;
-            private long value = 0;
-
-            public UpdateableNumericField(String name) {
-                this.name = name;
-            }
-
-            public void setValue(long value) {
-                this.value = value;
-            }
-
-            @Override
-            public String name() {
-                return name;
-            }
-
-            @Override
-            public IndexableFieldType fieldType() {
-                return TYPE;
-            }
-
-            @Override
-            public String stringValue() {
-                return null;
-            }
-
-            @Override
-            public Reader readerValue() {
-                return null;
-            }
-
-            @Override
-            public Number numericValue() {
-                return value;
-            }
-
-            @Override
-            public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
-                return null;
-            }
-
-            @Override
-            public BytesRef binaryValue() {
-                return null;
-            }
-
-            @Override
-            public StoredValue storedValue() {
-                return null;
-            }
-
-            @Override
-            public InvertableType invertableType() {
-                return InvertableType.BINARY;
-            }
-        }
-    }
 }

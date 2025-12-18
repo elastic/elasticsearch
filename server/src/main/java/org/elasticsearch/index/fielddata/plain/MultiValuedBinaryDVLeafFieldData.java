@@ -46,7 +46,7 @@ public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
-            return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName, fieldName + ".counts");
+            return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

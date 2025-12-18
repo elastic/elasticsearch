@@ -15,7 +15,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.UpdatableNumericDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -39,9 +40,9 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                     for (int i = 0; i < entry.getValue(); i++) {
                         Document document = new Document();
 
-                        var field = KeywordFieldMapper.MultiValuedBinaryNoCount.naturalOrder("field");
+                        var field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder("field");
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
-                        var countField = new KeywordFieldMapper.MultiValuedBinaryNoCount.UpdateableNumericField("field.counts");
+                        var countField = new UpdatableNumericDocValuesField("field.counts");
                         countField.setValue(field.count());
 
                         if (randomBoolean()) {
@@ -86,9 +87,9 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 Document document = new Document();
 
-                var field = KeywordFieldMapper.MultiValuedBinaryNoCount.naturalOrder("field");
+                var field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder("field");
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
-                var countField = new KeywordFieldMapper.MultiValuedBinaryNoCount.UpdateableNumericField("field.counts");
+                var countField = new UpdatableNumericDocValuesField("field.counts");
                 countField.setValue(field.count());
                 document.add(field);
                 document.add(countField);

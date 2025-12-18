@@ -1,0 +1,120 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+
+import java.io.IOException;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.TreeSet;
+
+/**
+ * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
+ * binary doc values for fields with multiple values per document.
+ */
+public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+    public enum Ordering {
+        INSERTION,
+        NATURAL
+    }
+
+    protected final Set<BytesRef> uniqueValues;
+    protected int docValuesByteCount = 0;
+
+    MultiValuedBinaryDocValuesField(String name, Ordering ordering) {
+        super(name);
+
+        uniqueValues = switch (ordering) {
+            case INSERTION -> new LinkedHashSet<>();
+            case NATURAL -> new TreeSet<>();
+        };
+    }
+
+    public void add(BytesRef value) {
+        if (uniqueValues.add(value)) {
+            // might as well track these on the go as opposed to having to loop through all entries later
+            docValuesByteCount += value.length;
+        }
+    }
+
+    public int count() {
+        return uniqueValues.size();
+    }
+
+    @Override
+    public abstract BytesRef binaryValue();
+
+    public static class IntegratedCount extends MultiValuedBinaryDocValuesField {
+        IntegratedCount(String name, Ordering ordering) {
+            super(name, ordering);
+        }
+
+        /**
+         * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}. This array takes
+         * the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
+         */
+        @Override
+        public BytesRef binaryValue() {
+            int docValuesCount = uniqueValues.size();
+            // the + 1 is for the total doc values count, which is prefixed at the start of the array
+            int streamSize = docValuesByteCount + (docValuesCount + 1) * (Integer.BYTES + 1);
+
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                out.writeVInt(docValuesCount);
+                for (BytesRef value : uniqueValues) {
+                    int valueLength = value.length;
+                    out.writeVInt(valueLength);
+                    out.writeBytes(value.bytes, value.offset, valueLength);
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to get binary value", e);
+            }
+        }
+    }
+
+    public static class SeparateCount extends MultiValuedBinaryDocValuesField {
+        private SeparateCount(String name, Ordering ordering) {
+            super(name, ordering);
+        }
+
+        public static SeparateCount naturalOrder(String name) {
+            return new SeparateCount(name, Ordering.NATURAL);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            int docValuesCount = uniqueValues.size();
+            int streamSize = docValuesByteCount + docValuesCount * (Integer.BYTES + 1);
+
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                if (docValuesCount == 1) {
+                    BytesRef value = uniqueValues.stream().findFirst().get();
+                    out.writeBytes(value.bytes, value.offset, value.length);
+                } else {
+                    for (BytesRef value : uniqueValues) {
+                        int valueLength = value.length;
+                        out.writeVInt(valueLength);
+                        out.writeBytes(value.bytes, value.offset, valueLength);
+                    }
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to get binary value", e);
+            }
+        }
+
+    }
+
+}

@@ -23,6 +23,8 @@ import java.io.IOException;
  */
 public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
 
+    public static final String COUNT_FIELD_SUFFIX = ".counts";
+
     protected final ByteArrayStreamInput in = new ByteArrayStreamInput();
     protected final BytesRef scratch = new BytesRef();
 
@@ -33,11 +35,14 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         this.values = values;
     }
 
-    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName, String countsFieldName)
+    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName)
         throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
+
         // Obtain counts directly from leafReader so that null is returned rather than an empty doc values.
         // Whether counts is null allows us to determine which multivalued format was used.
+
+        String countsFieldName = valuesFieldName + COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
         return from(values, counts);
     }

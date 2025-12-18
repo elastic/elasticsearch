@@ -80,4 +80,11 @@ class BenchmarkUtils {
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
     }
+
+    static RuntimeException rethrow(Throwable t) {
+        if (t instanceof Error err) {
+            throw err;
+        }
+        return t instanceof RuntimeException re ? re : new RuntimeException(t);
+    }
 }

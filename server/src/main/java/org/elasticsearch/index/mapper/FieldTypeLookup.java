@@ -223,11 +223,13 @@ final class FieldTypeLookup {
         if (dynamicFieldTypes.isEmpty() == false) {
             // check if any dynamic field roots match the pattern
             String[] subparts = pattern.split("\\.", 2);
-            if (subparts.length > 1 && dynamicFieldTypes.containsKey(subparts[0])) {
+            if (subparts.length > 1) {
                 DynamicFieldType dft = dynamicFieldTypes.get(subparts[0]);
-                Set<String> childNames = dft.getChildFieldNames(subparts[1]);
-                if (childNames != null) {
-                    return childNames.stream().map(childName -> subparts[0] + "." + childName).collect(Collectors.toUnmodifiableSet());
+                if (dft != null) {
+                    Set<String> childNames = dft.getChildFieldNames(subparts[1]);
+                    if (childNames != null) {
+                        return childNames.stream().map(childName -> subparts[0] + "." + childName).collect(Collectors.toUnmodifiableSet());
+                    }
                 }
             }
         }

@@ -648,6 +648,40 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 )
             ),
             entry(
+                "reindex_admin",
+                new RoleDescriptor(
+                    "reindex_admin",
+                    new String[] { "manage_reindex" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Allows users to manage reindex tasks, including getting, listing, cancelling, and rethrottling them."
+                )
+            ),
+            entry(
+                "reindex_user",
+                new RoleDescriptor(
+                    "reindex_user",
+                    new String[] { "monitor_reindex" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Allows users to monitor reindex tasks, including getting abd listing them."
+                )
+            ),
+            entry(
                 "logstash_admin",
                 new RoleDescriptor(
                     "logstash_admin",

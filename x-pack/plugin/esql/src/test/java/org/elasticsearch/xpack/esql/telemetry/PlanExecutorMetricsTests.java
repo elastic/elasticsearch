@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
@@ -57,6 +56,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -172,7 +172,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             TransportVersion.current(),
             queryClusterSettings(),
             enrichResolver,
-            new EsqlExecutionInfo(randomBoolean()),
+            createEsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
@@ -203,7 +203,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             TransportVersion.current(),
             queryClusterSettings(),
             enrichResolver,
-            new EsqlExecutionInfo(randomBoolean()),
+            createEsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,

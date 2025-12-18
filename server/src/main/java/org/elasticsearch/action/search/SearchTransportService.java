@@ -193,6 +193,12 @@ public class SearchTransportService {
         SearchTask task,
         final ActionListener<SearchPhaseResult> listener
     ) {
+
+        // Set coordinator node so data node can detect chunked fetch scenarios
+        if (request.getCoordinatingNode() == null) {
+            request.setCoordinatingNode(transportService.getLocalNode());
+        }
+
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1

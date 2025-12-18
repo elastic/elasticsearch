@@ -101,6 +101,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -167,6 +168,7 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
@@ -902,6 +904,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, CancellableTask task) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request);
+
+        if (shouldUseChunkedFetch(request)) {
+            logger.info("Marking context {} for chunked fetch (allowing internal access)", readerContext.id());
+            readerContext.markForChunkedFetch();
+        }
+
         try (
             Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
@@ -962,6 +970,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             processFailure(readerContext, e);
             throw e;
         }
+    }
+
+    /**
+     * Determines if this request will use chunked fetch
+     */
+    private boolean shouldUseChunkedFetch(ShardSearchRequest request) {
+        // Feature flag must be enabled
+        if (fetchPhaseChunked() == false) {
+            return false;
+        }
+
+        if (request.getCoordinatingNode() == null) {
+            return false;
+        }
+
+        // Local requests don't use chunked fetch
+        if (request.getCoordinatingNode().getId().equals(clusterService.localNode().getId())) {
+            return false;
+        }
+
+       // TODO add a check for remote clusters e.g. ccs
+        return true;
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
@@ -1309,11 +1339,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (reader == null) {
             throw new SearchContextMissingException(id);
         }
-        try {
-            reader.validate(request);
-        } catch (Exception exc) {
-            processFailure(reader, exc);
-            throw exc;
+
+        // Check if this is a chunked fetch request for a marked context
+        boolean skipValidation = reader.isMarkedForChunkedFetch() && request instanceof ShardFetchSearchRequest;
+
+        if (skipValidation) {
+            logger.debug("Skipping security validation for chunked fetch on context {}", id);
+        } else {
+            try {
+                reader.validate(request);
+            } catch (Exception exc) {
+                processFailure(reader, exc);
+                throw exc;
+            }
         }
         return reader;
     }

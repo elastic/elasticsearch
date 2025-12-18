@@ -54,6 +54,8 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
+    private boolean allowInternalAccessForChunkedFetch = false;
+
     @SuppressWarnings("this-escape")
     public ReaderContext(
         ShardSearchContextId id,
@@ -73,8 +75,19 @@ public class ReaderContext implements Releasable {
         this.refCounted = AbstractRefCounted.of(this::doClose);
     }
 
+    public void markForChunkedFetch() {
+        this.allowInternalAccessForChunkedFetch = true;
+    }
+
+    public boolean isMarkedForChunkedFetch() {
+        return allowInternalAccessForChunkedFetch;
+    }
+
     public void validate(TransportRequest request) {
-        indexShard.getSearchOperationListener().validateReaderContext(this, request);
+        // Skip listener validation (including security checks) for internal chunked fetch operations
+        if (allowInternalAccessForChunkedFetch == false) {
+            indexShard.getSearchOperationListener().validateReaderContext(this, request);
+        }
     }
 
     private long nowInMillis() {

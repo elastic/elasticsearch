@@ -59,6 +59,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.AssumptionViolatedException;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -964,15 +965,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         for (Object p : params) {
             TestCaseSupplier tcs = (TestCaseSupplier) ((Object[]) p)[0];
-            TestCaseSupplier.TestCase tc = tcs.get();
-            if (tc.getExpectedTypeError() != null) {
-                continue;
+            try {
+                TestCaseSupplier.TestCase tc = tcs.get();
+                if (tc.getExpectedTypeError() != null) {
+                    continue;
+                }
+                if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
+                    continue;
+                }
+                List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
+                signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
+            } catch (AssumptionViolatedException ignored) {
+                // Throwing an AssumptionViolatedException in a test is a valid way of ignoring a test in junit.
+                // We catch that exception always to keep filling the signatures collection
             }
-            if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
-                continue;
-            }
-            List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
-            signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
         }
         return signatures;
     }

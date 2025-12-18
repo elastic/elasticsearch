@@ -626,12 +626,13 @@ tasks.named("test").configure {
   if (System.getProperty("golden.noactual") != null || project.hasProperty("golden.noactual")) {
     systemProperty "golden.noactual", "true"
   }
-  if (System.getProperty("golden.cleanactual") != null || project.hasProperty("golden.cleanactual")) {
-    systemProperty "golden.cleanactual", "true"
-  }
   if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
     systemProperty "golden.overwrite", "true"
   }
+  if (System.getProperty("golden.cleanactual") != null || project.hasProperty("golden.cleanactual")) {
+    systemProperty "golden.cleanactual", "true"
+  }
+
   systemProperty "policy.directory", file("${projectDir}").absolutePath
   systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
 }

@@ -1,0 +1,3 @@
+ExchangeSinkExec[[emp_no{f}, job_positions{r}, salary{f}],false]
+\_TopNExec[[Order[salary{f},ASC,LAST]],20[INTEGER],58]
+  \_ExchangeSourceExec[[emp_no{f}, job_positions{r}, salary{f}],false]

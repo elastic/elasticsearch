@@ -1,0 +1,4 @@
+ExchangeSinkExec[[emp_no{f}, height{f}],false]
+\_ProjectExec[[_doc{f}, height{f}]]
+  \_FieldExtractExec[height{f}]<[],[]>
+    \_EsQueryExec[employees], indexMode[standard], [_doc{f}], limit[20], sort[[FieldSort[field=height{f}, direction=ASC, nulls=LAST]]] estimatedRowSize[24] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

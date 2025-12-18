@@ -283,8 +283,9 @@ class FetchSearchPhase extends SearchPhase {
             isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection;
 
             // Check if this is a local request (coordinator == data node)
-            remoteDataNodeRequest = connection.getNode().getId().equals(
-                context.getSearchTransport().transportService().getLocalNode().getId()) == false;
+            remoteDataNodeRequest = connection.getNode()
+                .getId()
+                .equals(context.getSearchTransport().transportService().getLocalNode().getId()) == false;
 
             if (logger.isTraceEnabled()) {
                 logger.info(

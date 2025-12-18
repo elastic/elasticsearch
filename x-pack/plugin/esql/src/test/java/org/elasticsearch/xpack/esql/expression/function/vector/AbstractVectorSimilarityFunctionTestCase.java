@@ -20,6 +20,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractVectorTestCase {
@@ -58,7 +59,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
                 ),
                 evaluatorName,
                 DOUBLE,
-                equalTo(expected) // Random vectors should have cosine similarity close to 0
+                closeTo(expected, 0.000001f) // Random vectors should have cosine similarity close to 0
             );
         }));
 

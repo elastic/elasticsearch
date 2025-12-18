@@ -1477,7 +1477,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES_V2(Build.current().isSnapshot()),
+        ENABLE_FORK_FOR_REMOTE_INDICES_V2,
 
         /**
          * Support for the Present function
@@ -1614,6 +1614,10 @@ public class EsqlCapabilities {
          */
         HISTOGRAM_FIELD_SUPPORT_V0,
 
+        /**
+         * histogram to tdigest conversion function
+         */
+        HISTOGRAM_TO_TDIGEST_CAST,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1786,6 +1790,11 @@ public class EsqlCapabilities {
          * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
          */
         FN_MV_INTERSECTION,
+
+        /**
+         * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
+         */
+        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

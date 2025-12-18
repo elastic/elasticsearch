@@ -9,24 +9,8 @@
 
 package org.elasticsearch.lucene.queries;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.ZipDocIdSetIterator;
-import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
-import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -36,66 +20,23 @@ import java.util.Objects;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class SlowMultiBinaryDocValuesTermQuery extends Query {
+public final class SlowMultiBinaryDocValuesTermQuery  extends AbstractBinaryDocValuesQuery {
 
-    private final String fieldName;
     private final BytesRef term;
 
     public SlowMultiBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
-        this.fieldName = Objects.requireNonNull(fieldName);
+        super(fieldName, term::equals);
         this.term = Objects.requireNonNull(term);
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        return new ConstantScoreWeight(this, boost) {
-
-            @Override
-            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + ".counts");
-
-                if (values == null) {
-                    return null;
-                }
-
-                var valuesWithCounts = new ZipDocIdSetIterator(values, counts);
-                final TwoPhaseIterator iterator = new TwoPhaseIterator(valuesWithCounts) {
-                    MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
-
-                    @Override
-                    public boolean matches() throws IOException {
-                        BytesRef binaryValue = values.binaryValue();
-                        int count = Math.toIntExact(counts.longValue());
-                        return reader.match(binaryValue, count, term::equals);
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return 10; // because one comparison
-                    }
-                };
-
-                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
-            }
-
-            @Override
-            public boolean isCacheable(LeafReaderContext ctx) {
-                return DocValues.isCacheable(ctx, fieldName);
-            }
-        };
+    protected float matchCost() {
+        return 10; // because one comparison
     }
 
     @Override
     public String toString(String field) {
         return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.utf8ToString() + ")";
-    }
-
-    @Override
-    public void visit(QueryVisitor visitor) {
-        if (visitor.acceptField(fieldName)) {
-            visitor.visitLeaf(this);
-        }
     }
 
     @Override

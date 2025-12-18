@@ -9,18 +9,30 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+
 public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
-    private final SortedBinaryDocValues values;
+
+    private final String fieldName;
+    private final LeafReader leafReader;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-    MultiValuedBinaryDVLeafFieldData(SortedBinaryDocValues values, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+    MultiValuedBinaryDVLeafFieldData(
+        String fieldName,
+        LeafReader leafReader,
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+    ) {
         super();
-        this.values = values;
+        this.fieldName = fieldName;
+        this.leafReader = leafReader;
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
@@ -31,7 +43,13 @@ public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        return values;
+        try {
+            // Need to return a new instance each time this gets invoked,
+            // otherwise a positioned or exhausted instance can be returned:
+            return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName, fieldName + ".counts");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override

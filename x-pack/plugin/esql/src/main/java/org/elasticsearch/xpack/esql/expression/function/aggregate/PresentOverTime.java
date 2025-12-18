@@ -63,6 +63,7 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
@@ -71,7 +72,8 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
                 "unsigned_long",
                 "version",
                 "exponential_histogram",
-                "tdigest" }
+                "tdigest" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

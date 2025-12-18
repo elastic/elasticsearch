@@ -157,6 +157,88 @@ You can [pre-chunk content](./semantic-text-ingestions.md#pre-chunking) by provi
 Refer to the [{{infer-cap}} API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for values for `chunking_settings` and to [Configuring chunking](docs-content://explore-analyze/elastic-inference/inference-api.md#infer-chunking-config) to learn about different chunking strategies.
 
 
+## Automatic pre-filtering for dense vector embeddings [auto-prefiltering]
+```{applies_to}
+stack: ga 9.3
+serverless: ga
+```
+
+Querying `semantic_text` fields that have dense vector embeddings automatically applies
+filters found in the Query DSL tree or [ES|QL](/reference/query-languages/esql.md) query
+as pre-filters in order to ensure the requested number of results is returned.
+
+In the following example we are using a `match` query against a `semantic_text` field
+in order to find the 10 most relevant documents that match the query "quick drying t-shirts".
+However, we are only interested in green t-shirts, so we add a filter query to exclude other colors.
+
+In Query DSL we would express this query as follows:
+
+
+```console
+POST my-index/_search
+{
+  "size" : 10,
+  "query" : {
+    "bool" : {
+      "must" : {
+        "match": {
+          "dense_semantic_text_field": {
+            "query": "quick drying t-shirts"
+          }
+        }
+      },
+      "filter" : {
+        "term" : {
+          "color": {
+            "value": "green"
+          }
+        }
+      }
+    }
+  }
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+
+
+The `term` query will be applied as a pre-filter, meaning that when the *knn* search executes on
+`dense_semantic_text_field`, only documents that matched the `term` query will be searched.
+
+If the `term` query was applied as a post-filter, which is the default behavior for such filters,
+the *knn* search would execute against all documents, and then the `term` query would filter out
+documents that did not match. This could mean that fewer than 10 documents are returned if there
+are more relevant documents that are not green.
+
+::::{note}
+The queries in Query DSL that are used as pre-filters to `semantic_text` queries are all `must`,
+ `filter`, and `must_not` queries that are within parent `bool` queries.
+::::
+
+::::{important}
+Querying a `semantic_text` field directly with a [kNN query](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text)
+does not apply automatic pre-filtering. `knn` queries provide a direct parameter for defining pre-filters
+as explained in [knn-query-filtering](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-filtering).
+::::
+
+Similarly, in ES|QL we would express this query as follows:
+
+```console
+POST /_query
+{
+  "query": """
+          FROM my-index METADATA _score
+          | WHERE MATCH(dense_semantic_text_field, "quick drying t-shirts")
+          | WHERE color == "green"
+          | SORT _score DESC
+          | LIMIT 10
+   """
+}
+```
+% TEST[skip:Requires {{infer}} endpoint]
+
+The `WHERE color == "green"` clause will be applied as a pre-filter to similar effect.
+
+
 ## Limitations [limitations]
 
 `semantic_text` field types have the following limitations:
@@ -169,6 +251,8 @@ Refer to the [{{infer-cap}} API documentation](https://www.elastic.co/docs/api/d
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is set to `false`.
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) in [ES|QL](/reference/query-languages/esql.md).
 * `semantic_text` fields do not support [Cross-Cluster Replication (CCR)](docs-content://deploy-manage/tools/cross-cluster-replication.md).
+* automatic pre-filtering in Query DSL does not apply on [Nested queries](/reference/query-languages/query-dsl/query-dsl-nested-query.md). Such queries will be applied as post-filters.
+* automatic pre-filtering in ES|QL does not apply on filters that are not translatable to Lucene. Such filters will be applied as post-filters.
 
 
 ## Document count discrepancy in `_cat/indices` [document-count-discrepancy]

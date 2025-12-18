@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -890,6 +891,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryHistogram(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, histogramCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+    }
+
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -1551,6 +1562,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 EsqlTestUtils::randomExponentialHistogram,
                 DataType.EXPONENTIAL_HISTOGRAM
             )
+        );
+    }
+
+    public static List<TypedDataSupplier> histogramCases() {
+        return List.of(
+            new TypedDataSupplier("<random histogram>", EsqlTestUtils::randomHistogram, DataType.HISTOGRAM),
+            new TypedDataSupplier("<empty histogram>", () -> new BytesRef(""), DataType.HISTOGRAM)
+        );
+    }
+
+    /**
+     * Generate cases for {@link DataType#TDIGEST}.
+     */
+    public static List<TypedDataSupplier> tdigestCases() {
+        return List.of(
+            new TypedDataSupplier("<random tdigest>", EsqlTestUtils::randomTDigest, DataType.TDIGEST),
+            new TypedDataSupplier("<empty t-digest>", TDigestHolder::empty, DataType.TDIGEST)
         );
     }
 

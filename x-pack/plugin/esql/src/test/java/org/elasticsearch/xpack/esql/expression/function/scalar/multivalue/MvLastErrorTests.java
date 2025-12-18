@@ -37,17 +37,25 @@ public class MvLastErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double or exponential_histogram"
+                (v, p) -> "any type except counter types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, or exponential_histogram"
             )
         );
     }
 
     @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
         assertThat(
-            "all signatures except dense_vector, aggregate_metric_double and exponential_histogram should be supported",
-            checked,
-            equalTo(3)
+            invalidSignatureSamples,
+            equalTo(
+                Set.of(
+                    List.of(DataType.DENSE_VECTOR),
+                    List.of(DataType.EXPONENTIAL_HISTOGRAM),
+                    List.of(DataType.AGGREGATE_METRIC_DOUBLE),
+                    List.of(DataType.HISTOGRAM),
+                    List.of(DataType.TDIGEST)
+                )
+            )
         );
     }
 }

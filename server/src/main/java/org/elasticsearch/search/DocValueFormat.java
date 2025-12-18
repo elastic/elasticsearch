@@ -311,11 +311,8 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public String format(long value) {
             // Handle missing values, represented as Long.MIN_VALUE or Long.MAX_VALUE depending on the sort order
-            if (value == Long.MIN_VALUE) {
-                return formatter.withZone(ZoneOffset.ofHours(0)).format(Instant.EPOCH);
-            } else if (value == Long.MAX_VALUE) {
-                // On descending values, use the maximum possible value for strict_date_time format as the safest option
-                return formatter.withZone(ZoneOffset.ofHours(0)).format(LocalDateTime.of(LocalDate.of(9999, 12, 31), LocalTime.MAX));
+            if (value == Long.MIN_VALUE || value == Long.MAX_VALUE) {
+                return null;
             }
 
             try {

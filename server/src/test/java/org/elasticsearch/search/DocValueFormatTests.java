@@ -247,8 +247,8 @@ public class DocValueFormatTests extends ESTestCase {
             randomBoolean() ? Resolution.MILLISECONDS : Resolution.NANOSECONDS
         );
         dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
-        assertThat(dateFormat.formatSortValue(Long.MIN_VALUE), equalTo("1970-01-01T00:00:00.000Z"));
-        assertThat(dateFormat.formatSortValue(Long.MAX_VALUE), equalTo("9999-12-31T23:59:59.999999999Z"));
+        assertThat(dateFormat.formatSortValue(Long.MIN_VALUE), equalTo(null));
+        assertThat(dateFormat.formatSortValue(Long.MAX_VALUE), equalTo(null));
 
         formatter = DateFormatter.forPattern(FormatNames.EPOCH_MILLIS.getName());
         dateFormat = new DocValueFormat.DateTime(
@@ -257,8 +257,8 @@ public class DocValueFormatTests extends ESTestCase {
             randomBoolean() ? Resolution.MILLISECONDS : Resolution.NANOSECONDS
         );
         dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
-        assertThat(dateFormat.formatSortValue(Long.MIN_VALUE), equalTo("0"));
-        assertThat(dateFormat.formatSortValue(Long.MAX_VALUE), equalTo("253402300799999.999999"));
+        assertThat(dateFormat.formatSortValue(Long.MIN_VALUE), equalTo(null));
+        assertThat(dateFormat.formatSortValue(Long.MAX_VALUE), equalTo(null));
     }
 
     public void testBadUtf8() {

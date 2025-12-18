@@ -115,7 +115,9 @@ abstract class FetchPhaseDocsIterator {
         int chunkSize,
         ArrayDeque<CompletableFuture<Void>> pendingChunks,
         int maxInFlightChunks,
-        AtomicReference<Throwable> sendFailure
+        AtomicReference<Throwable> sendFailure,
+        TotalHits totalHits,
+        float maxScore
     ) {
         SearchHit[] searchHits = new SearchHit[docIds.length];
         DocIdToIndex[] docs = new DocIdToIndex[docIds.length];
@@ -151,19 +153,23 @@ abstract class FetchPhaseDocsIterator {
                     pendingChunks,
                     maxInFlightChunks,
                     sendFailure,
-                    docIds.length
+                    docIds.length,
+                    totalHits,
+                    maxScore
                 );
 
                 // Handle final chunk
                 if (chunkBuffer != null && chunkBuffer.isEmpty() == false) {
                     lastChunkSequenceStart = hitSequenceCounter.get() - chunkBuffer.size();
                     SearchHit[] lastHitsArray = chunkBuffer.toArray(new SearchHit[0]);
+
                     for (SearchHit hit : lastHitsArray) {
                         hit.decRef();
                     }
-                    lastChunk = new SearchHits(lastHitsArray, new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                    lastChunk = new SearchHits(lastHitsArray, totalHits, maxScore);
                     chunkBuffer.clear();
                 }
+                return new IterateResult(SearchHits.EMPTY_WITHOUT_TOTAL_HITS.getHits(), lastChunk, lastChunkSequenceStart);
             } else {
                 int leafOrd = ReaderUtil.subIndex(docs[0].docId, indexReader.leaves());
                 LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
@@ -241,7 +247,9 @@ abstract class FetchPhaseDocsIterator {
         ArrayDeque<CompletableFuture<Void>> pendingChunks,
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure,
-        int totalDocs
+        int totalDocs,
+        TotalHits totalHits,
+        float maxScore
     ) throws IOException {
         List<LeafReaderContext> leaves = indexReader.leaves();
         long currentChunkSequenceStart = -1;
@@ -249,53 +257,40 @@ abstract class FetchPhaseDocsIterator {
         // Store hits with their original score position
         SearchHit[] hitsInScoreOrder = new SearchHit[docs.length];
 
-        // Process one reader at a time
-        for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
-            LeafReaderContext ctx = leaves.get(leafOrd);
-            int docBase = ctx.docBase;
-            int maxDoc = ctx.reader().maxDoc();
-            int leafEndDoc = docBase + maxDoc;
+        try {
+            // Process one reader at a time
+            for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
+                LeafReaderContext ctx = leaves.get(leafOrd);
+                int docBase = ctx.docBase;
+                int maxDoc = ctx.reader().maxDoc();
+                int leafEndDoc = docBase + maxDoc;
 
-            // Collect docs that belong to this reader with their original positions
-            List<DocPosition> docsInReader = new ArrayList<>();
-            for (int i = 0; i < docs.length; i++) {
-                if (docs[i].docId >= docBase && docs[i].docId < leafEndDoc) {
-                    docsInReader.add(new DocPosition(docs[i].docId, i));
+                // Collect docs that belong to this reader with their original positions
+                List<DocPosition> docsInReader = new ArrayList<>();
+                for (int i = 0; i < docs.length; i++) {
+                    if (docs[i].docId >= docBase && docs[i].docId < leafEndDoc) {
+                        docsInReader.add(new DocPosition(docs[i].docId, i));
+                    }
                 }
-            }
 
-            if (docsInReader.isEmpty()) {
-                continue;
-            }
-
-            // Sort by doc ID for Lucene
-            docsInReader.sort(Comparator.comparingInt(a -> a.docId));
-
-            // Prepare array for setNextReader
-            int[] docsArray = docsInReader.stream().mapToInt(dp -> dp.docId - docBase).toArray();
-
-            try {
-                setNextReader(ctx, docsArray);
-            } catch (ContextIndexSearcher.TimeExceededException e) {
-                if (leafOrd == 0) {
-                    SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
-                    assert allowPartialResults;
-                    return;
+                if (docsInReader.isEmpty()) {
+                    continue;
                 }
-                if (allowPartialResults == false) {
-                    purgePartialHits(hitsInScoreOrder);
-                }
-                SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
-                assert allowPartialResults;
-                return;
-            }
 
-            // Fetch docs in sorted order
-            for (DocPosition dp : docsInReader) {
+                // Sort by doc ID for Lucene
+                docsInReader.sort(Comparator.comparingInt(a -> a.docId));
+
+                // Prepare array for setNextReader
+                int[] docsArray = docsInReader.stream().mapToInt(dp -> dp.docId - docBase).toArray();
+
                 try {
-                    SearchHit hit = nextDoc(dp.docId);
-                    hitsInScoreOrder[dp.scorePosition] = hit;
+                    setNextReader(ctx, docsArray);
                 } catch (ContextIndexSearcher.TimeExceededException e) {
+                    if (leafOrd == 0) {
+                        SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                        assert allowPartialResults;
+                        return;
+                    }
                     if (allowPartialResults == false) {
                         purgePartialHits(hitsInScoreOrder);
                     }
@@ -303,59 +298,78 @@ abstract class FetchPhaseDocsIterator {
                     assert allowPartialResults;
                     return;
                 }
-            }
-        }
 
-        // Now stream hits in score order
-        int processedCount = 0;
-        for (int i = 0; i < hitsInScoreOrder.length; i++) {
-            SearchHit hit = hitsInScoreOrder[i];
-            if (hit == null) {
-                continue; // Defensive
-            }
-
-            hit.incRef();
-
-            if (chunkBuffer.isEmpty()) {
-                currentChunkSequenceStart = hitSequenceCounter.get();
-            }
-            hitSequenceCounter.getAndIncrement();
-
-            chunkBuffer.add(hit);
-            processedCount++;
-
-            // Send chunk if full (but not on last doc)
-            boolean isLastDoc = (i == hitsInScoreOrder.length - 1);
-            if (chunkBuffer.size() >= chunkSize && isLastDoc == false) {
-                Throwable knownFailure = sendFailure.get();
-                if (knownFailure != null) {
-                    throw new RuntimeException("Fetch chunk failed", knownFailure);
-                }
-
-                CompletableFuture<Void> chunkFuture = sendChunk(
-                    chunkWriter,
-                    chunkBuffer,
-                    shardId,
-                    currentChunkSequenceStart,
-                    processedCount - chunkBuffer.size(),
-                    totalDocs,
-                    Float.NaN
-                );
-
-                chunkFuture.whenComplete((ok, ex) -> {
-                    if (ex != null) {
-                        sendFailure.compareAndSet(null, ex);
+                // Fetch docs in sorted order
+                for (DocPosition dp : docsInReader) {
+                    try {
+                        SearchHit hit = nextDoc(dp.docId);
+                        hitsInScoreOrder[dp.scorePosition] = hit;
+                    } catch (ContextIndexSearcher.TimeExceededException e) {
+                        if (allowPartialResults == false) {
+                            purgePartialHits(hitsInScoreOrder);
+                        }
+                        SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                        assert allowPartialResults;
+                        return;
                     }
-                });
+                }
+            }
 
-                pendingChunks.addLast(chunkFuture);
-
-                if (pendingChunks.size() >= maxInFlightChunks) {
-                    awaitOldestOrFail(pendingChunks, sendFailure);
+            // Now stream hits in score order
+            int processedCount = 0;
+            for (int i = 0; i < hitsInScoreOrder.length; i++) {
+                SearchHit hit = hitsInScoreOrder[i];
+                if (hit == null) {
+                    continue; // Defensive
                 }
 
-                chunkBuffer.clear();
+                hit.incRef();
+
+                if (chunkBuffer.isEmpty()) {
+                    currentChunkSequenceStart = hitSequenceCounter.get();
+                }
+                hitSequenceCounter.getAndIncrement();
+
+                chunkBuffer.add(hit);
+                processedCount++;
+
+                // Send chunk if full (but not on last doc)
+                boolean isLastDoc = (i == hitsInScoreOrder.length - 1);
+                if (chunkBuffer.size() >= chunkSize && isLastDoc == false) {
+                    Throwable knownFailure = sendFailure.get();
+                    if (knownFailure != null) {
+                        throw new RuntimeException("Fetch chunk failed", knownFailure);
+                    }
+
+                    CompletableFuture<Void> chunkFuture = sendChunk(
+                        chunkWriter,
+                        chunkBuffer,
+                        shardId,
+                        currentChunkSequenceStart,
+                        processedCount - chunkBuffer.size(),
+                        totalDocs,
+                        totalHits,
+                        maxScore
+                    );
+
+                    chunkFuture.whenComplete((ok, ex) -> {
+                        if (ex != null) {
+                            sendFailure.compareAndSet(null, ex);
+                        }
+                    });
+
+                    pendingChunks.addLast(chunkFuture);
+
+                    if (pendingChunks.size() >= maxInFlightChunks) {
+                        awaitOldestOrFail(pendingChunks, sendFailure);
+                    }
+
+                    chunkBuffer.clear();
+                }
             }
+        } catch (Exception e) {
+            purgePartialHits(hitsInScoreOrder);
+            throw e;
         }
     }
 
@@ -403,6 +417,7 @@ abstract class FetchPhaseDocsIterator {
         long sequenceStart,
         int fromIndex,
         int totalDocs,
+        TotalHits totalHits,
         float maxScore
     ) {
         CompletableFuture<Void> future = new CompletableFuture<>();
@@ -422,7 +437,7 @@ abstract class FetchPhaseDocsIterator {
 
         SearchHits chunkHits = null;
         try {
-            chunkHits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), maxScore);
+            chunkHits = new SearchHits(hitsArray, totalHits, maxScore);
             final SearchHits finalChunkHits = chunkHits;
 
             FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(

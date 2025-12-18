@@ -352,7 +352,9 @@ public final class FetchPhase {
                 5, // TODO set a proper number
                 pendingChunks,
                 maxInFlightChunks,
-                sendFailure
+                sendFailure,
+                context.getTotalHits(),
+                context.getMaxScore()
             );
 
             if (context.isCancelled()) {

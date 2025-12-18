@@ -85,14 +85,8 @@ public class VectorScorerInt7uBulkBenchmark {
     public int numVectors;
     public int numVectorsToScore;
 
-    public enum Implementation {
-        SCALAR,
-        LUCENE,
-        NATIVE
-    }
-
     @Param
-    public Implementation implementation;
+    public VectorImplementation implementation;
 
     @Param({ "DOT_PRODUCT" })
     public VectorSimilarityType function;

@@ -73,14 +73,8 @@ public class VectorScorerInt7uBenchmark {
     public int dims;
     public static int numVectors = 2; // there are only two vectors to compare
 
-    public enum Implementation {
-        SCALAR,
-        LUCENE,
-        NATIVE
-    }
-
     @Param
-    public Implementation implementation;
+    public VectorImplementation implementation;
 
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;

@@ -28,7 +28,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-// TODO: Double check logic
 public class PartitionedRoutingIT extends ESIntegTestCase {
 
     public void testVariousPartitionSizes() throws Exception {

@@ -669,9 +669,9 @@ FROM sample_data, (FROM books metadata _score
 ignoreOrder:true
 
 title:text                      | completion:keyword              | @timestamp:datetime      | client_ip:ip
-War and Peace                   | WAR AND PEACE                   | null                     | null
-War and Peace (Signet Classics) | WAR AND PEACE (SIGNET CLASSICS) | null                     | null
-null                            | null                            | 2023-10-23T13:33:34.937Z | 172.21.0.5
+War and Peace                      | WAR AND PEACE                      | null                     | null
+War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES) | null                     | null
+null                               | null                               | 2023-10-23T13:33:34.937Z | 172.21.0.5
 ;
 
 subqueryInFromWithCompletionInMainQuery

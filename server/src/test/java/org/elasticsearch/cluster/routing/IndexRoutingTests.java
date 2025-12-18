@@ -206,22 +206,21 @@ public class IndexRoutingTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "I believe it is valid that these change but need to check.")
     public void testPartitionedIndexShrunk() {
         Map<String, Map<String, Integer>> routingIdToShard = new HashMap<>();
 
         Map<String, Integer> routingA = new HashMap<>();
-        routingA.put("a_0", 1);
-        routingA.put("a_1", 2);
-        routingA.put("a_2", 2);
-        routingA.put("a_3", 2);
-        routingA.put("a_4", 1);
-        routingA.put("a_5", 2);
+        routingA.put("a_0", 2);
+        routingA.put("a_1", 0);
+        routingA.put("a_2", 0);
+        routingA.put("a_3", 0);
+        routingA.put("a_4", 3);
+        routingA.put("a_5", 0);
         routingIdToShard.put("a", routingA);
 
         Map<String, Integer> routingB = new HashMap<>();
         routingB.put("b_0", 0);
-        routingB.put("b_1", 0);
+        routingB.put("b_1", 1);
         routingB.put("b_2", 0);
         routingB.put("b_3", 0);
         routingB.put("b_4", 3);
@@ -229,21 +228,21 @@ public class IndexRoutingTests extends ESTestCase {
         routingIdToShard.put("b", routingB);
 
         Map<String, Integer> routingC = new HashMap<>();
-        routingC.put("c_0", 1);
-        routingC.put("c_1", 1);
-        routingC.put("c_2", 0);
-        routingC.put("c_3", 0);
-        routingC.put("c_4", 0);
-        routingC.put("c_5", 1);
+        routingC.put("c_0", 3);
+        routingC.put("c_1", 3);
+        routingC.put("c_2", 1);
+        routingC.put("c_3", 1);
+        routingC.put("c_4", 1);
+        routingC.put("c_5", 3);
         routingIdToShard.put("c", routingC);
 
         Map<String, Integer> routingD = new HashMap<>();
-        routingD.put("d_0", 2);
-        routingD.put("d_1", 2);
-        routingD.put("d_2", 3);
-        routingD.put("d_3", 3);
-        routingD.put("d_4", 3);
-        routingD.put("d_5", 3);
+        routingD.put("d_0", 1);
+        routingD.put("d_1", 1);
+        routingD.put("d_2", 2);
+        routingD.put("d_3", 2);
+        routingD.put("d_4", 2);
+        routingD.put("d_5", 2);
         routingIdToShard.put("d", routingD);
 
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(

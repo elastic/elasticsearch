@@ -29,6 +29,7 @@ prompt:keyword                                        | completion_output:keywor
 completion after a search
 required_capability: completion
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -38,14 +39,15 @@ FROM books METADATA _score
 | KEEP title, completion
 ;
 
-title:text                      | completion:keyword
-War and Peace                   | WAR AND PEACE
-War and Peace (Signet Classics) | WAR AND PEACE (SIGNET CLASSICS)                     
+title:text                         | completion:keyword
+War and Peace                      | WAR AND PEACE
+War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
 ;
-                                                                                                    
+
 completion using a function as a prompt
 required_capability: completion
 required_capability: match_operator_colon
+required_capability: routing_function_update
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -55,9 +57,9 @@ FROM books METADATA _score
 | KEEP title, completion
 ;
 
-title:text                      | completion:keyword
-War and Peace                   | THIS IS A PROMPT: WAR AND PEACE
-War and Peace (Signet Classics) | THIS IS A PROMPT: WAR AND PEACE (SIGNET CLASSICS)
+title:text                         | completion:keyword
+War and Peace                      | THIS IS A PROMPT: WAR AND PEACE
+War and Peace: A Novel (6 Volumes) | THIS IS A PROMPT: WAR AND PEACE: A NOVEL (6 VOLUMES)
 ;                                                                                                                       
 
 completion followed by stats

@@ -509,6 +509,14 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 ```
 
 
+## GPU vector indexing
+```{applies_to}
+stack: preview 9.3
+```
+
+{{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.
+
+
 ## Updatable field type [_updatable_field_type]
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):

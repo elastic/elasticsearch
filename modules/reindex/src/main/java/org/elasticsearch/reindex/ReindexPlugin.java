@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -50,6 +52,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
      * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
      */
     public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
+
+    private final SetOnce<ReindexRelocationNodePicker> relocationNodePicker = new SetOnce<>();
 
     @Override
     public List<ActionHandler> getActions() {
@@ -90,11 +94,13 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        assert relocationNodePicker.get() != null : "ReindexPlugin.relocationNodePicker was not set";
         return List.of(
             new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
             new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry())
+            new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
+            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, relocationNodePicker.get())
         );
     }
 
@@ -104,5 +110,19 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        relocationNodePicker.set(loadRelocationNodePicker(loader));
+    }
+
+    private ReindexRelocationNodePicker loadRelocationNodePicker(ExtensionLoader loader) {
+        List<ReindexRelocationNodePicker> relocationNodePickersFromExtensions = loader.loadExtensions(ReindexRelocationNodePicker.class);
+        return switch (relocationNodePickersFromExtensions.size()) {
+            case 0 -> new DefaultReindexRelocationNodePicker();
+            case 1 -> relocationNodePickersFromExtensions.getFirst();
+            default -> throw new IllegalStateException(ReindexRelocationNodePicker.class + " may not have multiple implementations");
+        };
     }
 }

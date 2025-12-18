@@ -373,6 +373,11 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return new SortFieldAndFormat(field, formatter);
     }
 
+    @Override
+    public String name() {
+        return NAME;
+    }
+
     public boolean canRewriteToMatchNone() {
         return nestedSort == null && (missing == null || "_last".equals(missing));
     }

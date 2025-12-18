@@ -14,6 +14,8 @@ import com.carrotsearch.hppc.ObjectDoubleMap;
 
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -74,8 +76,12 @@ public class ShardMovementWriteLoadSimulator {
             originalNodeUsageStatsForThreadPools.size()
         );
         for (Map.Entry<String, NodeUsageStatsForThreadPools> entry : originalNodeUsageStatsForThreadPools.entrySet()) {
-            ThreadPoolUsageStats threadPoolUsageStats = entry.getValue().threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
-            boolean isHotspotting = threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= writeLoadConstraintSettings.getQueueLatencyThreshold().millis();
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = entry.getValue()
+                .threadPoolUsageStatsMap()
+                .get(ThreadPool.Names.WRITE);
+            boolean isHotspotting = threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= writeLoadConstraintSettings
+                .getQueueLatencyThreshold()
+                .millis();
             if (simulatedNodeWriteLoadDeltas.containsKey(entry.getKey()) || nodesWithMovedAwayShard.contains(entry.getKey())) {
                 var adjustedValue = new NodeUsageStatsForThreadPools(
                     entry.getKey(),
@@ -128,9 +134,7 @@ public class ShardMovementWriteLoadSimulator {
         );
     }
 
-    private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats setIsHotspottingFlag(
-        NodeUsageStatsForThreadPools value
-    ) {
+    private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats setIsHotspottingFlag(NodeUsageStatsForThreadPools value) {
         final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
             .get(ThreadPool.Names.WRITE);
 

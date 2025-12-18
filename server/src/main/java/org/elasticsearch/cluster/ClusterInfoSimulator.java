@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;

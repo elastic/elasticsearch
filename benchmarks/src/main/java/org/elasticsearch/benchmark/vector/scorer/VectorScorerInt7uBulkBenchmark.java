@@ -52,6 +52,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.vectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeInt7VectorData;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareDistance;
 
 /**
  * Benchmark that compares bulk scoring of various scalar quantized vector similarity function
@@ -111,10 +113,7 @@ public class VectorScorerInt7uBulkBenchmark {
         public float score(int ordinal) throws IOException {
             var vec2 = values.vectorValue(ordinal);
             var vec2CorrectionConstant = values.getScoreCorrectionConstant(ordinal);
-            int dotProduct = 0;
-            for (int i = 0; i < queryVector.length; i++) {
-                dotProduct += queryVector[i] * vec2[i];
-            }
+            int dotProduct = dotProduct(queryVector, vec2);
             float adjustedDistance = dotProduct * scoreCorrectionConstant + queryVectorCorrectionConstant + vec2CorrectionConstant;
             return (1 + adjustedDistance) / 2;
         }
@@ -145,11 +144,7 @@ public class VectorScorerInt7uBulkBenchmark {
         @Override
         public float score(int ordinal) throws IOException {
             var vec2 = values.vectorValue(ordinal);
-            int squareDistance = 0;
-            for (int i = 0; i < queryVector.length; i++) {
-                int diff = queryVector[i] - vec2[i];
-                squareDistance += diff * diff;
-            }
+            int squareDistance = squareDistance(queryVector, vec2);
             float adjustedDistance = squareDistance * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
         }

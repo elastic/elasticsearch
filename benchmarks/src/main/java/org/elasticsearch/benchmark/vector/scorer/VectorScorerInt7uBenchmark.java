@@ -47,6 +47,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.vectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeInt7VectorData;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareDistance;
 
 /**
  * Benchmark that compares various scalar quantized vector similarity function
@@ -106,10 +108,7 @@ public class VectorScorerInt7uBenchmark {
 
         @Override
         public float score(int node) throws IOException {
-            int dotProduct = 0;
-            for (int i = 0; i < vec1.length; i++) {
-                dotProduct += vec1[i] * vec2[i];
-            }
+            int dotProduct = dotProduct(vec1, vec2);
             float adjustedDistance = dotProduct * scoreCorrectionConstant + vec1CorrectionConstant + vec2CorrectionConstant;
             return (1 + adjustedDistance) / 2;
         }
@@ -136,11 +135,7 @@ public class VectorScorerInt7uBenchmark {
 
         @Override
         public float score(int node) throws IOException {
-            int squareDistance = 0;
-            for (int i = 0; i < vec1.length; i++) {
-                int diff = vec1[i] - vec2[i];
-                squareDistance += diff * diff;
-            }
+            int squareDistance = squareDistance(vec1, vec2);
             float adjustedDistance = squareDistance * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
         }

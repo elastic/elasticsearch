@@ -19,6 +19,8 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
+
 public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
 
     private final VectorSimilarityType function;
@@ -46,7 +48,7 @@ public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
             bench.size = size;
             bench.init();
             try {
-                float expected = dotProductScalar(bench.byteArrayA, bench.byteArrayB);
+                float expected = dotProduct(bench.byteArrayA, bench.byteArrayB);
                 assertEquals(expected, bench.lucene(), delta);
                 assertEquals(expected, bench.nativeWithNativeSeg(), delta);
                 if (supportsHeapSegments()) {
@@ -71,14 +73,5 @@ public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
         }
-    }
-
-    /** Computes the dot product of the given vectors a and b. */
-    static int dotProductScalar(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
     }
 }

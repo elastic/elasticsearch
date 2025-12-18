@@ -263,6 +263,7 @@ public abstract class TestCluster {
 
     private void wipeViewsAsync(String[] views, ActionListener<Void> listener) {
         logger.info("---- wiping views [{}]", Strings.arrayToCommaDelimitedString(views));
+        listener.onResponse(null);
         // TODO: implement me
     }
 

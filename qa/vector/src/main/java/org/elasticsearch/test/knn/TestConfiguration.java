@@ -486,43 +486,53 @@ record TestConfiguration(
         }
 
         List<SearchParameters> allCombinations() {
-            List<SearchParameters> allCombinations = new ArrayList<>();
-            for (var candidates : numCandidates) {
-                for (var kValue : k) {
-                    for (var visitPercentage : visitPercentages) {
-                        for (var overSampleFactor : overSamplingFactor) {
-                            for (var searchThread : searchThreads) {
-                                for (var numSearch : numSearchers) {
-                                    for (var filterSelect : filterSelectivity) {
-                                        for (var filterCache : filterCached) {
-                                            for (var earlyTerm : earlyTermination) {
-                                                for (var seedValue : seed) {
-                                                    allCombinations.add(
-                                                        new SearchParameters(
-                                                            candidates,
-                                                            kValue,
-                                                            visitPercentage,
-                                                            overSampleFactor,
-                                                            searchThread,
-                                                            numSearch,
-                                                            filterSelect,
-                                                            filterCache,
-                                                            earlyTerm,
-                                                            seedValue
-                                                        )
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+            return cartesianProduct(
+                List.of(
+                    numCandidates,
+                    k,
+                    visitPercentages,
+                    overSamplingFactor,
+                    searchThreads,
+                    numSearchers,
+                    filterSelectivity,
+                    filterCached,
+                    earlyTermination,
+                    seed
+                )
+            ).stream()
+                .map(
+                    params -> new SearchParameters(
+                        (Integer) params.get(0),
+                        (Integer) params.get(1),
+                        (Double) params.get(2),
+                        (Float) params.get(3),
+                        (Integer) params.get(4),
+                        (Integer) params.get(5),
+                        (Float) params.get(6),
+                        (Boolean) params.get(7),
+                        (Boolean) params.get(8),
+                        (Long) params.get(9)
+                    )
+                )
+                .toList();
+        }
 
+        private static List<List<Object>> cartesianProduct(List<List<?>> lists) {
+            List<List<Object>> result = new ArrayList<>();
+            result.add(new ArrayList<>());
+
+            for (List<?> list : lists) {
+                List<List<Object>> temp = new ArrayList<>();
+                for (List<Object> res : result) {
+                    for (Object item : list) {
+                        List<Object> newRes = new ArrayList<>(res);
+                        newRes.add(item);
+                        temp.add(newRes);
+                    }
                 }
+                result = temp;
             }
-            return allCombinations;
+            return result;
         }
     }
 }

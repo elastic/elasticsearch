@@ -555,28 +555,32 @@ public class SearchTransportService {
 
             // Check if we can connect to the coordinator (CCS detection)
             boolean canConnectToCoordinator = false;
+            boolean remoteDataNodeRequest = false;
             if (hasCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 DiscoveryNode coordinatorNode = fetchSearchReq.getCoordinatingNode();
                 // In CCS, the remote data node won't have a connection to the local coordinator
                 canConnectToCoordinator = transportService.nodeConnected(coordinatorNode);
+                // Check if this is a local request (coordinator == data node)
+                remoteDataNodeRequest = coordinatorNode.getId().equals(transportService.getLocalNode().getId()) == false;
             }
 
             if (logger.isTraceEnabled()) {
                 logger.info(
                     "CHUNKED_FETCH decision: enabled={}, versionSupported={}, hasCoordinator={}, "
-                        + "canConnectToCoordinator={}, channelVersion={}, request_from={}",
+                        + "canConnectToCoordinator={}, remoteDataNodeRequest={}, channelVersion={}, request_from={}",
                     fetchedPhaseChunkedEnabled,
                     versionSupported,
                     hasCoordinator,
                     canConnectToCoordinator,
+                    remoteDataNodeRequest,
                     channelVersion,
                     hasCoordinator ? ((ShardFetchSearchRequest) request).getCoordinatingNode() : "N/A"
                 );
             }
 
             // Only use chunked fetch if we can actually connect back to the coordinator
-            if (fetchedPhaseChunkedEnabled && versionSupported && hasCoordinator && canConnectToCoordinator) {
+            if (fetchedPhaseChunkedEnabled && remoteDataNodeRequest && versionSupported && hasCoordinator && canConnectToCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
 
@@ -600,7 +604,6 @@ public class SearchTransportService {
                                 )
                             );
                         } catch (Exception e) {
-                            logger.error("Failed to send chunk", e);
                             listener.onFailure(e);
                         }
                     }
@@ -608,7 +611,7 @@ public class SearchTransportService {
 
                 searchService.executeFetchPhase(request, (SearchShardTask) task, writer, new ChannelActionListener<>(channel));
             } else {
-                // Normal path - used for CCS, version mismatches, or when feature is disabled
+                // Normal path - used for local requests, CCS, and version mismatches
                 logger.info("Using NORMAL fetch path (canConnectToCoordinator={})", canConnectToCoordinator);
                 searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }

@@ -276,20 +276,25 @@ class FetchSearchPhase extends SearchPhase {
 
         boolean dataNodeSupports = false;
         boolean isCCSQuery = false;
+        boolean remoteDataNodeRequest = false;
         if (connection != null) {
             TransportVersion dataNodeVersion = connection.getTransportVersion();
             dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
             isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection;
 
+            // Check if this is a local request (coordinator == data node)
+            remoteDataNodeRequest = connection.getNode().getId().equals(
+                context.getSearchTransport().transportService().getLocalNode().getId()) == false;
+
             if (logger.isTraceEnabled()) {
                 logger.info(
-                    "FetchSearchPhase decision for shard {}: chunkEnabled={}, dataNodeSupports={}, "
-                        + "dataNodeVersion={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
+                    "FetchSearchPhase decision for shard {}: chunkEnabled={}, remoteDataNodeRequest={}, "
+                        + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
                         + "targetNode={}, isCCSQuery={}",
                     shardIndex,
                     fetchPhaseChunked,
+                    remoteDataNodeRequest,
                     dataNodeSupports,
-                    dataNodeVersion,
                     dataNodeVersion.id(),
                     CHUNKED_FETCH_PHASE.id(),
                     connection.getNode(),
@@ -298,7 +303,8 @@ class FetchSearchPhase extends SearchPhase {
             }
         }
 
-        if (fetchPhaseChunked && dataNodeSupports && isCCSQuery == false) {
+        // Use chunked fetch for remote requests (not local, not CCS)
+        if (fetchPhaseChunked && remoteDataNodeRequest & dataNodeSupports && isCCSQuery == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
 

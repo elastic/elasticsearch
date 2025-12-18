@@ -76,6 +76,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
@@ -1319,7 +1320,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         // retrieves all views
         final Request request = new Request("GET", "_query/view");
 
-        final Response response = cleanupClient().performRequest(request);
+        final Response response;
+        try {
+            response = cleanupClient().performRequest(request);
+        } catch (ResponseException e) {
+            if (EntityUtils.toString(e.getResponse().getEntity()).contains("no handler found for uri [_query/view]")) {
+                // Views are not supported, don't worry about wiping them
+                return;
+            }
+            throw e;
+        }
+
         @SuppressWarnings("unchecked")
         List<Object> views = (List<Object>) XContentMapValues.extractValue("views", entityAsMap(response));
         if (views != null) {

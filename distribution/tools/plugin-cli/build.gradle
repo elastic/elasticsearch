@@ -51,6 +51,15 @@ tasks.named("test").configure {
   }
 }
 
+if (buildParams.inFipsJvm) {
+  // Disable tests in FIPS mode due to jar hell between plugin-cli's
+  // BouncyCastle dependencies and the BC FIPS dependencies added by the FIPS gradle config
+  // TODO: re-evaluate this after updating plugin-cli to use BC FIPS 2.x
+  tasks.named("test").configure {
+    enabled = false
+  }
+}
+
 /*
  * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
  * functionality

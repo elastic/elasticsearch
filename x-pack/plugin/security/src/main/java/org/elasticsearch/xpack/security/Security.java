@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -2032,9 +2033,22 @@ public class Security extends Plugin
             }
         });
 
-        Set<String> foundProviders = new HashSet<>();
+        record SecProv(String name, String version) {
+            boolean test(String secProvPattern) {
+                int i = secProvPattern.indexOf(':');
+                if (i < 0) {
+                    return name.equals(secProvPattern);
+                } else {
+                    String provName = secProvPattern.substring(0, i);
+                    String provVersion = secProvPattern.substring(i + 1);
+                    return name.equals(provName) && Regex.simpleMatch(provVersion, version);
+                }
+            }
+        }
+
+        Set<SecProv> foundProviders = new HashSet<>();
         for (Provider provider : java.security.Security.getProviders()) {
-            foundProviders.add(provider.getName().toLowerCase(Locale.ROOT));
+            foundProviders.add(new SecProv(provider.getName().toLowerCase(Locale.ROOT), provider.getVersionStr()));
             if (logger.isTraceEnabled()) {
                 logger.trace("Security Provider: " + provider.getName() + ", Version: " + provider.getVersionStr());
                 provider.entrySet().forEach(entry -> { logger.trace("\t" + entry.getKey()); });
@@ -2046,7 +2060,7 @@ public class Security extends Plugin
         if (requiredProviders != null && requiredProviders.isEmpty() == false) {
             List<String> unsatisfiedProviders = requiredProviders.stream()
                 .map(s -> s.toLowerCase(Locale.ROOT))
-                .filter(element -> foundProviders.contains(element) == false)
+                .filter(element -> foundProviders.stream().noneMatch(prov -> prov.test(element)))
                 .toList();
 
             if (unsatisfiedProviders.isEmpty() == false) {

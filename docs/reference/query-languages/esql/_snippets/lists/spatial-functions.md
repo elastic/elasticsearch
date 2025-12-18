@@ -8,6 +8,7 @@
   * [`ST_X`](../../functions-operators/spatial-functions.md#esql-st_x)
   * [`ST_Y`](../../functions-operators/spatial-functions.md#esql-st_y)
   * [`ST_NPOINTS`](../../functions-operators/spatial-functions.md#esql-st_npoints) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+  * [`ST_SIMPLIFY`](../../functions-operators/spatial-functions.md#esql-st_simplify) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`ST_ENVELOPE`](../../functions-operators/spatial-functions.md#esql-st_envelope) {applies_to}`stack: preview` {applies_to}`serverless: preview`
   * [`ST_XMAX`](../../functions-operators/spatial-functions.md#esql-st_xmax) {applies_to}`stack: preview` {applies_to}`serverless: preview`
   * [`ST_XMIN`](../../functions-operators/spatial-functions.md#esql-st_xmin) {applies_to}`stack: preview` {applies_to}`serverless: preview`

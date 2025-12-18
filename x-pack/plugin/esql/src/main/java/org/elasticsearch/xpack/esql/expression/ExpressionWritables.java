@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -265,7 +266,8 @@ public class ExpressionWritables {
             StDistance.ENTRY,
             StGeohash.ENTRY,
             StGeotile.ENTRY,
-            StGeohex.ENTRY
+            StGeohex.ENTRY,
+            StSimplify.ENTRY
         );
     }
 

@@ -250,9 +250,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/134865
-- class: org.elasticsearch.xpack.ml.integration.InferenceIT
-  method: testInferRegressionModel
-  issue: https://github.com/elastic/elasticsearch/issues/133603
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/126748
@@ -388,18 +385,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
-  issue: https://github.com/elastic/elasticsearch/issues/139490
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testReductionPlanForTopNWithPushedDownFunctions
-  issue: https://github.com/elastic/elasticsearch/issues/139491
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
-  issue: https://github.com/elastic/elasticsearch/issues/139492
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testReductionPlanForTopNWithPushedDownFunctions
-  issue: https://github.com/elastic/elasticsearch/issues/139493
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139527

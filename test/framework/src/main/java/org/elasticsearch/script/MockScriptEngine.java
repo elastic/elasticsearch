@@ -150,7 +150,7 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public boolean needs_score() {
-                    return false;
+                    return true;
                 }
             };
             return context.factoryClazz.cast(factory);
@@ -903,7 +903,7 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public boolean needs_score() {
-                    return false;
+                    return true;
                 }
             };
         }
@@ -945,7 +945,7 @@ public class MockScriptEngine implements ScriptEngine {
 
                 @Override
                 public boolean needs_score() {
-                    return false;
+                    return true;
                 }
             };
         }

@@ -613,7 +613,6 @@ public class DeterministicTaskQueue {
         private DeferredTask {
             assert executionTimeMillis < Long.MAX_VALUE : "Long.MAX_VALUE is special, cannot be an execution time";
         }
-
     }
 
     public static String getNodeIdForLogContext(DiscoveryNode node) {
@@ -640,4 +639,5 @@ public class DeterministicTaskQueue {
     public static CloseableThreadContext.Instance getLogContext(String value) {
         return CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, value);
     }
+
 }

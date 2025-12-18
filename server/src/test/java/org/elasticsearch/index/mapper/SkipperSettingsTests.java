@@ -28,10 +28,6 @@ public class SkipperSettingsTests extends ESTestCase {
             assertFalse(indexSettings.useDocValuesSkipper());
         }
         {
-            IndexSettings indexSettings = settings(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS, b -> {});
-            assertTrue(indexSettings.useDocValuesSkipper());
-        }
-        {
             IndexSettings indexSettings = settings(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB, b -> {});
             assertFalse(indexSettings.useDocValuesSkipper());
         }
@@ -72,12 +68,6 @@ public class SkipperSettingsTests extends ESTestCase {
                 b -> { b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()); }
             );
             assertFalse(indexSettings.useDocValuesSkipper());
-        }
-        {
-            IndexSettings indexSettings = settings(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS, b -> {
-                b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
-            });
-            assertTrue(indexSettings.useDocValuesSkipper());
         }
         {
             IndexSettings indexSettings = settings(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB, b -> {

@@ -102,6 +102,13 @@ public class StatelessPlugin extends Plugin implements ClusterCoordinationPlugin
                     );
                 }
             }
+            if (DATA_STREAMS_LIFECYCLE_ONLY_MODE.exists(settings)) {
+                if (DATA_STREAMS_LIFECYCLE_ONLY_MODE.get(settings) == false) {
+                    throw new IllegalArgumentException(
+                        NAME + " does not support setting " + DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey() + " to false"
+                    );
+                }
+            }
             if (Objects.equals(SHARDS_ALLOCATOR_TYPE_SETTING.get(settings), DESIRED_BALANCE_ALLOCATOR) == false) {
                 throw new IllegalArgumentException(
                     NAME + " can only be used with " + SHARDS_ALLOCATOR_TYPE_SETTING.getKey() + "=" + DESIRED_BALANCE_ALLOCATOR

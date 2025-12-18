@@ -46,10 +46,12 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
         if (count == 1) {
             return predicate.test(bytes);
         }
+
+        scratch.bytes = bytes.bytes;
+        in.reset(bytes.bytes, bytes.offset, bytes.length);
         for (int v = 0; v < count; v++) {
             initializeScratch();
-            boolean match = predicate.test(scratch);
-            if (match) {
+            if (predicate.test(scratch)) {
                 return true;
             }
         }

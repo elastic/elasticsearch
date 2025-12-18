@@ -36,12 +36,12 @@ import java.util.Objects;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class SlowCustomBinaryDocValuesTermQuery extends Query {
+public final class SlowMultiBinaryDocValuesTermQuery extends Query {
 
     private final String fieldName;
     private final BytesRef term;
 
-    public SlowCustomBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
+    public SlowMultiBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
         this.fieldName = Objects.requireNonNull(fieldName);
         this.term = Objects.requireNonNull(term);
     }
@@ -60,7 +60,7 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
                 }
 
                 var valuesWithCounts = new ZipDocIdSetIterator(values, counts);
-                TwoPhaseIterator iterator = new TwoPhaseIterator(valuesWithCounts) {
+                final TwoPhaseIterator iterator = new TwoPhaseIterator(valuesWithCounts) {
                     MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
                     @Override
@@ -106,7 +106,7 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
         if (sameClassAs(o) == false) {
             return false;
         }
-        SlowCustomBinaryDocValuesTermQuery that = (SlowCustomBinaryDocValuesTermQuery) o;
+        SlowMultiBinaryDocValuesTermQuery that = (SlowMultiBinaryDocValuesTermQuery) o;
         return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term);
     }
 

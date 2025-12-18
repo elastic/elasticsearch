@@ -75,7 +75,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.SlowMultiBinaryDocValuesTermQuery;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -641,7 +641,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQuery(value, context);
             } else if (storedInBinaryDocValues()) {
-                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+                return new SlowMultiBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
             } else {
                 return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
             }
@@ -1553,8 +1553,8 @@ public final class KeywordFieldMapper extends FieldMapper {
      * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
      * binary doc values for fields with multiple values per document.
      */
-    private abstract static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
-        enum Ordering {
+    public abstract static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+        public enum Ordering {
             INSERTION,
             NATURAL
         }
@@ -1615,9 +1615,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static class MultiValuedBinaryNoCount extends MultiValuedBinaryDocValuesField {
-        MultiValuedBinaryNoCount(String name, Ordering ordering) {
+    public static class MultiValuedBinaryNoCount extends MultiValuedBinaryDocValuesField {
+        public MultiValuedBinaryNoCount(String name, Ordering ordering) {
             super(name, ordering);
+        }
+
+        public static MultiValuedBinaryNoCount naturalOrder(String name) {
+            return new MultiValuedBinaryNoCount(name, Ordering.NATURAL);
         }
 
         @Override
@@ -1656,7 +1660,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             private final String name;
             private long value = 0;
 
-            protected UpdateableNumericField(String name) {
+            public UpdateableNumericField(String name) {
                 this.name = name;
             }
 

@@ -33,14 +33,17 @@ public class ZipDocIdSetIterator extends DocIdSetIterator {
 
     @Override
     public int nextDoc() throws IOException {
-        return a.nextDoc();
+        int resA = a.nextDoc();
+        int resB = b.nextDoc();
+        assert resA == resB : "Doc IDs do not match";
+        return resA;
     }
 
     @Override
     public int advance(int target) throws IOException {
         int resA = a.advance(target);
         int resB = b.advance(target);
-        assert resA == resB;
+        assert resA == resB : "Doc IDs do not match";
         return resA;
     }
 

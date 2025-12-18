@@ -15,7 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
+public class SlowMultiBinaryDocValuesTermQueryTests extends ESTestCase {
 
     public void testBasics() throws Exception {
         String fieldName = "field";
@@ -38,14 +38,19 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                 for (var entry : expectedCounts.entrySet()) {
                     for (int i = 0; i < entry.getValue(); i++) {
                         Document document = new Document();
-                        var field = new BinaryFieldMapper.CustomBinaryDocValuesField(
-                            "field",
-                            entry.getKey().getBytes(StandardCharsets.UTF_8)
-                        );
+
+                        var field = KeywordFieldMapper.MultiValuedBinaryNoCount.naturalOrder("field");
+                        field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
+
+                        var countField = new KeywordFieldMapper.MultiValuedBinaryNoCount.UpdateableNumericField("field.counts");
+                        countField.setValue(field.count());
+
                         if (randomBoolean()) {
-                            field.add("z".getBytes(StandardCharsets.UTF_8));
+                            field.add(new BytesRef("z".getBytes(StandardCharsets.UTF_8)));
+                            countField.setValue(field.count());
                         }
                         document.add(field);
+                        document.add(countField);
                         writer.addDocument(document);
                     }
                 }
@@ -54,7 +59,7 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
                     for (var entry : expectedCounts.entrySet()) {
-                        long count = searcher.count(new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef(entry.getKey())));
+                        long count = searcher.count(new SlowMultiBinaryDocValuesTermQuery(fieldName, new BytesRef(entry.getKey())));
                         assertEquals(entry.getValue().longValue(), count);
                     }
                 }
@@ -71,7 +76,7 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
+                    Query query = new SlowMultiBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -81,13 +86,20 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 Document document = new Document();
-                document.add(new BinaryFieldMapper.CustomBinaryDocValuesField("field", "a".getBytes(StandardCharsets.UTF_8)));
+
+                var field = KeywordFieldMapper.MultiValuedBinaryNoCount.naturalOrder("field");
+                field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
+                var countField = new KeywordFieldMapper.MultiValuedBinaryNoCount.UpdateableNumericField("field.counts");
+                countField.setValue(field.count());
+                document.add(field);
+                document.add(countField);
+
                 writer.addDocument(document);
                 writer.commit();
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
+                    Query query = new SlowMultiBinaryDocValuesTermQuery(fieldName, new BytesRef("a"));
                     assertEquals(1, searcher.count(query));
                 }
             }

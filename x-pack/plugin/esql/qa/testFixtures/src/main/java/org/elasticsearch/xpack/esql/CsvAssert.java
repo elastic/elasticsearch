@@ -467,6 +467,10 @@ public final class CsvAssert {
     }
 
     private static Object convertActualValue(Type expectedType, Object actualValue) {
+        if (actualValue == null) {
+            return null;
+        }
+
         // The CSV assertions expect UTC dates
         return switch (expectedType) {
             case Type.DATETIME -> rebuildExpected(

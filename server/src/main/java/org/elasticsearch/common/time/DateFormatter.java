@@ -41,6 +41,13 @@ public interface DateFormatter {
     }
 
     /**
+     * Parse the given input into nanos-since-epoch.
+     */
+    default long parseNanos(String input) {
+        return DateUtils.toLong(DateFormatters.from(parse(input)).toInstant());
+    }
+
+    /**
      * Create a copy of this formatter that is configured to parse dates in the specified time zone
      *
      * @param zoneId The time zone to act on

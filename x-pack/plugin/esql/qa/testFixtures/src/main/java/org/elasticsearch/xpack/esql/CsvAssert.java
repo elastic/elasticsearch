@@ -477,7 +477,7 @@ public final class CsvAssert {
             case Type.DATE_NANOS -> rebuildExpected(
                 actualValue,
                 String.class,
-                x -> DEFAULT_DATE_NANOS_FORMATTER.formatMillis(DEFAULT_DATE_NANOS_FORMATTER.parseMillis((String) x))
+                x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
             default -> actualValue;
         };

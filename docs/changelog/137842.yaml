@@ -1,5 +1,0 @@
-pr: 137842
-summary: Provide vectorized array comparison utilities using Neon, AVX, AVX 512
-area: "Performance"
-type: enhancement
-issues: []

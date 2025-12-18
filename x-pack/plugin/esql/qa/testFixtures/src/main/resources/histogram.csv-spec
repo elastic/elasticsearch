@@ -1,6 +1,5 @@
 Make sure we can even load histogram data
-// TODO: probably need a new capability here
-required_capability: histogram_field_support_v0
+required_capability: histogram_release_version
 
 FROM histogram_standard_index | WHERE instance == "hand-rolled";
 
@@ -8,21 +7,28 @@ FROM histogram_standard_index | WHERE instance == "hand-rolled";
 2025-01-01T00:00:00Z | hand-rolled       | "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
 ;
 
+// -----------------------------------------
+
 Convert histogram into tdigest
-required_capability: histogram_to_tdigest_cast
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
- | WHERE instance starts_with("hand-rolled")
+ | WHERE starts_with(instance, "hand-rolled")
  | EVAL tdigest = to_tdigest(responseTime) 
- | KEEP responseTime, tdigest ;
+ | KEEP responseTime, tdigest
+;
 
+// -----------------------------------------
 
 responseTime:histogram                                         | tdigest:tdigest
 "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
 "{""values"":[], ""counts"":[]}" | "{""centroids"":[], ""counts"":[]}"
 ;
 
+// -----------------------------------------
+
 Core supported t-digest aggs on histogram field, without grouping
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -36,14 +42,16 @@ FROM histogram_standard_index
  | KEEP min, max, p90, sum, avg
 ;
 
+// -----------------------------------------
+
 min:double | max:double | p90:double | sum:double  | avg:double
 2.17E-4    | 6.786232   | 0.4       | 1536.648714 | 0.0993245
 ;
 
-
-
+// -----------------------------------------
 
 Core supported T-digest aggs on Histogram field, with grouping
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -59,16 +67,18 @@ FROM histogram_standard_index
  | SORT instance
 ;
 
+// -----------------------------------------
+
 instance:keyword | min:double | max:double | p95:double | sum:double  | avg:double
 instance-0       | 2.4E-4     | 6.786232   | 0.7       | 1472.744209 | 0.1665812
 instance-1       | 2.17E-4    | 3.190723   | 0.1        | 36.198484   | 0.011138
 instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
 ;
 
-
-
+// -----------------------------------------
 
 Percentiles on Histogram with Multiple Values and No Grouping
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -82,9 +92,10 @@ p0:double | p50:double | p95:double | p100:double
 2.17E-4   | 0.0        | 0.6        | 6.786232
 ;
 
-
+// -----------------------------------------
 
 Percentile on Histogram with Multiple Values and Grouping
+required_capability: histogram_release_version
 
 FROM histogram_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -101,9 +112,10 @@ instance-1       | 2.17E-4   | 0.0        | 0.1       | 3.190723
 instance-2       | 2.2E-4    | 0.0        | 0.1       | 2.744054
 ;
 
-
+// -----------------------------------------
 
 Percentile Aggregation on Empty Histogram
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -116,8 +128,10 @@ p50:double
 NULL
 ;
 
+// -----------------------------------------
 
 Core supported t-digest aggregations on histogram with filtering and inline conversion
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
  | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "instance-0",
@@ -133,9 +147,10 @@ min:double | max:double | p95:double | sum:double | avg:double
 2.4E-4     | 3.190723   | 0.7       | 36.198484  | 0.008197
 ;
 
-
+// -----------------------------------------
 
 Core supported aggs on histogram with filtering and grouping
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -156,7 +171,10 @@ instance-1       | null       | 3.190723   | null       | 36.198484  | null
 instance-2       | null       | null       | null       | null       | 0.008197
 ;
 
+// -----------------------------------------
+
 Core supported aggs on histogram with non-existant filter group
+required_capability: histogram_release_version
 
 FROM histogram_standard_index 
  | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "idontexist" ,
@@ -170,4 +188,3 @@ FROM histogram_standard_index
 min:double | max:double | p75:double | sum:double | avg:double
 NULL       | NULL       | NULL       | NULL       | NULL
 ;
-

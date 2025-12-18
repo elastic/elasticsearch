@@ -321,7 +321,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsHistogramDataType() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_FIELD_SUPPORT_V0.capabilityName()));
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()));
     }
 
     protected boolean supportsBFloat16ElementType() {

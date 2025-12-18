@@ -12,21 +12,16 @@ package org.elasticsearch.gpu.codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
+import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
-import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -39,30 +34,12 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
     public static final String NAME = "Lucene99HnswVectorsFormat";
     static final int MAXIMUM_MAX_CONN = 512;
     static final int MAXIMUM_BEAM_WIDTH = 3200;
-    private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
-
-    /** The minimum confidence interval */
-    private static final float MINIMUM_CONFIDENCE_INTERVAL = 0.9f;
-
-    /** The maximum confidence interval */
-    private static final float MAXIMUM_CONFIDENCE_INTERVAL = 1f;
-
-    static final FlatVectorsScorer flatVectorScorer = ES93ScalarQuantizedVectorsFormat.flatVectorScorer;
 
     private final int maxConn;
     private final int beamWidth;
 
-    /** The format for storing, reading, merging vectors on disk */
-    private final FlatVectorsFormat rawVectorFormat;
-
-    /**
-     * Controls the confidence interval used to scalar quantize the vectors the default value is
-     * calculated as `1-1/(vector_dimensions + 1)`
-     */
-    private final Float confidenceInterval;
-
-    private final byte bits;
-    private final boolean compress;
+    /** The format for scalar quantized vectors */
+    private final ES93ScalarQuantizedVectorsFormat scalarQuantizedFormat;
     private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
 
     public ES92GpuHnswSQVectorsFormat() {
@@ -82,27 +59,14 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
                 "beamWidth must be positive and less than or equal to " + MAXIMUM_BEAM_WIDTH + "; beamWidth=" + beamWidth
             );
         }
-        if (confidenceInterval != null
-            && confidenceInterval != DYNAMIC_CONFIDENCE_INTERVAL
-            && (confidenceInterval < MINIMUM_CONFIDENCE_INTERVAL || confidenceInterval > MAXIMUM_CONFIDENCE_INTERVAL)) {
-            throw new IllegalArgumentException(
-                "confidenceInterval must be between "
-                    + MINIMUM_CONFIDENCE_INTERVAL
-                    + " and "
-                    + MAXIMUM_CONFIDENCE_INTERVAL
-                    + "; confidenceInterval="
-                    + confidenceInterval
-            );
-        }
-        if (bits < 1 || bits > 8 || (ALLOWED_BITS & (1 << bits)) == 0) {
-            throw new IllegalArgumentException("bits must be one of: 4, 7; bits=" + bits);
-        }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
-        this.confidenceInterval = confidenceInterval;
-        this.bits = (byte) bits;
-        this.compress = compress;
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false);
+        this.scalarQuantizedFormat = new ES93ScalarQuantizedVectorsFormat(
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            confidenceInterval,
+            bits,
+            compress
+        );
     }
 
     @Override
@@ -112,22 +76,16 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
             state,
             maxConn,
             beamWidth,
-            new Lucene99ScalarQuantizedVectorsWriter(
-                state,
-                confidenceInterval,
-                bits,
-                compress,
-                rawVectorFormat.fieldsWriter(state),
-                flatVectorScorer
-            )
+            (FlatVectorsWriter) scalarQuantizedFormat.fieldsWriter(state)
         );
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        var reader = scalarQuantizedFormat.fieldsReader(state);
         return new Lucene99HnswVectorsReader(
             state,
-            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
+            ((ES93ScalarQuantizedVectorsFormat.ES93FlatVectorReader) reader).getFlatVectorsReader()
         );
     }
 
@@ -145,16 +103,8 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
             + maxConn
             + ", beamWidth="
             + beamWidth
-            + ", confidenceInterval="
-            + confidenceInterval
-            + ", bits="
-            + bits
-            + ", compressed="
-            + compress
-            + ", flatVectorScorer="
-            + flatVectorScorer
-            + ", rawVectorFormat="
-            + rawVectorFormat
+            + ", scalarQuantizedFormat="
+            + scalarQuantizedFormat
             + ")";
     }
 }

@@ -148,12 +148,16 @@ public class ES93ScalarQuantizedVectorsFormat extends KnnVectorsFormat {
             + ")";
     }
 
-    static class ES93FlatVectorReader extends KnnVectorsReader {
+    public static class ES93FlatVectorReader extends KnnVectorsReader {
 
         private final FlatVectorsReader reader;
 
         ES93FlatVectorReader(FlatVectorsReader reader) {
             this.reader = reader;
+        }
+
+        public FlatVectorsReader getFlatVectorsReader() {
+            return reader;
         }
 
         @Override

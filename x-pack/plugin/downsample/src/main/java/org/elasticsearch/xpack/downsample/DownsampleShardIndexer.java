@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
@@ -228,7 +228,7 @@ class DownsampleShardIndexer {
         if (this.state.started() && this.state.tsid() != null) {
             return SortedSetDocValuesField.newSlowRangeQuery(TimeSeriesIdFieldMapper.NAME, this.state.tsid(), null, true, false);
         }
-        return new MatchAllDocsQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     private void checkCancelled() {

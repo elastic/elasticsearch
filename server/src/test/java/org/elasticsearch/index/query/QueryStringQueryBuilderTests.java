@@ -1063,12 +1063,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         queryBuilder = new QueryStringQueryBuilder("*:*");
         query = queryBuilder.toQuery(context);
-        Query expected = new MatchAllDocsQuery();
+        Query expected = Queries.ALL_DOCS_INSTANCE;
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("*");
         query = queryBuilder.toQuery(context);
-        expected = new MatchAllDocsQuery();
+        expected = Queries.ALL_DOCS_INSTANCE;
         assertThat(query, equalTo(expected));
     }
 

@@ -28,7 +28,6 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.NullInfoStream;
@@ -224,7 +223,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         syntheticRecoverySource ? null : "extra_source",
                         syntheticRecoverySource ? "extra_source_size" : "extra_source",
                         false,
-                        MatchAllDocsQuery::new,
+                        () -> Queries.ALL_DOCS_INSTANCE,
                         iwc.getMergePolicy()
                     )
                 );

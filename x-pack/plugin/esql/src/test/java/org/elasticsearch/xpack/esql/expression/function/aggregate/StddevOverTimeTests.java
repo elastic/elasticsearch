@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class StdDevOverTimeTests extends AbstractFunctionTestCase {
-    public StdDevOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class StddevOverTimeTests extends AbstractFunctionTestCase {
+    public StddevOverTimeTests(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         testCase = testCaseSupplier.get();
     }
 
@@ -34,6 +34,6 @@ public class StdDevOverTimeTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StdDevOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+        return new StddevOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 }

@@ -7,9 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.upgrades;
-
-import com.carrotsearch.randomizedtesting.annotations.Name;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.time.DateFormatter;
@@ -24,11 +22,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingInd
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class TsdbIT extends AbstractRollingUpgradeWithSecurityTestCase {
-
-    public TsdbIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
+public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
 
     static final String TEMPLATE = """
         {
@@ -129,26 +123,27 @@ public class TsdbIT extends AbstractRollingUpgradeWithSecurityTestCase {
 
     public void testTsdbDataStream() throws Exception {
         String dataStreamName = "k8s";
-        if (isOldCluster()) {
-            final String INDEX_TEMPLATE = """
-                {
-                    "index_patterns": ["$PATTERN"],
-                    "template": $TEMPLATE,
-                    "data_stream": {
-                    }
-                }""";
-            // Add composable index template
-            String templateName = "1";
-            var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
-            putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
-            assertOK(client().performRequest(putIndexTemplateRequest));
+        final String INDEX_TEMPLATE = """
+            {
+                "index_patterns": ["$PATTERN"],
+                "template": $TEMPLATE,
+                "data_stream": {
+                }
+            }""";
+        // Add composable index template
+        String templateName = "1";
+        var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
+        putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
+        assertOK(client().performRequest(putIndexTemplateRequest));
 
-            performOldClustertOperations(templateName, dataStreamName);
-        } else if (isMixedCluster()) {
-            performMixedClusterOperations(dataStreamName);
-        } else if (isUpgradedCluster()) {
-            performUpgradedClusterOperations(dataStreamName);
+        performOldClustertOperations(templateName, dataStreamName);
+
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
+            performMixedClusterOperations(dataStreamName, i == 0);
         }
+        performUpgradedClusterOperations(dataStreamName);
     }
 
     private void performUpgradedClusterOperations(String dataStreamName) throws Exception {
@@ -177,9 +172,9 @@ public class TsdbIT extends AbstractRollingUpgradeWithSecurityTestCase {
         });
     }
 
-    private static void performMixedClusterOperations(String dataStreamName) throws IOException {
+    private static void performMixedClusterOperations(String dataStreamName, boolean isFirstMixedCluster) throws IOException {
         ensureHealth(dataStreamName, request -> request.addParameter("wait_for_status", "yellow"));
-        if (isFirstMixedCluster()) {
+        if (isFirstMixedCluster) {
             indexDoc(dataStreamName);
         }
         assertSearch(dataStreamName, 9);

@@ -33,15 +33,18 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteRemoteAsyncAction;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -63,7 +66,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -91,7 +93,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 @ESTestCase.WithoutEntitlements
-public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTestCase {
+public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_A = "cluster-a";
     private static final String REMOTE_CLUSTER_B = "cluster-b";
 
@@ -155,7 +157,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         }
     }
 
-    public QueryRewriteContextMultiClustersIT(boolean securityEnabled) {
+    public QueryRewriteRemoteAsyncActionIT(boolean securityEnabled) {
         this.securityEnabled = securityEnabled;
     }
 
@@ -225,8 +227,6 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
     }
 
     public void testInvalidClusterAlias() {
-        // TODO: Enable this test for all cases when bug is fixed
-        assumeFalse("Test is currently broken when security is enabled due to unrelated bug", securityEnabled);
         SearchRequestBuilder request = buildSearchRequest(
             List.of(INDEX_1, INDEX_2),
             List.of(REMOTE_CLUSTER_A, REMOTE_CLUSTER_B, "missing-cluster-alias"),
@@ -327,7 +327,53 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         assertThat(actual, equalTo(expected));
     }
 
-    private static class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
+    private static final class TestQueryRewriteRemoteAsyncAction extends QueryRewriteRemoteAsyncAction<
+        Void,
+        TestQueryRewriteRemoteAsyncAction> {
+
+        private final int incrementCount;
+        private final String origin;
+
+        private TestQueryRewriteRemoteAsyncAction(String clusterAlias, int incrementCount, @Nullable String origin) {
+            super(clusterAlias);
+            this.incrementCount = incrementCount;
+            this.origin = origin;
+        }
+
+        @Override
+        protected void execute(RemoteClusterClient client, ThreadContext threadContext, ActionListener<Void> listener) {
+            ActionListener<InstrumentedAction.Response> wrappedListener = listener.delegateFailureAndWrap((l, resp) -> {
+                if (resp.isAcknowledged()) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(new IllegalStateException("Unacknowledged response from cluster [" + getClusterAlias() + "]"));
+                }
+            });
+
+            InstrumentedAction.Request request = new InstrumentedAction.Request(incrementCount);
+            BiConsumer<InstrumentedAction.Request, ActionListener<InstrumentedAction.Response>> requestConsumer = (req, l) -> {
+                client.execute(InstrumentedAction.REMOTE_TYPE, req, l);
+            };
+
+            if (origin != null) {
+                executeAsyncWithOrigin(threadContext, origin, request, wrappedListener, requestConsumer);
+            } else {
+                requestConsumer.accept(request, wrappedListener);
+            }
+        }
+
+        @Override
+        public int doHashCode() {
+            return Objects.hash(incrementCount, origin);
+        }
+
+        @Override
+        public boolean doEquals(TestQueryRewriteRemoteAsyncAction other) {
+            return Objects.equals(incrementCount, other.incrementCount) && Objects.equals(origin, other.origin);
+        }
+    }
+
+    private static final class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
         private static final String NAME = "test";
 
         private final String origin;
@@ -432,53 +478,30 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         private static ActionFuture<Boolean> registerActions(QueryRewriteContext queryRewriteContext, String origin) {
             var remoteClusterIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
 
-            int requestCount = 0;
-            Map<String, List<InstrumentedAction.Request>> clusterRequestMap = new HashMap<>();
+            final int actionCount = remoteClusterIndices.size();
+            Map<String, Integer> clusterIndicesCountMap = new HashMap<>();
             for (var entry : remoteClusterIndices.entrySet()) {
                 String clusterAlias = entry.getKey();
                 OriginalIndices originalIndices = entry.getValue();
 
                 int indicesCount = originalIndices.indices().length;
-                List<InstrumentedAction.Request> clusterRequestList = new ArrayList<>(indicesCount);
-                for (int i = 0; i < indicesCount; i++) {
-                    clusterRequestList.add(new InstrumentedAction.Request());
-                }
-
-                requestCount += indicesCount;
-                clusterRequestMap.put(clusterAlias, clusterRequestList);
+                clusterIndicesCountMap.put(clusterAlias, indicesCount);
             }
 
             PlainActionFuture<Boolean> actionsAcknowledgedSupplier = new PlainActionFuture<>();
             GroupedActionListener<Void> gal = new GroupedActionListener<>(
-                requestCount,
+                actionCount,
                 ActionListener.wrap(c -> actionsAcknowledgedSupplier.onResponse(true), actionsAcknowledgedSupplier::onFailure)
             );
 
-            for (var entry : clusterRequestMap.entrySet()) {
+            for (var entry : clusterIndicesCountMap.entrySet()) {
                 String clusterAlias = entry.getKey();
-                List<InstrumentedAction.Request> clusterRequestList = clusterRequestMap.get(clusterAlias);
+                Integer indicesCount = entry.getValue();
 
-                for (InstrumentedAction.Request clusterRequest : clusterRequestList) {
-                    queryRewriteContext.registerRemoteAsyncAction(clusterAlias, (client, threadContext, listener) -> {
-                        ActionListener<InstrumentedAction.Response> wrappedListener = listener.delegateFailureAndWrap((l, r) -> {
-                            if (r.isAcknowledged()) {
-                                gal.onResponse(null);
-                                l.onResponse(null);
-                            } else {
-                                l.onFailure(new IllegalStateException("Unacknowledged response from cluster [" + clusterAlias + "]"));
-                            }
-                        });
-                        BiConsumer<InstrumentedAction.Request, ActionListener<InstrumentedAction.Response>> requestConsumer = (
-                            r,
-                            l) -> client.execute(InstrumentedAction.REMOTE_TYPE, r, l);
-
-                        if (origin != null) {
-                            executeAsyncWithOrigin(threadContext, origin, clusterRequest, wrappedListener, requestConsumer);
-                        } else {
-                            requestConsumer.accept(clusterRequest, wrappedListener);
-                        }
-                    });
-                }
+                queryRewriteContext.registerUniqueAsyncAction(
+                    new TestQueryRewriteRemoteAsyncAction(clusterAlias, indicesCount, origin),
+                    v -> gal.onResponse(null)
+                );
             }
 
             return actionsAcknowledgedSupplier;
@@ -496,15 +519,21 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         }
 
         public static class Request extends ActionRequest {
-            public Request() {}
+            private final int incrementCount;
+
+            public Request(int incrementCount) {
+                this.incrementCount = incrementCount;
+            }
 
             public Request(StreamInput in) throws IOException {
                 super(in);
+                this.incrementCount = in.readInt();
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
+                out.writeInt(incrementCount);
             }
 
             @Override
@@ -516,12 +545,13 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
             public boolean equals(Object o) {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
-                return true;
+                Request other = (Request) o;
+                return incrementCount == other.incrementCount;
             }
 
             @Override
             public int hashCode() {
-                return 0;
+                return Objects.hashCode(incrementCount);
             }
         }
 
@@ -557,7 +587,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         protected void doExecute(Task task, InstrumentedAction.Request request, ActionListener<InstrumentedAction.Response> listener) {
             String clusterName = clusterService.getClusterName().value();
             AtomicInteger callCounter = INSTRUMENTED_ACTION_CALL_MAP.computeIfAbsent(clusterName, k -> new AtomicInteger());
-            callCounter.incrementAndGet();
+            callCounter.getAndAdd(request.incrementCount);
 
             listener.onResponse(new InstrumentedAction.Response());
         }

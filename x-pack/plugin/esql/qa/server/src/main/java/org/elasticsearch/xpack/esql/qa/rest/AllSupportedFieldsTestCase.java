@@ -30,6 +30,7 @@ import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -935,6 +936,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
             }
+            case HISTOGRAM -> equalTo("{\"values\":[0.1,0.2,0.3],\"counts\":[3,7,23]}");
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
     }

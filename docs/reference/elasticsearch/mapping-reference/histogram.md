@@ -111,7 +111,7 @@ PUT my-index-000001/_doc/2
 1. Values for each bucket. Values in the array are treated as doubles and must be given in increasing order. For [T-Digest](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md#search-aggregations-metrics-percentile-aggregation-approximation) histograms this value represents the mean value. In case of HDR histograms this represents the value iterated to.
 2. Count for each bucket. Values in the arrays are treated as long integers and must be positive or zero. Negative values will be rejected. The relation between a bucket and a count is given by the position in the array.
 
-### Coercion from exponential histogram [histogram-coercion]
+## Coercion from exponential histogram [histogram-coercion]
 ```{applies_to}
 stack: preview 9.3
 serverless: preview

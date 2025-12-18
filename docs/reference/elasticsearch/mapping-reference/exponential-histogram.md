@@ -124,7 +124,7 @@ PUT my-index-000001/_doc/1
 }
 ```
 
-Indexing an empty histogram is allowed. The `sum` must be `0.0` and `min` and `max` must be omitted:
+Indexing an empty histogram is allowed. The `sum` must be `0.0` or omitted and `min` and `max` must be omitted:
 
 ```console
 PUT my-index-000001/_doc/2
@@ -137,7 +137,7 @@ PUT my-index-000001/_doc/2
 }
 ```
 
-### Coercion from T-Digest [exponential-histogram-coercion]
+## Coercion from T-Digest [exponential-histogram-coercion]
 
 In order to facilitate a transition from the existing `histogram` field type, `exponential_histogram` fields support coercion from the `histogram` field type's `values`/`counts` format.
 When `coerce` is enabled (default), Elasticsearch will interpret data provided as `values` and `counts` arrays as T-Digest and convert it to an exponential histogram during indexing.

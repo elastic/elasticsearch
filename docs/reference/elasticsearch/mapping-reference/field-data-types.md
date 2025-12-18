@@ -75,7 +75,7 @@ Dates
 :   Pre-aggregated metric values.
 
 [`histogram`](/reference/elasticsearch/mapping-reference/histogram.md)
-:   Pre-aggregated numerical values in the form of a histogram.
+:   Pre-aggregated numerical values in the form of a T-Digest or HDRhistogram.
 
 [`exponential_histogram`](/reference/elasticsearch/mapping-reference/exponential-histogram.md)
 :   Pre-aggregated numerical values in the form of an exponential histogram.

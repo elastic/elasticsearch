@@ -39,9 +39,9 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction {
     public VarianceOverTime(
         Source source,
         @Param(
-            name = "number",
+            name = "field",
             type = { "double", "integer", "long" },
-            description = "Expression for which to calculate the variance over time."
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

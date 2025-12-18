@@ -1675,7 +1675,7 @@ public class AnalyzerTests extends ESTestCase {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
             + "or dense_vector or exponential_histogram or geo_point "
-            + "or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
+            + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -4712,13 +4712,10 @@ public class AnalyzerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from k8s* | stats std_dev(metric_field)
-            """, analyzer));
-        assertThat(
-            e.getMessage(),
-            containsString("Cannot use field [metric_field] due to ambiguities being mapped as [2] incompatible types")
-        );
+        var stddevPlan = analyze("""
+            from k8s* | stats std_dev = std_dev(metric_field)
+            """, analyzer);
+        assertProjection(stddevPlan, "std_dev");
 
         var plan = analyze("""
             from k8s* | stats max = max(metric_field),

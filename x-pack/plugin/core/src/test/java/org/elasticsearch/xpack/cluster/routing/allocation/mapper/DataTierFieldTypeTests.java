@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -39,15 +38,15 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testPrefixQuery() throws IOException {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("data_w", null, createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.prefixQuery("data_w", null, createContext()));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.prefixQuery("noSuchRole", null, createContext()));
     }
 
     public void testWildcardQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_w*", null, createContext()));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("data_warm", null, createContext()));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("Data_Warm", null, true, createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("data_w*", null, createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("data_warm", null, createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.wildcardQuery("Data_Warm", null, true, createContext()));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("Data_Warm", null, false, createContext()));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("noSuchRole", null, createContext()));
 
@@ -57,7 +56,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.termQuery("data_warm", createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.termQuery("data_warm", createContext()));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("data_hot", createContext()));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termQuery("noSuchRole", createContext()));
 
@@ -67,7 +66,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testTermsQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.termsQuery(Arrays.asList("data_warm"), createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.termsQuery(Arrays.asList("data_warm"), createContext()));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(Arrays.asList("data_cold", "data_frozen"), createContext()));
 
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.termsQuery(Arrays.asList("data_warm"), createContextWithoutSetting()));
@@ -76,7 +75,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     public void testExistsQuery() {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
-        assertEquals(new MatchAllDocsQuery(), ft.existsQuery(createContext()));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.existsQuery(createContext()));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.existsQuery(createContextWithoutSetting()));
     }
 
@@ -84,7 +83,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         MappedFieldType ft = DataTierFieldMapper.DataTierFieldType.INSTANCE;
         QueryShardException e = expectThrows(
             QueryShardException.class,
-            () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
+            () -> assertEquals(Queries.ALL_DOCS_INSTANCE, ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
         );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }

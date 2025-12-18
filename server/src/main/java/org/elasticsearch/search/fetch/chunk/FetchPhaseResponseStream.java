@@ -101,17 +101,17 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
                 }
             }
 
-            //if (logger.isTraceEnabled()) {
-                logger.info(
-                    "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                    chunk.hits() == null ? 0 : chunk.hits().getHits().length,
-                    shardIndex,
-                    queue.size(),
-                    expectedDocs,
-                    totalBreakerBytes.get(),
-                    circuitBreaker.getUsed()
-                );
-            //}
+            // if (logger.isTraceEnabled()) {
+            logger.info(
+                "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
+                chunk.hits() == null ? 0 : chunk.hits().getHits().length,
+                shardIndex,
+                queue.size(),
+                expectedDocs,
+                totalBreakerBytes.get(),
+                circuitBreaker.getUsed()
+            );
+            // }
             success = true;
         } finally {
             if (success) {
@@ -130,9 +130,9 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      * @return a complete {@link FetchSearchResult} containing all accumulated hits in correct order
      */
     FetchSearchResult buildFinalResult(ShardSearchContextId ctxId, SearchShardTarget shardTarget, @Nullable ProfileResult profileResult) {
-        //if (logger.isTraceEnabled()) {
-            logger.info("Building final result for shard [{}] with [{}] hits", shardIndex, queue.size());
-        //}
+        // if (logger.isTraceEnabled()) {
+        logger.info("Building final result for shard [{}] with [{}] hits", shardIndex, queue.size());
+        // }
 
         // Convert queue to list and sort by sequence number to restore correct order
         List<SequencedHit> sequencedHits = new ArrayList<>(queue);

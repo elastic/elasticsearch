@@ -635,8 +635,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     executor == null ? -1 : executor.getMaximumPoolSize(),
                     1
                 );
-                var query = new PhraseQuery.Builder()
-                    .add(new Term("p_field", "value1"))
+                var query = new PhraseQuery.Builder().add(new Term("p_field", "value1"))
                     .add(new Term("p_field", "value2"))
                     .add(new Term("p_field", "value"))
                     .build();

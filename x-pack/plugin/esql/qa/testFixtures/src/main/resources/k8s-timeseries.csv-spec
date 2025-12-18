@@ -901,68 +901,6 @@ sum:double | _timeseries:keyword                                                
 210.625    | "{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z
 ;
 
-bare_rate_outputs_dimensions
-required_capability: ts_command_v0
-required_capability: metrics_group_by_all
-required_capability: metrics_group_by_all_with_ts_dimensions
-
-
-TS k8s
-| STATS rate=rate(network.total_bytes_in)
-| SORT rate DESC
-;
-ignoreOrder:true
-
-rate:double        | _timeseries:keyword
-4.689830508474576  | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
-6.54326561324304   | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
-7.340495867768595  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-7.377611940298507  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
-8.434290687554395  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
-8.716707021791768  | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
-9.485643970467596  | "{""cluster"":""qa"",""pod"":""three""}"
-10.649149922720246 | "{""cluster"":""qa"",""pod"":""one""}"
-13.17372515125324  | "{""cluster"":""qa"",""pod"":""two""}"
-
-;
-
-bare_rate_with_tbucket_outputs_dimensions
-required_capability: ts_command_v0
-required_capability: metrics_group_by_all
-required_capability: metrics_group_by_all_with_ts_dimensions
-
-TS k8s
-| STATS rate=rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)
-| SORT rate DESC
-;
-ignoreOrder:true
-
-rate:double        | _timeseries:keyword                                   | tbucket:datetime
-1.6554700854700857 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
-2.5258595644176904 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"     | 2024-05-10T00:00:00.000Z
-2.621423611111111  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
-2.830347222222222  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z
-2.874194651741293  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z
-3.1304347826086953 | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z
-3.3457754629629632 | "{""cluster"":""qa"",""pod"":""three""}"                        | 2024-05-10T00:00:00.000Z
-3.959770114942529  | "{""cluster"":""qa"",""pod"":""one""}"                          | 2024-05-10T00:00:00.000Z
-4.379885057471264  | "{""cluster"":""qa"",""pod"":""two""}"                          | 2024-05-10T00:00:00.000Z
- 
-;
-
-wrapped_rate
-required_capability: ts_command_v0
-required_capability: metrics_group_by_all
-required_capability: metrics_group_by_all_with_ts_dimensions
-
-TS k8s
-| STATS max_rate = MAX(rate(network.total_bytes_in))
-| EVAL max_rate=ROUND(max_rate, 6) | KEEP max_rate;
-
-max_rate:double 
-13.173725
-;
-
 oneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation

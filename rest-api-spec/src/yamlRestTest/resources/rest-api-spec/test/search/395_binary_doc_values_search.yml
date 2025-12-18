@@ -113,3 +113,15 @@ setup:
         index: test
         body: { query: { regexp: { keyword: { value: "k.*1" } } } }
   - length:   { hits.hits: 1  }
+
+---
+"Test sort on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { sort: [ { keyword: { "order": "desc" } } ] }
+  - length:   { hits.hits: 2  }
+  - match: { hits.hits.0.sort.0: key2 }
+  - match: { hits.hits.1.sort.0: key1 }
+

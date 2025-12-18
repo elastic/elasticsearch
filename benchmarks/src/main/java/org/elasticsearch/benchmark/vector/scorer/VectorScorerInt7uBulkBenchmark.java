@@ -88,7 +88,7 @@ public class VectorScorerInt7uBulkBenchmark {
     @Param
     public VectorImplementation implementation;
 
-    @Param({ "DOT_PRODUCT" })
+    @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
     private Path path;
@@ -128,6 +128,40 @@ public class VectorScorerInt7uBulkBenchmark {
         public void setScoringOrdinal(int targetOrd) throws IOException {
             queryVector = values.vectorValue(targetOrd).clone();
             queryVectorCorrectionConstant = values.getScoreCorrectionConstant(targetOrd);
+        }
+    }
+
+    private static class ScalarSquareDistance implements UpdateableRandomVectorScorer {
+        private final QuantizedByteVectorValues values;
+        private final float scoreCorrectionConstant;
+
+        private byte[] queryVector;
+
+        private ScalarSquareDistance(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+            this.values = values;
+            this.scoreCorrectionConstant = scoreCorrectionConstant;
+        }
+
+        @Override
+        public float score(int ordinal) throws IOException {
+            var vec2 = values.vectorValue(ordinal);
+            int squareDistance = 0;
+            for (int i = 0; i < queryVector.length; i++) {
+                int diff = queryVector[i] - vec2[i];
+                squareDistance += diff * diff;
+            }
+            float adjustedDistance = squareDistance * scoreCorrectionConstant;
+            return 1 / (1f + adjustedDistance);
+        }
+
+        @Override
+        public int maxOrd() {
+            return 0;
+        }
+
+        @Override
+        public void setScoringOrdinal(int targetOrd) throws IOException {
+            queryVector = values.vectorValue(targetOrd).clone();
         }
     }
 
@@ -199,6 +233,7 @@ public class VectorScorerInt7uBulkBenchmark {
             case SCALAR:
                 scorer = switch (function) {
                     case DOT_PRODUCT -> new ScalarDotProduct(values, scoreCorrectionConstant);
+                    case EUCLIDEAN -> new ScalarSquareDistance(values, scoreCorrectionConstant);
                     default -> throw new IllegalArgumentException(function + " not supported");
                 };
                 break;

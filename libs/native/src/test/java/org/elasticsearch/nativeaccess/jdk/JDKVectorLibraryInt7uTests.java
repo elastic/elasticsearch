@@ -246,7 +246,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
             switch (function) {
                 case COSINE -> throw new AssumptionViolatedException("Not implemented");
                 case DOT_PRODUCT -> getVectorDistance().dotProductHandle7uBulk().invokeExact(a, b, dims, count, result);
-                case SQUARE_DISTANCE -> throw new AssumptionViolatedException("Not implemented");
+                case SQUARE_DISTANCE -> getVectorDistance().squareDistanceHandle7uBulk().invokeExact(a, b, dims, count, result);
             }
         } catch (Throwable t) {
             throw rethrow(t);
@@ -267,7 +267,8 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
                 case COSINE -> throw new AssumptionViolatedException("Not implemented");
                 case DOT_PRODUCT -> getVectorDistance().dotProductHandle7uBulkWithOffsets()
                     .invokeExact(a, b, dims, pitch, offsets, count, result);
-                case SQUARE_DISTANCE -> throw new AssumptionViolatedException("Not implemented");
+                case SQUARE_DISTANCE -> getVectorDistance().squareDistanceHandle7uBulkWithOffsets()
+                    .invokeExact(a, b, dims, pitch, offsets, count, result);
             }
         } catch (Throwable t) {
             throw rethrow(t);

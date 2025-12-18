@@ -94,7 +94,7 @@ public class VectorScorerInt7uBulkBenchmark {
     @Param
     public Implementation implementation;
 
-    @Param({ "DOT_PRODUCT" })
+    @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
     private Path path;
@@ -134,6 +134,40 @@ public class VectorScorerInt7uBulkBenchmark {
         public void setScoringOrdinal(int targetOrd) throws IOException {
             queryVector = values.vectorValue(targetOrd).clone();
             queryVectorCorrectionConstant = values.getScoreCorrectionConstant(targetOrd);
+        }
+    }
+
+    private static class ScalarSquareDistance implements UpdateableRandomVectorScorer {
+        private final QuantizedByteVectorValues values;
+        private final float scoreCorrectionConstant;
+
+        private byte[] queryVector;
+
+        private ScalarSquareDistance(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+            this.values = values;
+            this.scoreCorrectionConstant = scoreCorrectionConstant;
+        }
+
+        @Override
+        public float score(int ordinal) throws IOException {
+            var vec2 = values.vectorValue(ordinal);
+            int squareDistance = 0;
+            for (int i = 0; i < queryVector.length; i++) {
+                int diff = queryVector[i] - vec2[i];
+                squareDistance += diff * diff;
+            }
+            float adjustedDistance = squareDistance * scoreCorrectionConstant;
+            return 1 / (1f + adjustedDistance);
+        }
+
+        @Override
+        public int maxOrd() {
+            return 0;
+        }
+
+        @Override
+        public void setScoringOrdinal(int targetOrd) throws IOException {
+            queryVector = values.vectorValue(targetOrd).clone();
         }
     }
 
@@ -198,27 +232,27 @@ public class VectorScorerInt7uBulkBenchmark {
 
         in = dir.openInput("vector.data", IOContext.DEFAULT);
 
-        var values = vectorValues(dims, numVectors, in, VectorSimilarityType.of(function));
+        var values = vectorValues(dims, numVectors, in, function.function());
         float scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
 
         switch (implementation) {
             case SCALAR:
                 scorer = switch (function) {
                     case DOT_PRODUCT -> new ScalarDotProduct(values, scoreCorrectionConstant);
+                    case EUCLIDEAN -> new ScalarSquareDistance(values, scoreCorrectionConstant);
                     default -> throw new IllegalArgumentException(function + " not supported");
                 };
                 break;
             case LUCENE:
-                scorer = luceneScoreSupplier(values, VectorSimilarityType.of(function)).scorer();
+                scorer = luceneScoreSupplier(values, function.function()).scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = luceneScorer(values, VectorSimilarityType.of(function), vectorData.queryVector);
+                    queryScorer = luceneScorer(values, function.function(), vectorData.queryVector);
                 }
                 break;
             case NATIVE:
                 scorer = factory.getInt7SQVectorScorerSupplier(function, in, values, scoreCorrectionConstant).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getInt7SQVectorScorer(VectorSimilarityType.of(function), values, vectorData.queryVector)
-                        .orElseThrow();
+                    queryScorer = factory.getInt7SQVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
                 }
                 break;
         }

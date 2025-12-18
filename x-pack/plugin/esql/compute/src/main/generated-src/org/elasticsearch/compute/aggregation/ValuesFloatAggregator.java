@@ -127,14 +127,14 @@ class ValuesFloatAggregator {
      */
     private static class NextValues implements Releasable {
         private final BlockFactory blockFactory;
-        private final LongHash hashes;
+        private final LongHashTable hashes;
         private int[] selectedCounts = null;
         private int[] ids = null;
         private long extraMemoryUsed = 0;
 
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-            this.hashes = new LongHash(1, blockFactory.bigArrays());
+            this.hashes = HashImplFactory.newLongHash(blockFactory);
         }
 
         void addValue(int groupId, float v) {

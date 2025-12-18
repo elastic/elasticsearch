@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.util.BytesRefHashTable;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -145,14 +145,14 @@ class ValuesBytesRefAggregator {
      */
     private static class NextValues implements Releasable {
         private final BlockFactory blockFactory;
-        private final LongHash hashes;
+        private final LongHashTable hashes;
         private int[] selectedCounts = null;
         private int[] ids = null;
         private long extraMemoryUsed = 0;
 
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-            this.hashes = new LongHash(1, blockFactory.bigArrays());
+            this.hashes = HashImplFactory.newLongHash(blockFactory);
         }
 
         void addValue(int groupId, int v) {

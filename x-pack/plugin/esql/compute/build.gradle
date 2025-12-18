@@ -80,8 +80,6 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "boolean" : Name == "Boolean" ? "true" : "",
     "BytesRef": Name == "BytesRef" ? "true" : "",
     "Ip"      : Name == "Ip" ? "true" : "",
-    "LongSwissHash" : Hash == "LongSwissHash" ? "true" : "",
-    "BytesRefSwissHash" : Hash == "BytesRefSwissHash" ? "true" : "",
   ]
 }
 

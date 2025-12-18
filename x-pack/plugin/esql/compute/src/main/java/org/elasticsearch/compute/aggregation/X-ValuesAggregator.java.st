@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.util.$Hash$Table;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.common.util.$if(BytesRef)$Int$else$$Type$$endif$Array;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -203,10 +203,8 @@ $endif$
         private final BlockFactory blockFactory;
 $if(long||double)$
         private final LongLongHash hashes;
-$elseif(int)$
-        private final LongHashTable hashes;
 $else$
-        private final LongHash hashes;
+        private final LongHashTable hashes;
 $endif$
         private int[] selectedCounts = null;
         private int[] ids = null;
@@ -214,13 +212,10 @@ $endif$
 
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-$if(int)$
-            this.hashes = HashImplFactory.new$Hash$(blockFactory);
-
-$elseif(long||double)$
+$if(long||double)$
             this.hashes = new LongLongHash(1, blockFactory.bigArrays());
 $else$
-            this.hashes = new LongHash(1, blockFactory.bigArrays());
+            this.hashes = HashImplFactory.newLongHash(blockFactory);
 $endif$
         }
 

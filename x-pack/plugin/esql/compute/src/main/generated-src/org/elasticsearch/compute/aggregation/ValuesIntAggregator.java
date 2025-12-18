@@ -135,7 +135,6 @@ class ValuesIntAggregator {
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
             this.hashes = HashImplFactory.newLongHash(blockFactory);
-
         }
 
         void addValue(int groupId, int v) {

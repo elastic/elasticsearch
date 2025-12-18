@@ -61,7 +61,7 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
-    private final BytesRefHashTable hash;
+    private final BytesRefHashTable bytesRefHash;
     private final int nullTrackingBytes;
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final List<GroupSpec> specs;
@@ -70,7 +70,7 @@ final class PackedValuesBlockHash extends BlockHash {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.hash = HashImplFactory.newBytesRefHash(blockFactory);
+        this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
         this.nullTrackingBytes = (specs.size() + 7) / 8;
         bytes.grow(nullTrackingBytes);
     }
@@ -130,7 +130,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         /**
          * Encodes one permutation of the keys at time into {@link #bytes} and adds it
-         * to the {@link #hash}. The encoding is mostly provided by
+         * to the {@link #bytesRefHash}. The encoding is mostly provided by
          * {@link BatchEncoder} with nulls living in a bit mask at the front of the bytes.
          */
         void add() {
@@ -147,14 +147,14 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void addSingleEntry() {
             fillBytesSv(groups);
-            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(hash.add(bytes.get()))));
+            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
         }
 
         private void addMultipleEntries() {
             int g = 0;
             do {
                 fillBytesMv(groups, g);
-                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(hash.add(bytes.get()))));
+                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
                 g = rewindKeys(groups);
             } while (g >= 0);
             finishMv();
@@ -216,7 +216,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
             fillBytesSv(groups);
-            long found = hash.find(bytes.get());
+            long found = bytesRefHash.find(bytes.get());
             if (found < 0) {
                 ords.appendNull();
             } else {
@@ -233,7 +233,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 fillBytesMv(groups, g);
 
                 // emit ords
-                long found = hash.find(bytes.get());
+                long found = bytesRefHash.find(bytes.get());
                 if (found >= 0) {
                     if (firstFound < 0) {
                         firstFound = found;
@@ -346,7 +346,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys() {
-        int size = Math.toIntExact(hash.size());
+        int size = Math.toIntExact(bytesRefHash.size());
         BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[specs.size()];
         Block.Builder[] builders = new Block.Builder[specs.size()];
         try {
@@ -356,7 +356,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 builders[g] = elementType.newBlockBuilder(size, blockFactory);
             }
 
-            BytesRef[] values = new BytesRef[Math.min(100, Math.toIntExact(hash.size()))];
+            BytesRef[] values = new BytesRef[Math.min(100, Math.toIntExact(bytesRefHash.size()))];
             BytesRef[] nulls = new BytesRef[values.length];
             for (int offset = 0; offset < values.length; offset++) {
                 values[offset] = new BytesRef();
@@ -364,8 +364,8 @@ final class PackedValuesBlockHash extends BlockHash {
                 nulls[offset].length = nullTrackingBytes;
             }
             int offset = 0;
-            for (int i = 0; i < hash.size(); i++) {
-                values[offset] = hash.get(i, values[offset]);
+            for (int i = 0; i < bytesRefHash.size(); i++) {
+                values[offset] = bytesRefHash.get(i, values[offset]);
 
                 // Reference the null bytes in the nulls array and values in the values
                 nulls[offset].bytes = values[offset].bytes;
@@ -403,17 +403,17 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(hash.size()), blockFactory);
+        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()), blockFactory);
     }
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new SeenGroupIds.Range(0, Math.toIntExact(hash.size())).seenGroupIds(bigArrays);
+        return new SeenGroupIds.Range(0, Math.toIntExact(bytesRefHash.size())).seenGroupIds(bigArrays);
     }
 
     @Override
     public void close() {
-        hash.close();
+        bytesRefHash.close();
     }
 
     @Override
@@ -428,8 +428,8 @@ final class PackedValuesBlockHash extends BlockHash {
             GroupSpec spec = specs.get(i);
             b.append(spec.channel()).append(':').append(spec.elementType());
         }
-        b.append("], entries=").append(hash.size());
-        b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
+        b.append("], entries=").append(bytesRefHash.size());
+        b.append(", size=").append(ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()));
         return b.append("}").toString();
     }
 }

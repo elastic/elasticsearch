@@ -220,6 +220,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             100,
             null,
             null,
+            null,
             null
         );
         source.retriever(
@@ -279,6 +280,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             null,
             10,
             100,
+            null,
             null,
             null,
             null
@@ -345,6 +347,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             100,
             null,
             null,
+            null,
             null
         );
         source.retriever(
@@ -409,6 +412,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             null,
             10,
             100,
+            null,
             null,
             null,
             null
@@ -486,6 +490,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             100,
             null,
             null,
+            null,
             null
         );
         source.retriever(
@@ -506,7 +511,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                     ),
                     // this one bring just doc 7 which should be ranked first eventually
                     new CompoundRetrieverBuilder.RetrieverSource(
-                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null, null),
+                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null, null,  null),
                         null
                     )
                 ),
@@ -559,6 +564,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             null,
             10,
             100,
+            null,
             null,
             null,
             null
@@ -627,6 +633,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             null,
             10,
             100,
+            null,
             null,
             null,
             null
@@ -852,6 +859,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             10,
             null,
             null,
+            null,
             null
         );
         source.retriever(
@@ -905,8 +913,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 throw new IllegalStateException("Should not be called");
             }
         };
-        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null, null);
-        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null));
+        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null, null, null);
+        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null, null));
         var rrf = new RRFRetrieverBuilder(
             List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
             10,

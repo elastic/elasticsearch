@@ -257,7 +257,7 @@ public class Subject {
     }
 
     private RoleReferenceIntersection buildRoleReferencesForApiKey() {
-        if (version.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
+        if (version.supports(VERSION_API_KEY_ROLES_AS_BYTES) == false) {
             return buildRolesReferenceForApiKeyBwc();
         }
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
@@ -395,7 +395,7 @@ public class Subject {
 
     private ApiKey.Type getApiKeyType() {
         final String typeString = (String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY);
-        assert (typeString != null) || version.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS)
+        assert (typeString != null) || version.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS) == false
             : "API key type must be non-null except for versions older than " + Authentication.VERSION_CROSS_CLUSTER_ACCESS;
 
         // A null type string can only be for the REST type because it is not possible to

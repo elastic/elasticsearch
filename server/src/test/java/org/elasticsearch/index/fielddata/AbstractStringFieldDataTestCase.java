@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataImplTestCase {
-    private void addField(Document d, String name, String value) {
+    protected void addField(Document d, String name, String value) {
         d.add(new StringField(name, value, Field.Store.YES));
         d.add(new SortedSetDocValuesField(name, new BytesRef(value)));
     }

@@ -1323,7 +1323,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             response = cleanupClient().performRequest(request);
         } catch (ResponseException e) {
-            if (EntityUtils.toString(e.getResponse().getEntity()).contains("no handler found for uri [_query/view]")) {
+            String err = EntityUtils.toString(e.getResponse().getEntity());
+            if (err.contains("no handler found for uri [_query/view]") || err.contains("Incorrect HTTP method for uri [_query/view]")) {
                 // Views are not supported, don't worry about wiping them
                 return;
             }

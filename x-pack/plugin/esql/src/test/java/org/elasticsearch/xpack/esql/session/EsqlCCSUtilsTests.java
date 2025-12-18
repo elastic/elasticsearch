@@ -597,6 +597,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         String REMOTE1_ALIAS = "remote1";
         String REMOTE2_ALIAS = "remote2";
         EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+        executionInfo.planningProfile().planning().start();
         executionInfo.swapCluster(
             LOCAL_CLUSTER_ALIAS,
             (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)

@@ -203,8 +203,7 @@ public class PlanningProfile implements Writeable, ToXContentFragment {
         }
 
         public TimeValue timeTook() {
-            assert timeSpan != null : "start() should have been called for " + name;
-            return timeSpan.toTimeValue();
+            return timeSpan == null ? null : timeSpan.toTimeValue();
         }
 
         @Override

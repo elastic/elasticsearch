@@ -66,7 +66,7 @@ When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these value
 
 Exponential histograms are supported in ES|QL; see the [ES|QL reference](/reference/query-languages/esql.md) for details.
 
-In Query DSL, because the data is not indexed, you can use `exponential_histogram` fields with the following aggregations:
+In Query DSL, because the data is not indexed, you can use `exponential_histogram` fields only with the following aggregations:
 
 - [sum](/reference/aggregations/search-aggregations-metrics-sum-aggregation.md) aggregation
 - [avg](/reference/aggregations/search-aggregations-metrics-avg-aggregation.md) aggregation

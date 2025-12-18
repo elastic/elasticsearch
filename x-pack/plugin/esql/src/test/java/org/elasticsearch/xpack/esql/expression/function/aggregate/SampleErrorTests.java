@@ -42,7 +42,8 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 signature,
                 (v, p) -> p == 1
                     ? "integer"
-                    : "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+                    : "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, "
+                        + "exponential_histogram, or date_range"
             )
         );
     }

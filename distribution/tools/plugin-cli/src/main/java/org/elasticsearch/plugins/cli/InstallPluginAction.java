@@ -31,6 +31,7 @@ import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsUtils;
+import org.elasticsearch.plugins.cli.bc.PgpSignatureVerifier;
 import org.objectweb.asm.ClassReader;
 
 import java.io.BufferedReader;

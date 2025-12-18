@@ -12,76 +12,95 @@ import io.opentelemetry.proto.common.v1.ArrayValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.HistogramMapping;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.List;
 
 public class MappingHintsTests extends ESTestCase {
 
+    private MappingHints randomDefaultHints() {
+        boolean useExponentialHistogram = randomBoolean();
+        return MappingHints.fromSettings(
+            useExponentialHistogram
+                ? OTelPlugin.HistogramMappingSettingValues.EXPONENTIAL_HISTOGRAM
+                : OTelPlugin.HistogramMappingSettingValues.HISTOGRAM
+        );
+    }
+
     public void testEmptyAttributes() {
-        MappingHints hints = MappingHints.fromAttributes(List.of());
-        assertFalse(hints.aggregateMetricDouble());
+        MappingHints defaultHints = randomDefaultHints();
+        MappingHints hints = defaultHints.withConfigFromAttributes(List.of());
+        assertEquals(defaultHints.histogramMapping(), hints.histogramMapping());
         assertFalse(hints.docCount());
     }
 
     public void testNoMappingHints() {
+        MappingHints defaultHints = randomDefaultHints();
         KeyValue kv = KeyValue.newBuilder()
             .setKey("some.other.key")
             .setValue(AnyValue.newBuilder().setStringValue("some_value").build())
             .build();
-        MappingHints hints = MappingHints.fromAttributes(List.of(kv));
-        assertFalse(hints.aggregateMetricDouble());
+        MappingHints hints = defaultHints.withConfigFromAttributes(List.of(kv));
+        assertEquals(defaultHints.histogramMapping(), hints.histogramMapping());
         assertFalse(hints.docCount());
     }
 
     public void testSingleMappingHint() {
+        MappingHints defaultHints = randomDefaultHints();
         // Test with just aggregate_metric_double hint
         KeyValue aggregateMetricHint = createMappingHint("aggregate_metric_double");
-        MappingHints hints = MappingHints.fromAttributes(List.of(aggregateMetricHint));
-        assertTrue(hints.aggregateMetricDouble());
+        MappingHints hints = defaultHints.withConfigFromAttributes(List.of(aggregateMetricHint));
+        assertEquals(HistogramMapping.AGGREGATE_METRIC_DOUBLE, hints.histogramMapping());
         assertFalse(hints.docCount());
 
         // Test with just _doc_count hint
         KeyValue docCountHint = createMappingHint("_doc_count");
-        hints = MappingHints.fromAttributes(List.of(docCountHint));
-        assertFalse(hints.aggregateMetricDouble());
+        hints = defaultHints.withConfigFromAttributes(List.of(docCountHint));
+        assertEquals(defaultHints.histogramMapping(), hints.histogramMapping());
         assertTrue(hints.docCount());
     }
 
     public void testMultipleMappingHints() {
+        MappingHints defaultHints = randomDefaultHints();
         // Test with both hints
         KeyValue bothHints = createMappingHint("aggregate_metric_double", "_doc_count");
-        MappingHints hints = MappingHints.fromAttributes(List.of(bothHints));
-        assertTrue(hints.aggregateMetricDouble());
+        MappingHints hints = defaultHints.withConfigFromAttributes(List.of(bothHints));
+        assertEquals(HistogramMapping.AGGREGATE_METRIC_DOUBLE, hints.histogramMapping());
         assertTrue(hints.docCount());
     }
 
     public void testInvalidHints() {
+        MappingHints defaultHints = randomDefaultHints();
         // Test with invalid hint
         KeyValue invalidHint = createMappingHint("invalid_hint");
-        MappingHints hints = MappingHints.fromAttributes(List.of(invalidHint));
-        assertFalse(hints.aggregateMetricDouble());
+        MappingHints hints = defaultHints.withConfigFromAttributes(List.of(invalidHint));
+        assertEquals(defaultHints.histogramMapping(), hints.histogramMapping());
         assertFalse(hints.docCount());
 
         // Test with mix of valid and invalid hints
         KeyValue mixedHints = createMappingHint("aggregate_metric_double", "invalid_hint", "_doc_count");
-        hints = MappingHints.fromAttributes(List.of(mixedHints));
-        assertTrue(hints.aggregateMetricDouble());
+        hints = defaultHints.withConfigFromAttributes(List.of(mixedHints));
+        assertEquals(HistogramMapping.AGGREGATE_METRIC_DOUBLE, hints.histogramMapping());
         assertTrue(hints.docCount());
     }
 
     public void testNonArrayValue() {
+        MappingHints defaultHints = randomDefaultHints();
+
         // Test with non-array value
         KeyValue nonArrayHint = KeyValue.newBuilder()
             .setKey("elasticsearch.mapping.hints")
             .setValue(AnyValue.newBuilder().setStringValue("aggregate_metric_double").build())
             .build();
-        MappingHints hints = MappingHints.fromAttributes(List.of(nonArrayHint));
-        assertFalse(hints.aggregateMetricDouble());
+        MappingHints hints = defaultHints.withConfigFromAttributes(List.of(nonArrayHint));
+        assertEquals(defaultHints.histogramMapping(), hints.histogramMapping());
         assertFalse(hints.docCount());
     }
 
     public void testNonStringArrayValues() {
+        MappingHints defaultHints = randomDefaultHints();
         // Test with non-string array values
         AnyValue numberValue = AnyValue.newBuilder().setIntValue(42).build();
         AnyValue boolValue = AnyValue.newBuilder().setBoolValue(true).build();
@@ -95,8 +114,8 @@ public class MappingHintsTests extends ESTestCase {
             .setValue(AnyValue.newBuilder().setArrayValue(arrayBuilder).build())
             .build();
 
-        MappingHints hints = MappingHints.fromAttributes(List.of(invalidTypeHints));
-        assertFalse(hints.aggregateMetricDouble());
+        MappingHints hints = defaultHints.withConfigFromAttributes(List.of(invalidTypeHints));
+        assertEquals(defaultHints.histogramMapping(), hints.histogramMapping());
         assertFalse(hints.docCount());
     }
 

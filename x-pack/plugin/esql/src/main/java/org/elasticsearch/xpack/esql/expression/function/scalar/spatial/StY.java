@@ -99,6 +99,11 @@ public class StY extends SpatialUnaryDocValuesFunction {
     }
 
     @Override
+    public boolean prefersDocValuesExtraction() {
+        return false;
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new StY(source(), newChildren.getFirst());
     }

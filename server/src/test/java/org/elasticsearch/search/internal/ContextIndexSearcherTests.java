@@ -15,6 +15,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -40,6 +41,7 @@ import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
@@ -49,6 +51,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -88,6 +91,7 @@ import static org.elasticsearch.search.internal.ExitableDirectoryReader.Exitable
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -191,6 +195,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
                 document.add(new StringField("field", "value", Field.Store.NO));
+                document.add(new TextField("p_field", "value", Field.Store.NO));
                 iw.addDocument(document);
                 if (rarely()) {
                     iw.flush();
@@ -608,6 +613,39 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 if (executor != null) {
                     terminate(executor);
                 }
+            }
+        }
+    }
+
+    public void testMaxClause() throws Exception {
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            ThreadPoolExecutor executor = null;
+            try (var directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                var searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                var query = new PhraseQuery.Builder().add(new Term("p_field", "value1"))
+                    .add(new Term("p_field", "value2"))
+                    .add(new Term("p_field", "value"))
+                    .build();
+                IndexSearcher.setMaxClauseCount(2);
+                var exc = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 10));
+                assertThat(exc.getMessage(), containsString("too many clauses"));
+                IndexSearcher.setMaxClauseCount(3);
+                var top = searcher.search(query, 10);
+                assertThat(top.totalHits.value(), equalTo(0L));
+                assertThat(top.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             }
         }
     }

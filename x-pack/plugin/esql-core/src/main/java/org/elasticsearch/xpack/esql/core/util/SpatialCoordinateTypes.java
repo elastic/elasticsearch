@@ -12,10 +12,19 @@ import org.apache.lucene.geo.XYEncodingUtils;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.impl.CoordinateArraySequence;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
+import org.locationtech.jts.io.WKTWriter;
 
 import java.nio.ByteOrder;
 
@@ -125,4 +134,31 @@ public enum SpatialCoordinateTypes {
     public Geometry wkbToGeometry(BytesRef wkb) {
         return WellKnownBinary.fromWKB(validator(), false, wkb.bytes, wkb.offset, wkb.length);
     }
+
+    public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException, IllegalArgumentException {
+        String wkt = wkbToWkt(wkb);
+        if (wkt.startsWith("BBOX")) {
+            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, true, wkb.bytes, wkb.offset, wkb.length);
+            if (geometry instanceof Rectangle rect) {
+                var bottomLeft = new Coordinate(rect.getMinX(), rect.getMinY());
+                var bottomRight = new Coordinate(rect.getMaxX(), rect.getMinY());
+                var topRight = new Coordinate(rect.getMaxX(), rect.getMaxY());
+                var topLeft = new Coordinate(rect.getMinX(), rect.getMaxY());
+
+                var coordinates = new Coordinate[] { bottomLeft, bottomRight, topRight, topLeft, bottomLeft };
+                var geomFactory = new GeometryFactory();
+                var linearRing = new LinearRing(new CoordinateArraySequence(coordinates), geomFactory);
+                return new Polygon(linearRing, null, geomFactory);
+            }
+        }
+        WKTReader reader = new WKTReader();
+        return reader.read(wkt);
+    }
+
+    public BytesRef jtsGeometryToWkb(org.locationtech.jts.geom.Geometry jtsGeometry) {
+        WKTWriter writer = new WKTWriter();
+        String wkt = writer.write(jtsGeometry);
+        return wktToWkb(wkt);
+    }
+
 }

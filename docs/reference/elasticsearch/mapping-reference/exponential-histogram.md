@@ -11,22 +11,41 @@ mapped_pages:
 
 A field to store pre-aggregated numerical data using an exponential histogram, compatible with the OpenTelemetry data model. This field captures a distribution of values with fixed, exponentially spaced bucket boundaries controlled by a `scale` parameter, and a special zero bucket for values close to zero.
 
-An exponential histogram is defined with:
+An exponential histogram field has the following structure:
 
-- A required integer `scale` that controls bucket density and precision. Larger scales produce finer buckets.
-- A `zero` object for values close to zero with:
-  - `threshold` (non-negative, finite double) that defines the upper bound considered "zero".
-  - `count` (non-negative long) number of values in the zero bucket.
-- Two optional bucket ranges:
-  - `positive` for positive values
-  - `negative` for negative values
+```text
+{
+  "scale": <int>,                                  // required, in range [-11, 38]
+  "sum": <double>,                                 // optional; estimated if omitted; must be 0.0 or omitted for empty histograms
+  "min": <double>,                                 // optional; estimated if omitted; must be null or omitted for empty histograms
+  "max": <double>,                                 // optional; estimated if omitted; must be null or omitted for empty histograms
+  "zero": {                                        // optional; can be omitted if threshold and count are the default values
+    "threshold": <double, non-negative>,           // optional; default 0.0
+    "count": <long, non-negative>                  // optional; default 0
+  },
+  "positive": {                                    // optional
+    "indices": [<long>...],                        // unique, sorted; each in range [-((2^62) - 1), (2^62) - 1]
+    "counts":  [<long>...]                         // same length as indices; each > 0
+  },
+  "negative": {                                    // optional
+    "indices": [<long>...],                        // same constraints as positive.indices
+    "counts":  [<long>...]                         // same constraints as positive.counts
+  }
+}
+```
 
+The `scale` controls  the bucket density and precision. Larger scales produce finer buckets.
+Exponential histograms can represent both positive and negative values, which are split into separate bucket ranges.
 Each bucket range is an object with two parallel arrays:
-
-- `indices`: array of long bucket indices (sorted, unique)
-- `counts`: array of long counts (> 0), same length as `indices`
+- `indices`: array of the bucket indices defining the bucket boundaries
+- `counts`: array of counts for the corresponding buckets
 
 See the ["Bucket boundaries and scale"](#exponential-histogram-buckets) section below for how bucket indices map to value ranges.
+The indices should be provided in sorted order. Unsorted indices are supported, but will incur a performance penalty during indexing.
+
+In order to represent zero values or values close to zero, there is a special `zero` bucket, which consists of:
+  - `threshold`: that defines the upper bound considered "zero".
+  - `count`: number of values in the zero bucket.
 
 Optionally you can include precomputed summary statistics:
 
@@ -34,7 +53,7 @@ Optionally you can include precomputed summary statistics:
 - `min` (double): The minimum value in the histogram
 - `max` (double): The maximum value in the histogram
 
-When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these values during indexing. Empty histograms must not specify `min` or `max` and must have `sum: 0.0`.
+When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these values during indexing.
 
 ::::{important}
 - An `exponential_histogram` field is single-valued: one histogram per field per document. Nested arrays are not supported.
@@ -117,33 +136,6 @@ PUT my-index-000001/_doc/2
   }
 }
 ```
-
-## Field value format [exponential-histogram-format]
-
-The accepted JSON structure for `exponential_histogram` fields is:
-
-```text
-{
-  "scale": <int>,                                  // required, in range [-11, 38]
-  "sum": <double>,                                 // optional; estimated if omitted; must be 0.0 or omitted for empty histograms
-  "min": <double>,                                 // optional; estimated if omitted; must be null or omitted for empty histograms
-  "max": <double>,                                 // optional; estimated if omitted; must be null or omitted for empty histograms
-  "zero": {                                        // optional; omitted if threshold=0 and count=0
-    "threshold": <double, non-negative>,           // optional; default 0.0
-    "count": <long, non-negative>                  // optional; default 0
-  },
-  "positive": {                                    // optional
-    "indices": [<long>...],                        // unique, sorted; each in range [-((2^62) - 1), (2^62) - 1]
-    "counts":  [<long>...]                         // same length as indices; each > 0
-  },
-  "negative": {                                    // optional
-    "indices": [<long>...],                        // same constraints as positive.indices
-    "counts":  [<long>...]                         // same constraints as positive.counts
-  }
-}
-```
-
-The bucket indices should be provided in sorted order. Unsorted indices are supported, but will incur a performance penalty during indexing.
 
 ### Coercion from T-Digest [exponential-histogram-coercion]
 

@@ -267,41 +267,6 @@ public class DeterministicTaskQueue {
         return new DeterministicThreadPool(runnableWrapper);
     }
 
-    public long getLatestDeferredExecutionTime() {
-        return latestDeferredExecutionTime;
-    }
-
-    private record DeferredTask(long executionTimeMillis, Runnable task) {
-        private DeferredTask {
-            assert executionTimeMillis < Long.MAX_VALUE : "Long.MAX_VALUE is special, cannot be an execution time";
-        }
-    }
-
-    public static String getNodeIdForLogContext(DiscoveryNode node) {
-        return "{" + node.getId() + "}{" + node.getEphemeralId() + "}";
-    }
-
-    public static Runnable onNodeLog(DiscoveryNode node, Runnable runnable) {
-        final String nodeId = getNodeIdForLogContext(node);
-        return new Runnable() {
-            @Override
-            public void run() {
-                try (var ignored = getLogContext(nodeId)) {
-                    runnable.run();
-                }
-            }
-
-            @Override
-            public String toString() {
-                return nodeId + ": " + runnable.toString();
-            }
-        };
-    }
-
-    public static CloseableThreadContext.Instance getLogContext(String value) {
-        return CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, value);
-    }
-
     protected class DeterministicThreadPool extends ThreadPool {
         private final Map<String, Info> infos = new HashMap<>();
 
@@ -638,5 +603,41 @@ public class DeterministicTaskQueue {
                 }
             };
         }
+    }
+
+    public long getLatestDeferredExecutionTime() {
+        return latestDeferredExecutionTime;
+    }
+
+    private record DeferredTask(long executionTimeMillis, Runnable task) {
+        private DeferredTask {
+            assert executionTimeMillis < Long.MAX_VALUE : "Long.MAX_VALUE is special, cannot be an execution time";
+        }
+
+    }
+
+    public static String getNodeIdForLogContext(DiscoveryNode node) {
+        return "{" + node.getId() + "}{" + node.getEphemeralId() + "}";
+    }
+
+    public static Runnable onNodeLog(DiscoveryNode node, Runnable runnable) {
+        final String nodeId = getNodeIdForLogContext(node);
+        return new Runnable() {
+            @Override
+            public void run() {
+                try (var ignored = getLogContext(nodeId)) {
+                    runnable.run();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return nodeId + ": " + runnable.toString();
+            }
+        };
+    }
+
+    public static CloseableThreadContext.Instance getLogContext(String value) {
+        return CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, value);
     }
 }

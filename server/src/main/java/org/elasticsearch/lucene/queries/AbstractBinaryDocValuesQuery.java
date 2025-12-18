@@ -56,7 +56,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
 
                 var valuesWithCounts = new ZipDocIdSetIterator(values, counts);
                 final TwoPhaseIterator iterator = new TwoPhaseIterator(valuesWithCounts) {
-                    MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
+                    final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
                     @Override
                     public boolean matches() throws IOException {
@@ -67,7 +67,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
 
                     @Override
                     public float matchCost() {
-                        return 10; // because one comparison
+                        return matchCost;
                     }
                 };
 

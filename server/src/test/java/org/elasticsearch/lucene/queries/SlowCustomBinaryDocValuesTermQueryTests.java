@@ -41,7 +41,6 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
 
                         var field = KeywordFieldMapper.MultiValuedBinaryNoCount.naturalOrder("field");
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
-
                         var countField = new KeywordFieldMapper.MultiValuedBinaryNoCount.UpdateableNumericField("field.counts");
                         countField.setValue(field.count());
 

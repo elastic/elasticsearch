@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.io.stream.StreamInput;

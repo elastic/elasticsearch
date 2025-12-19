@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -18,8 +18,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
-import static org.elasticsearch.reindex.TransportCancelReindexAction.ReasonTaskCannotBeCancelled;
-import static org.elasticsearch.reindex.TransportCancelReindexAction.reasonForTaskNotBeingEligibleForCancellation;
+import static org.elasticsearch.reindex.management.TransportCancelReindexAction.ReasonTaskCannotBeCancelled;
+import static org.elasticsearch.reindex.management.TransportCancelReindexAction.reasonForTaskNotBeingEligibleForCancellation;
 
 public class TransportCancelReindexActionTests extends ESTestCase {
 
@@ -33,7 +33,7 @@ public class TransportCancelReindexActionTests extends ESTestCase {
     }
 
     public void testTaskWithParentIsNotEligibleForCancellation() {
-        final var task = taskWithActionAndParentAndProjectId(ReindexAction.NAME, taskId(0), null);
+        final var task = taskWithActionAndParentAndProjectId(ReindexAction.NAME, new TaskId("node", 0), null);
         assertEquals(ReasonTaskCannotBeCancelled.IS_SUBTASK, reasonForTaskNotBeingEligibleForCancellation(task, ProjectId.DEFAULT));
     }
 
@@ -70,13 +70,8 @@ public class TransportCancelReindexActionTests extends ESTestCase {
         assertNull(reasonForTaskNotBeingEligibleForCancellation(task, requestedProjectId));
     }
 
-    private static TaskId taskId(final long id) {
-        return new TaskId("node", id);
-    }
-
     private static CancellableTask taskWithActionAndParentAndProjectId(final String action, final TaskId parent, final String projectId) {
         final Map<String, String> headers = projectId == null ? Map.of() : Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
-        return new CancellableTask(1L, "type", action, "desc", parent, headers) {
-        };
+        return new CancellableTask(1L, "type", action, "desc", parent, headers);
     }
 }

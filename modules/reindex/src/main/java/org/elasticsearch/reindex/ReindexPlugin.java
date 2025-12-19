@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
@@ -56,15 +57,12 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public List<ActionHandler> getActions() {
-        final List<ActionHandler> handlers = new ArrayList<>();
-        handlers.add(new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class));
-        handlers.add(new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class));
-        handlers.add(new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class));
-        handlers.add(new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class));
-        if (REINDEX_RESILIENCE_ENABLED) {
-            handlers.add(new ActionHandler(TransportCancelReindexAction.TYPE, TransportCancelReindexAction.class));
-        }
-        return List.copyOf(handlers);
+        return Arrays.asList(
+            new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+            new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+            new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+            new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
+        );
     }
 
     @Override
@@ -86,15 +84,12 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        final List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new RestReindexAction(clusterSupportsFeature));
-        handlers.add(new RestUpdateByQueryAction(clusterSupportsFeature));
-        handlers.add(new RestDeleteByQueryAction(clusterSupportsFeature));
-        handlers.add(new RestRethrottleAction(nodesInCluster));
-        if (REINDEX_RESILIENCE_ENABLED) {
-            handlers.add(new RestCancelReindexAction());
-        }
-        return List.copyOf(handlers);
+        return Arrays.asList(
+            new RestReindexAction(clusterSupportsFeature),
+            new RestUpdateByQueryAction(clusterSupportsFeature),
+            new RestDeleteByQueryAction(clusterSupportsFeature),
+            new RestRethrottleAction(nodesInCluster)
+        );
     }
 
     @Override

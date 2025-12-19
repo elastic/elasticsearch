@@ -7,10 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -18,8 +19,9 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -27,7 +29,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestCancelReindexAction extends BaseRestHandler {
 
-    public RestCancelReindexAction() {}
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestCancelReindexAction(final Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = Objects.requireNonNull(clusterSupportsFeature);
+    }
 
     @Override
     public List<Route> routes() {
@@ -40,7 +46,10 @@ public class RestCancelReindexAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
+        if (clusterSupportsFeature.test(ReindexManagementFeatures.NEW_ENDPOINTS) == false) {
+            throw new IllegalArgumentException("endpoint not supported on all nodes in the cluster");
+        }
         final String taskIdParam = request.param("taskId");
         final TaskId taskId = new TaskId(taskIdParam);
         if (taskId.isSet() == false) {

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -22,12 +22,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
@@ -36,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /** Integration tests for <code>POST _reindex/{taskId}/_cancel</code> endpoint. */
-public class ReindexCancelIT extends ReindexTestCase {
+public class ReindexCancelIT extends ESIntegTestCase {
 
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";
@@ -44,6 +49,11 @@ public class ReindexCancelIT extends ReindexTestCase {
     private static final int REQUESTS_PER_SECOND = 1;
     private static final int NUM_OF_SLICES = 2;
     private static final int NUMBER_OF_DOCUMENTS_THAT_TAKES_30_SECS_TO_INGEST = 30 * REQUESTS_PER_SECOND * BULK_SIZE;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(ReindexPlugin.class, ReindexManagementPlugin.class);
+    }
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -57,6 +67,8 @@ public class ReindexCancelIT extends ReindexTestCase {
 
     @Before
     public void setup() {
+        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+
         createIndex(SOURCE_INDEX, DEST_INDEX);
         indexRandom(true, SOURCE_INDEX, NUMBER_OF_DOCUMENTS_THAT_TAKES_30_SECS_TO_INGEST);
         ensureGreen(SOURCE_INDEX, DEST_INDEX);
@@ -75,7 +87,6 @@ public class ReindexCancelIT extends ReindexTestCase {
      * We test synchronous (<code>?wait_for_completion=true</code>) invocation of the _cancel endpoint in this test.
      */
     public void testCancelEndpointEndToEndSynchronously() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskId parentTaskId = startAsyncThrottledReindex();
 
         final TaskInfo running = getRunningTask(parentTaskId);
@@ -118,7 +129,6 @@ public class ReindexCancelIT extends ReindexTestCase {
 
     /** Same test as above but calling _cancel asynchronously and wrapping assertions after cancellation in assertBusy. */
     public void testCancelEndpointEndToEndAsynchronously() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskId parentTaskId = startAsyncThrottledReindex();
 
         final TaskInfo running = getRunningTask(parentTaskId);
@@ -164,7 +174,6 @@ public class ReindexCancelIT extends ReindexTestCase {
     }
 
     public void testCancellingNonexistingTaskOnExistingNode() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskId nonExistingTaskOnExistingNode = new TaskId(clusterService().localNode().getId(), Long.MAX_VALUE);
 
         final String expectedExceptionMessage = Strings.format(
@@ -185,7 +194,6 @@ public class ReindexCancelIT extends ReindexTestCase {
     }
 
     public void testCancellingTaskOnNonexistingNode() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskId taskId = new TaskId("non-existing-node-" + randomAlphaOfLength(8), randomLongBetween(1, 1_000_000L));
 
         final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", taskId);

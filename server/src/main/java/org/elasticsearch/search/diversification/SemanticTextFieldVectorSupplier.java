@@ -17,9 +17,12 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
 
     // hit.hit().getFields().getOrDefault("_inference_fields", null)
 
-    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields", null).getValues().get(0)).getOrDefault("content", null)).inference().chunks()
-    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields", null).getValues().get(0)).getOrDefault("content", null)).inference().chunks().get("content")
-    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields", null).getValues().get(0)).getOrDefault("content", null)).inference().chunks().get("content").get(0).rawEmbeddings()
+    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields",
+    // null).getValues().get(0)).getOrDefault("content", null)).inference().chunks()
+    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields",
+    // null).getValues().get(0)).getOrDefault("content", null)).inference().chunks().get("content")
+    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields",
+    // null).getValues().get(0)).getOrDefault("content", null)).inference().chunks().get("content").get(0).rawEmbeddings()
 
     @Override
     public Map<Integer, VectorData> getFieldVectors() {
@@ -45,7 +48,7 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
                 // ((SemanticTextField)fieldValue).inference().chunks().get(fieldName)
                 // Embeddings:
                 // for (var chunk : ((SemanticTextField)fieldValue).inference().chunks().get(fieldName)) {
-                //    var embeddingBytesArray = chunk.rawEmbeddings()
+                // var embeddingBytesArray = chunk.rawEmbeddings()
                 // }
 
                 return true;

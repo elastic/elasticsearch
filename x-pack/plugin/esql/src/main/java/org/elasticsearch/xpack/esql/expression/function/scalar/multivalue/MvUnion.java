@@ -77,7 +77,7 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
             "long",
             "unsigned_long",
             "version" },
-        description = "Returns all unique values from both input fields. Returns `null` if either field is null.",
+        description = "Returns all unique values from the combined input fields (set union). Returns `null` if either field is null.",
         preview = true,
         examples = {
             @Example(file = "mv_union", tag = "testMvUnionWithIntValues"),

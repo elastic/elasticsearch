@@ -278,14 +278,14 @@ class FetchSearchPhase extends SearchPhase {
         boolean isCCSQuery = false;
         boolean remoteDataNodeRequest = false;
         if (connection != null) {
-            TransportVersion dataNodeVersion = connection.getTransportVersion();
-            dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
-            isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection || shardTarget.getClusterAlias() != null;
-
             // Check if this is a local request (coordinator == data node)
             remoteDataNodeRequest = connection.getNode()
                 .getId()
                 .equals(context.getSearchTransport().transportService().getLocalNode().getId()) == false;
+
+            TransportVersion dataNodeVersion = connection.getTransportVersion();
+            dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
+            isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection || shardTarget.getClusterAlias() != null;
 
             if (logger.isTraceEnabled()) {
                 logger.info(
@@ -304,8 +304,14 @@ class FetchSearchPhase extends SearchPhase {
             }
         }
 
+        boolean isScrollOrReindex = context.getRequest().scroll() != null || shardFetchRequest.getShardSearchRequest().scroll() != null;
+
         // Use chunked fetch for remote requests (not local, not CCS)
-        if (fetchPhaseChunked && remoteDataNodeRequest && dataNodeSupports && isCCSQuery == false) {
+        if (fetchPhaseChunked
+            && remoteDataNodeRequest
+            && dataNodeSupports
+            && isCCSQuery == false
+            && isScrollOrReindex == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
 

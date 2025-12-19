@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -51,7 +50,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
  * In a single-parameter mode, the function always uses the current time as the end of the range.
@@ -171,15 +169,9 @@ public class TRange extends EsqlConfigurationFunction
         }
 
         // the 2nd parameter has the same type as the 1st, which can be long (epoch millis), date or date_nanos
-        resolution = isType(
-            first,
-            dt -> isMillisOrNanos(dt) || dt == LONG,
-            operationName,
-            FIRST,
-            "long",
-            "date",
-            "date_nanos"
-        ).and(isType(second, dt -> dt == first.dataType(), operationName, SECOND, first.dataType().esType()));
+        resolution = isType(first, dt -> isMillisOrNanos(dt) || dt == LONG, operationName, FIRST, "long", "date", "date_nanos").and(
+            isType(second, dt -> dt == first.dataType(), operationName, SECOND, first.dataType().esType())
+        );
 
         if (resolution.unresolved()) {
             return resolution;
@@ -253,6 +245,7 @@ public class TRange extends EsqlConfigurationFunction
 
     private Instant timeWithOffset(Object offset, Instant base) {
         if (offset instanceof TemporalAmount amount) {
+            // TODO: Add timezone here
             return base.minus(amount);
         }
         throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
@@ -265,15 +258,6 @@ public class TRange extends EsqlConfigurationFunction
 
         if (value instanceof Instant instantValue) {
             return instantValue;
-        }
-
-        if (value instanceof BytesRef bytesRef) {
-            try {
-                long millis = dateTimeToLong(bytesRef.utf8ToString());
-                return Instant.ofEpochMilli(millis);
-            } catch (Exception e) {
-                throw new InvalidArgumentException("TRANGE {} parameter must be a valid datetime string, got: {}", paramName, value);
-            }
         }
 
         if (value instanceof Long longValue) {

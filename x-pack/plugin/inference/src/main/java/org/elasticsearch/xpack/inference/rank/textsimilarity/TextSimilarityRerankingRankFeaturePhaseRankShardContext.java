@@ -33,8 +33,17 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     public TextSimilarityRerankingRankFeaturePhaseRankShardContext(String field, @Nullable ChunkScorerConfig chunkScorerConfig) {
         super(field);
         this.chunkScorerConfig = chunkScorerConfig;
-        chunkingSettings = chunkScorerConfig != null ? chunkScorerConfig.chunkingSettings() : null;
-        chunker = chunkingSettings != null ? ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy()) : null;
+        if (chunkScorerConfig != null) {
+            if (chunkScorerConfig.chunkingSettings() == null) {
+                throw new IllegalStateException("Chunking settings must be resolved before shard execution");
+            }
+            this.chunkingSettings = chunkScorerConfig.chunkingSettings();
+
+            this.chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
+        } else {
+            this.chunkingSettings = null;
+            this.chunker = null;
+        }
     }
 
     @Override

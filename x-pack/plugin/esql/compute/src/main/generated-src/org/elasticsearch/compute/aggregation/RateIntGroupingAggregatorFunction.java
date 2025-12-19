@@ -604,7 +604,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
                 } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                     rate = computeRate(flushedStates, group, tsContext, isRateOverTime, dateFactor);
                 } else {
-                    rate = computeRateWithoutExtrapolate(state, isRateOverTime);
+                    rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
                 }
 
                 if (Double.isNaN(rate)) {
@@ -678,7 +678,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         }
     }
 
-    private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime) {
+    private static double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime, double dateFactor) {
         if (state.samples < 2) {
             return Double.NaN;
         }
@@ -687,7 +687,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         double firstValue = state.intervals[state.intervals.length - 1].v2;
         double lastValue = state.intervals[0].v1 + state.resets;
         if (isRateOverTime) {
-            return (lastValue - firstValue) * 1000.0 / (lastTS - firstTS);
+            return (lastValue - firstValue) * dateFactor / (lastTS - firstTS);
         } else {
             return lastValue - firstValue;
         }
@@ -742,13 +742,14 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             // Check for the case where there is only one sample in state, right at the boundary towards a non-empty adjacent state.
             if (state.samples == 1) {
                 if (previousState != null) {
-                    assert state.intervals[0].t1 == firstTsSec * 1000 : firstTsSec + ":" + state.intervals[0].t1;
+                    assert nextState == null;
+                    assert state.intervals[0].t1 == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].t1;
                     final double startTs = previousState.intervals[0].t1 / dateFactor;
                     final double delta = deltaBetweenStates(previousState, state, dateFactor);
                     return isRateOverTime ? delta / (firstTsSec - startTs) : delta;
                 }
                 if (nextState != null) {
-                    assert state.intervals[0].t1 == lastTsSec * 1000 : lastTsSec + ":" + state.intervals[0].t1;
+                    assert state.intervals[0].t1 == lastTsSec * dateFactor : lastTsSec + ":" + state.intervals[0].t1;
                     final double endTs = nextState.intervals[nextState.intervals.length - 1].t2 / dateFactor;
                     final double delta = deltaBetweenStates(state, nextState, dateFactor);
                     return isRateOverTime ? delta / (endTs - lastTsSec) : delta;

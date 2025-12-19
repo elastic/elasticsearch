@@ -1,0 +1,144 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_query/view
+      test_runner_features: capabilities
+      reason: "ES|QL views introduced"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              color:
+                type: keyword
+              animal:
+                type: keyword
+              id:
+                type: integer
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "content": "This is a brown fox", "color": "brown", "animal": "fox", "id": 1 }
+          - { "index": { } }
+          - { "content": "This is a brown dog", "color": "brown", "animal": "dog", "id": 2 }
+          - { "index": { } }
+          - { "content": "This dog is really white", "color": "white", "animal": "dog", "id": 3 }
+          - { "index": { } }
+          - { "content": "The dog is brown but this document is very very long", "color": "brown", "animal": "dog", "id": 4 }
+          - { "index": { } }
+          - { "content": "There is also a white cat", "color": "white", "animal": "cat", "id": 5 }
+          - { "index": { } }
+          - { "content": "The quick brown fox jumps over the lazy dog", "color": "brown", "animal": "dog", "id": 6 }
+
+---
+"crud":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { views.0.name: "dogs" }
+  - match: { views.0.query: 'FROM test | WHERE animal == "dog"' }
+
+  - do:
+      esql.get_view: { }
+
+  - match: { views.0.name: "dogs" }
+  - match: { views.0.query: 'FROM test | WHERE animal == "dog"' }
+  - length: { views: 1 }
+
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "pooch"'
+
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { views.0.name: "dogs" }
+  - match: { views.0.query: 'FROM test | WHERE animal == "pooch"' }
+  - length: { views: 1 }
+
+  - do:
+      esql.delete_view:
+        name: dogs
+
+  - do:
+      esql.get_view: { }
+
+  - match: { views: [] }
+  - length: { views: 0 }
+
+---
+"invalid-views":
+  - do:
+      catch: /invalid view name/
+      esql.put_view:
+        name: " "
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /invalid view name/
+      esql.put_view:
+        name: "dogs#pants"
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /invalid view name/
+      esql.put_view:
+        name: "dogsPants"
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /Required \[query\]/
+      esql.put_view:
+        name: dogs
+        body: {}
+
+  - do:
+      catch: /view query is missing or empty/
+      esql.put_view:
+        name: dogs
+        body:
+          query: ' '
+
+  - do:
+      catch: /mismatched input 'FRO'/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FRO test'
+
+  - do:
+      esql.get_view: { }
+
+  - match: { views: [] }
+
+  - do:
+      catch: missing
+      esql.get_view:
+        name: dogs
+
+  - do:
+      catch: /view \[dogs\] not found/
+      esql.delete_view:
+        name: dogs

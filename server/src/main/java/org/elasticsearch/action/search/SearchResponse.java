@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
@@ -914,11 +913,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                this.skipUnavailable = in.readBoolean();
-            } else {
-                this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
-            }
+            this.skipUnavailable = in.readBoolean();
         }
 
         /**
@@ -1019,9 +1014,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                out.writeBoolean(skipUnavailable);
-            }
+            out.writeBoolean(skipUnavailable);
         }
 
         @Override

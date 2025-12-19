@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -214,9 +216,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
             String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
-            return conversion == null
-                ? BlockLoader.CONSTANT_NULLS
-                : new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion);
+            if (conversion == null) {
+                return BlockLoader.CONSTANT_NULLS;
+            }
+            if (conversion instanceof BlockLoaderExpression ble) {
+                BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
+                if (e != null) {
+                    return shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, e.config());
+                }
+            }
+            return new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion);
         }
         return blockLoader;
     }

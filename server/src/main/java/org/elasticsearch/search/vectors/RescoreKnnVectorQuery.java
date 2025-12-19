@@ -27,6 +27,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BulkScorableFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.BulkScorableVectorValues;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -253,7 +254,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         public Query rewrite(IndexSearcher indexSearcher) throws IOException {
             Query innerRewritten = innerQuery.rewrite(indexSearcher);
             if (innerRewritten.getClass() == MatchNoDocsQuery.class) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 

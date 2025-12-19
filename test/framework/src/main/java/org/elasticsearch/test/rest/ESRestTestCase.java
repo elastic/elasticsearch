@@ -2556,7 +2556,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 objectPath.evaluate("nodes." + id + ".transport_version"),
                 () -> TransportVersion.minimumCompatible()
             );
-            if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
+            if (minTransportVersion == null || transportVersion.supports(minTransportVersion) == false) {
                 minTransportVersion = transportVersion;
             }
         }
@@ -2763,6 +2763,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return matchesMap() //
             .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
+            .entry("parsing", instanceOf(Map.class))
+            .entry("preanalysis", instanceOf(Map.class))
+            .entry("dependency_resolution", instanceOf(Map.class))
+            .entry("analysis", instanceOf(Map.class))
             .entry("drivers", instanceOf(List.class))
             .entry("plans", instanceOf(List.class))
             .entry("minimumTransportVersion", instanceOf(Integer.class));

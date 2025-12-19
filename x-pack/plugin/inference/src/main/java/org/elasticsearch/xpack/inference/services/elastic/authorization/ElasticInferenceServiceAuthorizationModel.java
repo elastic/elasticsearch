@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -205,6 +206,19 @@ public class ElasticInferenceServiceAuthorizationModel {
             config.similarity(),
             TaskType.TEXT_EMBEDDING
         );
+
+        var configElementType = config.elementType().toLowerCase(Locale.ROOT);
+        var supportedElementTypes = getSupportedElementTypes();
+
+        if (supportedElementTypes.contains(configElementType) == false) {
+            throw new IllegalArgumentException(
+                Strings.format("Unsupported element type encountered [%s], only %s are supported", configElementType, supportedElementTypes)
+            );
+        }
+    }
+
+    private static Set<String> getSupportedElementTypes() {
+        return Set.of(ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT));
     }
 
     private static void validateFieldPresent(String field, Object fieldValue, TaskType taskType) {

@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -248,9 +247,7 @@ public class ClusterFormationFailureHelper {
                 new VotingConfiguration(in),
                 in.readCollectionAsImmutableList(TransportAddress::new),
                 in.readCollectionAsImmutableList(DiscoveryNode::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                    ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
-                    : Set.of(),
+                in.readCollectionAsImmutableSet(DiscoveryNode::new),
                 in.readLong(),
                 in.readBoolean(),
                 new StatusInfo(in),
@@ -430,9 +427,7 @@ public class ClusterFormationFailureHelper {
             lastCommittedConfiguration.writeTo(out);
             out.writeCollection(resolvedAddresses);
             out.writeCollection(foundPeers);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeCollection(mastersOfPeers);
-            }
+            out.writeCollection(mastersOfPeers);
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
             statusInfo.writeTo(out);

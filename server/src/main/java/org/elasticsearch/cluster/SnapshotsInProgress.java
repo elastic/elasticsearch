@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -121,9 +120,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     private static Set<String> readNodeIdsForRemoval(StreamInput in) throws IOException {
-        return in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-            ? in.readCollectionAsImmutableSet(StreamInput::readString)
-            : Set.of();
+        return in.readCollectionAsImmutableSet(StreamInput::readString);
     }
 
     private static Map<ProjectRepo, ByRepo> collectByRepo(StreamInput in) throws IOException {
@@ -358,11 +355,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         while (iterator.hasNext()) {
             iterator.next().writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeStringCollection(nodesIdsForRemoval);
-        } else {
-            assert nodesIdsForRemoval.isEmpty() : nodesIdsForRemoval;
-        }
+        out.writeStringCollection(nodesIdsForRemoval);
     }
 
     @Override
@@ -546,8 +539,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * running shard snapshots.
      */
     public SnapshotsInProgress withUpdatedNodeIdsForRemoval(ClusterState clusterState) {
-        assert clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
-
         final var updatedNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
 
         final var nodeIdsMarkedForRemoval = getNodesIdsMarkedForRemoval(clusterState);
@@ -1886,11 +1877,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 mapDiff.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeStringCollection(nodeIdsForRemoval);
-            } else {
-                assert nodeIdsForRemoval.isEmpty() : nodeIdsForRemoval;
-            }
+            out.writeStringCollection(nodeIdsForRemoval);
         }
     }
 

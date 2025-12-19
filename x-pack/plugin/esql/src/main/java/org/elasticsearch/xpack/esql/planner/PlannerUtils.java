@@ -364,7 +364,7 @@ public class PlannerUtils {
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
-            case KEYWORD, TEXT, IP, SOURCE, VERSION, UNSUPPORTED -> ElementType.BYTES_REF;
+            case KEYWORD, TEXT, IP, SOURCE, VERSION, HISTOGRAM, UNSUPPORTED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;
             case BOOLEAN -> ElementType.BOOLEAN;
             case DOC_DATA_TYPE -> ElementType.DOC;
@@ -373,6 +373,7 @@ public class PlannerUtils {
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
+            case TDIGEST -> ElementType.TDIGEST;
             case DENSE_VECTOR -> ElementType.FLOAT;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);

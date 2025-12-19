@@ -58,6 +58,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
+
 /**
  * This is an abstract base class for bulk actions. It traverses all indices that the request gets routed to, executes all applicable
  * pipelines, and then delegates to the concrete implementation of #doInternalExecute to actually index the data.
@@ -65,7 +67,7 @@ import java.util.function.LongSupplier;
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
 
-    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(9) {
+    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>() {
         {
             add("error_trace");
             add("filter_path");
@@ -76,6 +78,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             add("refresh");
             add("require_data_stream");
             add("timeout");
+            // Add internal marker params
+            addAll(INTERNAL_MARKER_REQUEST_PARAMETERS);
         }
     };
 

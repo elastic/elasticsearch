@@ -60,6 +60,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -828,6 +829,10 @@ class NodeConstruction {
             )::onNewInfo
         );
 
+        clusterInfoService.addListener(
+            new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo
+        );
+
         IndicesModule indicesModule = new IndicesModule(
             pluginsService.filterPlugins(MapperPlugin.class).toList(),
             pluginsService.filterPlugins(InternalVectorFormatProviderPlugin.class).toList(),
@@ -1280,7 +1285,7 @@ class NodeConstruction {
             onlinePrewarmingService
         );
 
-        final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
+        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, taskManager, terminationHandler);
 
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
 

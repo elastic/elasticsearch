@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,25 +56,6 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
     @Override
     protected ClusterBalanceStats.NodeBalanceStats mutateInstance(ClusterBalanceStats.NodeBalanceStats instance) throws IOException {
         return createTestInstance();
-    }
-
-    public void testSerializationWithTransportVersionV_8_12_0() throws IOException {
-        ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
-        // Serialization changes based on this version
-        final var oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_12_0,
-            TransportVersionUtils.getPreviousVersion(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
-        );
-        ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
-
-        // Assert the values are as expected
-        assertEquals(instance.nodeId(), deserialized.nodeId());
-        assertEquals(instance.roles(), deserialized.roles());
-        assertEquals(instance.undesiredShardAllocations(), deserialized.undesiredShardAllocations());
-
-        // Assert the default values are as expected
-        assertNull(deserialized.nodeWeight());
     }
 
     public void testSerializationWithTransportVersionNodeWeightsAddedToNodeBalanceStats() throws IOException {

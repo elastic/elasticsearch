@@ -41,8 +41,6 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
     }
 
     public void testAutoModeWithUnavailableGPU() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
@@ -55,7 +53,6 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);

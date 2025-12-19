@@ -16,7 +16,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -24,6 +23,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;
@@ -67,7 +67,7 @@ public class RankDocsQuery extends Query {
         @Override
         public Query rewrite(IndexSearcher searcher) throws IOException {
             if (docs.length == 0) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             boolean changed = false;
             Query[] newSources = new Query[sources.length];

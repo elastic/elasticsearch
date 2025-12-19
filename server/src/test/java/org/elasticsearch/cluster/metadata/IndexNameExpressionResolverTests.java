@@ -1049,6 +1049,43 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(0, indexNames.length);
     }
 
+    public void testNegationOnItsOwnIsInvalid() {
+        final var project = ProjectMetadata.builder(randomUniqueProjectId()).put(indexBuilder("testXXX").state(State.OPEN)).build();
+
+        final var context = new IndexNameExpressionResolver.Context(
+            project,
+            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, randomBoolean()),
+            SystemIndexAccessLevel.NONE
+        );
+
+        final List<String[]> expressionsList = List.of(
+            new String[] { "-" },
+            new String[] { "*", "-" },
+            new String[] { "testXXX", "-" },
+            new String[] { "*", "-", "testXXX" },
+            new String[] { "-", "-" },
+            new String[] { "-", "_all" },
+            new String[] { "-testXXX", "-" },
+            new String[] { "*", "-testXXX", "-" }
+        );
+
+        for (var expressions : expressionsList) {
+            expectThrows(
+                InvalidIndexNameException.class,
+                containsString("Invalid index name [], exclusion cannot be empty"),
+                () -> indexNameExpressionResolver.concreteIndexNames(context, expressions)
+            );
+        }
+
+        // _all is special only when it is used on its own. If combined with other expressions, it becomes invalid
+        // because we don't allow index name begin with '_'.
+        expectThrows(
+            InvalidIndexNameException.class,
+            containsString("Invalid index name [_all], must not start with '_'."),
+            () -> indexNameExpressionResolver.concreteIndexNames(context, "_all", "-")
+        );
+    }
+
     public void testConcreteIndicesWildcardAndAliases() {
         ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetadata.builder("foo")))

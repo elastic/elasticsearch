@@ -16,10 +16,10 @@ import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdCodec;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,12 +45,24 @@ public class CodecService implements CodecProvider {
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
+    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         final var codecs = new HashMap<String, Codec>();
 
-        Codec legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays);
-        if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
+        boolean useSyntheticId = mapperService != null
+            && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
+            && mapperService.getIndexSettings()
+                .getIndexVersionCreated()
+                .onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID);
+
+        var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
+        if (useSyntheticId) {
+            // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
+            codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays));
+        } else if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
+            codecs.put(
+                DEFAULT_CODEC,
+                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays, threadPool)
+            );
         } else {
             codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
         }
@@ -58,17 +70,20 @@ public class CodecService implements CodecProvider {
 
         codecs.put(
             BEST_COMPRESSION_CODEC,
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays, threadPool)
         );
-        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
+        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(
+            Lucene103Codec.Mode.BEST_COMPRESSION,
+            mapperService,
+            bigArrays,
+            threadPool
+        );
         codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
 
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
-        final boolean useTsdbSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
-        assert useTsdbSyntheticId == false || mapperService.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
         this.codecs = codecs.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
             Codec codec;
@@ -76,9 +91,6 @@ public class CodecService implements CodecProvider {
                 codec = dedupCodec;
             } else {
                 codec = new DeduplicateFieldInfosCodec(e.getValue().getName(), e.getValue());
-            }
-            if (useTsdbSyntheticId && codec instanceof TSDBSyntheticIdCodec == false) {
-                codec = new TSDBSyntheticIdCodec(codec.getName(), codec);
             }
             return codec;
         }));

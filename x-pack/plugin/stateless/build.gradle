@@ -8,6 +8,8 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
 esplugin {
   name = 'stateless'
   description = 'Elasticsearch Expanded Pack Plugin - Stateless self managed'
@@ -23,5 +25,6 @@ dependencies {
   compileOnly project(path: xpackModule('blob-cache'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('blob-cache'))))
+  clusterModules project(":modules:data-streams")
+  clusterModules project(":modules:mapper-extras")
 }
-

@@ -17,7 +17,9 @@ import org.apache.lucene.index.SortedSetDocValues;
 import java.io.IOException;
 
 /**
- * Loads {@code keyword} style fields that are stored as a lookup table and ordinals.
+ * Loads {@code keyword} style fields that are stored as a lookup table and ordinals.  See also {@link BytesRefsFromCustomBinaryBlockLoader}
+ * for {@code wildcard} style (i.e. non-ordinal encoded multivalued) and {@link BytesRefsFromBinaryBlockLoader} for {@code histogram}
+ * style (i.e. non-ordinal single valued).
  */
 public class BytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlockLoader {
     public BytesRefsFromOrdsBlockLoader(String fieldName) {

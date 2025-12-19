@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.mockfile.HandleLimitFS;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
@@ -195,7 +195,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private SourceOperator sourceOperator(DriverContext context, int pageSize) {
         var luceneFactory = new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             DataPartitioning.SHARD,
             DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
@@ -1510,7 +1510,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(reader, 0)),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
@@ -1764,7 +1764,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             }
             var luceneFactory = new LuceneSourceOperator.Factory(
                 new IndexedByShardIdFromList<>(contexts),
-                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
                 DataPartitioning.SHARD,
                 DataPartitioning.AutoStrategy.DEFAULT,
                 randomIntBetween(1, 10),

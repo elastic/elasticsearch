@@ -10,6 +10,7 @@
 package org.elasticsearch.search.crossproject;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -260,8 +261,7 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         );
     }
 
-    public void testRewritingShouldThrowOnIndexSelectors() {
-        // This will fail when we implement index exclusions
+    public void testRewritingShouldWorkWithIndexSelectors() {
         ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
         List<ProjectRoutingInfo> linked = List.of(
             createRandomProjectWithAlias("P1"),
@@ -269,11 +269,21 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             createRandomProjectWithAlias("Q1"),
             createRandomProjectWithAlias("Q2")
         );
-        String[] requestedResources = new String[] { "index::data" };
+        final var selector = randomFrom(IndexComponentSelector.values()).getKey();
+        String[] requestedResources = new String[] { "index::" + selector };
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
+        var actual = CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources);
+
+        assertThat(actual.keySet(), containsInAnyOrder("index::" + selector));
+        assertIndexRewriteResultsContains(
+            actual.get("index::" + selector),
+            containsInAnyOrder(
+                "index::" + selector,
+                "P1:index::" + selector,
+                "P2:index::" + selector,
+                "Q1:index::" + selector,
+                "Q2:index::" + selector
+            )
         );
     }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -25,14 +24,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE;
-
 public abstract class ExponentialHistogramAggregatorTestCase extends AggregatorTestCase {
-
-    @Before
-    public void setup() {
-        assumeTrue("Only when exponential_histogram feature flag is enabled", EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled());
-    }
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {

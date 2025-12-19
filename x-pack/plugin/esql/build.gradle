@@ -44,6 +44,7 @@ dependencies {
   implementation project(':libs:grok')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation project('arrow')
 
@@ -76,6 +77,15 @@ dependencies {
   internalClusterTestImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // TODO: Remove these exclusions by renaming the esql-core packages
+  ignoreClasses(
+    "org.elasticsearch.xpack.esql.core.util.*",
+    "org.elasticsearch.xpack.esql.core.plugin.AbstractTransportQlAsyncGetResultsAction",
+    "org.elasticsearch.xpack.esql.core.package-info"
+  )
 }
 
 tasks.named("dependencyLicenses").configure {

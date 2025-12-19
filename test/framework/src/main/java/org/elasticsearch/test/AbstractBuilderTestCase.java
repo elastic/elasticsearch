@@ -504,7 +504,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE,
                 bitsetFilterCache::getBitSetProducer,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                null
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });

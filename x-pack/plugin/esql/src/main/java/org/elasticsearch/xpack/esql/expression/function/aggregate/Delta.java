@@ -53,7 +53,11 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
     )
     public Delta(
         Source source,
-        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
+        @Param(
+            name = "field",
+            type = { "long", "integer", "double" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
         @Param(
             name = "window",
             type = { "time_duration" },

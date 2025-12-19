@@ -95,23 +95,27 @@ public final class ShardBulkSplitHelper {
         Map<ShardId, BulkShardRequest> splitRequests,
         Map<ShardId, Tuple<BulkShardResponse, Exception>> responses
     ) {
-        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[originalRequest.items().length];
-        for (Map.Entry<ShardId, Tuple<BulkShardResponse, Exception>> entry : responses.entrySet()) {
-            ShardId shardId = entry.getKey();
-            Tuple<BulkShardResponse, Exception> value = entry.getValue();
-            Exception exception = value.v2();
+        Map<Integer, BulkItemResponse> itemResponsesById = new HashMap<>();
+        responses.forEach((shardId, responseTuple) -> {
+            Exception exception = responseTuple.v2();
             if (exception != null) {
                 BulkShardRequest bulkShardRequest = splitRequests.get(shardId);
                 for (BulkItemRequest item : bulkShardRequest.items()) {
                     DocWriteRequest<?> request = item.request();
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), request.id(), exception);
-                    bulkItemResponses[item.id()] = BulkItemResponse.failure(item.id(), request.opType(), failure);
+                    itemResponsesById.put(item.id(), BulkItemResponse.failure(item.id(), request.opType(), failure));
                 }
             } else {
-                for (BulkItemResponse bulkItemResponse : value.v1().getResponses()) {
-                    bulkItemResponses[bulkItemResponse.getItemId()] = bulkItemResponse;
+                for (BulkItemResponse bulkItemResponse : responseTuple.v1().getResponses()) {
+                    itemResponsesById.put(bulkItemResponse.getItemId(), bulkItemResponse);
                 }
             }
+        });
+        BulkItemRequest[] originalItemRequests = originalRequest.items();
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[originalItemRequests.length];
+        // Item responses should match the order of the original item requests
+        for (int i = 0; i < bulkItemResponses.length; i++) {
+            bulkItemResponses[i] = itemResponsesById.get(originalItemRequests[i].id());
         }
         BulkShardResponse bulkShardResponse = new BulkShardResponse(originalRequest.shardId(), bulkItemResponses);
         // TODO: Decide how to handle

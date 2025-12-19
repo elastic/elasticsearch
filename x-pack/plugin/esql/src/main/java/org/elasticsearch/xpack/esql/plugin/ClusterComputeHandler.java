@@ -168,7 +168,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 builder.setTook(TimeValue.timeValueNanos(v.getTook().nanos() + resp.getTook().nanos()));
             } else {
                 if (resp.getTook() != null) {
-                    builder.setTook(TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos()));
+                    builder.setTook(
+                        TimeValue.timeValueNanos(executionInfo.planningProfile().planning().timeTook().nanos() + resp.getTook().nanos())
+                    );
                 } else {
                     // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
                     // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response

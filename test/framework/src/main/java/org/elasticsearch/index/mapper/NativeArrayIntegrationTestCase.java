@@ -257,14 +257,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         verifySyntheticArray(arrays, arrays, mapping, expectedStoredFields);
     }
 
-    private XContentBuilder arrayToSource(Object[] array) throws IOException {
+    private XContentBuilder arrayToSource(Object obj) throws IOException {
         var source = jsonBuilder().startObject();
-        if (array != null) {
-            source.startArray("field");
-            for (Object arrayValue : array) {
-                source.value(arrayValue);
-            }
-            source.endArray();
+        if (obj != null) {
+            source.field("field", obj);
         } else {
             source.field("field").nullValue();
         }
@@ -273,7 +269,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
     protected void verifySyntheticArray(
         Object[][] inputArrays,
-        Object[][] expectedArrays,
+        Object[] expectedArrays,
         XContentBuilder mapping,
         String... expectedStoredFields
     ) throws IOException {

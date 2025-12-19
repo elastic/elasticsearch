@@ -1,3 +1,17 @@
+# Smart Retries Configuration
+# SMART_RETRIES=true enables intelligent test filtering on retry attempts.
+# The pre-command hook fetches failed test history from Develocity API and
+# the InternalTestRerunPlugin filters test execution to only run previously failed tests.
+#
+# Retry Strategy:
+# - exit_status "-1": Agent/infrastructure failures (3 retries)
+# - signal_reason agent_stop: Agent stops (3 retries)
+# - exit_status "1": Test/build failures (1 retry with smart filtering)
+#
+# Note: exit_status "1" retries all failures including configuration errors.
+# Future improvement: Implement distinct exit codes for different failure types.
+env:
+  SMART_RETRIES: "true"
 steps:
   - group: bwc
     steps: $BWC_STEPS
@@ -65,7 +79,19 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -82,7 +108,19 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
@@ -131,6 +169,15 @@ steps:
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 360
+    retry:
+      automatic:
+        - exit_status: "-1"
+          limit: 3
+          signal_reason: none
+        - signal_reason: agent_stop
+          limit: 3
+        - exit_status: "1"
+          limit: 1
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

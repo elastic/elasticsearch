@@ -35,6 +35,8 @@ tasks.named("yamlRestTest").configure {
   ];
   if (buildParams.snapshotBuild == false) {
     blacklist += [
+      // doc_values.cardinality option not available in snapshots
+      "search/395_binary_doc_values_search/*",
       'synonyms_privileges/10_synonyms_with_privileges/*',
       'synonyms_privileges/20_synonyms_no_privileges/*'
     ];

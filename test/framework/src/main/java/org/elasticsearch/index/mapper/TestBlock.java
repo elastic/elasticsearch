@@ -553,6 +553,12 @@ public class TestBlock implements BlockLoader.Block {
 
                 return new TestBlock(values);
             }
+
+            @Override
+            public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
+                // TODO: implement when needed
+                throw new UnsupportedOperationException();
+            }
         };
     }
 

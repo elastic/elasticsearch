@@ -91,17 +91,17 @@ setup:
           {"index":{}}
           {"textbody": "third text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
           {"index":{}}
-          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
+          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.6], "keywordfield": "test4"}
           {"index":{}}
           {"textbody": "fifth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
           {"index":{}}
           {"textbody": "sixth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
           {"index":{}}
-          {"textbody": "seventh text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test7"}
+          {"textbody": "seventh text", "textvector": [0.1, 0.4, 0.5, 0.9], "keywordfield": "test7"}
           {"index":{}}
-          {"textbody": "eighth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test8"}
+          {"textbody": "eighth text", "textvector": [0.1, 0.9, 0.7, 0.9], "keywordfield": "test8"}
           {"index":{}}
-          {"textbody": "ninth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test9"}
+          {"textbody": "ninth text", "textvector": [0.2, 0.05, 0.2, 0.05], "keywordfield": "test9"}
 
   - do:
       headers:
@@ -205,9 +205,9 @@ teardown:
   - match: { hits.hits.4._source.textbody: "first text" }
   - match: { hits.hits.5._source.textbody: "sixth text" }
   - match: { hits.hits.6._source.textbody: "ninth text" }
-  - match: { hits.hits.7._source.textbody: "fourth text" }
-  - match: { hits.hits.8._source.textbody: "fifth text" }
-  - match: { hits.hits.9._source.textbody: "seventh text" }
+  - match: { hits.hits.7._source.textbody: "seventh text" }
+  - match: { hits.hits.8._source.textbody: "eighth text" }
+  - match: { hits.hits.9._source.textbody: "fourth text" }
 
   - do:
       search:
@@ -298,9 +298,9 @@ teardown:
   - match: { hits.hits.4._source.textbody: "first text" }
   - match: { hits.hits.5._source.textbody: "sixth text" }
   - match: { hits.hits.6._source.textbody: "ninth text" }
-  - match: { hits.hits.7._source.textbody: "fourth text" }
-  - match: { hits.hits.8._source.textbody: "fifth text" }
-  - match: { hits.hits.9._source.textbody: "seventh text" }
+  - match: { hits.hits.7._source.textbody: "seventh text" }
+  - match: { hits.hits.8._source.textbody: "eighth text" }
+  - match: { hits.hits.9._source.textbody: "fourth text" }
 
   - do:
       search:
@@ -324,7 +324,7 @@ teardown:
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "sixth text" }
   - match: { hits.hits.1._source.textbody: "ninth text" }
-  - match: { hits.hits.2._source.textbody: "fourth text" }
+  - match: { hits.hits.2._source.textbody: "eighth text" }
 
   - do:
       search:
@@ -346,9 +346,9 @@ teardown:
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source.textbody: "fourth text" }
-  - match: { hits.hits.1._source.textbody: "fifth text" }
-  - match: { hits.hits.2._source.textbody: "seventh text" }
+  - match: { hits.hits.0._source.textbody: "seventh text" }
+  - match: { hits.hits.1._source.textbody: "eighth text" }
+  - match: { hits.hits.2._source.textbody: "fourth text" }
 
 ---
 "Test MMR result diversification byte vector type":
@@ -465,8 +465,8 @@ teardown:
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "second text other" }
-  - match: { hits.hits.1._source.textbody: "third text" }
-  - match: { hits.hits.2._source.textbody: "third text duplicate" }
+  - match: { hits.hits.1._source.textbody: "third text other" }
+  - match: { hits.hits.2._source.textbody: "third text duplicate other" }
 
 ---
 "Test MMR result diversification with default size should return results":
@@ -496,9 +496,9 @@ teardown:
   - match: { hits.hits.4._source.textbody: "first text" }
   - match: { hits.hits.5._source.textbody: "sixth text" }
   - match: { hits.hits.6._source.textbody: "ninth text" }
-  - match: { hits.hits.7._source.textbody: "fourth text" }
-  - match: { hits.hits.8._source.textbody: "fifth text" }
-  - match: { hits.hits.9._source.textbody: "seventh text" }
+  - match: { hits.hits.7._source.textbody: "seventh text" }
+  - match: { hits.hits.8._source.textbody: "eighth text" }
+  - match: { hits.hits.9._source.textbody: "fourth text" }
 
 ---
 "Test MMR result diversification rank_window_size restricts top docs":

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -65,9 +64,6 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected void doExecute(Task task, DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
-        if (clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_15_0) && request.waitForCompletion() == false) {
-            throw new UnsupportedOperationException("wait_for_completion parameter is not supported by all nodes in this cluster");
-        }
         super.doExecute(task, request, listener);
     }
 

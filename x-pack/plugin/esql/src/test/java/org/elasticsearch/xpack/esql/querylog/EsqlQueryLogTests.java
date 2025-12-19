@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SlowLogFieldProvider;
@@ -24,6 +25,8 @@ import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.PlanningProfile;
+import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -36,13 +39,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK;
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -98,16 +101,9 @@ public class EsqlQueryLogTests extends ESTestCase {
             randomLongBetween(30_000_000, 40_000_000),
             randomLongBetween(40_000_000, 50_000_000),
             randomLongBetween(0, 9_999_999) };
-        long[] actualPlanningTook = {
-            randomLongBetween(0, 1_000_000),
-            randomLongBetween(0, 1_000_000),
-            randomLongBetween(0, 1_000_000),
-            randomLongBetween(0, 1_000_000),
-            randomLongBetween(0, 1_000_000), };
         Level[] expectedLevel = { Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, null };
-
         for (int i = 0; i < actualTook.length; i++) {
-            EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i], actualPlanningTook[i]);
+            EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
             queryLog.onQueryPhase(
                 new Versioned<>(new Result(List.of(), List.of(), DriverCompletionInfo.EMPTY, warnQuery), TransportVersion.current()),
                 query
@@ -121,19 +117,26 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(took, is(actualTook[i]));
                 assertThat(tookMillis, is(tookMillisExpected));
 
-                long planningTook = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK));
-                long planningTookMillisExpected = planningTook / 1_000_000;
-                long planningTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS));
-                assertThat(planningTook, is(actualPlanningTook[i]));
-                assertThat(planningTookMillis, is(planningTookMillisExpected));
-                assertThat(took, greaterThan(planningTook));
+                // Checks values for all planning timespans
+                for (PlanningProfile.TimeSpanMarker timeSpan : warnQuery.planningProfile().timeSpanMarkers()) {
+                    String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
+                    assertNotNull(tookValue);
+                    Long timeSpanTook = Long.valueOf(tookValue);
+                    long timeSpanTookMillisExpected = timeSpanTook / 1_000_000;
+                    String tookValueMillis = msg.get(
+                        ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX
+                    );
+                    assertNotNull(tookValueMillis);
+                    long timeSpanTookMillis = Long.valueOf(tookValueMillis);
+                    assertThat(timeSpanTookMillis, is(timeSpanTookMillisExpected));
+                }
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));
             }
-
         }
+
     }
 
     private SlowLogFieldProvider mockFieldProvider() {
@@ -185,8 +188,6 @@ public class EsqlQueryLogTests extends ESTestCase {
                 long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS));
                 assertThat(took, is(actualTook[i]));
                 assertThat(tookMillis, is(tookMillisExpected));
-                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK), is(nullValue()));
-                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS), is(nullValue()));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
@@ -195,18 +196,28 @@ public class EsqlQueryLogTests extends ESTestCase {
         }
     }
 
-    private static EsqlExecutionInfo getEsqlExecutionInfo(long tookNanos, long planningTookNanos) {
-        EsqlExecutionInfo info = new EsqlExecutionInfo(false) {
+    private static EsqlExecutionInfo getEsqlExecutionInfo(long tookNanos) {
+        EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(
+            Predicates.always(),
+            EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY
+        ) {
             @Override
             public TimeValue overallTook() {
                 return new TimeValue(tookNanos, TimeUnit.NANOSECONDS);
             }
 
             @Override
-            public TimeValue planningTookTime() {
-                return new TimeValue(planningTookNanos, TimeUnit.NANOSECONDS);
+            public PlanningProfile planningProfile() {
+                return new PlanningProfile(randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan(), randomTimeSpan());
             }
         };
-        return info;
+
+        return esqlExecutionInfo;
+    }
+
+    private static TimeSpan randomTimeSpan() {
+        long startNanos = randomNonNegativeLong();
+        long stopNanos = startNanos + randomLongBetween(1, 100_000);
+        return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
 }

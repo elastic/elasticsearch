@@ -999,7 +999,7 @@ public class TokenServiceTests extends ESTestCase {
             authentication,
             tokenFuture
         );
-        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+        if (version.supports(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             // previous versions serialized the access token encrypted and the cipher text was different each time (due to different IVs)
             assertThat(
                 tokenService.prependVersionAndEncodeAccessToken(version, newTokenBytes.v1()),
@@ -1093,7 +1093,7 @@ public class TokenServiceTests extends ESTestCase {
                         XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false)
                     );
                     accessTokenMap.put("invalidated", isInvalidated);
-                    if (userToken.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                    if (userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                         accessTokenMap.put(
                             "token",
                             Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes))
@@ -1130,11 +1130,11 @@ public class TokenServiceTests extends ESTestCase {
 
     // public for tests
     public static String tokenDocIdFromAccessTokenBytes(byte[] accessTokenBytes, TransportVersion tokenVersion) {
-        if (tokenVersion.onOrAfter(TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (tokenVersion.supports(TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             MessageDigest userTokenIdDigest = sha256();
             userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
             return Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-        } else if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+        } else if (tokenVersion.supports(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             return TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
         } else {
             return Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes);
@@ -1151,10 +1151,10 @@ public class TokenServiceTests extends ESTestCase {
         UserToken userToken = buildUserToken(tokenService, accessTokenBytes, authentication, null, Map.of());
         final String storedAccessToken;
         final String storedRefreshToken;
-        if (userToken.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             storedAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
             storedRefreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(refreshTokenBytes));
-        } else if (userToken.getTransportVersion().onOrAfter(TokenService.VERSION_HASHED_TOKENS)) {
+        } else if (userToken.getTransportVersion().supports(TokenService.VERSION_HASHED_TOKENS)) {
             storedAccessToken = null;
             storedRefreshToken = TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
         } else {
@@ -1187,7 +1187,7 @@ public class TokenServiceTests extends ESTestCase {
             source = XContentTestUtils.convertToXContent(sourceAsMap, XContentType.JSON);
         }
         final BytesReference docSource = source;
-        if (userToken.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             doAnswer(invocationOnMock -> {
                 GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
                 @SuppressWarnings("unchecked")

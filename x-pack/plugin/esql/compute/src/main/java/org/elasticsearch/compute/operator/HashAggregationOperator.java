@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -345,12 +344,13 @@ public class HashAggregationOperator implements Operator {
 
         /**
          * Build.
-         * @param hashNanos Nanoseconds this operator has spent hashing grouping keys.
+         *
+         * @param hashNanos        Nanoseconds this operator has spent hashing grouping keys.
          * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
-         * @param pagesProcessed Count of pages this operator has processed.
-         * @param rowsReceived Count of rows this operator has received.
-         * @param rowsEmitted Count of rows this operator has emitted.
-         * @param emitNanos Nanoseconds this operator has spent emitting the output.
+         * @param pagesProcessed   Count of pages this operator has processed.
+         * @param rowsReceived     Count of rows this operator has received.
+         * @param rowsEmitted      Count of rows this operator has emitted.
+         * @param emitNanos        Nanoseconds this operator has spent emitting the output.
          */
         public Status(long hashNanos, long aggregationNanos, int pagesProcessed, long rowsReceived, long rowsEmitted, long emitNanos) {
             this.hashNanos = hashNanos;
@@ -480,7 +480,7 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

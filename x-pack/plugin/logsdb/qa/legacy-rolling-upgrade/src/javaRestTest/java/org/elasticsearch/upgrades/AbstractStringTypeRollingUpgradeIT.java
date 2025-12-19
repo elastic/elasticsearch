@@ -213,7 +213,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
             String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
             String methodName = "method" + j % 5;
             String ip = NetworkAddress.format(randomIp(true));
-            String message = randomAlphasDelimitedBySpace(10, 1, 15);
+            String message = randomTokensDelimitedBySpace(10, 1, 15);
             recordSmallestMessage(dataStreamName, message);
             long length = randomLong();
             double factor = randomDouble();
@@ -236,15 +236,22 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
     }
 
     /**
-     * Generates a string containing a random number of random length alphas, all delimited by space.
+     * Generates a string containing a random number of tokens. Tokens are either
+     * random length alpha sequences or random integers and are delimited by spaces.
      */
-    private static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
-        int numAlphas = randomIntBetween(1, maxAlphas);
-        List<String> alphas = new ArrayList<>(numAlphas);
-        for (int i = 0; i < numAlphas; i++) {
-            alphas.add(randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits));
+    private static String randomTokensDelimitedBySpace(int maxTokens, int minCodeUnits, int maxCodeUnits) {
+        int numTokens = randomIntBetween(1, maxTokens);
+        List<String> tokens = new ArrayList<>(numTokens);
+        for (int i = 0; i < numTokens; i++) {
+            if (randomBoolean()) {
+                // alpha token
+                tokens.add(randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits));
+            } else {
+                // numeric token
+                tokens.add(Integer.toString(randomInt()));
+            }
         }
-        return String.join(" ", alphas);
+        return String.join(" ", tokens);
     }
 
     private static void recordSmallestMessage(final String dataStreamName, final String message) {

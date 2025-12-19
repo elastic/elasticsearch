@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -31,7 +31,6 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,6 +78,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         reconnect
     }
 
+    static final String linkedProjectIdLabel = "es_linked_project_id";
+    static final String linkedProjectAliasLabel = "es_linked_project_alias";
+    static final String connectionAtemptLabel = "es_linked_project_attempt";
+
     private final int maxPendingConnectionListeners;
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -87,7 +90,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
     private final AtomicBoolean initialConnectionAttempted = new AtomicBoolean(false);
-    private final LongCounter connectionAttemptFailures;
+    private final LongUpDownCounter connectionAttemptFailures;
 
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
@@ -106,9 +109,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    private LongCounter lookupConnectionFailureMetric(TelemetryProvider telemetryProvider) {
+    private LongUpDownCounter lookupConnectionFailureMetric(TelemetryProvider telemetryProvider) {
         final var meterRegistry = telemetryProvider == null ? null : telemetryProvider.getMeterRegistry();
-        return meterRegistry == null ? null : meterRegistry.getLongCounter(RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME);
+        return meterRegistry == null
+            ? null
+            : meterRegistry.getLongUpDownCounter(RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME);
     }
 
     static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, String transportProfile) {
@@ -238,13 +243,17 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         } else {
             logger.warn(msgSupplier, e);
             if (connectionAttemptFailures != null) {
-                final var attributesMap = new HashMap<String, Object>();
-                attributesMap.put("linked_project_id", linkedProjectId.toString());
-                attributesMap.put("linked_project_alias", clusterAlias);
-                attributesMap.put("attempt", (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString());
-                attributesMap.put("strategy", strategyType().toString());
-                addStrategySpecificConnectionErrorMetricAttributes(attributesMap);
-                connectionAttemptFailures.incrementBy(1, attributesMap);
+                connectionAttemptFailures.add(
+                    1,
+                    Map.of(
+                        linkedProjectIdLabel,
+                        linkedProjectId.toString(),
+                        linkedProjectAliasLabel,
+                        clusterAlias,
+                        connectionAtemptLabel,
+                        (isInitialAttempt ? ConnectionAttempt.initial : ConnectionAttempt.reconnect).toString()
+                    )
+                );
             }
         }
     }
@@ -258,11 +267,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected abstract boolean strategyMustBeRebuilt(LinkedProjectConfig config);
 
     protected abstract ConnectionStrategy strategyType();
-
-    /**
-     * Add strategy-specific attributes for a new connection error metric record.  The default implementation is a no-op.
-     */
-    protected void addStrategySpecificConnectionErrorMetricAttributes(Map<String, Object> attributesMap) {}
 
     @Override
     public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {

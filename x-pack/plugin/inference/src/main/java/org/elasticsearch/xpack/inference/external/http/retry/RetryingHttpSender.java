@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 public class RetryingHttpSender implements RequestSender {
 
-    public static final int MAX_RETIES = 3;
+    public static final int MAX_RETRIES = 3;
 
     private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
@@ -108,14 +108,19 @@ public class RetryingHttpSender implements RequestSender {
                 return;
             }
 
-            var retryableListener = listener.delegateResponse((l, e) -> {
+            /*
+             * This listener handles failures from the http client level such as an IOException or UnknownHostException. We will try
+             * to determine if the exception is retryable and if so wrap it in a RetryException so that when we pass the failure to the
+             * tryAction original listener it will get passed to shouldRetry() and be retried.
+             */
+            var httpClientFailureListener = listener.delegateResponse((l, e) -> {
                 logException(logger, request, responseHandler.getRequestType(), e);
                 l.onFailure(transformIfRetryable(e));
             });
 
             try {
                 if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
-                    httpClient.stream(request.createHttpRequest(), context, retryableListener.delegateFailure((l, r) -> {
+                    httpClient.stream(request.createHttpRequest(), context, httpClientFailureListener.delegateFailure((l, r) -> {
                         if (r.isSuccessfulResponse()) {
                             l.onResponse(responseHandler.parseResult(request, r.toHttpResult()));
                         } else {
@@ -125,22 +130,32 @@ public class RetryingHttpSender implements RequestSender {
                                     InferenceServiceResults inferenceResults = responseHandler.parseResult(request, httpResult);
                                     ll.onResponse(inferenceResults);
                                 } catch (Exception e) {
+                                    /*
+                                     * Entering this exception block typically happens when validateResponse() throws an exception
+                                     * for when we get a failure status code. We pass it back to the original listener so
+                                     * shouldRetry() can determine if we need to retry.
+                                     */
                                     logException(logger, request, httpResult, responseHandler.getRequestType(), e);
-                                    listener.onFailure(e); // skip retrying
+                                    listener.onFailure(e);
                                 }
                             }));
                         }
                     }));
                 } else {
-                    httpClient.send(request.createHttpRequest(), context, retryableListener.delegateFailure((l, r) -> {
+                    httpClient.send(request.createHttpRequest(), context, httpClientFailureListener.delegateFailure((l, r) -> {
                         try {
                             responseHandler.validateResponse(throttlerManager, logger, request, r);
                             InferenceServiceResults inferenceResults = responseHandler.parseResult(request, r);
 
                             l.onResponse(inferenceResults);
                         } catch (Exception e) {
+                            /*
+                             * Entering this exception block typically happens when validateResponse() throws an exception
+                             * for when we get a failure status code. We pass it back to the original listener so
+                             * shouldRetry() can determine if we need to retry.
+                             */
                             logException(logger, request, r, responseHandler.getRequestType(), e);
-                            listener.onFailure(e); // skip retrying
+                            listener.onFailure(e);
                         }
                     }));
                 }
@@ -191,7 +206,7 @@ public class RetryingHttpSender implements RequestSender {
 
         @Override
         public boolean shouldRetry(Exception e) {
-            if (retryCount.get() >= MAX_RETIES) {
+            if (retryCount.get() >= MAX_RETRIES) {
                 return false;
             }
 

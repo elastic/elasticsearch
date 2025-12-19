@@ -13,3 +13,4 @@
 * [`ST_GEOTILE`](../../functions-operators/spatial-functions.md#esql-st_geotile) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`ST_GEOHEX`](../../functions-operators/spatial-functions.md#esql-st_geohex) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`ST_GEOHASH`](../../functions-operators/spatial-functions.md#esql-st_geohash) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`ST_SIMPLIFY`](../../functions-operators/spatial-functions.md#esql-st_simplify) {applies_to}`stack: preview` {applies_to}`serverless: preview`

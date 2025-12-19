@@ -56,11 +56,11 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     public void testCheckAllDecidersBeforeReturningThrottle() {
-        var allDecisions = generateDecisions(Decision.THROTTLE, () -> randomFrom(Decision.YES, Decision.NOT_PREFERRED));
+        var allDecisions = generateDecisions(Decision.THROTTLE, () -> Decision.YES);
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF -> Decision.THROTTLE;
-            case EXCLUDE_YES_DECISIONS -> collectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
+            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -68,11 +68,11 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     public void testCheckAllDecidersBeforeReturningNotPreferred() {
-        var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> Decision.YES);
+        var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> randomFrom(Decision.YES, Decision.THROTTLE));
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF -> Decision.NOT_PREFERRED;
-            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.NOT_PREFERRED);
+            case EXCLUDE_YES_DECISIONS -> filterAndCollectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -114,7 +114,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
                 Decision.single(Decision.Type.NO, "no with label", "explanation")
             )
         );
-        var expectedDecision = collectToMultiDecision(allDecisions, decision -> decision.type() != Decision.Type.YES);
+        var expectedDecision = filterAndCollectToMultiDecision(allDecisions, decision -> decision.type() != Decision.Type.YES);
 
         verifyDecidersCall(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS, allDecisions, allDecisions.size(), expectedDecision);
     }
@@ -123,6 +123,9 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         return shuffledList(randomList(1, 25, others));
     }
 
+    /**
+     * Generate a list of decisions that include the 'mandatory' decision as well as a random number of decision types supplied by 'others'.
+     */
     private static List<Decision> generateDecisions(Decision mandatory, Supplier<Decision> others) {
         var decisions = new ArrayList<Decision>();
         decisions.add(mandatory);
@@ -131,10 +134,13 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions) {
-        return collectToMultiDecision(decisions, Predicates.always());
+        return filterAndCollectToMultiDecision(decisions, Predicates.always());
     }
 
-    private static Decision.Multi collectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
+    /**
+     * Filters the 'decisions' list to only decisions matching 'filter'. Returns a Decision.Multi encompassing the resulting decisions.
+     */
+    private static Decision.Multi filterAndCollectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
         return decisions.stream().filter(filter).collect(Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> {
             throw new AssertionError("should not be called");
         }));

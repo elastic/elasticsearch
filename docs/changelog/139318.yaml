@@ -1,0 +1,5 @@
+pr: 139318
+summary: Remove `gpu_vectors_indexing` feature flag
+area: Vector Search
+type: enhancement
+issues: []

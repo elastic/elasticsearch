@@ -7,10 +7,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Expression that outputs values to calculate the standard deviation of."
+          "description" : "the metric field to calculate the standard deviation for"
         }
       ],
       "variadic" : false,
@@ -19,10 +19,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Expression that outputs values to calculate the standard deviation of."
+          "description" : "the metric field to calculate the standard deviation for"
         }
       ],
       "variadic" : false,
@@ -31,10 +31,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Expression that outputs values to calculate the standard deviation of."
+          "description" : "the metric field to calculate the standard deviation for"
         }
       ],
       "variadic" : false,

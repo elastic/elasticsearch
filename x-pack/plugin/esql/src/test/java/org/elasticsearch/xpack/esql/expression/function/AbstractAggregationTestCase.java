@@ -563,6 +563,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
             case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
+            case TDIGEST -> "TDigest";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

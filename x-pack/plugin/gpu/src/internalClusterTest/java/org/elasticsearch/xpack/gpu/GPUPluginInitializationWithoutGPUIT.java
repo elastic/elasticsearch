@@ -39,19 +39,7 @@ public class GPUPluginInitializationWithoutGPUIT extends ESIntegTestCase {
         return List.of(TestGPUPlugin.class);
     }
 
-    public void testFFOff() {
-        assumeFalse("GPU_FORMAT feature flag disabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
-        TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
-        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
-
-        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null, null, null);
-        assertNull(format);
-    }
-
     public void testAutoModeWithoutGPU() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
@@ -64,7 +52,6 @@ public class GPUPluginInitializationWithoutGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
             DenseVectorFieldMapper.ElementType.FLOAT
         );
         assertNull(format);

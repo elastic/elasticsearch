@@ -223,10 +223,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             newSecretSettings = existingSecretSettings.newSecretSettings(settingsToUpdate.serviceSettings());
         }
         if (settingsToUpdate.serviceSettings() != null) {
-            // In cluster services can have their deployment settings updated, so this is a special case
-            if (newServiceSettings instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {
-                newServiceSettings = elasticServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings());
-            }
+            newServiceSettings = newServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings());
         }
         if (settingsToUpdate.taskSettings() != null && existingTaskSettings != null) {
             newTaskSettings = existingTaskSettings.updatedTaskSettings(settingsToUpdate.taskSettings());

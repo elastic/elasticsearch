@@ -547,7 +547,7 @@ public abstract class TransportReplicationAction<
                     splitCoordinator.coordinate();
                 } else {
                     setPhase(replicationTask, "primary");
-                    executePrimaryRequest(primaryShardReference, setFinishedListener);
+                    executePrimaryRequest(primaryShardReference, primaryRequest.getRequest(), setFinishedListener);
                 }
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(primaryShardReference);
@@ -557,6 +557,7 @@ public abstract class TransportReplicationAction<
 
         private void executePrimaryRequest(
             final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
+            Request request,
             final ActionListener<Response> listener
         ) throws Exception {
             final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
@@ -589,7 +590,7 @@ public abstract class TransportReplicationAction<
             });
 
             new ReplicationOperation<>(
-                primaryRequest.getRequest(),
+                request,
                 primaryShardReference,
                 responseListener.map(result -> result.replicationResponse),
                 newReplicasProxy(),

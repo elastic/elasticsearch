@@ -240,7 +240,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 idFieldMapper,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
-                mapperMetrics
+                mapperMetrics,
+                null
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
             boolean sourceOnly = indexSettings.getSettings().getAsBoolean("index.source_only", false);
@@ -250,7 +251,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> loadFielddata(fieldType, FieldDataContext.noRuntimeFields("index sort"))
+                        (fieldType, searchLookup) -> loadFielddata(
+                            fieldType,
+                            FieldDataContext.noRuntimeFields(indexSettings.getIndex().getName(), "index sort")
+                        )
                     );
             } else {
                 this.indexSortSupplier = () -> null;

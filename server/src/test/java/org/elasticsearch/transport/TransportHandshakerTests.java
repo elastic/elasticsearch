@@ -112,7 +112,7 @@ public class TransportHandshakerTests extends ESTestCase {
         StreamInput input = bytesStreamOutput.bytes().streamInput();
         input.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
 
-        if (handshakeRequest.transportVersion.onOrAfter(TransportVersion.minimumCompatible())) {
+        if (handshakeRequest.transportVersion.id() >= TransportVersion.minimumCompatible().id()) {
 
             final PlainActionFuture<TransportResponse> responseFuture = new PlainActionFuture<>();
             final TestTransportChannel channel = new TestTransportChannel(responseFuture);
@@ -203,7 +203,7 @@ public class TransportHandshakerTests extends ESTestCase {
         final var randomIncompatibleTransportVersion = getRandomIncompatibleTransportVersion();
         final var handshakeResponse = new TransportHandshaker.HandshakeResponse(randomIncompatibleTransportVersion, randomIdentifier());
 
-        if (randomIncompatibleTransportVersion.onOrAfter(TransportVersion.minimumCompatible())) {
+        if (randomIncompatibleTransportVersion.id() >= (TransportVersion.minimumCompatible().id())) {
             // we fall back to the best known version
             MockLog.assertThatLogger(
                 () -> handler.handleResponse(handshakeResponse),

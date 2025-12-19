@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -21,19 +25,25 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.inference.InferenceSettings.RERANK_ROW_LIMIT_SETTING;
 
 public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerificationAware, TelemetryAware {
 
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
+
+    private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, RERANK_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
     private static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
 
     private final Attribute scoreAttribute;
@@ -65,6 +75,31 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         this.queryText = queryText;
         this.rerankFields = rerankFields;
         this.scoreAttribute = scoreAttribute;
+    }
+
+    public Rerank(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
+            in.readNamedWriteable(Expression.class),
+            in.readCollectionAsList(Alias::new),
+            in.readNamedWriteable(Attribute.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeNamedWriteable(queryText);
+        out.writeCollection(rerankFields());
+        out.writeNamedWriteable(scoreAttribute);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Expression queryText() {

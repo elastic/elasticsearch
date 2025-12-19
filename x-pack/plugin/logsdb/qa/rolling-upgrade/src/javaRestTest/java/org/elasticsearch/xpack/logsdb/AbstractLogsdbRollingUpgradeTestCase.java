@@ -13,6 +13,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -20,6 +22,22 @@ import java.io.IOException;
 public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
     private static final String USER = "admin-user";
     private static final String PASS = "x-pack-test-password";
+
+    private static TestFeatureService oldClusterTestFeatureService;
+
+    @Before
+    public void retainOldClusterTestFeatureService() {
+        if (oldClusterTestFeatureService == null) {
+            assert testFeatureServiceInitialized() : "testFeatureService must be initialized, see ESRestTestCase#initClient";
+            oldClusterTestFeatureService = testFeatureService;
+        }
+    }
+
+    protected static boolean oldClusterHasFeature(String featureId) {
+        assert oldClusterTestFeatureService != null
+            : "testFeatureService of old cluster cannot be accessed before initialization is complete";
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
+    }
 
     @ClassRule
     public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS);

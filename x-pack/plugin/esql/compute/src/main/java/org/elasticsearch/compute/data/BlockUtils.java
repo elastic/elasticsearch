@@ -225,7 +225,7 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
-            case TDIGEST -> ((TDigestBlockBuilder) builder).append((TDigestHolder) val);
+            case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest((TDigestHolder) val);
             case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
             case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
             case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
@@ -320,7 +320,15 @@ public final class BlockUtils {
             }
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
-                yield tDigestBlock.getTDigestHolder(offset);
+                // return a copy so that the returned value is not bound to the lifetime of the block
+                TDigestHolder blockBacked = tDigestBlock.getTDigestHolder(offset);
+                yield new TDigestHolder(
+                    BytesRef.deepCopyOf(blockBacked.getEncodedDigest()),
+                    blockBacked.getMin(),
+                    blockBacked.getMax(),
+                    blockBacked.getSum(),
+                    blockBacked.getValueCount()
+                );
 
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -615,7 +614,7 @@ public abstract class StreamOutput extends OutputStream {
         Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getTransportVersion().onOrAfter(V_8_7_0)) {
+            if (this.getTransportVersion().supports(V_8_7_0)) {
                 this.writeGenericValue(next.getKey());
             } else {
                 this.writeString(next.getKey());
@@ -753,7 +752,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            if (o.getTransportVersion().onOrAfter(V_8_7_0)) {
+            if (o.getTransportVersion().supports(V_8_7_0)) {
                 final Map<?, ?> map = (Map<?, ?>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
             } else {
@@ -811,12 +810,8 @@ public abstract class StreamOutput extends OutputStream {
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
             Instant instant = zonedDateTime.toInstant();
-            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                o.writeZLong(instant.getEpochSecond());
-                o.writeInt(instant.getNano());
-            } else {
-                o.writeLong(instant.toEpochMilli());
-            }
+            o.writeZLong(instant.getEpochSecond());
+            o.writeInt(instant.getNano());
         }),
         entry(Set.class, (o, v) -> {
             if (v instanceof LinkedHashSet) {

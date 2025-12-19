@@ -44,7 +44,7 @@ public class AnalyzerContext {
         this.minimumVersion = minimumVersion;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
-        assert minimumVersion.onOrBefore(TransportVersion.current())
+        assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
     }
 

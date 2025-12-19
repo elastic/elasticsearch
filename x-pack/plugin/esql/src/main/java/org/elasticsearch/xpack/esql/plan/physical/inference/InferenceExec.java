@@ -30,12 +30,9 @@ public abstract class InferenceExec extends UnaryExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("doesn't escape the coordinator node");
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException("doesn't escape the coordinator node");
+        source().writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(inferenceId());
     }
 
     @Override

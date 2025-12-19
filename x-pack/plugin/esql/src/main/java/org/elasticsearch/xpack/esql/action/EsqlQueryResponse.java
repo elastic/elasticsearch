@@ -325,7 +325,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ChunkedToXContentHelper.chunk((b, p) -> {
                 if (executionInfo != null) {
                     b.field("query", executionInfo.overallTimeSpan());
-                    b.field("planning", executionInfo.planningTimeSpan());
+                    executionInfo.planningProfile().toXContent(b, p);
                 }
                 return b;
             }));

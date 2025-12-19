@@ -1,0 +1,5 @@
+pr: 139470
+summary: No `EsqlIllegalArgumentException` for invalid window values
+area: ES|QL
+type: bug
+issues: []

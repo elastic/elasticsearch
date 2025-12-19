@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -52,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
@@ -556,7 +556,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     private void migrateModelVersionToModelId(Map<String, Object> serviceSettingsMap) {
         if (serviceSettingsMap.containsKey(OLD_MODEL_ID_FIELD_NAME)) {
             String modelId = ServiceUtils.removeAsType(serviceSettingsMap, OLD_MODEL_ID_FIELD_NAME, String.class);
-            serviceSettingsMap.put(ElserInternalServiceSettings.MODEL_ID, modelId);
+            serviceSettingsMap.put(MODEL_ID, modelId);
         }
     }
 
@@ -820,7 +820,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -840,9 +840,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         List<RankedDocsResults.RankedDoc> rankings = new ArrayList<>(results.size());
         for (int i = 0; i < results.size(); i++) {
             var result = results.get(i);
-            if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults similarity) {
+            if (result instanceof TextSimilarityInferenceResults similarity) {
                 rankings.add(new RankedDocsResults.RankedDoc(i, (float) similarity.score(), inputSupplier.apply(i)));
-            } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
+            } else if (result instanceof ErrorInferenceResults errorResult) {
                 if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
                 } else {
@@ -1094,7 +1094,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     /**
      * Iterates over the batch executing a limited number requests at a time to avoid
      * filling the ML node inference queue.
-     *
+     * <p>
      * First, a single request is executed, which can also trigger deploying a model
      * if necessary. When this request is successfully executed, a callback executes
      * N requests in parallel next. Each of these requests also has a callback that

@@ -14,7 +14,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -38,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -454,10 +454,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         final IndexShard targetShard;
         try (Engine.Searcher searcher = restoredShard.acquireSearcher("test")) {
             assertEquals(searcher.getIndexReader().maxDoc(), seqNoStats.getLocalCheckpoint());
-            TopDocs search = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             search = searcher.search(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 Integer.MAX_VALUE,
                 new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG)),
                 false

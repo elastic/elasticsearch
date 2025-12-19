@@ -41,9 +41,7 @@ import java.util.function.LongFunction;
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
  * input with methods that read plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamInput extends NamedWriteableAwareStreamInput
-    implements
-        org.elasticsearch.xpack.esql.core.util.PlanStreamInput {
+public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     /**
      * A Mapper of stream named id, represented as a primitive long value, to NameId instance.
@@ -174,7 +172,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         }
     }
 
-    @Override
+    /**
+     * The query sent by the user to build this plan. This is used to rebuild
+     * {@link Source} without sending the query over the wire over and over
+     * and over again.
+     */
     public String sourceText() {
         return configuration == null ? Source.EMPTY.text() : configuration.query();
     }
@@ -185,16 +187,22 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         throw e;
     }
 
-    @Override
+    /**
+     * Translate a {@code long} into a {@link NameId}, mapping the same {@code long}
+     * into the same {@link NameId} each time. Each new {@code long} gets assigned
+     * a unique id to the node, but when the same id is sent in the stream we get
+     * the same result.
+     */
     public NameId mapNameId(long l) {
         return nameIdFunction.apply(l);
     }
 
     /**
+     * Reads an Attribute using the attribute cache.
      * @param constructor the constructor needed to build the actual attribute when read from the wire
+     * @return An attribute; this will generally be the same type as the provided constructor
      * @throws IOException
      */
-    @Override
     @SuppressWarnings("unchecked")
     public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
         // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
@@ -249,7 +257,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     /**
      * Reads a cached string, serialized with {@link PlanStreamOutput#writeCachedString(String)}.
      */
-    @Override
     public String readCachedString() throws IOException {
         int cacheId = Math.toIntExact(readZLong());
         if (cacheId < 0) {
@@ -262,7 +269,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         }
     }
 
-    @Override
     public String readOptionalCachedString() throws IOException {
         return readBoolean() ? readCachedString() : null;
     }

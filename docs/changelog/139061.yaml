@@ -1,5 +1,0 @@
-pr: 139061
-summary: "Disallow index types updates to bbq_disk, revert"
-area: Vector Search
-type: bug
-issues: []

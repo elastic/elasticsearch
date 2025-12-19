@@ -211,9 +211,6 @@ public class CrossProjectIndexExpressionsRewriter {
         if (resource.startsWith(EXCLUSION)) {
             throw new IllegalArgumentException("Exclusions are not currently supported but was found in the expression [" + resource + "]");
         }
-        if (IndexNameExpressionResolver.hasSelectorSuffix(resource)) {
-            throw new IllegalArgumentException("Selectors are not currently supported but was found in the expression [" + resource + "]");
-        }
     }
 
     /**

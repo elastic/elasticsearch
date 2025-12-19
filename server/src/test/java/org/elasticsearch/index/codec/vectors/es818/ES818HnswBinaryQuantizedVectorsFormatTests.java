@@ -57,17 +57,17 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsF
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES818HnswBinaryQuantizedVectorsFormat();
+        return new ES818HnswBinaryQuantizedRWVectorsFormat();
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES818HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth);
+        return new ES818HnswBinaryQuantizedRWVectorsFormat(maxConn, beamWidth);
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES818HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth, numMergeWorkers, service);
+        return new ES818HnswBinaryQuantizedRWVectorsFormat(maxConn, beamWidth, numMergeWorkers, service);
     }
 
     public void testToString() {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
@@ -148,8 +147,6 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     }
 
     private void downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod method) throws Exception {
-        // TODO: remove when FeatureFlag is removed and add minimum required version to yaml spec
-        assumeTrue("Only when exponential_histogram feature flag is enabled", Build.current().isSnapshot());
         String dataStreamName = "metrics-foo";
         String mapping = """
             {
@@ -178,6 +175,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 },
                 "metrics.latency": {
                   "type": "exponential_histogram",
+                  "time_series_metric": "histogram"
+                },
+                "metrics.tdigest": {
+                  "type": "histogram",
                   "time_series_metric": "histogram"
                 },
                 "my_labels": {
@@ -229,6 +230,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5, 6 })
                     .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 32, 36 })
                     .endObject()
+                    .endObject()
+
+                    .startObject("metrics.tdigest")
+                    .array("values", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
                     .endObject()
 
                     .startObject("my_labels.my_histogram")
@@ -640,7 +646,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         final double[] array = new double[size];
         double minHistogramValue = randomDoubleBetween(0.0, 0.1, true);
         for (int i = 0; i < array.length; i++) {
-            array[i] = minHistogramValue += randomDoubleBetween(0.0, 0.5, true);
+            array[i] = minHistogramValue += randomDoubleBetween(0.1, 10.0, true);
         }
         return array;
     }

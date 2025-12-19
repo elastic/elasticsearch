@@ -65,8 +65,8 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
             block = (ExponentialHistogramBlock) blockFactory().newConstantNullBlock(randomIntBetween(1, 100));
         }
         ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-        for (ExponentialHistogramBlock.Component component : ExponentialHistogramBlock.Component.values()) {
-            Block componentBlock = block.buildExponentialHistogramComponentBlock(component);
+        for (ExponentialHistogramBlock.Component component : HistogramBlock.Component.values()) {
+            Block componentBlock = block.buildHistogramComponentBlock(component);
             assertThat(componentBlock.getPositionCount(), equalTo(block.getPositionCount()));
             for (int i = 0; i < block.getPositionCount(); i++) {
                 if (block.isNull(i)) {
@@ -119,10 +119,10 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
     public void testComponentEnumSerialization() {
         assertEnumSerialization(
             ExponentialHistogramBlock.Component.class,
-            ExponentialHistogramBlock.Component.MIN,
-            ExponentialHistogramBlock.Component.MAX,
-            ExponentialHistogramBlock.Component.SUM,
-            ExponentialHistogramBlock.Component.COUNT
+            HistogramBlock.Component.MIN,
+            HistogramBlock.Component.MAX,
+            HistogramBlock.Component.SUM,
+            HistogramBlock.Component.COUNT
         );
     }
 

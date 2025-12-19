@@ -201,7 +201,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 """;
             mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
-        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     public void testUseES87TSDBEncodingSettingDisabled() throws IOException {
@@ -289,7 +289,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
 }

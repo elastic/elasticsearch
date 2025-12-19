@@ -40,6 +40,8 @@ for information on the limitations of full text search.
 :::{include} ../_snippets/lists/search-functions.md
 :::
 
+:::{include} ../_snippets/functions/layout/decay.md
+:::
 
 :::{include} ../_snippets/functions/layout/kql.md
 :::
@@ -56,7 +58,7 @@ for information on the limitations of full text search.
 :::{include} ../_snippets/functions/layout/score.md
 :::
 
-:::{include} ../_snippets/functions/layout/decay.md
+:::{include} ../_snippets/functions/layout/top_snippets.md
 :::
 
 % TERM is currently a hidden feature

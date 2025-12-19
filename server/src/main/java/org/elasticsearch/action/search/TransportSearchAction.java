@@ -658,6 +658,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         final boolean isExplain = source != null && source.explain() != null && source.explain();
         final boolean isProfile = source != null && source.profile();
+        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
+            ? original.allowPartialSearchResults()
+            : searchService.defaultAllowPartialSearchResults();
         Rewriteable.rewriteAndFetch(
             original,
             searchService.getRewriteContext(
@@ -668,7 +671,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 original.pointInTimeBuilder(),
                 shouldMinimizeRoundtrips(original),
                 isExplain,
-                isProfile
+                isProfile,
+                allowPartialSearchResults
             ),
             rewriteListener
         );

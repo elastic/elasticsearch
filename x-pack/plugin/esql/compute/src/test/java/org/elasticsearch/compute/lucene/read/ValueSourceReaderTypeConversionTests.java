@@ -20,7 +20,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -95,7 +95,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -121,7 +120,6 @@ import static org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTe
 import static org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests.StatusChecks.singleName;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -165,17 +163,17 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         addIndex(
             Map.of(
                 "ip",
-                new TestFieldType<>("ip", IP, d -> "192.169.0." + d % 256, Checks::unionIPsAsStrings),
+                new TestFieldType<>("ip", "ip", d -> "192.169.0." + d % 256, Checks::unionIPsAsStrings),
                 "duration",
-                new TestFieldType<>("duration", DataType.LONG, d -> (long) d, Checks::unionDurationsAsStrings)
+                new TestFieldType<>("duration", "long", d -> (long) d, Checks::unionDurationsAsStrings)
             )
         );
         addIndex(
             Map.of(
                 "ip",
-                new TestFieldType<>("ip", DataType.KEYWORD, d -> "192.169.0." + d % 256, Checks::unionIPsAsStrings),
+                new TestFieldType<>("ip", "keyword", d -> "192.169.0." + d % 256, Checks::unionIPsAsStrings),
                 "duration",
-                new TestFieldType<>("duration", DataType.KEYWORD, d -> Integer.toString(d), Checks::unionDurationsAsStrings)
+                new TestFieldType<>("duration", "keyword", d -> Integer.toString(d), Checks::unionDurationsAsStrings)
             )
         );
     }
@@ -187,7 +185,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     private record TestIndexMappingConfig(String indexName, int shardIdx, Map<String, TestFieldType<?>> fieldTypes) {}
 
-    private record TestFieldType<T>(String name, DataType dataType, Function<Integer, T> valueGenerator, CheckResults checkResults) {}
+    private record TestFieldType<T>(String name, String typeName, Function<Integer, T> valueGenerator, CheckResults checkResults) {}
 
     private final Map<String, Directory> directories = new HashMap<>();
     private final Map<String, MapperService> mapperServices = new HashMap<>();
@@ -278,7 +276,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         }
         var luceneFactory = new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromList<>(shardContexts),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             DataPartitioning.SHARD,
             DataPartitioning.AutoStrategy.DEFAULT,
             1,// randomIntBetween(1, 10),
@@ -309,7 +307,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             for (Map.Entry<String, TestFieldType<?>> entry : indexMappingConfig.fieldTypes.entrySet()) {
                 String fieldName = entry.getKey();
                 TestFieldType<?> fieldType = entry.getValue();
-                simpleField(b, fieldName, fieldType.dataType.typeName());
+                simpleField(b, fieldName, fieldType.typeName);
             }
         })));
     }
@@ -554,7 +552,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft, ftX));
     }
 
-    private ValuesSourceReaderOperator.FieldInfo fieldInfo(String fieldName, ElementType elementType, DataType toType) {
+    private ValuesSourceReaderOperator.FieldInfo fieldInfo(String fieldName, ElementType elementType, String toType) {
         return new ValuesSourceReaderOperator.FieldInfo(
             fieldName,
             elementType,
@@ -916,7 +914,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         for (TestFieldType<?> fieldType : indexMappingConfig.fieldTypes.values()) {
             r.add(
                 new FieldCase(
-                    fieldInfo(fieldType.name, ElementType.BYTES_REF, DataType.KEYWORD),
+                    fieldInfo(fieldType.name, ElementType.BYTES_REF, "keyword"),
                     fieldType.checkResults,
                     StatusChecks::unionFromDocValues
                 )
@@ -964,7 +962,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             TestFieldType<?> fieldType = mappingConfig.fieldTypes.get("ip");
             String expected = fieldType.valueGenerator.apply(key).toString();
             // Conversion should already be done in FieldInfo!
-            // BytesRef found = (fieldType.dataType.typeName().equals("ip")) ? new BytesRef(DocValueFormat.IP.format(bytesRef)) : bytesRef;
+            // BytesRef found = (fieldType.typeName.equals("ip")) ? new BytesRef(DocValueFormat.IP.format(bytesRef)) : bytesRef;
             assertThat(bytesRef.utf8ToString(), equalTo(expected));
         }
 
@@ -1327,7 +1325,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(shardContext),
-            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
@@ -1497,7 +1495,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             }
             var luceneFactory = new LuceneSourceOperator.Factory(
                 new IndexedByShardIdFromList<>(contexts),
-                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
                 DataPartitioning.SHARD,
                 DataPartitioning.AutoStrategy.DEFAULT,
                 randomIntBetween(1, 10),
@@ -1638,7 +1636,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             TestIndexMappingConfig mappingConfig = INDICES.get("index" + (shardIdx + 1));
             TestFieldType<?> testFieldType = mappingConfig.fieldTypes.get(ft.name());
             if (testFieldType != null) {
-                blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.dataType.typeName(), "keyword");
+                blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.typeName, "keyword");
             }
         }
         return blockLoader;
@@ -1647,7 +1645,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     /**
      * This method is used to generate shard-specific field information, so we can have different types and BlockLoaders for each shard.
      */
-    private BlockLoader getBlockLoaderFor(int shardIdx, String fieldName, DataType toType) {
+    private BlockLoader getBlockLoaderFor(int shardIdx, String fieldName, String toType) {
         if (shardIdx < 0 || shardIdx >= INDICES.size()) {
             fail("unexpected shardIdx [" + shardIdx + "]");
         }
@@ -1660,7 +1658,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MapperService mapper = mapperService(indexKey);
         MappedFieldType ft = mapper.fieldType(fieldName);
         BlockLoader blockLoader = ft.blockLoader(blContext());
-        blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.dataType.typeName(), toType.typeName());
+        blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.typeName, toType);
         return blockLoader;
     }
 

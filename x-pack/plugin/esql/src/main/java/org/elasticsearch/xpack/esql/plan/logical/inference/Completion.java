@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -19,18 +23,29 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.inference.InferenceSettings.COMPLETION_ROW_LIMIT_SETTING;
 
 public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware {
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "Completion",
+        Completion::new
+    );
+
+    private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, COMPLETION_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
 
     private final Expression prompt;
     private final Attribute targetField;
@@ -51,6 +66,29 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         super(source, child, inferenceId, rowLimit);
         this.prompt = prompt;
         this.targetField = targetField;
+    }
+
+    public Completion(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Attribute.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeNamedWriteable(prompt);
+        out.writeNamedWriteable(targetField);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public Expression prompt() {

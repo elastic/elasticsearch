@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -37,7 +38,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
 
     @FunctionInfo(
@@ -146,10 +147,14 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR && dt != DataType.EXPONENTIAL_HISTOGRAM,
+            dt -> dt.isCounter() == false
+                && dt != DataType.DENSE_VECTOR
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.TDIGEST
+                && dt != DataType.HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "any type except counter types, dense_vector or exponential_histogram"
+            "any type except counter types, dense_vector, tdigest, histogram, or exponential_histogram"
         );
     }
 

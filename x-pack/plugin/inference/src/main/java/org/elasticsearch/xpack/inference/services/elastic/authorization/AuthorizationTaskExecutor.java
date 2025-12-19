@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,6 +48,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementServi
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -75,6 +78,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     private final FeatureService featureService;
     private final CCMEnablementService ccmEnablementService;
     private final CCMFeature ccmFeature;
+    private Instant nextCreateTaskAttemptTime;
+    private final Clock clock;
 
     public static AuthorizationTaskExecutor create(
         ClusterService clusterService,
@@ -92,7 +97,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
             featureService,
             ccmEnablementService,
             ccmFeature,
-            parameters
+            parameters,
+            Clock.systemUTC()
         );
     }
 
@@ -103,7 +109,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         FeatureService featureService,
         CCMEnablementService ccmEnablementService,
         CCMFeature ccmFeature,
-        AuthorizationPoller.Parameters pollerParameters
+        AuthorizationPoller.Parameters pollerParameters,
+        Clock clock
     ) {
         super(TASK_NAME, pollerParameters.serviceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -112,6 +119,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         this.ccmEnablementService = Objects.requireNonNull(ccmEnablementService);
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
         this.pollerParameters = Objects.requireNonNull(pollerParameters);
+        this.clock = Objects.requireNonNull(clock);
+        this.nextCreateTaskAttemptTime = Instant.MIN;
     }
 
     /**
@@ -139,7 +148,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         }
     }
 
-    private void sendStartRequestWithCurrentClusterState() {
+    // Default for testing
+    void sendStartRequestWithCurrentClusterState() {
         sendStartRequest(clusterService.state());
     }
 
@@ -147,6 +157,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         if (shouldSkipCreatingTask(state)) {
             return;
         }
+
+        updateNextCreateTaskAttemptTime();
 
         persistentTasksService.sendClusterStartRequest(
             TASK_NAME,
@@ -173,7 +185,8 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         return clusterCanSupportFeature(state) == false
             || running.get() == false
             || authorizationTaskExists(state)
-            || ccmSupportedButNotYetConfigured();
+            || ccmSupportedButNotYetConfigured()
+            || hasAttemptedToCreateTaskRecently();
     }
 
     private boolean ccmSupportedButNotYetConfigured() {
@@ -194,6 +207,25 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
         }
 
         return ClusterPersistentTasksCustomMetadata.getTaskWithId(state, TASK_NAME) != null;
+    }
+
+    private boolean hasAttemptedToCreateTaskRecently() {
+        return Instant.now(clock).isBefore(nextCreateTaskAttemptTime);
+    }
+
+    private void updateNextCreateTaskAttemptTime() {
+        var random = Randomness.get();
+        var jitter = (long) (pollerParameters.elasticInferenceServiceSettings().getMaxAuthorizationRequestJitter().millis() * random
+            .nextDouble());
+        var waitTimeMillis = pollerParameters.elasticInferenceServiceSettings().getAuthRequestInterval().millis() + jitter;
+
+        nextCreateTaskAttemptTime = Instant.now(clock).plusMillis(waitTimeMillis);
+        logger.debug(
+            "Create task rate limit info interval: [{}] ms, jitter: [{}] ms",
+            pollerParameters.elasticInferenceServiceSettings().getAuthRequestInterval().millis(),
+            jitter
+        );
+        logger.debug("Next create task attempt time [{}]", nextCreateTaskAttemptTime);
     }
 
     private void sendStopRequest() {

@@ -947,23 +947,27 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            String apiKey = "apiKey";
+            int dimensions = 1024;
+            String modelName = "jina-clip-v2";
             var model = JinaAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                apiKey,
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                1024,
-                1024,
-                "jina-clip-v2",
+                500,
+                dimensions,
+                modelName,
                 null,
                 JinaAIEmbeddingType.FLOAT
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            List<String> input = List.of("abc");
             service.infer(
                 model,
                 null,
                 null,
                 null,
-                List.of("abc"),
+                input,
                 false,
                 new HashMap<>(),
                 InputType.INGEST,
@@ -981,12 +985,25 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + apiKey));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "jina-clip-v2", "task", "retrieval.passage", "embedding_type", "float"))
+                is(
+                    Map.of(
+                        "input",
+                        input,
+                        "model",
+                        modelName,
+                        "task",
+                        "retrieval.passage",
+                        "embedding_type",
+                        "float",
+                        "dimensions",
+                        dimensions
+                    )
+                )
             );
         }
     }
@@ -1018,23 +1035,27 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            String apiKey = "apiKey";
+            int dimensions = 1024;
+            String modelName = "jina-clip-v2";
             var model = JinaAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                apiKey,
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                1024,
-                1024,
-                "jina-clip-v2",
+                500,
+                dimensions,
+                modelName,
                 null,
                 JinaAIEmbeddingType.FLOAT
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            List<String> input = List.of("abc");
             service.infer(
                 model,
                 null,
                 null,
                 null,
-                List.of("abc"),
+                input,
                 false,
                 new HashMap<>(),
                 InputType.SEARCH,
@@ -1052,12 +1073,25 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + apiKey));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "jina-clip-v2", "task", "retrieval.query", "embedding_type", "float"))
+                is(
+                    Map.of(
+                        "input",
+                        input,
+                        "model",
+                        modelName,
+                        "task",
+                        "retrieval.query",
+                        "embedding_type",
+                        "float",
+                        "dimensions",
+                        dimensions
+                    )
+                )
             );
         }
     }
@@ -1073,23 +1107,27 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            String apiKey = "apiKey";
+            int dimensions = 1024;
+            String modelName = "jina-clip-v2";
             var model = JinaAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                apiKey,
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                1024,
-                1024,
-                "jina-clip-v2",
+                500,
+                dimensions,
+                modelName,
                 null,
                 JinaAIEmbeddingType.FLOAT
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            List<String> input = List.of("abc");
             service.infer(
                 model,
                 null,
                 null,
                 null,
-                List.of("abc"),
+                input,
                 false,
                 new HashMap<>(),
                 InputType.CLUSTERING,
@@ -1107,12 +1145,12 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + apiKey));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "jina-clip-v2", "task", "separation", "embedding_type", "float"))
+                is(Map.of("input", input, "model", modelName, "task", "separation", "embedding_type", "float", "dimensions", dimensions))
             );
         }
     }
@@ -1144,29 +1182,22 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            String apiKey = "apiKey";
+            int dimensions = 1024;
+            String modelName = "jina-clip-v2";
             var model = JinaAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                apiKey,
                 JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                1024,
-                1024,
-                "jina-clip-v2",
+                500,
+                dimensions,
+                modelName,
                 null,
                 JinaAIEmbeddingType.FLOAT
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            List<String> input = List.of("abc");
+            service.infer(model, null, null, null, input, false, new HashMap<>(), null, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1178,10 +1209,13 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + apiKey));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "jina-clip-v2", "embedding_type", "float")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("input", input, "model", modelName, "embedding_type", "float", "dimensions", dimensions))
+            );
         }
     }
 
@@ -1564,23 +1598,27 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            String apiKey = "apiKey";
+            int dimensions = 1024;
+            String modelName = "jina-clip-v2";
             var model = JinaAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
-                "secret",
+                apiKey,
                 new JinaAIEmbeddingsTaskSettings((InputType) null),
-                1024,
-                1024,
-                "jina-clip-v2",
+                500,
+                dimensions,
+                modelName,
                 null,
                 JinaAIEmbeddingType.FLOAT
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            List<String> input = List.of("abc");
             service.infer(
                 model,
                 null,
                 null,
                 null,
-                List.of("abc"),
+                input,
                 false,
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
@@ -1597,10 +1635,13 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + apiKey));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "jina-clip-v2", "embedding_type", "float")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("input", input, "model", modelName, "embedding_type", "float", "dimensions", dimensions))
+            );
         }
     }
 

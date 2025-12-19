@@ -1,0 +1,5 @@
+pr: 139729
+summary: Suppress Azure SDK error logs
+area: Snapshot/Restore
+type: bug
+issues: []

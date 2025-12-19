@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "counter_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "field",
           "type" : "counter_integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,
@@ -34,7 +34,7 @@
           "name" : "field",
           "type" : "counter_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         }
       ],
       "variadic" : false,

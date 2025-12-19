@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -47,6 +48,7 @@ public class RestActions {
     public static final ParseField SKIPPED_FIELD = new ParseField("skipped");
     public static final ParseField FAILED_FIELD = new ParseField("failed");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
+    public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     public static long parseVersion(RestRequest request) {
         if (request.hasParam("version")) {
@@ -260,10 +262,14 @@ public class RestActions {
 
     }
 
+    public static QueryBuilder getQueryContent(XContentParser parser) {
+        return getQueryContent(parser, null);
+    }
+
     /**
      * Parses a top level query including the query element that wraps it
      */
-    public static QueryBuilder getQueryContent(XContentParser parser) {
+    public static QueryBuilder getQueryContent(XContentParser parser, SearchRequest searchRequest) {
         try {
             QueryBuilder queryBuilder = null;
             XContentParser.Token first = parser.nextToken();
@@ -281,6 +287,9 @@ public class RestActions {
                     String currentName = parser.currentName();
                     if ("query".equals(currentName)) {
                         queryBuilder = parseTopLevelQuery(parser);
+                    } else if (PROJECT_ROUTING.match(currentName, parser.getDeprecationHandler()) && searchRequest != null) {
+                        parser.nextToken();
+                        searchRequest.setProjectRouting(parser.text());
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }

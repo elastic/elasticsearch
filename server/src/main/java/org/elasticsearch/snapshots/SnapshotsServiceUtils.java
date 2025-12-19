@@ -12,7 +12,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -256,10 +255,6 @@ public class SnapshotsServiceUtils {
 
     public static boolean includeFileInfoWriterUUID(IndexVersion repositoryMetaVersion) {
         return repositoryMetaVersion.onOrAfter(FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION);
-    }
-
-    public static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
-        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
     }
 
     /**

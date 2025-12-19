@@ -66,7 +66,7 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (docValues instanceof OptionalColumnAtATimeReader direct) {
-                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, toDouble, false);
+                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, toDouble, false, false);
                 if (result != null) {
                     return result;
                 }

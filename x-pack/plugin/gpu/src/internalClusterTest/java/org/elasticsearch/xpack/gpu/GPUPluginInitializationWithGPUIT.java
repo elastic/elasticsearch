@@ -70,21 +70,9 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         return List.of(TestGPUPlugin.class);
     }
 
-    // Feature flag disabled tests
-    public void testFFOff() {
-        assumeFalse("GPU_FORMAT feature flag disabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
-        GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
-        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
-
-        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null, null, null);
-        assertNull(format);
-    }
-
     // AUTO mode tests
     public void testAutoModeSupportedVectorType() {
         gpuMode = GPUPlugin.GpuMode.AUTO;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -104,7 +92,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
 
     public void testAutoModeUnsupportedVectorType() {
         gpuMode = GPUPlugin.GpuMode.AUTO;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -124,7 +111,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
 
     public void testAutoModeUnsupportedElementType() {
         gpuMode = GPUPlugin.GpuMode.AUTO;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -150,7 +136,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
     public void testAutoModeLicenseNotSupported() {
         gpuMode = GPUPlugin.GpuMode.AUTO;
         isGpuIndexingFeatureAllowed = false;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -171,7 +156,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
     // TRUE mode tests
     public void testTrueModeSupportedVectorType() {
         gpuMode = GPUPlugin.GpuMode.TRUE;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -191,7 +175,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
 
     public void testTrueModeUnsupportedVectorType() {
         gpuMode = GPUPlugin.GpuMode.TRUE;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -211,7 +194,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
 
     public void testTrueModeUnsupportedElementType() {
         gpuMode = GPUPlugin.GpuMode.TRUE;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -237,7 +219,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
     public void testTrueModeLicenseNotSupported() {
         gpuMode = GPUPlugin.GpuMode.TRUE;
         isGpuIndexingFeatureAllowed = false;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
@@ -258,7 +239,6 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
     // FALSE mode tests
     public void testFalseModeNeverUsesGpu() {
         gpuMode = GPUPlugin.GpuMode.FALSE;
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
 
         GPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();

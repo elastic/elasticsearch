@@ -850,6 +850,58 @@ c:l | d:datetime
 4      | 1994-01-01T00:00:00.000Z
 ;
 
+countStarGroupedTruncWithFilterInsideStats
+from employees
+| stats c = count(*) where hire_date > "1990-01-01" and hire_date < "1994-01-01" by d=date_trunc(1 year, hire_date)
+| sort d
+| limit 10;
+c:l | d:datetime
+0   | 1985-01-01T00:00:00.000Z
+0   | 1986-01-01T00:00:00.000Z
+0   | 1987-01-01T00:00:00.000Z
+0   | 1988-01-01T00:00:00.000Z
+0   | 1989-01-01T00:00:00.000Z
+12  | 1990-01-01T00:00:00.000Z
+6   | 1991-01-01T00:00:00.000Z
+8   | 1992-01-01T00:00:00.000Z
+3   | 1993-01-01T00:00:00.000Z
+0   | 1994-01-01T00:00:00.000Z
+;
+
+countStarGroupedTruncWithFilterOutsideStats
+from employees
+| where hire_date > "1990-01-01" and hire_date < "1994-01-01"
+| stats c = count(*) by d=date_trunc(1 year, hire_date)
+| sort d
+;
+
+c:l | d:datetime
+12  | 1990-01-01T00:00:00.000Z
+6   | 1991-01-01T00:00:00.000Z
+8   | 1992-01-01T00:00:00.000Z
+3   | 1993-01-01T00:00:00.000Z
+;
+
+countStarGroupedTruncWithFilterOutsideStatsLowerBoundEdgeCase
+from employees
+| where hire_date < "1900-01-01"
+| stats c = count(*) by d=date_trunc(1 year, hire_date)
+| sort d
+;
+
+c:l | d:datetime
+;
+
+countStarGroupedTruncWithFilterOutsideStatsUpperBoundEdgeCase
+from employees
+| where hire_date > "2100-01-01"
+| stats c = count(*) by d=date_trunc(1 year, hire_date)
+| sort d
+;
+
+c:l | d:datetime
+;
+
 countAllAndOtherStatGrouped
 from employees | stats c = count(*), min = min(emp_no) by languages | sort languages;
 

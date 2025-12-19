@@ -30,7 +30,8 @@ public class RestDownsampleAction extends BaseRestHandler {
     private final Set<String> CAPABILITIES = Set.of(
         "downsample.sampling_mode.last_value",
         "downsample.multi_field_fix",
-        "downsampling.exponential_histograms"
+        "downsampling.exponential_histograms",
+        "downsampling.tdigest_histograms"
     );
 
     @Override

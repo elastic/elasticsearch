@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
+import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -79,7 +80,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
                 TopSnippets will extract the best snippets for a given query string.
             """,
         examples = {
-            @Example(file = "top-snippets", tag = "top-snippets", applies_to = "stack: preview 9.3.0"),
+            @Example(file = "top-snippets", tag = "top-snippets-with-field", applies_to = "stack: preview 9.3.0"),
             @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0") }
     )
     public TopSnippets(
@@ -240,8 +241,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         String queryString = query.utf8ToString();
 
         List<String> chunks = chunkText(content, chunkingSettings);
-        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, queryString, numSnippets, false);
-        List<String> snippets = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(numSnippets).toList();
+        List<ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, queryString, numSnippets, false);
+        List<String> snippets = scoredChunks.stream().map(ScoredChunk::content).limit(numSnippets).toList();
         emitChunks(builder, snippets);
     }
 

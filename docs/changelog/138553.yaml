@@ -1,0 +1,5 @@
+pr: 138553
+summary: Use common retry logic for GCS
+area: Snapshot/Restore
+type: enhancement
+issues: []

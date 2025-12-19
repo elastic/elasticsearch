@@ -381,7 +381,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     assertFalse(plan.containsKey("reduction_nanos"));
                 }
                 case "node_reduce" -> {
-                    assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
+                    if (Build.current().isSnapshot()) {
+                        // Node reduction depends on a pragma for now, so not available on non-snapshot builds - timing won't be available
+                        assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
+                    } else {
+                        // Remove the if and check reduction_nanos is there when the following fails
+                        assertNull(plan.get("reduction_nanos"));
+                    }
                     assertFalse(plan.containsKey("logical_optimization_nanos"));
                     assertFalse(plan.containsKey("physical_optimization_nanos"));
                 }
@@ -792,6 +798,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
         shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
         shouldBeSupported.remove(DataType.TDIGEST);
+        shouldBeSupported.remove(DataType.HISTOGRAM);
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }

@@ -58,7 +58,11 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     )
     public Increase(
         Source source,
-        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
+        @Param(
+            name = "field",
+            type = { "counter_long", "counter_integer", "counter_double" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
         @Param(
             name = "window",
             type = { "time_duration" },

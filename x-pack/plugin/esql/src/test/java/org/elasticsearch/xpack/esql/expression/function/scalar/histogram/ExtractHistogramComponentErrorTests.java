@@ -34,7 +34,7 @@ public class ExtractHistogramComponentErrorTests extends ErrorsForCasesWithoutEx
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
-            case 0 -> "exponential_histogram";
+            case 0 -> "exponential_histogram or tdigest";
             case 1 -> "integer";
             default -> throw new IllegalStateException("Unexpected value: " + p);
         }));

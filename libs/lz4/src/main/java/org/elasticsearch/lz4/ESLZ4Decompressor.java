@@ -21,7 +21,6 @@ package org.elasticsearch.lz4;
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4FastDecompressor;
 import net.jpountz.util.ByteBufferUtils;
-import net.jpountz.util.SafeUtils;
 
 import java.nio.ByteBuffer;
 
@@ -31,9 +30,9 @@ import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
 import static org.elasticsearch.lz4.LZ4Utils.notEnoughSpace;
 
 /**
- * This file is forked from https://github.com/yawkat/lz4-java. In particular, it forks the following file
+ * This file is forked from <a href="https://github.com/yawkat/lz4-java">yawkat/lz4-java</a>. In particular, it forks the following file
  * net.jpountz.lz4.LZ4JavaSafeFastDecompressor.
- *
+ * <p>
  * It modifies the original implementation to use custom LZ4SafeUtils and SafeUtils implementations which
  * include performance improvements.
  */

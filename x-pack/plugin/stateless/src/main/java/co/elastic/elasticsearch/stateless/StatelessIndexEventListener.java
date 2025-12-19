@@ -21,6 +21,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -89,6 +90,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final TranslogReplicator translogReplicator;
     private final RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler;
     private final SharedBlobCacheWarmingService warmingService;
+    private final StatelessSharedBlobCacheService cacheService;
     private final HollowShardsService hollowShardsService;
     private final SplitTargetService splitTargetService;
     private final SplitSourceService splitSourceService;
@@ -109,7 +111,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         SplitSourceService splitSourceService,
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        StatelessSharedBlobCacheService cacheService
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -124,6 +127,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
         this.minSearchPower = clusterSettings.get(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING);
         clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> this.boostWindow = value);
+        this.cacheService = cacheService;
     }
 
     @Override
@@ -410,6 +414,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                     }
                 } else if (engineOrNull instanceof HollowIndexEngine) {
                     hollowShardsService.addHollowShard(indexShard, "recovery");
+                    // Evict the recovery BCC blob, since it won't be read again, in order to create space for new cache entries.
+                    // Note: we run prewarming asynchronously. It's unlikely but possible to have it race with eviction, and that may mean
+                    // the cache entry ultimately stays in the cache. But because it should be rare, we do not optimize further for this.
+                    cacheService.forceEvict(indexShard.shardId(), k -> true);
                     l.onResponse(null);
                 } else if (engineOrNull == null) {
                     throw new AlreadyClosedException("engine is closed");

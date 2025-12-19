@@ -86,6 +86,9 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         try (var response = run(syncEsqlQueryRequest("FROM data-stream-1"))) {
             assertOk(response);
         }
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::data"))) {
+            assertOk(response);
+        }
     }
 
     public void testResolvesPattern() {

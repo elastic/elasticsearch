@@ -179,5 +179,5 @@ Various scenarios include:
 - Equals symbol in message (moo=this =has = equals\= )
 - Malformed escape sequences (moo='Foo-Bar/2018.1.7; =Email:user@example.com;)
 - Tab character is not a separator in extensions (msg=Tab is not a separator\tsrc=127.0.0.1)
-- When CEF header is truncated (CEF:0|SentinelOne|Mgmt|activityID=1111111111111111111)
-- If there are invalid timestamps or mac addresses or ip addresses.s
+- When CEF header is truncated (CEF:0|Elastic|Mgmt|activityID=1111111111111111111)
+- If there are invalid timestamps or mac address or ip address.

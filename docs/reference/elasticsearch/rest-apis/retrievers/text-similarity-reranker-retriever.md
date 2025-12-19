@@ -101,7 +101,7 @@ score = ln(score), if score < 0
     `chunking_settings`
     :   (Optional, `object`)
 
-    Settings for chunking text into smaller passages for scoring and reranking. When not explicitly provided, chunking settings are automatically resolved based on the token window size of the model associated with the specified `inference_id`. Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`.
+    Settings for chunking text into smaller passages for scoring and reranking. By default, chunking settings are configured to fit within the token window of the model associated with the `inference_id`. Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`.
     :::{warning}
     If you explicitly configure chunks larger than the reranker's token limit, the results may be truncated. This can degrade relevance significantly.
     :::

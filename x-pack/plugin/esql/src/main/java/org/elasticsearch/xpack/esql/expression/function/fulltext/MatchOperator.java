@@ -50,7 +50,7 @@ public class MatchOperator extends Match {
                 explanation = ""
                     + "This example illustrates how to do full-text search on a `text` field. "
                     + "Notice how the match operator handles multi-valued columns, if a single value matches the query string, "
-                    + "the expression evaluates to `TRUE`"
+                    + "the expression evaluates to `TRUE`."
             ),
             @Example(
                 file = "match-operator",

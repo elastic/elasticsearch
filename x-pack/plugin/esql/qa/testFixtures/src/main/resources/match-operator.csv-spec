@@ -45,7 +45,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 # this is a docs example for semantic search, it's skipped because constructing a meaningful
-# example when for semantic search is hard, when we don't use a real ML model to generate embeddings
+# example for semantic search is hard, when we don't use a real ML model to generate embeddings
 matchWithSemanticTextDocsExample-Ignore
 required_capability: match_operator_colon
 

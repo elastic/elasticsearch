@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.nodeFilter;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.jobWithRules;
 import static org.hamcrest.Matchers.containsString;
@@ -257,7 +258,9 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + JOB_MEMORY_REQUIREMENT.getBytes()
                     + " ("
                     + ByteSizeValue.ofBytes(JOB_MEMORY_REQUIREMENT.getBytes())
-                    + ")]"
+                    + ")]. If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: ["
+                    + MACHINE_LEARNING_SETTINGS
+                    + "]"
             )
         );
     }

@@ -101,9 +101,9 @@ score = ln(score), if score < 0
     `chunking_settings`
     :   (Optional, `object`)
 
-    Settings for chunking text into smaller passages for scoring and reranking. Defaults to the optimal chunking settings for [Elastic Rerank](docs-content:///explore-analyze/machine-learning/nlp/ml-nlp-rerank.md). Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`. 
-    :::{warning} 
-    If you configure chunks larger than the reranker's token limit, the results may be truncated. This can degrade relevance significantly.
+    Settings for chunking text into smaller passages for scoring and reranking. When not explicitly provided, chunking settings are automatically resolved based on the token window size of the model associated with the specified `inference_id`. Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`.
+    :::{warning}
+    If you explicitly configure chunks larger than the reranker's token limit, the results may be truncated. This can degrade relevance significantly.
     :::
 
 
@@ -326,7 +326,7 @@ Follow these steps to load the model and create a semantic re-ranker.
     }
     ```
     % TEST[skip:uses ELSER]
-    
+
 4. Define a `text_similarity_rerank` retriever.
 
     ```console

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -49,6 +51,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -1072,8 +1075,23 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | SORT does_not_exist ASC
             """));
 
+        // Top implicit limit 1000
         var limit = as(plan, Limit.class);
-        System.err.println(plan);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // OrderBy over the Eval-produced alias
+        var orderBy = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.OrderBy.class);
+
+        // Eval introduces does_not_exist as NULL
+        var eval = as(orderBy.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("does_not_exist"));
+        assertThat(as(alias.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        // Underlying relation
+        var relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
     }
 
     /*
@@ -2163,12 +2181,174 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(rel.indexPattern(), is("test"));
     }
 
-    // TODO
-    // enrich
-    // lookup
-    // inlinestats
-    // fork
-    // semantic text
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_InlineStats[]
+     *   \_Aggregate[[does_not_exist2{r}#19],[SUM(does_not_exist1{r}#20,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS c#5,
+     *          does_not_exist2{r}#19]]
+     *     \_Eval[[null[NULL] AS does_not_exist2#19, null[NULL] AS does_not_exist1#20]]
+     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testInlineStats() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM test
+            | INLINE STATS c = SUM(does_not_exist1) BY does_not_exist2
+            """));
+
+        // Top implicit limit 1000
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // InlineStats wrapping Aggregate
+        var inlineStats = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.InlineStats.class);
+        var agg = as(inlineStats.child(), Aggregate.class);
+
+        // Grouping by does_not_exist2 and SUM over does_not_exist1
+        assertThat(agg.groupings(), hasSize(1));
+        var groupRef = as(agg.groupings().getFirst(), ReferenceAttribute.class);
+        assertThat(groupRef.name(), is("does_not_exist2"));
+
+        assertThat(agg.aggregates(), hasSize(2));
+        var cAlias = as(agg.aggregates().getFirst(), Alias.class);
+        assertThat(cAlias.name(), is("c"));
+        as(cAlias.child(), org.elasticsearch.xpack.esql.expression.function.aggregate.Sum.class);
+
+        // Upstream Eval introduces does_not_exist2 and does_not_exist1 as NULL
+        var eval = as(agg.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+
+        var dne2Alias = as(eval.fields().get(0), Alias.class);
+        assertThat(dne2Alias.name(), is("does_not_exist2"));
+        assertThat(as(dne2Alias.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var dne1Alias = as(eval.fields().get(1), Alias.class);
+        assertThat(dne1Alias.name(), is("does_not_exist1"));
+        assertThat(as(dne1Alias.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        // Underlying relation
+        var relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_LookupJoin[LEFT,[language_code{r}#5],[language_code{f}#19],false,null]
+     *   |_Eval[[TOINTEGER(does_not_exist{r}#21) AS language_code#5]]
+     *   | \_Eval[[null[NULL] AS does_not_exist#21]]
+     *   |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     */
+    public void testLookupJoin() {
+        String query = """
+            FROM test
+            | EVAL language_code = does_not_exist::INTEGER
+            | LOOKUP JOIN languages_lookup ON language_code
+            """;
+        var plan = analyzeStatement(setUnmappedNullify(query));
+
+        // Top implicit limit 1000
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // LookupJoin over alias `language_code`
+        var lj = as(limit.child(), LookupJoin.class);
+        assertThat(lj.config().type(), is(JoinTypes.LEFT));
+
+        // Left child: EVAL language_code = TOINTEGER(does_not_exist), with upstream NULL alias for does_not_exist
+        var leftEval = as(lj.left(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(1));
+        var langCodeAlias = as(leftEval.fields().getFirst(), Alias.class);
+        assertThat(langCodeAlias.name(), is("language_code"));
+        as(langCodeAlias.child(), ToInteger.class);
+
+        var upstreamEval = as(leftEval.child(), Eval.class);
+        assertThat(upstreamEval.fields(), hasSize(1));
+        var dneAlias = as(upstreamEval.fields().getFirst(), Alias.class);
+        assertThat(dneAlias.name(), is("does_not_exist"));
+        assertThat(as(dneAlias.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var leftRel = as(upstreamEval.child(), EsRelation.class);
+        assertThat(leftRel.indexPattern(), is("test"));
+
+        // Right lookup table
+        var rightRel = as(lj.right(), EsRelation.class);
+        assertThat(rightRel.indexPattern(), is("languages_lookup"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Enrich[ANY,languages[KEYWORD],x{r}#5,{"match":{"indices":[],"match_field":"language_code",
+     *      "enrich_fields":["language_name"]}},{=languages_idx},[language_name{r}#21]]
+     *   \_Eval[[TOSTRING(does_not_exist{r}#22) AS x#5]]
+     *     \_Eval[[null[NULL] AS does_not_exist#22]]
+     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testEnrich() {
+        String query = """
+            FROM test
+            | EVAL x = does_not_exist::KEYWORD
+            | ENRICH languages ON x
+            """;
+        var plan = analyzeStatement(setUnmappedNullify(query));
+
+        // Top implicit limit 1000
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // Enrich over alias `x` produced by TOSTRING(does_not_exist)
+        var enrich = as(limit.child(), Enrich.class);
+        assertThat(enrich.matchField().name(), is("x"));
+        assertThat(Expressions.names(enrich.enrichFields()), contains("language_name"));
+
+        // Left child: EVAL x = TOSTRING(does_not_exist), with upstream NULL alias for does_not_exist
+        var leftEval = as(enrich.child(), Eval.class);
+        assertThat(leftEval.fields(), hasSize(1));
+        var xAlias = as(leftEval.fields().getFirst(), Alias.class);
+        assertThat(xAlias.name(), is("x"));
+        as(xAlias.child(), ToString.class);
+
+        var upstreamEval = as(leftEval.child(), Eval.class);
+        assertThat(upstreamEval.fields(), hasSize(1));
+        var dneAlias = as(upstreamEval.fields().getFirst(), Alias.class);
+        assertThat(dneAlias.name(), is("does_not_exist"));
+        assertThat(as(dneAlias.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var leftRel = as(upstreamEval.child(), EsRelation.class);
+        assertThat(leftRel.indexPattern(), is("test"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[KNN(does_not_exist{r}#16,TODENSEVECTOR([0, 1, 2][INTEGER]))]
+     *   \_Eval[[null[NULL] AS does_not_exist#16]]
+     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     */
+    public void testSemanticText() {
+        String query = """
+            FROM test
+            | WHERE KNN(does_not_exist, [0, 1, 2])
+            """;
+        var plan = analyzeStatement(setUnmappedNullify(query));
+
+        // Top implicit limit 1000
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        // Filter node
+        var filter = as(limit.child(), Filter.class);
+        assertNotNull(filter.condition()); // KNN(does_not_exist, TODENSEVECTOR([...]))
+
+        // Upstream Eval introduces does_not_exist as NULL
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var dneAlias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(dneAlias.name(), is("does_not_exist"));
+        assertThat(as(dneAlias.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        // Underlying relation
+        var relation = as(eval.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
+    }
 
     private void verificationFailure(String statement, String expectedFailure) {
         var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));

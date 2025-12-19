@@ -99,13 +99,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should have aggregates", aggregates.isEmpty(), is(false));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -133,13 +130,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should have aggregates", aggregates.isEmpty(), is(false));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -170,13 +164,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should group by bucket", hasBucket, is(true));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -207,13 +198,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should group by bucket", hasBucket, is(true));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));
@@ -247,13 +235,10 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         assertThat("Should still group by _tsid", hasTsid, is(true));
 
         List<Attribute> output = plan.output();
-        boolean hasTimeseries = output.stream().anyMatch(attr -> attr.name().equals(MetadataAttribute.TIMESERIES));
+        boolean hasTimeseries = output.stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute);
         assertThat("Should have _timeseries in output", hasTimeseries, is(true));
 
-        Attribute timeseriesAttr = output.stream()
-            .filter(attr -> attr.name().equals(MetadataAttribute.TIMESERIES))
-            .findFirst()
-            .orElse(null);
+        Attribute timeseriesAttr = output.stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
 
         assertNotNull(timeseriesAttr);
         assertThat("_timeseries attribute should exist", timeseriesAttr, is(instanceOf(Attribute.class)));

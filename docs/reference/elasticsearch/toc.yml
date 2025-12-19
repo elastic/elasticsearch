@@ -38,7 +38,6 @@ toc:
   - file: index-settings/index.md
     children:
         - file: index-settings/serverless.md
-        - file: index-settings/bbq.md
         - file: index-settings/index-modules.md
         - file: index-settings/shard-allocation.md
           children:
@@ -154,6 +153,7 @@ toc:
           - file: mapping-reference/date.md
           - file: mapping-reference/date_nanos.md
           - file: mapping-reference/dense-vector.md
+          - file: mapping-reference/gpu-vector-indexing.md
           - file: mapping-reference/flattened.md
           - file: mapping-reference/geo-point.md
           - file: mapping-reference/geo-shape.md
@@ -219,6 +219,7 @@ toc:
           - file: mapping-reference/mapping-store.md
           - file: mapping-reference/subobjects.md
           - file: mapping-reference/term-vector.md
+          - file: mapping-reference/bbq.md
   - file: elasticsearch-audit-events.md
   - file: command-line-tools/index.md
     children:

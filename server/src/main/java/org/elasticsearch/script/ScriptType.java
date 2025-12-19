@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,23 +57,21 @@ public enum ScriptType implements Writeable {
             return INLINE;
         } else {
             throw new IllegalStateException(
-                "Error reading ScriptType id ["
-                    + id
-                    + "] from stream, expected one of ["
-                    + STORED.id
-                    + " ["
-                    + STORED.parseField.getPreferredName()
-                    + "], "
-                    + INLINE.id
-                    + " ["
-                    + INLINE.parseField.getPreferredName()
-                    + "]]"
+                Strings.format(
+                    "Error reading ScriptType id [%s] from stream, expected one of [%s [%s], %s [%s]]",
+                    id,
+                    STORED.id,
+                    STORED.parseField.getPreferredName(),
+                    INLINE.id,
+                    INLINE.parseField.getPreferredName()
+                )
             );
         }
     }
 
     private final int id;
     private final ParseField parseField;
+    private final String name;
 
     /**
      * Standard constructor.
@@ -82,6 +81,7 @@ public enum ScriptType implements Writeable {
     ScriptType(int id, ParseField parseField) {
         this.id = id;
         this.parseField = parseField;
+        this.name = name().toLowerCase(Locale.ROOT); // pre-allocate the lowercased name string
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -99,7 +99,7 @@ public enum ScriptType implements Writeable {
      * @return The unique name for this {@link ScriptType} based on the {@link ParseField}.
      */
     public String getName() {
-        return name().toLowerCase(Locale.ROOT);
+        return name;
     }
 
     /**

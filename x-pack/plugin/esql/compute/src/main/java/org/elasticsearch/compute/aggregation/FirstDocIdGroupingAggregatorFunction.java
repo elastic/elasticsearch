@@ -169,7 +169,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         docs.set(3L * groupId + 1, segment);
         docs.set(3L * groupId + 2, doc);
         if (contextRefs.containsKey(shard) == false) {
-            var refCounted = docVector.shardRefCounted(shard);
+            var refCounted = docVector.shardRefCounted(valuePosition);
             refCounted.mustIncRef();
             contextRefs.put(shard, refCounted);
         }

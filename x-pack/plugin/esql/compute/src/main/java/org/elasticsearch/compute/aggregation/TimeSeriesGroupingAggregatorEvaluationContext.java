@@ -42,4 +42,8 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
      * @return a list of group IDs within the window
      */
     public abstract List<Integer> groupIdsFromWindow(int startingGroupId, Duration window);
+
+    public abstract int previousGroupId(int currentGroupId);
+
+    public abstract int nextGroupId(int currentGroupId);
 }

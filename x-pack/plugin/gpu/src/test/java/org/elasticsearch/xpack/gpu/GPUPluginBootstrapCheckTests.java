@@ -18,7 +18,6 @@ import static org.hamcrest.Matchers.containsString;
 public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testNodeSettingTrueWithoutGPUFails() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
         assumeFalse("GPU not supported on this environment", GPUSupport.isSupported());
 
         Settings settings = Settings.builder()
@@ -37,7 +36,6 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
     }
 
     public void testNodeSettingTrueWithGPUSucceeds() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
         assumeTrue("GPU supported on this environment", GPUSupport.isSupported());
 
         Settings settings = Settings.builder()
@@ -52,8 +50,6 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
     }
 
     public void testNodeSettingAutoWithoutGPUSucceeds() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         Settings settings = Settings.builder()
             .put(GPUPlugin.VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey(), GPUPlugin.GpuMode.AUTO)
             .build();
@@ -66,8 +62,6 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
     }
 
     public void testNodeSettingFalseWithoutGPUSucceeds() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         Settings settings = Settings.builder()
             .put(GPUPlugin.VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey(), GPUPlugin.GpuMode.FALSE)
             .build();
@@ -80,8 +74,6 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
     }
 
     public void testNodeSettingDefaultAutoSucceeds() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         // Don't set the setting - use default (AUTO)
         Settings settings = Settings.EMPTY;
 
@@ -93,8 +85,6 @@ public class GPUPluginBootstrapCheckTests extends AbstractBootstrapCheckTestCase
     }
 
     public void testBootstrapCheckReferenceDocs() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         var check = new GPUPlugin.GpuModeBootstrapCheck();
         assertNotNull("referenceDocs should return a non-null value", check.referenceDocs());
     }

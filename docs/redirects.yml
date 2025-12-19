@@ -131,9 +131,9 @@ redirects:
         anchors: { 'semantic-text-params', 'configuring-inference-endpoints', 'chunking-behavior', 'limitations', 'document-count-discrepancy' }
 
   # Related to https://github.com/elastic/docs-content-internal/issues/595
-  'docs/reference/query-languages/esql/limitations.md':
-  to: 'docs/reference/query-languages/esql/limitations.md'
-  anchors: { } # pass-through unlisted anchors in the `many` ruleset
-  many:
-    - to: 'reference/query-languages/esql/functions-operators/search-functions.md'
-      anchors: { 'esql-limitations-text-fields' }
+  'reference/query-languages/esql/limitations.md':
+    to: 'reference/query-languages/esql/limitations.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/search-functions.md'
+        anchors: { 'esql-limitations-text-fields' }

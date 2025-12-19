@@ -212,7 +212,7 @@ public class IndexVersions {
     public static final IndexVersion DEFAULT_HNSW_EARLY_TERMINATION = def(9_059_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES = def(9_060_0_00, Version.LUCENE_10_3_2);
 
-    public static final IndexVersion UPGRADE_TO_LUCENE_10_4_0 = def(9_060_00_0, Version.LUCENE_10_4_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_4_0 = def(9_070_00_0, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

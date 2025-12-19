@@ -53,7 +53,7 @@ public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingT
 
     public void testMinimumSupportedVersion() {
         TransportVersion min = createTestInstance().getMinimalSupportedVersion();
-        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random())));
+        assertTrue(TransportVersionUtils.randomCompatibleVersion(random()).supports(min));
     }
 
     public void testcontext() {

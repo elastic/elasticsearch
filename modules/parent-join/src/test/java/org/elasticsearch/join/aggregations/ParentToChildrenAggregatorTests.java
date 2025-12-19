@@ -17,7 +17,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -25,6 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -72,7 +72,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        testCase(new MatchAllDocsQuery(), indexReader, parentToChild -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, indexReader, parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
             assertEquals(Double.POSITIVE_INFINITY, ((Min) parentToChild.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
@@ -91,7 +91,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        testCase(new MatchAllDocsQuery(), indexReader, child -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, indexReader, child -> {
             int expectedTotalChildren = 0;
             int expectedMinValue = Integer.MAX_VALUE;
             for (Tuple<Integer, Integer> expectedValues : expectedParentChildRelations.values()) {

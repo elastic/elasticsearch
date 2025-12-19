@@ -14,7 +14,7 @@ import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -48,7 +49,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression {
+public class Sum extends NumericAggregate implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
     private final Expression summationMode;
@@ -69,7 +70,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     )
     public Sum(
         Source source,
-        @Param(name = "number", type = { "aggregate_metric_double", "exponential_histogram", "double", "integer", "long" }) Expression field
+        @Param(
+            name = "number",
+            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" }
+        ) Expression field
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, SummationMode.COMPENSATED_LITERAL);
     }
@@ -151,21 +155,23 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
                 e -> e == DataType.DATETIME
                     || e == DataType.AGGREGATE_METRIC_DOUBLE
                     || e == DataType.EXPONENTIAL_HISTOGRAM
+                    || e == DataType.TDIGEST
                     || e.isNumeric() && e != DataType.UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
                 "datetime",
-                "aggregate_metric_double, exponential_histogram or numeric except unsigned_long or counter types"
+                "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
             );
         }
         return isType(
             field(),
             dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST
                 || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
-            "aggregate_metric_double, exponential_histogram or numeric except unsigned_long or counter types"
+            "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
         );
     }
 
@@ -182,10 +188,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
                 summationMode
             );
         }
-        if (field.dataType() == EXPONENTIAL_HISTOGRAM) {
+        if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
             return new Sum(
                 s,
-                ExtractHistogramComponent.create(source(), field, ExponentialHistogramBlock.Component.SUM),
+                ExtractHistogramComponent.create(source(), field, HistogramBlock.Component.SUM),
                 filter(),
                 window(),
                 summationMode

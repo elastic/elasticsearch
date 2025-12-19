@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 
@@ -58,7 +59,7 @@ public class DateFormat extends EsqlScalarFunction implements ConfigurationFunct
     )
     public DateFormat(
         Source source,
-        @Param(optional = true, name = "dateFormat", type = { "keyword", "text", "date", "date_nanos" }, description = """
+        @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = """
             Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
             If `null`, the function returns `null`.""") Expression format,
         @Param(
@@ -140,8 +141,8 @@ public class DateFormat extends EsqlScalarFunction implements ConfigurationFunct
     }
 
     @Evaluator(extraName = "Millis")
-    static BytesRef processMillis(long val, BytesRef formatter, @Fixed Locale locale) {
-        return new BytesRef(dateTimeToString(val, toFormatter(formatter, locale)));
+    static BytesRef processMillis(long val, BytesRef formatter, @Fixed ZoneId zoneId, @Fixed Locale locale) {
+        return new BytesRef(dateTimeToString(val, toFormatter(formatter, zoneId, locale)));
     }
 
     @Evaluator(extraName = "NanosConstant")
@@ -150,8 +151,8 @@ public class DateFormat extends EsqlScalarFunction implements ConfigurationFunct
     }
 
     @Evaluator(extraName = "Nanos")
-    static BytesRef processNanos(long val, BytesRef formatter, @Fixed Locale locale) {
-        return new BytesRef(nanoTimeToString(val, toFormatter(formatter, locale)));
+    static BytesRef processNanos(long val, BytesRef formatter, @Fixed ZoneId zoneId, @Fixed Locale locale) {
+        return new BytesRef(nanoTimeToString(val, toFormatter(formatter, zoneId, locale)));
     }
 
     private ExpressionEvaluator.Factory getConstantEvaluator(
@@ -167,37 +168,55 @@ public class DateFormat extends EsqlScalarFunction implements ConfigurationFunct
 
     private ExpressionEvaluator.Factory getEvaluator(
         DataType dateType,
+        ZoneId zoneId,
         Locale locale,
         EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
         EvalOperator.ExpressionEvaluator.Factory formatEvaluator
     ) {
         if (dateType == DATE_NANOS) {
-            return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, locale);
+            return new DateFormatNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                formatEvaluator,
+                zoneId,
+                locale
+            );
         }
-        return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, locale);
+        return new DateFormatMillisEvaluator.Factory(
+            source(),
+            fieldEvaluator,
+            formatEvaluator,
+            zoneId,
+            locale
+        );
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ZoneId zoneId = toEvaluator.configuration().zoneId();
+        Locale locale = toEvaluator.configuration().locale();
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return getConstantEvaluator(field().dataType(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
+            return getConstantEvaluator(
+                field().dataType(),
+                fieldEvaluator,
+                DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId).withLocale(locale)
+            );
         }
         if (DataType.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
-        Locale locale = toEvaluator.configuration().locale();
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold(toEvaluator), locale);
+            DateFormatter formatter = toFormatter(format.fold(toEvaluator), zoneId, locale);
             return getConstantEvaluator(field.dataType(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);
-        return getEvaluator(field().dataType(), locale, fieldEvaluator, formatEvaluator);
+        return getEvaluator(field().dataType(), zoneId, locale, fieldEvaluator, formatEvaluator);
     }
 
-    private static DateFormatter toFormatter(Object format, Locale locale) {
+    private static DateFormatter toFormatter(Object format, ZoneId zoneId, Locale locale) {
         DateFormatter result = format == null ? DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
-        return result.withLocale(locale);
+        return result.withZone(zoneId).withLocale(locale);
     }
 
     @Override

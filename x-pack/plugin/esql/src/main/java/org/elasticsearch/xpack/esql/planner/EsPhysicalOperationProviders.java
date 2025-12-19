@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -216,9 +218,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
             String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
-            return conversion == null
-                ? BlockLoader.CONSTANT_NULLS
-                : new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion, configuration);
+            if (conversion == null) {
+                return BlockLoader.CONSTANT_NULLS;
+            }
+            if (conversion instanceof BlockLoaderExpression ble) {
+                BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
+                if (e != null) {
+                    return shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, e.config());
+                }
+            }
+            return new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion, configuration);
         }
         return blockLoader;
     }
@@ -294,7 +303,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
-        int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
+        int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
         if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
@@ -411,7 +420,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
             tagTypes,
-            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
+            limit == null ? NO_LIMIT : (Integer) limit.fold(context)
         );
     }
 
@@ -424,7 +433,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context
     ) {
         return new TimeSeriesAggregationOperator.Factory(
-            ts.timeBucketRounding(context.foldCtx()),
+            ts.timeBucketRounding(context),
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,

@@ -146,7 +146,7 @@ public class CodecTests extends ESTestCase {
             MapperMetrics.NOOP,
             null
         );
-        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
+        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
 }

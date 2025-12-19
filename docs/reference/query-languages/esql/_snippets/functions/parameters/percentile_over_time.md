@@ -2,9 +2,9 @@
 
 **Parameters**
 
-`number`
-:   Expression that outputs values to calculate the percentile of.
+`field`
+:   the metric field to calculate the value for
 
 `percentile`
-:   
+:   the percentile value to compute (between 0 and 100)
 

@@ -174,21 +174,9 @@ public class DateFormat extends EsqlScalarFunction implements ConfigurationFunct
         EvalOperator.ExpressionEvaluator.Factory formatEvaluator
     ) {
         if (dateType == DATE_NANOS) {
-            return new DateFormatNanosEvaluator.Factory(
-                source(),
-                fieldEvaluator,
-                formatEvaluator,
-                zoneId,
-                locale
-            );
+            return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, zoneId, locale);
         }
-        return new DateFormatMillisEvaluator.Factory(
-            source(),
-            fieldEvaluator,
-            formatEvaluator,
-            zoneId,
-            locale
-        );
+        return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, zoneId, locale);
     }
 
     @Override

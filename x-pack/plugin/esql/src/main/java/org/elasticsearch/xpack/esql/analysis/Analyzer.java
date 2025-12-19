@@ -2344,8 +2344,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return aggFunc;
         }
 
-        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, InvalidMappedField mtf,
-                                                       Configuration configuration) {
+        private Map<String, Expression> typeConverters(
+            AggregateFunction aggFunc,
+            FieldAttribute fa,
+            InvalidMappedField mtf,
+            Configuration configuration
+        ) {
             var metric = getMetric(aggFunc, isTimeSeries);
             Map<String, Expression> typeConverter = new HashMap<>();
             for (DataType type : mtf.types()) {

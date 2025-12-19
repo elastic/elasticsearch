@@ -196,27 +196,27 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
 
-        registerLongGaugeCountMetric(
-            "es.cluster.nonempty_age.total_millis",
+        registerLongGaugeMillisecondsMetric(
+            "es.cluster.pending_tasks.nonempty.time",
             "Time in milliseconds since the master's pending task queue was empty",
             starvationWatcher::getNonemptyAge
         );
 
         for (var priority : Priority.values()) {
-            registerLongGaugeCountMetric(
-                "es.cluster.nonempty_age." + Strings.toLowercaseAscii(priority.toString()) + ".total_millis",
+            registerLongGaugeMillisecondsMetric(
+                "es.cluster.pending_tasks.priority_" + Strings.toLowercaseAscii(priority.toString()) + ".nonempty.time",
                 "Time in milliseconds since the master's pending task queue was empty for priorities no lower than " + priority,
                 () -> starvationWatcher.getPriorityNonemptyAge(priority)
             );
         }
     }
 
-    private void registerLongGaugeCountMetric(String name, String description, LongSupplier valueSupplier) {
+    private void registerLongGaugeMillisecondsMetric(String name, String description, LongSupplier valueSupplier) {
         @SuppressWarnings("resource")
         final var longGauge = meterRegistry.registerLongGauge(
             name,
             description,
-            "count",
+            "milliseconds",
             () -> new LongWithAttributes(valueSupplier.getAsLong())
         );
         metricsToUnregister.add(() -> {

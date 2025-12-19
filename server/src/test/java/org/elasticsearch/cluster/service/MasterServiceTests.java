@@ -1872,7 +1872,7 @@ public class MasterServiceTests extends ESTestCase {
             meterRegistry.getRecorder().resetCalls();
             meterRegistry.getRecorder().collect();
             assertThat(
-                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.nonempty_age.total_millis"),
+                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.pending_tasks.nonempty.time"),
                 measures(301000L)
             );
             for (var priority : Priority.values()) {
@@ -1881,7 +1881,7 @@ public class MasterServiceTests extends ESTestCase {
                     meterRegistry.getRecorder()
                         .getMeasurements(
                             InstrumentType.LONG_GAUGE,
-                            "es.cluster.nonempty_age." + priority.toString().toLowerCase(Locale.ROOT) + ".total_millis"
+                            "es.cluster.pending_tasks.priority_" + priority.toString().toLowerCase(Locale.ROOT) + ".nonempty.time"
                         ),
                     measures(switch (priority) {
                         case IMMEDIATE, URGENT -> 0L; // we're running tasks at HIGH priority so higher-priority queues must be empty
@@ -1920,7 +1920,7 @@ public class MasterServiceTests extends ESTestCase {
             meterRegistry.getRecorder().resetCalls();
             meterRegistry.getRecorder().collect();
             assertThat(
-                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.nonempty_age.total_millis"),
+                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.pending_tasks.nonempty.time"),
                 measures(0L)
             );
             for (var priority : Priority.values()) {
@@ -1929,7 +1929,7 @@ public class MasterServiceTests extends ESTestCase {
                     meterRegistry.getRecorder()
                         .getMeasurements(
                             InstrumentType.LONG_GAUGE,
-                            "es.cluster.nonempty_age." + priority.toString().toLowerCase(Locale.ROOT) + ".total_millis"
+                            "es.cluster.pending_tasks.priority_" + priority.toString().toLowerCase(Locale.ROOT) + ".nonempty.time"
                         ),
                     measures(0L)
                 );

@@ -298,7 +298,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             } else {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
-                    logger.error(() -> "failed to store async-search [" + docId + "]", e);
+                    logger.warn(() -> "failed to store async-search [" + docId + "]", e);
                     // at end, we should report a failure to the listener
                     updateResponse(
                         docId,

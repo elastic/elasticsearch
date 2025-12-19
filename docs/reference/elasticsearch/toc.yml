@@ -158,6 +158,7 @@ toc:
           - file: mapping-reference/geo-point.md
           - file: mapping-reference/geo-shape.md
           - file: mapping-reference/histogram.md
+          - file: mapping-reference/exponential-histogram.md
           - file: mapping-reference/ip.md
           - file: mapping-reference/parent-join.md
           - file: mapping-reference/keyword.md

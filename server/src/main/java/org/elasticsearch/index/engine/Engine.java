@@ -1068,7 +1068,7 @@ public abstract class Engine implements Closeable {
         } catch (Exception ex) {
             maybeFailEngine("acquire_reader", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire reader", ex);
+            logger.warn("failed to acquire reader", ex);
             throw new EngineException(shardId, "failed to acquire reader", ex);
         } finally {
             Releasables.close(releasable);

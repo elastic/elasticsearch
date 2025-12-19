@@ -304,7 +304,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 auditor.info(transform.getId(), "Updated transform state to [" + state.getTaskState() + "].");
                 listener.onResponse(new StartTransformAction.Response(true));
             }, exc -> {
-                logger.error(() -> format("[%s] failed updating state to [%s].", getTransformId(), state), exc);
+                logger.warn(() -> format("[%s] failed updating state to [%s].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(
                     new ElasticsearchException(
@@ -505,7 +505,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
             listener.onResponse(success);
         }, failure -> {
-            logger.error(() -> "[" + transform.getId() + "] failed to update cluster state for transform.", failure);
+            logger.warn(() -> "[" + transform.getId() + "] failed to update cluster state for transform.", failure);
             listener.onFailure(failure);
         }));
     }
@@ -559,7 +559,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 return;
             }
 
-            logger.atError().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
+            logger.atWarn().withThrowable(exception).log("[{}] transform has failed; experienced: [{}].", transform.getId(), reason);
             auditor.error(transform.getId(), reason);
             // The idea of stopping at the next checkpoint is no longer valid. Since a failed task could potentially START again,
             // we should set this flag to false.
@@ -576,7 +576,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             persistStateToClusterState(newState, ActionListener.wrap(r -> listener.onResponse(null), e -> {
                 String msg = "Failed to persist to cluster state while marking task as failed with reason [" + reason + "].";
                 auditor.warning(transform.getId(), msg + " Failure: " + e.getMessage());
-                logger.error(() -> format("[%s] %s", getTransformId(), msg), e);
+                logger.warn(() -> format("[%s] %s", getTransformId(), msg), e);
                 listener.onFailure(e);
             }));
         }

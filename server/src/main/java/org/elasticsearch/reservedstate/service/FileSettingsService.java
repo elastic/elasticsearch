@@ -245,13 +245,13 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         if (e instanceof ExecutionException) {
             var cause = e.getCause();
             if (cause instanceof FailedToCommitClusterStateException) {
-                logger().error(Strings.format("Unable to commit cluster state while processing file [%s]", file), e);
+                logger().warn(Strings.format("Unable to commit cluster state while processing file [%s]", file), e);
                 return;
             } else if (cause instanceof XContentParseException) {
                 logger().error(Strings.format("Unable to parse settings from file [%s]", file), e);
                 return;
             } else if (cause instanceof NotMasterException) {
-                logger().error(Strings.format("Node is no longer master while processing file [%s]", file), e);
+                logger().warn(Strings.format("Node is no longer master while processing file [%s]", file), e);
                 return;
             }
         }

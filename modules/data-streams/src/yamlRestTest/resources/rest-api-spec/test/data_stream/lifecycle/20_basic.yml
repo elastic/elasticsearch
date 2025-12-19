@@ -223,6 +223,34 @@ teardown:
   - match: { data_streams.1.lifecycle.downsampling.1.after: '100d'}
   - match: { data_streams.1.lifecycle.downsampling.1.fixed_interval: '10h'}
 
+
+---
+"Put data stream lifecycle with frozen after":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_data_stream/{name}/_lifecycle
+          capabilities: [ "dlm.frozen_after" ]
+      test_runner_features: [ "capabilities" ]
+      reason: "Frozen after added"
+
+  - do:
+      indices.put_data_lifecycle:
+        name: data-stream-with-lifecycle
+        body:
+          data_retention: "30d"
+          frozen_after: "10d"
+
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_lifecycle:
+        name: data-stream-with-lifecycle
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: data-stream-with-lifecycle }
+  - match: { data_streams.0.lifecycle.data_retention: "30d" }
+  - match: { data_streams.0.lifecycle.frozen_after: "10d" }
+
 ---
 "Enable lifecycle":
 

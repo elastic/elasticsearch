@@ -1,6 +1,6 @@
 pr: 122491
 summary: Add CEF processor to Ingest node
-area: Ingest node
+area: Ingest Node
 type: feature
 issues:
   - 126201

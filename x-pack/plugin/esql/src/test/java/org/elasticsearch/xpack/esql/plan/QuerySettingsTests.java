@@ -115,6 +115,16 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
+    public void testValidate_UnmappedFields_nonSnapshot() {
+        var setting = QuerySettings.UNMAPPED_FIELDS;
+        assertInvalid(
+            setting.name(),
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            of("LOAD"),
+            "Setting [" + setting.name() + "] is only available in snapshot builds"
+        );
+    }
+
     private static <T> void assertValid(QuerySettings.QuerySettingDef<T> settingDef, Literal valueLiteral, Matcher<T> parsedValueMatcher) {
         assertValid(settingDef, valueLiteral, parsedValueMatcher, SNAPSHOT_CTX_WITH_CPS_ENABLED);
     }

@@ -61,7 +61,7 @@ public class QuerySettings {
         DataType.KEYWORD,
         false,
         true,
-        false,
+        true,
         "Defines how unmapped fields are treated. Possible values are: "
             + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
             + "\"NULLIFY\" - treats unmapped fields as null values; "

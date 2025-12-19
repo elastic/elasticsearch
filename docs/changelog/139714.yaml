@@ -1,0 +1,5 @@
+pr: 139714
+summary: Upgrade GPU codec to use ES93 scalar quantization
+area: Vector Search
+type: upgrade
+issues: []

@@ -1610,7 +1610,7 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
-         * histogram field integration
+         * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
         /**

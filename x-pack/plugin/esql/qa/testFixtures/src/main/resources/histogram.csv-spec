@@ -18,8 +18,7 @@ FROM histogram_standard_index
  | KEEP responseTime, tdigest
 ;
 
-// -----------------------------------------
-
+ignoreOrder:true
 responseTime:histogram                                         | tdigest:tdigest
 "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
 "{""values"":[], ""counts"":[]}" | "{""centroids"":[], ""counts"":[]}"
@@ -41,8 +40,6 @@ FROM histogram_standard_index
  | EVAL p90 = ROUND(p90, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
  | KEEP min, max, p90, sum, avg
 ;
-
-// -----------------------------------------
 
 min:double | max:double | p90:double | sum:double  | avg:double
 2.17E-4    | 6.786232   | 0.4       | 1536.648714 | 0.0993245
@@ -66,8 +63,6 @@ FROM histogram_standard_index
  | KEEP instance, min, max, p95, sum, avg
  | SORT instance
 ;
-
-// -----------------------------------------
 
 instance:keyword | min:double | max:double | p95:double | sum:double  | avg:double
 instance-0       | 2.4E-4     | 6.786232   | 0.7       | 1472.744209 | 0.1665812

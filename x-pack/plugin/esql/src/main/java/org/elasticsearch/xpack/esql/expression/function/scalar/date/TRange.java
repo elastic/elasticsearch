@@ -147,7 +147,7 @@ public class TRange extends EsqlConfigurationFunction
         }
 
         String operationName = sourceText();
-        TypeResolution resolution = isType(timestamp, DataType::isMillisOrNanos, operationName, DEFAULT, true, "date_nanos", "date");
+        TypeResolution resolution = isType(timestamp, DataType::isMillisOrNanos, operationName, DEFAULT, true, "date_nanos", "datetime");
 
         if (resolution.unresolved()) {
             return resolution;

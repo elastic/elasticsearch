@@ -3,8 +3,8 @@
 **Parameters**
 
 `start_time_or_offset`
-:    Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date string, date, date_nanos or epoch milliseconds. 
+:    Offset from NOW for the single parameter mode. Start time for two parameter mode.  In two parameter mode, the start time value can be a date, date_nanos or epoch milliseconds. 
 
 `end_time`
-:   Explicit end time that can be a date string, date, date_nanos or epoch milliseconds.
+:   Explicit end time that can be a date, date_nanos or epoch milliseconds.
 

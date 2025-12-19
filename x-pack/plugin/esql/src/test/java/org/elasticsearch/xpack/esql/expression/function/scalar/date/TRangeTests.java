@@ -18,11 +18,8 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
-import org.mockito.Mockito;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
@@ -39,7 +36,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class TRangeTests extends AbstractConfigurationFunctionTestCase {
 
-    private static final ZonedDateTime fixedNow = ZonedDateTime.parse("2024-01-05T15:00:00Z");
+    private static final Instant fixedNow = Instant.parse("2024-01-05T15:00:00Z");
 
     public TRangeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -91,7 +88,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
 
             for (TestParameter testParameter : testParameters) {
                 long expectedStartTime = getExpectedAbsoluteTime(testParameter.value, testParameter.dataType, nanos);
-                long expectedEndTime = getNow(fixedNow.toInstant().toEpochMilli(), nanos);
+                long expectedEndTime = getNow(fixedNow.toEpochMilli(), nanos);
 
                 long timestampInsideRange = timestampInRange(expectedStartTime, expectedEndTime);
                 testCases.add(
@@ -146,7 +143,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         equalTo(testCase.expectedResult)
                     ).withConfiguration(
                         TEST_SOURCE,
-                        randomConfigurationBuilder().query(TestCaseSupplier.TEST_SOURCE.text()).now(fixedNow.toInstant()).build()
+                        randomConfigurationBuilder().query(TestCaseSupplier.TEST_SOURCE.text()).now(fixedNow).build()
                     )
                 )
             );
@@ -155,9 +152,6 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
 
     private static List<TwoParameterCase> twoParameterAbsoluteTimeTestCases() {
         List<TestParameter[]> testParameters = List.of(
-            new TestParameter[] {
-                new TestParameter(DataType.KEYWORD, "2024-01-01T00:00:00"),
-                new TestParameter(DataType.KEYWORD, "2024-01-01T12:00:00") },
             new TestParameter[] {
                 new TestParameter(DataType.LONG, ZonedDateTime.parse("2024-01-01T00:00:00Z").toInstant().toEpochMilli()),
                 new TestParameter(DataType.LONG, ZonedDateTime.parse("2024-01-01T12:00:00Z").toInstant().toEpochMilli()) },
@@ -245,21 +239,16 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
     }
 
     private static long getExpectedAbsoluteTime(Object argument, DataType dataType, boolean nanos) {
-        final Instant now = fixedNow.toInstant();
         switch (dataType) {
             case TIME_DURATION -> {
                 return nanos
-                    ? DateUtils.toNanoSeconds(now.minus((Duration) argument).toEpochMilli())
-                    : now.minus((Duration) argument).toEpochMilli();
+                    ? DateUtils.toNanoSeconds(fixedNow.minus((Duration) argument).toEpochMilli())
+                    : fixedNow.minus((Duration) argument).toEpochMilli();
             }
             case DATE_PERIOD -> {
                 return nanos
-                    ? DateUtils.toNanoSeconds(now.minus((Period) argument).toEpochMilli())
-                    : now.minus((Period) argument).toEpochMilli();
-            }
-            case KEYWORD -> {
-                long expectedStartTime = EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) argument);
-                return nanos ? DateUtils.toNanoSeconds(expectedStartTime) : expectedStartTime;
+                    ? DateUtils.toNanoSeconds(fixedNow.minus((Period) argument).toEpochMilli())
+                    : fixedNow.minus((Period) argument).toEpochMilli();
             }
             case LONG -> {
                 long expectedStartTime = (Long) argument;
@@ -278,16 +267,10 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
-        Clock fixedClock = Clock.fixed(fixedNow.toInstant(), fixedNow.getZone().normalized());
-        ZonedDateTime fixedNow = ZonedDateTime.now(Clock.tick(fixedClock, Duration.ofNanos(1)));
-
-        Configuration spyConfig = Mockito.spy(configuration);
-        Mockito.doReturn(fixedNow).when(spyConfig).now();
-
         if (args.size() == 2) {
-            return new TRange(source, args.get(0), null, args.get(1), spyConfig);
+            return new TRange(source, args.get(0), null, args.get(1), configuration);
         } else if (args.size() == 3) {
-            return new TRange(source, args.get(0), args.get(1), args.get(2), spyConfig);
+            return new TRange(source, args.get(0), args.get(1), args.get(2), configuration);
         } else {
             throw new IllegalArgumentException("Unexpected number of arguments: " + args.size());
         }

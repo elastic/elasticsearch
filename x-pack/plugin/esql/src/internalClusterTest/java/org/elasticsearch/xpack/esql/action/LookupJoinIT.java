@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.io.IOException;
 import java.net.URL;
@@ -79,6 +80,8 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     private static final String LANGUAGES_LOOKUP_INDEX = "languages_lookup";
     private static final String LANGUAGES_MIXED_NUMERICS_INDEX = "languages_mixed_numerics";
     private static final String MESSAGE_TYPES_LOOKUP_INDEX = "message_types_lookup";
+    private static final String AIRPORTS_INDEX = "airports";
+    private static final String AIRPORT_CITY_BOUNDARIES_INDEX = "airport_city_boundaries";
 
     // Enrich policy name constants
     private static final String AGES_POLICY = "ages_policy";
@@ -92,6 +95,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
+        plugins.add(SpatialPlugin.class);
         return plugins;
     }
 
@@ -362,6 +366,43 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
 
         try (EsqlQueryResponse response = runQuery(query)) {
             assertValues(response.values(), List.of(List.of("left", "Connected to 10.1.0.1", "right", "Success")));
+        }
+    }
+
+    // Test ported from csv-spec:lookup-join-expression.lookupJoinExpressionWithAirportContains
+    // Tests LOOKUP JOIN with expression containing ST_CONTAINS spatial function
+    public void testLookupJoinExpressionWithAirportContains() throws IOException {
+        // Required indices for this test
+        ensureIndices(List.of(AIRPORTS_INDEX, AIRPORT_CITY_BOUNDARIES_INDEX));
+
+        // Run the query
+        String query = String.format(
+            Locale.ROOT,
+            """
+                FROM %s
+                | RENAME abbrev AS airport_code
+                | LOOKUP JOIN %s ON airport_code == abbrev AND ST_CONTAINS(TO_GEOSHAPE("POLYGON((-0.3 51.0, -0.1 51.0, -0.1 51.2, -0.3 51.2, -0.3 51.0))"), city_boundary)
+                | WHERE city is not null
+                | KEEP airport_code, name, city, country, city_boundary
+                | SORT airport_code, name, city, country
+                """,
+            AIRPORTS_INDEX,
+            AIRPORT_CITY_BOUNDARIES_INDEX
+        );
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            assertValues(
+                response.values(),
+                List.of(
+                    List.of(
+                        "LGW",
+                        "London Gatwick",
+                        "Crawley",
+                        "United Kingdom",
+                        "POLYGON ((-0.2556 51.1418, -0.2003 51.1391, -0.2369 51.1094, -0.1964 51.0848, -0.1395 51.1081, -0.133 51.1589, -0.1785 51.1672, -0.2556 51.1418))"
+                    )
+                )
+            );
         }
     }
 }

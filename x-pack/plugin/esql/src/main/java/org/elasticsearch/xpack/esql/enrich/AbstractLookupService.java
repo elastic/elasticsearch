@@ -84,7 +84,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -230,16 +229,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         DataType inputDataType
     ) {
         return switch (inputDataType) {
-            case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
-            case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
-            case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
-            default -> QueryList.rawTermQueryList(
-                field,
-                searchExecutionContext,
-                aliasFilter,
-                channelOffset,
-                PlannerUtils.toElementType(inputDataType)
-            );
+            case IP -> QueryList.ipTermQueryList(field, aliasFilter, channelOffset);
+            case DATETIME -> QueryList.dateTermQueryList(field, aliasFilter, channelOffset);
+            case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, aliasFilter, channelOffset);
+            default -> QueryList.rawTermQueryList(field, aliasFilter, channelOffset, PlannerUtils.toElementType(inputDataType));
         };
     }
 
@@ -325,25 +318,23 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             // Determine optimization state
             BlockOptimization blockOptimization = executionMapper.determineOptimization(request.inputPage);
 
-            List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-
             // Phase 2: Build PhysicalOperation, a factory for Operators needed
             PhysicalOperation physicalOperation = executionMapper.buildOperatorFactories(
                 request,
                 physicalPlan,
                 shardContext,
                 warnings,
-                blockOptimization,
-                collectedPages
+                blockOptimization
             );
 
             // Phase 3: Build Operators
+            // The OutputOperatorFactory will get collectedPages from LookupDriverContext
             LookupQueryPlan lookupQueryPlan = executionMapper.buildOperators(
                 physicalOperation,
                 shardContext,
                 localBreaker,
-                collectedPages,
-                releasables
+                releasables,
+                request.inputPage
             );
 
             // Phase 4: Start Driver

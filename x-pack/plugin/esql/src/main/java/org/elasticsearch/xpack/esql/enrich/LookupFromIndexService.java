@@ -54,9 +54,9 @@ import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -73,6 +73,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     private static final TransportVersion ESQL_LOOKUP_JOIN_OPERATOR_SESSION_ID = TransportVersion.fromName(
         "esql_lookup_join_operator_session_id"
     );
+
+    // Thread-safe cache for PhysicalOperation by lookupSessionId
+    private final ConcurrentHashMap<String, PhysicalOperation> physicalOperationCache = new ConcurrentHashMap<>();
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -188,10 +191,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-            // Phase 1: Physical Planning
+
+            PhysicalOperation physicalOperation = buildPhysicalOperation(request, releasables);
+
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release());
-            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext);
 
             final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
                 blockFactory.breaker(),
@@ -200,35 +204,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             );
             releasables.add(localBreaker);
 
-            var warnings = Warnings.createWarnings(
-                DriverContext.WarningsMode.COLLECT,
-                request.source.source().getLineNumber(),
-                request.source.source().getColumnNumber(),
-                request.source.text()
-            );
-
-            // Determine optimization state
-            BlockOptimization blockOptimization = executionMapper.determineOptimization(request.inputPage);
-
-            List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-
-            // Phase 2: Build PhysicalOperation, a factory for Operators needed
-            PhysicalOperation physicalOperation = executionMapper.buildOperatorFactories(
-                request,
-                physicalPlan,
-                shardContext,
-                warnings,
-                blockOptimization,
-                collectedPages
-            );
-
             // Phase 3: Build Operators
+            // The OutputOperatorFactory will get collectedPages from LookupDriverContext
             LookupQueryPlan lookupQueryPlan = executionMapper.buildOperators(
                 physicalOperation,
                 shardContext,
                 localBreaker,
-                collectedPages,
-                releasables
+                releasables,
+                request.inputPage
             );
 
             // Phase 4: Start Driver
@@ -241,6 +224,57 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 Releasables.close(releasables);
             }
         }
+    }
+
+    PhysicalOperation buildPhysicalOperation(TransportRequest request, List<Releasable> releasables) throws IOException {
+        // Use cache if lookupSessionId is present, otherwise build directly
+        if (request.lookupSessionId != null) {
+            String sessionId = request.lookupSessionId;
+            return physicalOperationCache.computeIfAbsent(sessionId, id -> {
+                try {
+                    // When building for cache, use a temporary releasables list since these resources
+                    // are only needed for planning and will be cleaned up immediately
+                    List<Releasable> tempReleasables = new ArrayList<>();
+                    try {
+                        return buildPhysicalOperationInternal(request, tempReleasables);
+                    } finally {
+                        // Clean up planning resources immediately
+                        Releasables.close(tempReleasables);
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to build PhysicalOperation for session " + id, e);
+                }
+            });
+        } else {
+            return buildPhysicalOperationInternal(request, releasables);
+        }
+    }
+
+    private PhysicalOperation buildPhysicalOperationInternal(TransportRequest request, List<Releasable> releasables) throws IOException {
+        // Phase 1: Physical Planning
+        LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
+        releasables.add(shardContext.release());
+        PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext);
+
+        final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
+            blockFactory.breaker(),
+            localBreakerSettings.overReservedBytes(),
+            localBreakerSettings.maxOverReservedBytes()
+        );
+        releasables.add(localBreaker);
+
+        var warnings = Warnings.createWarnings(
+            DriverContext.WarningsMode.COLLECT,
+            request.source.source().getLineNumber(),
+            request.source.source().getColumnNumber(),
+            request.source.text()
+        );
+
+        // Determine optimization state
+        BlockOptimization blockOptimization = executionMapper.determineOptimization(request.inputPage);
+
+        // Phase 2: Build PhysicalOperation, a factory for Operators needed
+        return executionMapper.buildOperatorFactories(request, physicalPlan, shardContext, warnings, blockOptimization);
     }
 
     @Override

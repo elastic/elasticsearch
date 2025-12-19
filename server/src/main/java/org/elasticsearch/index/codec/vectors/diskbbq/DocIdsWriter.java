@@ -70,7 +70,7 @@ public final class DocIdsWriter {
         // check the tail
         if (i < count) {
             int offset = i;
-            var r = sortedAndMaxAndMin2Max(d -> docIds.apply(offset + d), blockSize);
+            var r = sortedAndMaxAndMin2Max(d -> docIds.apply(offset + d), count - i);
             continuousIds &= r[0] == 1;
             maxValue = Math.max(maxValue, r[1]);
             maxMin2Max = Math.max(maxMin2Max, r[2]);

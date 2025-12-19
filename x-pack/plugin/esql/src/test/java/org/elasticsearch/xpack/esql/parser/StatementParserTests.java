@@ -4225,7 +4225,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             .resolve("definition");
         Files.createDirectories(dir);
         Path file = dir.resolve("inline_cast.json");
-        try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd().startObject()) {
+        try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
+            report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
             if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
@@ -4245,7 +4246,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 assertThat(functionCall.dataType(), equalTo(expectedType));
                 report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()).toLowerCase(Locale.ROOT));
             }
-            String rendered = Strings.toString(report.endObject());
+            report.endObject();
+            String rendered = Strings.toString(report);
             (new TestInlineCastDocsSupport(rendered)).renderDocs();
         }
         logger.info("Wrote to file: {}", file);

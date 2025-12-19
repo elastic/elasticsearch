@@ -1067,6 +1067,13 @@ public class EsqlCapabilities {
         STATS_WITH_FILTERED_SURROGATE_FIXED,
 
         /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
          * https://github.com/elastic/elasticsearch/issues/137019.
          */

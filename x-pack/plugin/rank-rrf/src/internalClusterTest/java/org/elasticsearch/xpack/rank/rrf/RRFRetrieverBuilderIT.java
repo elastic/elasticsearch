@@ -38,12 +38,15 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.rank.FailingQueryPlugin;
+import org.elasticsearch.xpack.rank.ShardFailingQueryBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -64,7 +67,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(RRFRankPlugin.class);
+        return List.of(RRFRankPlugin.class, FailingQueryPlugin.class);
     }
 
     @Before
@@ -109,7 +112,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
               }
             }
             """;
-        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5)).build());
+        int shardCount = randomIntBetween(1, 5);
+        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardCount).build());
         admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
         indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term");
         indexDoc(
@@ -856,5 +860,59 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
+    }
+
+    public void testRRFRetrieverPartialSearchErrorsFalse() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder failingRetriever = new StandardRetrieverBuilder(new ShardFailingQueryBuilder());
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+
+        // a failure should throw an exception when partial results are not allowed
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setAllowPartialSearchResults(false).setSource(source);
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertTrue(ex.getSuppressed()[0].toString().contains("simulated failure"));
+    }
+
+    public void testRRFRetrieverPartialSearchErrorsTrue() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder failingRetriever = new StandardRetrieverBuilder(new ShardFailingQueryBuilder());
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+
+        // when partial search results are allowed we should instead get a result and for now ignore partial failures
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setAllowPartialSearchResults(true).setSource(source);
+
+        long shardCount = Objects.requireNonNull(client().admin().indices().prepareStats(INDEX).get().getPrimaries().getShards())
+            .getTotalCount();
+
+        if (shardCount == 1) {
+            Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+            assertTrue(ex.getSuppressed()[0].toString().contains("simulated failure"));
+        } else {
+            assertResponse(req, searchResponse -> { assertEquals(shardCount / 2 + shardCount % 2, searchResponse.getFailedShards()); });
+        }
     }
 }

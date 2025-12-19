@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
-```{applies_to}
-stack: ga 9.2.3
-```
 
 ### Features and enhancements [elasticsearch-9.2.3-features-enhancements]
 
@@ -87,9 +84,7 @@ Vector Search:
 
 
 ## 9.1.9 [elasticsearch-9.1.9-release-notes]
-```{applies_to}
-stack: ga 9.1.9
-```
+
 ### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
 Infra/Core:
 * Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)

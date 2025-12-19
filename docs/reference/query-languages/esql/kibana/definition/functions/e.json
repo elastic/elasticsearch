@@ -6,6 +6,7 @@
   "signatures" : [
     {
       "params" : [ ],
+      "variadic" : false,
       "returnType" : "double"
     }
   ],

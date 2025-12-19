@@ -50,6 +50,7 @@ The [Reference](./semantic-text-reference.md) section provides technical referen
 - [Parameters](./semantic-text-reference.md#semantic-text-params): Parameter descriptions for `semantic_text` fields.
 - [{{infer-cap}} endpoints](./semantic-text-reference.md#configuring-inference-endpoints): Overview of {{infer}} endpoints used with `semantic_text` fields.
 - [Chunking](./semantic-text-reference.md#chunking-behavior): How `semantic_text` automatically processes long text passages by generating smaller chunks.
+- [Pre-filtering for dense vector queries](./semantic-text-reference.md#pre-filtering-for-dense-vector-queries): Automatic pre-filtering behavior for dense vector queries on `semantic_text` fields.
 - [Limitations](./semantic-text-reference.md#limitations): Current limitations of `semantic_text` fields.
 - [Document count discrepancy](./semantic-text-reference.md#document-count-discrepancy): Understanding document counts in `_cat/indices` for indices with `semantic_text` fields.
 - [Querying `semantic_text` fields](./semantic-text-search-retrieval.md#querying-semantic-text-fields): Supported query types for `semantic_text` fields.

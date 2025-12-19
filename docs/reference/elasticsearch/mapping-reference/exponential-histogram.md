@@ -13,37 +13,42 @@ An exponential histogram field has the following structure:
 
 ```text
 {
-  "scale": <int>,                                  // required, in range [-11, 38]
-  "sum": <double>,                                 // optional; estimated if omitted; must be 0.0 or omitted for empty histograms
-  "min": <double>,                                 // optional; estimated if omitted; must be null or omitted for empty histograms
-  "max": <double>,                                 // optional; estimated if omitted; must be null or omitted for empty histograms
-  "zero": {                                        // optional; can be omitted if threshold and count are the default values
-    "threshold": <double, non-negative>,           // optional; default 0.0
-    "count": <long, non-negative>                  // optional; default 0
+  "scale": <int>,
+  "sum": <double>,
+  "min": <double>,
+  "max": <double>,
+  "zero": {
+    "threshold": <double, non-negative>,
+    "count": <long, non-negative>
   },
-  "positive": {                                    // optional
-    "indices": [<long>...],                        // unique, preferably sorted; each in range [-((2^62) - 1), (2^62) - 1]
-    "counts":  [<long>...]                         // same length as indices; each > 0
+  "positive": {
+    "indices": [<long>...],
+    "counts":  [<long>...]
   },
-  "negative": {                                    // optional
-    "indices": [<long>...],                        // same constraints as positive.indices
-    "counts":  [<long>...]                         // same constraints as positive.counts
+  "negative": {
+    "indices": [<long>...],
+    "counts":  [<long>...]
   }
 }
 ```
 
-The `scale` controls the bucket density and precision. Larger scales produce finer buckets.
+The `scale` controls the bucket density and precision. Larger scales produce finer buckets. Must be in the range `[-11, 38]`.
+
 Exponential histograms can represent both positive and negative values, which are split into separate bucket ranges.
 Each bucket range is an object with two parallel arrays:
-- `indices`: array of the bucket indices defining the bucket boundaries
-- `counts`: array of counts for the corresponding buckets
+- `indices`: array of the bucket indices defining the bucket boundaries. Each value must be in the range `[-((2^62) - 1), (2^62) - 1]`.
+- `counts`: array of counts for the corresponding buckets. Must have the same length as `indices`, each value must be `>= 0`.
+
+If either `positive` or `negative` is omitted, it is treated as an empty set of buckets.
 
 See the ["Bucket boundaries and scale"](#exponential-histogram-buckets) section below for how bucket indices map to value ranges.
 The indices should be provided in sorted order. Unsorted indices are supported, but will incur a performance penalty during indexing.
 
 In order to represent zero values or values close to zero, there is a special `zero` bucket, which consists of:
-  - `threshold`: that defines the upper bound considered "zero".
-  - `count`: number of values in the zero bucket.
+  - `threshold`: that defines the upper bound considered "zero". Must be non-negative. Defaults to `0.0`.
+  - `count`: number of values in the zero bucket. Defaults to `0`.
+
+The `zero` object can be omitted, in that case `threshold` and `count` are set to their default values.
 
 Optionally, you can include precomputed summary statistics:
 
@@ -52,13 +57,14 @@ Optionally, you can include precomputed summary statistics:
 - `max`: The maximum value in the histogram
 
 When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these values during indexing.
+If the histogram is empty (no positive/negative buckets and zero count is `0`), then `sum` must be `0.0` or omitted, and `min` and `max` must be omitted or `null`.
 
 ::::{important}
 - An `exponential_histogram` field is single-valued: one histogram per field per document. Nested arrays are not supported.
 - `exponential_histogram` fields are not searchable and do not support sorting.
 ::::
 
-## Uses [exponential-histogram-uses]
+## Use cases [exponential-histogram-use-cases]
 
 `exponential_histogram` fields are primarily intended for use with aggregations. To make them efficient for aggregations, the histogram is stored as compact [doc values](/reference/elasticsearch/mapping-reference/doc-values.md) and not indexed.
 

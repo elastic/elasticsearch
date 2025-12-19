@@ -107,6 +107,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -343,11 +344,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.clusterService = clusterService;
         this.clusterFormationClusterStateView = new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
             null,
-            null,
+            Collections.emptyMap(),
             0,
             0,
-            null,
-            null,
+            EMPTY_CONFIG,
+            EMPTY_CONFIG,
             0
         );
     }
@@ -379,12 +380,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private void updateClusterFormationClusterStateView() {
         ClusterState currentClusterState = coordinationState.get().getLastAcceptedState();
         clusterFormationClusterStateView = new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
-            currentClusterState.nodes().getLocalNode(),
-            currentClusterState.nodes().getMasterNodes(),
-            currentClusterState.version(),
-            currentClusterState.term(),
-            currentClusterState.getLastAcceptedConfiguration(),
-            currentClusterState.getLastCommittedConfiguration(),
+            currentClusterState,
             getCurrentTerm()
         );
     }

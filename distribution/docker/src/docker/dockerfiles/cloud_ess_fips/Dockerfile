@@ -163,7 +163,7 @@ RUN printf "\\n" | jdk/bin/keytool -importkeystore \
   -deststorepass passwordcacert \
   -deststoretype BCFKS \
   -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
-  -providerpath lib/bc-fips-1.0.2.6.jar \
+  -providerpath lib/bc-fips-${bc_fips_version}.jar \
   -destprovidername BCFIPS
 
 

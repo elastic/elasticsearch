@@ -21,6 +21,8 @@ dependencies {
   }
 }
 
+// A static reference to the Vector API would cause an unsuppressible warning
+// in downstream builds, so we add the required module read edge dynamically.
 tasks.named('compileJava').configure {
   options.compilerArgs << '--add-modules=jdk.incubator.vector'
   options.compilerArgs << '--add-reads=org.elasticsearch.swisshash=jdk.incubator.vector'

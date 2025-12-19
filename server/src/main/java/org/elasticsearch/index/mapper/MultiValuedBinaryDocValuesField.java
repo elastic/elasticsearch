@@ -99,7 +99,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
-         * Encodes the collection of BytesRef into a single BytesRef. Unlike Integegrated counts, the number of values is not stored, and
+         * Encodes the collection of BytesRef into a single BytesRef. Unlike IntegratedCount, the number of values is not stored, and
          * if there is only a single value, the length is not stored.
          * For multiple values, the format is: [length of value 1][value 1][length of value 2][value 2]...
          * For a single value, the format is: [value 1]
@@ -111,7 +111,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
                 if (docValuesCount == 1) {
-                    BytesRef value = uniqueValues.stream().findFirst().get();
+                    BytesRef value = uniqueValues.iterator().next();
                     out.writeBytes(value.bytes, value.offset, value.length);
                 } else {
                     writeLenAndValues(out);

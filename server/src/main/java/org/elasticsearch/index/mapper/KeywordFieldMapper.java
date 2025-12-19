@@ -1374,12 +1374,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
 
-            var field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getField(fieldType().name());
+            var field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getByKey(fieldType().name());
             var countField = (NumericDocValuesField) context.doc().getByKey(fieldType().name() + COUNT_FIELD_SUFFIX);
             if (field == null) {
                 field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder(fieldType().name());
                 context.doc().addWithKey(fieldType().name(), field);
-                countField = new NumericDocValuesField(field.countFieldName(), -1); // dummy value
+                countField = NumericDocValuesField.indexedField(field.countFieldName(), -1); // dummy value
                 context.doc().addWithKey(countField.name(), countField);
             }
 

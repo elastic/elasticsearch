@@ -24,11 +24,10 @@ import java.io.IOException;
  */
 public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
 
-    protected final ByteArrayStreamInput in = new ByteArrayStreamInput();
-    protected final BytesRef scratch = new BytesRef();
-
-    protected final BinaryDocValues values;
-    protected int count;
+    final ByteArrayStreamInput in = new ByteArrayStreamInput();
+    final BytesRef scratch = new BytesRef();
+    final BinaryDocValues values;
+    int count;
 
     private MultiValuedSortedBinaryDocValues(BinaryDocValues values) {
         this.values = values;

@@ -175,11 +175,11 @@ Exponential histograms use exponentially growing bucket widths. All bucket bound
 
 - The base is defined via the `scale` as follows:
   :::{math}
-  $\text{base} = 2^{2^{-\text{scale}}}$.
+  \text{base} = 2^{2^{-\text{scale}}}
   :::
 - The positive bucket with the index `i` covers the interval
   :::{math}
-  \text{base}^i,\; \text{base}^{i+1}]
+  (\text{base}^i,\; \text{base}^{i+1}]
   :::
 - The negative bucket with the index `i` covers the interval
   :::{math}

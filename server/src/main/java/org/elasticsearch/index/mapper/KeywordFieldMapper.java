@@ -40,8 +40,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -1326,7 +1324,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
-                        field = new MultiValuedBinaryDocValuesField(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
+                        Collection<BytesRef> valueCollection = keepDuplicatesInBinaryDocValues() ? new ArrayList<>() : new LinkedHashSet<>();
+                        field = new MultiValuedBinaryDocValuesField(fieldName, valueCollection);
                         context.doc().addWithKey(fieldName, field);
                     }
                     field.add(bytesRef);
@@ -1374,7 +1373,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             assert fieldType.docValuesType() == DocValuesType.NONE;
             MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getField(fieldType().name());
             if (field == null) {
-                field = new MultiValuedBinaryDocValuesField(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
+                field = new MultiValuedBinaryDocValuesField(fieldType().name(), new TreeSet<>());
                 context.doc().addWithKey(fieldType().name(), field);
             }
             field.add(binaryValue);
@@ -1397,6 +1396,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private boolean storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck() {
         return indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
+    }
+
+    /**
+     * To be as true as possible to the provided source, we should NOT be deduplicating any values. As a result, in new indices, we will
+     * keep duplicates.
+     *
+     * This mirrors how text and match only text fields support synthetic source.
+     */
+    private boolean keepDuplicatesInBinaryDocValues() {
+        return indexCreatedVersion.onOrAfter(IndexVersions.KEYWORD_FIELDS_KEEP_DUPLICATES_IN_BINARY_DOC_VALUES);
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
@@ -1541,56 +1550,4 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 
-    /**
-     * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
-     * binary doc values for fields with multiple values per document.
-     */
-    private static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
-        enum Ordering {
-            INSERTION,
-            NATURAL
-        }
-
-        private final Set<BytesRef> uniqueValues;
-        private int docValuesByteCount = 0;
-
-        MultiValuedBinaryDocValuesField(String name, Ordering ordering) {
-            super(name);
-
-            uniqueValues = switch (ordering) {
-                case INSERTION -> new LinkedHashSet<>();
-                case NATURAL -> new TreeSet<>();
-            };
-        }
-
-        public void add(BytesRef value) {
-            if (uniqueValues.add(value)) {
-                // might as well track these on the go as opposed to having to loop through all entries later
-                docValuesByteCount += value.length;
-            }
-        }
-
-        /**
-         * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}. This array takes
-         * the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
-         */
-        @Override
-        public BytesRef binaryValue() {
-            int docValuesCount = uniqueValues.size();
-            // the + 1 is for the total doc values count, which is prefixed at the start of the array
-            int streamSize = docValuesByteCount + (docValuesCount + 1) * Integer.BYTES;
-
-            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                out.writeVInt(docValuesCount);
-                for (BytesRef value : uniqueValues) {
-                    int valueLength = value.length;
-                    out.writeVInt(valueLength);
-                    out.writeBytes(value.bytes, value.offset, valueLength);
-                }
-                return out.bytes().toBytesRef();
-            } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get binary value", e);
-            }
-        }
-    }
 }

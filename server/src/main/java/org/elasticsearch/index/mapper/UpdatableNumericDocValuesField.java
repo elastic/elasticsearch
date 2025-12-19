@@ -21,7 +21,7 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.Reader;
 
-public class UpdatableNumericDocValuesField  implements IndexableField {
+public class UpdatableNumericDocValuesField implements IndexableField {
 
     public static final FieldType TYPE;
 

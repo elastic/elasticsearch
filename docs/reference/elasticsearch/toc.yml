@@ -153,6 +153,7 @@ toc:
           - file: mapping-reference/date.md
           - file: mapping-reference/date_nanos.md
           - file: mapping-reference/dense-vector.md
+          - file: mapping-reference/gpu-vector-indexing.md
           - file: mapping-reference/flattened.md
           - file: mapping-reference/geo-point.md
           - file: mapping-reference/geo-shape.md

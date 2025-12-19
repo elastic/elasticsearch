@@ -15,7 +15,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -66,7 +65,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         "_name",
                         queryStore,
                         Collections.emptyList(),
-                        new MatchAllDocsQuery(),
+                        Queries.ALL_DOCS_INSTANCE,
                         memoryIndex.createSearcher(),
                         null,
                         Queries.NO_DOCS_INSTANCE
@@ -97,7 +96,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         "_name",
                         queryStore,
                         Collections.emptyList(),
-                        new MatchAllDocsQuery(),
+                        Queries.ALL_DOCS_INSTANCE,
                         memoryIndex.createSearcher(),
                         null,
                         Queries.NO_DOCS_INSTANCE
@@ -127,7 +126,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                         "_name",
                         queryStore,
                         Collections.emptyList(),
-                        new MatchAllDocsQuery(),
+                        Queries.ALL_DOCS_INSTANCE,
                         memoryIndex.createSearcher(),
                         null,
                         Queries.NO_DOCS_INSTANCE

@@ -257,6 +257,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     @Override
     public void postAnalysisVerification(Failures failures) {
         LogicalPlan p = promqlPlan();
+        if (isInstantQuery()) {
+            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
+            return;
+        }
         if (p instanceof AcrossSeriesAggregate == false) {
             failures.add(fail(p, "only aggregations across timeseries are supported at this time (found [{}])", p.sourceText()));
         }

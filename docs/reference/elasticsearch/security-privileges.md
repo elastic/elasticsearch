@@ -125,7 +125,7 @@ When creating roles, refer to this page for a complete list of available privile
 `manage_pipeline`
 :   All operations on ingest pipelines.
 
-`manage_reindex` {applies_to}`TBD DO NOT MERGE`
+`manage_reindex` {applies_to}`TODO fill this in DO NOT MERGE`
 :   All operations on reindex tasks, including listing, getting status, cancelling, and rethrottling
 
 `manage_rollup` {applies_to}`serverless: unavailable`
@@ -193,7 +193,7 @@ When creating roles, refer to this page for a complete list of available privile
 `monitor_rollup` {applies_to}`serverless: unavailable`
 :   All read-only rollup operations, such as viewing the list of historical and currently running rollup jobs and their capabilities.
 
-`monitor_reindex` {applies_to}`TBD DO NOT MERGE`
+`monitor_reindex` {applies_to}`TODO fill this in DO NOT MERGE`
 :   All read-only operations on reindex tasks, including listing and getting status
 
 `monitor_snapshot` {applies_to}`serverless: unavailable`

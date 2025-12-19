@@ -111,10 +111,10 @@ $$$built-in-roles-ml-user$$$ `machine_learning_user`
 $$$built-in-roles-monitoring-user$$$ `monitoring_user`
 :   Grants the minimum privileges required for any user of {{monitoring}} other than those required to use {{kib}}. This role grants access to the monitoring indices and grants privileges necessary for reading basic cluster information. This role also includes all [Kibana privileges](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kibana-privileges.md) for the {{stack-monitor-features}}. Monitoring users should also be assigned the `kibana_admin` role, or another role with [access to the {{kib}} instance](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/built-in-roles.md).
 
-$$$built-in-roles-reporting-admin$$$ `reindex_admin` {applies_to}`TBD DO NOT MERGE`
+$$$built-in-roles-reporting-admin$$$ `reindex_admin` {applies_to}`TODO fill this in DO NOT MERGE`
 :   Allows users to manage reindex tasks, including getting, listing, cancelling, and rethrottling them.
 
-$$$built-in-roles-reporting-user$$$ `reindex_user` {applies_to}`TBD DO NOT MERGE`
+$$$built-in-roles-reporting-user$$$ `reindex_user` {applies_to}`TODO fill this in DO NOT MERGE`
 :   Allows users to monitor reindex tasks, including getting abd listing them.
 
 $$$built-in-roles-remote-monitoring-agent$$$ `remote_monitoring_agent`

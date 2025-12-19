@@ -72,7 +72,10 @@ public class TransportCancelReindexAction extends TransportTasksAction<
     protected List<CancellableTask> processTasks(final CancelReindexRequest request) {
         final TaskId requestedTaskId = request.getTargetTaskId();
         final CancellableTask requestedTask = taskManager.getCancellableTask(requestedTaskId.getId());
-        final ReasonTaskCannotBeCancelled reason = reasonForTaskNotBeingEligibleForCancellation(requestedTask, projectResolver.getProjectId());
+        final ReasonTaskCannotBeCancelled reason = reasonForTaskNotBeingEligibleForCancellation(
+            requestedTask,
+            projectResolver.getProjectId()
+        );
         if (reason != null) {
             LOG.debug("Task not eligible for cancellation. reason={}", reason);
             return List.of();
@@ -134,8 +137,10 @@ public class TransportCancelReindexAction extends TransportTasksAction<
 
     // visible for testing
     @Nullable
-    static ReasonTaskCannotBeCancelled reasonForTaskNotBeingEligibleForCancellation(@Nullable final CancellableTask task,
-                                                                                    final ProjectId requestProjectId) {
+    static ReasonTaskCannotBeCancelled reasonForTaskNotBeingEligibleForCancellation(
+        @Nullable final CancellableTask task,
+        final ProjectId requestProjectId
+    ) {
         if (task == null) {
             return ReasonTaskCannotBeCancelled.MISSING;
         } else if (ReindexAction.NAME.equals(task.getAction()) == false) {

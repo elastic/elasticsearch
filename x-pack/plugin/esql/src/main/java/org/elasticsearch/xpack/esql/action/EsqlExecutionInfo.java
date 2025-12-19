@@ -90,11 +90,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
 
-    // start time for the ESQL query for calculating time spans relative to the beginning of the query
     private final transient TimeSpan.Builder relativeStart;
-    private transient TimeSpan overallTimeSpan;
-    private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
+    private final PlanningProfile planningProfile;
     private TimeValue overallTook;
+    private transient TimeSpan overallTimeSpan;
 
     // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
     private transient boolean inSubplan = false;
@@ -118,6 +117,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.skipOnFailurePredicate = skipOnPlanTimeFailurePredicate;
         this.includeExecutionMetadata = includeExecutionMetadata;
         this.relativeStart = relativeStart;
+        this.planningProfile = new PlanningProfile();
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
@@ -133,7 +133,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.relativeStart = null;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
-            this.planningTimeSpan = in.readOptional(TimeSpan::readFrom);
+            this.planningProfile = PlanningProfile.readFrom(in);
+        } else {
+            this.planningProfile = new PlanningProfile();
         }
     }
 
@@ -153,8 +155,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         out.writeBoolean(isPartial);
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             out.writeOptionalWriteable(overallTimeSpan);
-            out.writeOptionalWriteable(planningTimeSpan);
+            planningProfile.writeTo(out);
         }
+
         assert inSubplan == false : "Should not be serializing execution info while in subplans";
     }
 
@@ -168,25 +171,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * Call when ES|QL "planning" phase is complete and query execution (in ComputeService) is about to start.
-     * Note this is currently only built for a single phase planning/execution model. When INLINE STATS
-     * moves towards GA we may need to revisit this model. Currently, it should never be called more than once.
-     */
-    public void markEndPlanning() {
-        assert planningTimeSpan == null : "markEndPlanning should only be called once";
-        assert relativeStart != null : "Relative start time must be set when markEndPlanning is called";
-        planningTimeSpan = relativeStart.stop();
-    }
-
-    public TimeValue planningTookTime() {
-        return planningTimeSpan != null ? planningTimeSpan.toTimeValue() : null;
-    }
-
-    /**
      * Call when ES|QL execution is complete in order to set the overall took time for an ES|QL query.
      */
     public void markEndQuery() {
-        assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
         if (isMainPlan()) {
             overallTimeSpan = relativeStart.stop();
             overallTook = overallTimeSpan.toTimeValue();
@@ -212,12 +199,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return overallTimeSpan;
     }
 
-    public TimeSpan planningTimeSpan() {
-        return planningTimeSpan;
-    }
-
     public Set<String> clusterAliases() {
         return clusterInfo.keySet();
+    }
+
+    public PlanningProfile planningProfile() {
+        return planningProfile;
     }
 
     /**

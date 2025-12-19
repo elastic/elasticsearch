@@ -476,7 +476,7 @@ public class SearchApplicationIndexService {
 
     static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in, String[] indices) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        assert TransportVersion.current().supports(version) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
         return new SearchApplication(in, indices);
     }

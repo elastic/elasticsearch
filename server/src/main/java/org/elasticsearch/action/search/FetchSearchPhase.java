@@ -277,6 +277,9 @@ class FetchSearchPhase extends SearchPhase {
         boolean dataNodeSupports = false;
         boolean isCCSQuery = false;
         boolean remoteDataNodeRequest = false;
+        boolean isScrollOrReindex = false;
+
+
         if (connection != null) {
             // Check if this is a local request (coordinator == data node)
             remoteDataNodeRequest = connection.getNode()
@@ -286,6 +289,7 @@ class FetchSearchPhase extends SearchPhase {
             TransportVersion dataNodeVersion = connection.getTransportVersion();
             dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
             isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection || shardTarget.getClusterAlias() != null;
+            isScrollOrReindex = context.getRequest().scroll() != null || shardFetchRequest.getShardSearchRequest().scroll() != null;
 
             if (logger.isTraceEnabled()) {
                 logger.info(
@@ -304,19 +308,12 @@ class FetchSearchPhase extends SearchPhase {
             }
         }
 
-        boolean isScrollOrReindex = context.getRequest().scroll() != null || shardFetchRequest.getShardSearchRequest().scroll() != null;
-
-        // Use chunked fetch for remote requests (not local, not CCS)
         if (fetchPhaseChunked && remoteDataNodeRequest && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
-
-            DiscoveryNode targetNode = connection.getNode();
-
-            // Execute via coordination action
             fetchCoordinationAction.execute(
                 context.getTask(),
-                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, targetNode),
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),
                 ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
             );
         } else {

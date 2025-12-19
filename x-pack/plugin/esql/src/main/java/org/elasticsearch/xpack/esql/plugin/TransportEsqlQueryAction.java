@@ -55,11 +55,11 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
-import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -381,8 +381,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> result) {
-        var innerResult = result.inner();
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, EsqlSession.ExecutionResult result) {
+        var innerResult = result.result().inner();
         List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
@@ -398,7 +398,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ? new EsqlQueryResponse.Profile(
                 innerResult.completionInfo().driverProfiles(),
                 innerResult.completionInfo().planProfiles(),
-                result.minimumVersion()
+                result.result().minimumVersion()
             )
             : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
@@ -413,6 +413,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 asyncExecutionId,
                 false,
                 request.async(),
+                result.zoneId(),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
                 innerResult.executionInfo()
@@ -426,6 +427,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             profile,
             request.columnar(),
             request.async(),
+            result.zoneId(),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
             innerResult.executionInfo()
@@ -493,6 +495,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             asyncExecutionId,
             true, // is_running
             true, // isAsync
+            ZoneOffset.UTC,
             task.getStartTime(),
             task.getExpirationTimeMillis(),
             task.executionInfo()

@@ -1058,7 +1058,7 @@ date:date                 | year:long
 ;
 
 dateExtractSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="+07:00"\;
 from employees
@@ -1073,7 +1073,7 @@ emp_no:integer | hire_date:date           | hour:long
 ;
 
 dateExtractSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="+07:00"\;
 ROW hire_date = "2020-02-28T23:00:00.000Z"::date
@@ -1529,7 +1529,7 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 ;
 
 dayNameSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-02:00"\;
 row dt = to_datetime("1953-09-02T00:00:00.000Z")
@@ -1540,7 +1540,7 @@ dt:date   | weekday:keyword
 ;
 
 dayNameSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-02:00"\;
 from employees
@@ -1651,7 +1651,7 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 ;
 
 monthNameSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="Europe/Paris"\;
 row dt = to_datetime("1996-01-31T23:00:00.000Z")
@@ -1662,7 +1662,7 @@ dt:date                  | monthName:keyword
 ;
 
 monthNameSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-10:00"\;
 from employees 

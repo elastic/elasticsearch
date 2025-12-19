@@ -12,6 +12,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -55,6 +56,7 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
             getExecutionId().getEncoded(),
             true,
             true,
+            ZoneOffset.UTC,
             getStartTime(),
             getExpirationTimeMillis(),
             executionInfo

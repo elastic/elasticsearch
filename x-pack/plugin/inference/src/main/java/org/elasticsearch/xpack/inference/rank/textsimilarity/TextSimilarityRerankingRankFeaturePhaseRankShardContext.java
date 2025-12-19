@@ -53,10 +53,9 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         .map(offset -> { return docField.getValue().toString().substring(offset.start(), offset.end()); })
                         .toList();
 
-                    List<String> bestChunks;
                     MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
                     List<ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, chunkScorerConfig.inferenceText(), size, true);
-                    bestChunks = scoredChunks.stream().map(ScoredChunk::content).limit(size).toList();
+                    List<String> bestChunks = scoredChunks.stream().map(ScoredChunk::content).limit(size).toList();
                     rankFeatureDocs[i].featureData(bestChunks);
 
                 } else {

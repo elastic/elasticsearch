@@ -37,7 +37,7 @@ public class RestCancelReindexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_reindex/{task_id}/_cancel"));
+        return List.of(new Route(POST, "/_reindex/{taskId}/_cancel"));
     }
 
     @Override
@@ -50,7 +50,7 @@ public class RestCancelReindexAction extends BaseRestHandler {
         if (clusterSupportsFeature.test(ReindexManagementFeatures.NEW_ENDPOINTS) == false) {
             throw new IllegalArgumentException("endpoint not supported on all nodes in the cluster");
         }
-        final String taskIdParam = request.param("task_id");
+        final String taskIdParam = request.param("taskId");
         final TaskId taskId = new TaskId(taskIdParam);
         if (taskId.isSet() == false) {
             throw new IllegalArgumentException("invalid taskId provided: " + taskIdParam);

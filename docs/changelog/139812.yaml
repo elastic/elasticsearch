@@ -1,4 +1,4 @@
-pr: 137519
+pr: 139812
 summary: Add VoyageAI multimodal embeddings support with new embedding task type
 area: Machine Learning
 type: enhancement

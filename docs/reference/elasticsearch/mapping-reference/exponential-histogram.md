@@ -3,8 +3,6 @@ applies_to:
   stack: preview 9.3
   serverless: preview
 navigation_title: "Exponential histogram"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/exponential-histogram.html
 ---
 
 # Exponential histogram field type [exponential-histogram]

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Request;
 
@@ -59,9 +59,10 @@ public class ScheduleNowTransformActionRequestTests extends AbstractWireSerializ
 
     public void testMatch() {
         Request request = new Request("my-transform-7", TimeValue.timeValueSeconds(5));
-        assertTrue(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-7", null, null)));
-        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-", null, null)));
-        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-77", null, null)));
-        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "my-transform-7", null, null)));
+        assertTrue(request.match(new FakeTransformTask(123, "", "", "data_frame_my-transform-7", null, null)));
+        assertFalse(request.match(new FakeTransformTask(123, "", "", "data_frame_my-transform-", null, null)));
+        assertFalse(request.match(new FakeTransformTask(123, "", "", "data_frame_my-transform-77", null, null)));
+        assertFalse(request.match(new FakeTransformTask(123, "", "", "my-transform-7", null, null)));
+        assertFalse(request.match(new Task(123, "", "", "data_frame_my-transform-7", null, null)));
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -57,7 +58,11 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_SINGLE_FAILED_TRANSFORM;
 
-public class TransformTask extends AllocatedPersistentTask implements TransformScheduler.Listener, TransformContext.Listener {
+public class TransformTask extends AllocatedPersistentTask
+    implements
+        TransformScheduler.Listener,
+        TransformContext.Listener,
+        PutTransformAction.TransformTaskMatcher {
 
     // Default interval the scheduler sends an event if the config does not specify a frequency
     private static final Logger logger = LogManager.getLogger(TransformTask.class);

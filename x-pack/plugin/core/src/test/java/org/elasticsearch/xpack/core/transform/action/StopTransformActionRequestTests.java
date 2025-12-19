@@ -66,14 +66,15 @@ public class StopTransformActionRequestTests extends AbstractWireSerializingTest
     public void testMatch() {
         String transformId = "transform-id";
 
-        Task transformTask = new Task(
+        Task transformTask = new FakeTransformTask(
             1L,
             "persistent",
             "action",
             TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId,
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
-        );
+        ) {
+        };
 
         Request request = new Request("unrelated", false, false, null, false, false);
         request.setExpandedIds(Set.of("foo", "bar"));

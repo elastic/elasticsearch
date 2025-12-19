@@ -173,9 +173,18 @@ To reject legacy input, disable coercion on the field mapping or at the index le
 
 Exponential histograms use exponentially growing bucket widths. All bucket boundaries are derived from a base and an integer bucket index:
 
-- The base is defined via the `scale` as $\text{base} = 2^{2^{-\text{scale}}}$.
-- The positive bucket with the index $i$ covers the interval $(\text{base}^i,\; \text{base}^{i+1}]$.
-- The negative bucket with the index $i$ covers the interval $[-\text{base}^{i+1},\; -\text{base}^i)$.
+- The base is defined via the `scale` as follows:
+  :::{math}
+  $\text{base} = 2^{2^{-\text{scale}}}$.
+  :::
+- The positive bucket with the index `i` covers the interval
+  :::{math}
+  \text{base}^i,\; \text{base}^{i+1}]
+  :::
+- The negative bucket with the index `i` covers the interval
+  :::{math}
+  [-\text{base}^{i+1},\; -\text{base}^i)
+  :::
 - Values with absolute value less than or equal to `zero.threshold` belong to the special zero bucket.
 
 Changing the scale adjusts bucket widths:

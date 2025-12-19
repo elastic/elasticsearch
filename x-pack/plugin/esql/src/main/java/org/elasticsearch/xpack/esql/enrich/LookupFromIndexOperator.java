@@ -31,35 +31,35 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
 // TODO rename package
-public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
+public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
 
     public static class Factory implements OperatorFactory {
-        private final List<MatchConfig> matchFields;
-        private final String sessionId;
-        private final String lookupSessionId;
-        private final CancellableTask parentTask;
-        private final int maxOutstandingRequests;
-        private final Function<DriverContext, LookupFromIndexService> lookupService;
-        private final String lookupIndexPattern;
-        private final String lookupIndex;
-        private final List<NamedExpression> loadFields;
-        private final Source source;
-        private final PhysicalPlan rightPreJoinPlan;
-        private final Expression joinOnConditions;
+        protected final List<MatchConfig> matchFields;
+        protected final String sessionId;
+        protected final CancellableTask parentTask;
+        protected final int maxOutstandingRequests;
+        protected final Function<DriverContext, LookupFromIndexService> lookupService;
+        protected final String lookupIndexPattern;
+        protected final String lookupIndex;
+        protected final List<NamedExpression> loadFields;
+        protected final Source source;
+        protected final PhysicalPlan rightPreJoinPlan;
+        protected final Expression joinOnConditions;
 
         public Factory(
             List<MatchConfig> matchFields,
             String sessionId,
-            String lookupSessionId,
             CancellableTask parentTask,
             int maxOutstandingRequests,
             Function<DriverContext, LookupFromIndexService> lookupService,
@@ -72,7 +72,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         ) {
             this.matchFields = matchFields;
             this.sessionId = sessionId;
-            this.lookupSessionId = lookupSessionId;
             this.parentTask = parentTask;
             this.maxOutstandingRequests = maxOutstandingRequests;
             this.lookupService = lookupService;
@@ -107,7 +106,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return new LookupFromIndexOperator(
                 matchFields,
                 sessionId,
-                lookupSessionId,
                 driverContext,
                 parentTask,
                 maxOutstandingRequests,
@@ -122,26 +120,25 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         }
     }
 
-    private final LookupFromIndexService lookupService;
-    private final String sessionId;
-    private final String lookupSessionId;
-    private final CancellableTask parentTask;
-    private final String lookupIndexPattern;
-    private final String lookupIndex;
-    private final List<NamedExpression> loadFields;
-    private final Source source;
-    private long totalRows = 0L;
-    private final List<MatchConfig> matchFields;
-    private final PhysicalPlan rightPreJoinPlan;
-    private final Expression joinOnConditions;
+    protected final LookupFromIndexService lookupService;
+    protected final String sessionId;
+    protected final CancellableTask parentTask;
+    protected final String lookupIndexPattern;
+    protected final String lookupIndex;
+    protected final List<NamedExpression> loadFields;
+    protected final Source source;
+    protected long totalRows = 0L;
+    protected final List<MatchConfig> matchFields;
+    protected final PhysicalPlan rightPreJoinPlan;
+    protected final Expression joinOnConditions;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
-    private long emittedPages = 0L;
+    protected long emittedPages = 0L;
     /**
      * Total number of rows emitted by this {@link Operator}.
      */
-    private long emittedRows = 0L;
+    protected long emittedRows = 0L;
     /**
      * The ongoing join or {@code null} none is ongoing at the moment.
      */
@@ -150,7 +147,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     public LookupFromIndexOperator(
         List<MatchConfig> matchFields,
         String sessionId,
-        String lookupSessionId,
         DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
@@ -165,7 +161,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.matchFields = matchFields;
         this.sessionId = sessionId;
-        this.lookupSessionId = lookupSessionId;
         this.parentTask = parentTask;
         this.lookupService = lookupService;
         this.lookupIndexPattern = lookupIndexPattern;
@@ -176,35 +171,60 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.joinOnConditions = joinOnConditions;
     }
 
-    @Override
-    protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
+    /**
+     * Stage 1: Build reindexed match fields and channel mapping from original matchFields.
+     * Returns a tuple of (reindexed match fields, map from new channel index to original input page channel offset).
+     */
+    protected MatchFieldsMapping buildMatchFieldsMapping() {
         List<MatchConfig> newMatchFields = new ArrayList<>();
         List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields);
-        Block[] inputBlockArray = new Block[uniqueMatchFields.size()];
+        Map<Integer, Integer> channelMapping = new HashMap<>();
         for (int i = 0; i < uniqueMatchFields.size(); i++) {
             MatchConfig matchField = uniqueMatchFields.get(i);
             int inputChannel = matchField.channel();
-            final Block inputBlock = inputPage.getBlock(inputChannel);
-            inputBlockArray[i] = inputBlock;
             // the matchFields we have are indexed by the input channel on the left side of the join
             // create a new MatchConfig that uses the field name and type from the matchField
             // but the new channel index in the inputBlockArray
             newMatchFields.add(new MatchConfig(matchField.fieldName(), i, matchField.type()));
+            // Map new channel index (i) to original input page channel offset (inputChannel)
+            channelMapping.put(i, inputChannel);
+        }
+        return new MatchFieldsMapping(newMatchFields, channelMapping);
+    }
+
+    /**
+     * Stage 2: Apply channel mapping to extract blocks from input page.
+     * Given a channel mapping (new index -> original channel), extracts the corresponding blocks.
+     */
+    protected Block[] applyMatchFieldsMapping(Page inputPage, Map<Integer, Integer> channelMapping) {
+        Block[] inputBlockArray = new Block[channelMapping.size()];
+        for (Map.Entry<Integer, Integer> entry : channelMapping.entrySet()) {
+            int newIndex = entry.getKey();
+            int originalChannel = entry.getValue();
+            inputBlockArray[newIndex] = inputPage.getBlock(originalChannel);
         }
         // we only add to the totalRows once, so we can use the first block
         totalRows += inputPage.getBlock(0).getTotalValueCount();
+        return inputBlockArray;
+    }
+
+    @Override
+    protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
+        MatchFieldsMapping mapping = buildMatchFieldsMapping();
+        Block[] inputBlockArray = applyMatchFieldsMapping(inputPage, mapping.channelMapping());
 
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,
             lookupIndexPattern,
-            newMatchFields,
+            mapping.reindexedMatchFields(),
             new Page(inputBlockArray),
             loadFields,
             source,
             rightPreJoinPlan,
             joinOnConditions,
-            lookupSessionId
+            null,
+            LookupFromIndexService.LookupRequestType.PROCESS_PAGE
         );
         lookupService.lookupAsync(
             request,
@@ -213,7 +233,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         );
     }
 
-    private List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields) {
+    protected List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields) {
         if (joinOnConditions == null) {
             return matchFields;
         }
@@ -404,6 +424,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return Objects.hash(super.hashCode(), totalRows, emittedPages, emittedRows);
         }
     }
+
+    /**
+     * Result of building match fields mapping - contains reindexed match fields and channel mapping.
+     */
+    protected record MatchFieldsMapping(List<MatchConfig> reindexedMatchFields, Map<Integer, Integer> channelMapping) {}
 
     protected record OngoingJoin(RightChunkedLeftJoin join, Iterator<Page> itr) implements Releasable {
         @Override

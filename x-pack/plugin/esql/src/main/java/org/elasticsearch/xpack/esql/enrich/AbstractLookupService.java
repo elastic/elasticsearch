@@ -237,28 +237,51 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     /**
-     * Perform the actual lookup.
+     * Resolve the shard ID and target node for a given index.
+     * This method performs the routing logic to determine which shard and node should handle the lookup request.
+     *
+     * @param index the index name to resolve shard for
+     * @return a record containing the ShardId and DiscoveryNode for the target shard
+     * @throws EsqlIllegalArgumentException if the index has more than one shard
+     * @throws UnavailableShardsException if the shard is not available
      */
-    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
+    protected ShardRoutingResult resolveShardRouting(String index) {
         ClusterState clusterState = clusterService.state();
         var projectState = projectResolver.getProjectState(clusterState);
         List<SearchShardRouting> shardIterators = clusterService.operationRouting()
-            .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
+            .searchShards(projectState, new String[] { index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
-            outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
-            return;
+            throw new EsqlIllegalArgumentException("target index {} has more than one shard", index);
         }
         ShardIterator shardIt = shardIterators.get(0);
         ShardRouting shardRouting = shardIt.nextOrNull();
         ShardId shardId = shardIt.shardId();
         if (shardRouting == null) {
-            outListener.onFailure(new UnavailableShardsException(shardId, "target index is not available"));
-            return;
+            throw new UnavailableShardsException(shardId, "target index is not available");
         }
         DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
-        T transportRequest = transportRequest(request, shardId);
+        return new ShardRoutingResult(shardId, targetNode);
+    }
+
+    /**
+     * Result of shard routing resolution containing the shard ID and target node.
+     */
+    protected record ShardRoutingResult(ShardId shardId, DiscoveryNode targetNode) {}
+
+    /**
+     * Perform the actual lookup.
+     */
+    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
+        ShardRoutingResult routingResult;
+        try {
+            routingResult = resolveShardRouting(request.index);
+        } catch (EsqlIllegalArgumentException | UnavailableShardsException e) {
+            outListener.onFailure(e);
+            return;
+        }
+        T transportRequest = transportRequest(request, routingResult.shardId());
         // TODO: handle retry and avoid forking for the local lookup
-        sendChildRequest(parentTask, outListener, targetNode, transportRequest);
+        sendChildRequest(parentTask, outListener, routingResult.targetNode(), transportRequest);
     }
 
     protected void sendChildRequest(

@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.enrich.SessionBasedLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -156,6 +157,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
  */
 public class LocalExecutionPlanner {
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
+
+    /**
+     * Controls whether to use session-based lookup operator (true) or non-session-based (false).
+     * Defaults to true to always use session-based lookups.
+     */
+    private static final boolean USE_SESSION_BASED_LOOKUP = true;
 
     private final String sessionId;
     private final String clusterAlias;
@@ -801,8 +808,8 @@ public class LocalExecutionPlanner {
         // The sessionId already includes child session ID (e.g., "sessionId/1", "sessionId/2")
         // so this counter only needs to ensure uniqueness within this planner instance
         String lookupSessionId = sessionId + "/lookup/" + lookupJoinSessionIdGenerator.incrementAndGet();
-        return source.with(
-            new LookupFromIndexOperator.Factory(
+        OperatorFactory factory = USE_SESSION_BASED_LOOKUP
+            ? new SessionBasedLookupFromIndexOperator.Factory(
                 matchFields,
                 sessionId,
                 lookupSessionId,
@@ -815,9 +822,21 @@ public class LocalExecutionPlanner {
                 join.source(),
                 join.right(),
                 join.joinOnConditions()
-            ),
-            layout
-        );
+            )
+            : new LookupFromIndexOperator.Factory(
+                matchFields,
+                sessionId,
+                parentTask,
+                context.queryPragmas().enrichMaxWorkers(),
+                ctx -> lookupFromIndexService,
+                esRelation.indexPattern(),
+                indexName,
+                join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
+                join.source(),
+                join.right(),
+                join.joinOnConditions()
+            );
+        return source.with(factory, layout);
     }
 
     private static EsRelation findEsRelation(PhysicalPlan node) {

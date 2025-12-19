@@ -74,6 +74,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         "esql_lookup_join_operator_session_id"
     );
 
+    /**
+     * Type of lookup request.
+     */
+    public enum LookupRequestType {
+        INIT,
+        PROCESS_PAGE
+    }
+
     private final PhysicalOperationCache physicalOperationCache;
 
     public LookupFromIndexService(
@@ -119,7 +127,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.source,
             request.rightPreJoinPlan,
             request.joinOnConditions,
-            request.lookupSessionId
+            request.lookupSessionId,
+            request.lookupRequestType
         );
     }
 
@@ -183,6 +192,28 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     private void doLookupWithSession(TransportRequest request, CancellableTask task, ActionListener<List<Page>> listener) {
+        if (request.lookupRequestType == LookupRequestType.INIT) {
+            // INIT only builds and caches the physical operation, does not process the page
+            doLookupWithSessionInit(request, task, listener);
+        } else {
+            // PROCESS uses cached operation and processes the page
+            doLookupWithSessionProcess(request, task, listener);
+        }
+    }
+
+    private void doLookupWithSessionInit(TransportRequest request, CancellableTask task, ActionListener<List<Page>> listener) {
+        try {
+            PhysicalOperation physicalOperation = buildPhysicalOperationForInit(request);
+            // For INIT, we just build the physical operation and cache it
+            // The operation is cached in physicalOperationCache
+            // Return empty list since INIT doesn't process the page
+            listener.onResponse(List.of());
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private void doLookupWithSessionProcess(TransportRequest request, CancellableTask task, ActionListener<List<Page>> listener) {
         // Early exit for null input blocks
         for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
             Block inputBlock = request.inputPage.getBlock(j);
@@ -195,8 +226,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-
-            PhysicalOperation physicalOperation = buildPhysicalOperation(request, releasables);
+            PhysicalOperation physicalOperation = getPhysicalOperationFromCache(request);
 
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release());
@@ -230,31 +260,45 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
     }
 
-    PhysicalOperation buildPhysicalOperation(TransportRequest request, List<Releasable> releasables) throws IOException {
-        // Use cache if lookupSessionId is present, otherwise build directly
-        if (request.lookupSessionId != null) {
-            String sessionId = request.lookupSessionId;
-            return physicalOperationCache.getOrCompute(sessionId, id -> {
+    /**
+     * Builds and caches the physical operation for INIT requests.
+     * Uses temporary releasables that are cleaned up immediately since resources are only needed for planning.
+     */
+    private PhysicalOperation buildPhysicalOperationForInit(TransportRequest request) throws IOException {
+        String sessionId = request.lookupSessionId;
+        return physicalOperationCache.getOrCompute(sessionId, id -> {
+            try {
+                List<Releasable> tempReleasables = new ArrayList<>();
                 try {
-                    // When building for cache, use a temporary releasables list since these resources
-                    // are only needed for planning and will be cleaned up immediately
-                    List<Releasable> tempReleasables = new ArrayList<>();
-                    try {
-                        return buildPhysicalOperationInternal(request, tempReleasables);
-                    } finally {
-                        // Clean up planning resources immediately
-                        Releasables.close(tempReleasables);
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException("Failed to build PhysicalOperation for session " + id, e);
+                    return buildPhysicalOperation(request, tempReleasables);
+                } finally {
+                    // Clean up planning resources immediately
+                    Releasables.close(tempReleasables);
                 }
-            });
-        } else {
-            return buildPhysicalOperationInternal(request, releasables);
-        }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to build PhysicalOperation for session " + id, e);
+            }
+        });
     }
 
-    private PhysicalOperation buildPhysicalOperationInternal(TransportRequest request, List<Releasable> releasables) throws IOException {
+    /**
+     * Gets the physical operation from cache for PROCESS requests (session-based).
+     * Assumes INIT was called first to populate the cache.
+     */
+    private PhysicalOperation getPhysicalOperationFromCache(TransportRequest request) {
+        return physicalOperationCache.getOrCompute(request.lookupSessionId, id -> {
+            throw new IllegalStateException(
+                "PhysicalOperation not found in cache for session " + id + ". INIT request must be sent first."
+            );
+        });
+    }
+
+    /**
+     * Builds the physical operation. This is the core implementation that performs physical planning and builds operator factories.
+     * For non-session-based requests, this is called directly with releasables.
+     * For session-based INIT requests, this is called with temporary releasables that are cleaned up.
+     */
+    PhysicalOperation buildPhysicalOperation(TransportRequest request, List<Releasable> releasables) throws IOException {
         // Phase 1: Physical Planning
         LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
         releasables.add(shardContext.release());
@@ -296,6 +340,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
         private final String lookupSessionId;
+        private final LookupRequestType lookupRequestType;
 
         Request(
             String sessionId,
@@ -307,13 +352,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Source source,
             PhysicalPlan rightPreJoinPlan,
             Expression joinOnConditions,
-            String lookupSessionId
+            String lookupSessionId,
+            LookupRequestType lookupRequestType
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
             this.lookupSessionId = lookupSessionId;
+            this.lookupRequestType = lookupRequestType;
         }
     }
 
@@ -330,6 +377,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final Expression joinOnConditions;
         @Nullable
         private final String lookupSessionId;
+        @Nullable
+        private final LookupRequestType lookupRequestType;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -344,13 +393,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Source source,
             PhysicalPlan rightPreJoinPlan,
             Expression joinOnConditions,
-            @Nullable String lookupSessionId
+            @Nullable String lookupSessionId,
+            @Nullable LookupRequestType lookupRequestType
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
             this.lookupSessionId = lookupSessionId;
+            this.lookupRequestType = lookupRequestType;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -401,8 +452,16 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
             String lookupSessionId = null;
+            LookupRequestType lookupRequestType = null;
             if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_OPERATOR_SESSION_ID)) {
                 lookupSessionId = in.readOptionalString();
+                if (lookupSessionId != null) {
+                    // Read lookupRequestType only if lookupSessionId is present
+                    String requestTypeName = in.readOptionalString();
+                    if (requestTypeName != null) {
+                        lookupRequestType = LookupRequestType.valueOf(requestTypeName);
+                    }
+                }
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -415,7 +474,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 source,
                 rightPreJoinPlan,
                 joinOnConditions,
-                lookupSessionId
+                lookupSessionId,
+                lookupRequestType
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -475,6 +535,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_OPERATOR_SESSION_ID)) {
                 out.writeOptionalString(lookupSessionId);
+                if (lookupSessionId != null) {
+                    // Write lookupRequestType only if lookupSessionId is present
+                    out.writeOptionalString(lookupRequestType != null ? lookupRequestType.name() : null);
+                }
             }
         }
 

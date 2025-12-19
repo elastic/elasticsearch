@@ -958,10 +958,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(limit.limit().fold(FoldContext.small()), is(1000));
 
         var filter = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.Filter.class);
-        assertThat(
-            Expressions.name(filter.condition()),
-            is("does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100")
-        );
+        assertThat(Expressions.name(filter.condition()), is("does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100"));
 
         var eval = as(filter.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));

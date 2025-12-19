@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.DynamicRegionSupplier;
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -41,6 +42,7 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         true,
         BUCKET,
         BASE_PATH,
+        S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     );
 
@@ -50,6 +52,8 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
+        .systemProperty("es.insecure_network_trace_enabled", "true")
+        .setting("logger.org.apache.http.headers", "TRACE")
         .build();
 
     @ClassRule

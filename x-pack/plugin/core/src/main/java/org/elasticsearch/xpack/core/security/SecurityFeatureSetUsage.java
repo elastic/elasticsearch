@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,15 +62,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         roleMappingStoreUsage = in.readGenericMap();
         fips140Usage = in.readGenericMap();
         operatorPrivilegesUsage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            domainsUsage = in.readGenericMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            userProfileUsage = in.readGenericMap();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            remoteClusterServerUsage = in.readGenericMap();
-        }
+        domainsUsage = in.readGenericMap();
+        userProfileUsage = in.readGenericMap();
+        remoteClusterServerUsage = in.readGenericMap();
     }
 
     public SecurityFeatureSetUsage(
@@ -127,15 +120,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(roleMappingStoreUsage);
         out.writeGenericMap(fips140Usage);
         out.writeGenericMap(operatorPrivilegesUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeGenericMap(domainsUsage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeGenericMap(userProfileUsage);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeGenericMap(remoteClusterServerUsage);
-        }
+        out.writeGenericMap(domainsUsage);
+        out.writeGenericMap(userProfileUsage);
+        out.writeGenericMap(remoteClusterServerUsage);
     }
 
     @Override

@@ -28,14 +28,13 @@ import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -199,7 +198,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
             // wrap centroids with a supplier
-            final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(centroidAssignments.centroids());
+            final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(
+                centroidAssignments.centroids(),
+                fieldWriter.fieldInfo.getVectorDimension()
+            );
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
             final CentroidOffsetAndLength centroidOffsetAndLength = buildAndWritePostingsLists(
@@ -244,7 +246,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     ) throws IOException {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
         if (vectors.size() == maxDoc) {
-            return FloatVectorValues.fromFloats(vectors, fieldInfo.getVectorDimension());
+            return KmeansFloatVectorValues.build(vectors, null, fieldInfo.getVectorDimension());
         }
         final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
         final int[] docIds = new int[vectors.size()];
@@ -252,32 +254,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             docIds[i] = iterator.nextDoc();
         }
         assert iterator.nextDoc() == NO_MORE_DOCS;
-        return new FloatVectorValues() {
-            @Override
-            public float[] vectorValue(int ord) {
-                return vectors.get(ord);
-            }
-
-            @Override
-            public FloatVectorValues copy() {
-                return this;
-            }
-
-            @Override
-            public int dimension() {
-                return fieldInfo.getVectorDimension();
-            }
-
-            @Override
-            public int size() {
-                return vectors.size();
-            }
-
-            @Override
-            public int ordToDoc(int ord) {
-                return docIds[ord];
-            }
-        };
+        return KmeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());
     }
 
     @Override
@@ -365,6 +342,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, docsFileName);
                 }
             }
+        }
+        if (numVectors == 0) {
+            long centroidOffset = ivfCentroids.getFilePointer();
+            writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null);
+            return;
         }
         // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
         // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
@@ -487,47 +469,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     private static FloatVectorValues getFloatVectorValues(FieldInfo fieldInfo, IndexInput docs, IndexInput vectors, int numVectors)
         throws IOException {
-        if (numVectors == 0) {
-            return FloatVectorValues.fromFloats(List.of(), fieldInfo.getVectorDimension());
-        }
-        final long vectorLength = (long) Float.BYTES * fieldInfo.getVectorDimension();
-        final float[] vector = new float[fieldInfo.getVectorDimension()];
-        final RandomAccessInput randomDocs = docs == null ? null : docs.randomAccessSlice(0, docs.length());
-        return new FloatVectorValues() {
-            @Override
-            public float[] vectorValue(int ord) throws IOException {
-                vectors.seek(ord * vectorLength);
-                vectors.readFloats(vector, 0, vector.length);
-                return vector;
-            }
-
-            @Override
-            public FloatVectorValues copy() {
-                return this;
-            }
-
-            @Override
-            public int dimension() {
-                return fieldInfo.getVectorDimension();
-            }
-
-            @Override
-            public int size() {
-                return numVectors;
-            }
-
-            @Override
-            public int ordToDoc(int ord) {
-                if (randomDocs == null) {
-                    return ord;
-                }
-                try {
-                    return randomDocs.readInt((long) ord * Integer.BYTES);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        };
+        return KmeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
     }
 
     private static int writeFloatVectorValues(

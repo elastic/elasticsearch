@@ -18,6 +18,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -39,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 
 public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
@@ -134,6 +137,13 @@ public abstract class SenderService implements InferenceService {
     }
 
     @Override
+    public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        SubscribableListener.newForked(this::init)
+            .<InferenceServiceResults>andThen((embeddingInferListener) -> doEmbeddingInfer(model, request, timeout, embeddingInferListener))
+            .addListener(listener);
+    }
+
+    @Override
     public void chunkedInfer(
         Model model,
         @Nullable String query,
@@ -182,6 +192,15 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
+
+    protected void doEmbeddingInfer(
+        Model model,
+        EmbeddingRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedEmbeddingOperation(model.getConfigurations().getService());
+    }
 
     protected abstract void doChunkedInfer(
         Model model,

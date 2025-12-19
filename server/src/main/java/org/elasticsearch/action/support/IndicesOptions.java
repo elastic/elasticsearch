@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -961,10 +960,6 @@ public record IndicesOptions(
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
-        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-            out.writeBoolean(true);
-            out.writeBoolean(false);
-        }
         out.writeWriteable(crossProjectModeOptions);
     }
 
@@ -984,11 +979,6 @@ public record IndicesOptions(
             .includeFailureIndices(includeFailureIndices)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
-        if (in.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-            // Reading from an older node, which will be sending two booleans that we must read out and ignore.
-            in.readBoolean();
-            in.readBoolean();
-        }
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
                 ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS

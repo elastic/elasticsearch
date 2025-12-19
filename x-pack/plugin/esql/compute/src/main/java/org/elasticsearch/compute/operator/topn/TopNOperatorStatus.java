@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -173,6 +172,6 @@ public class TopNOperatorStatus implements Operator.Status {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 }

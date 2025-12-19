@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -659,6 +658,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         final boolean isExplain = source != null && source.explain() != null && source.explain();
         final boolean isProfile = source != null && source.profile();
+        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
+            ? original.allowPartialSearchResults()
+            : searchService.defaultAllowPartialSearchResults();
         Rewriteable.rewriteAndFetch(
             original,
             searchService.getRewriteContext(
@@ -669,7 +671,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 original.pointInTimeBuilder(),
                 shouldMinimizeRoundtrips(original),
                 isExplain,
-                isProfile
+                isProfile,
+                allowPartialSearchResults
             ),
             rewriteListener
         );
@@ -1301,7 +1304,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 final String[] indices = entry.getValue().indices();
                 final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                 // TODO: support point-in-time
-                if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                if (searchContext == null) {
                     SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                         indices,
                         searchShardsIdxOpts,

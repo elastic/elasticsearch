@@ -101,9 +101,31 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final String TYPE_FIELD_NAME = "_type";
+
+    private static final int LEGACY_NESTED_FIELDS_LIMIT = 50;
+    private static final int DEFAULT_NESTED_FIELDS_LIMIT = 100;
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.nested_fields.limit",
-        50L,
+        settings -> {
+            final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+            return Integer.toString(
+                indexVersionCreated.onOrAfter(IndexVersions.NESTED_PATH_LIMIT) ? DEFAULT_NESTED_FIELDS_LIMIT : LEGACY_NESTED_FIELDS_LIMIT
+            );
+        },
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    private static final int LEGACY_NESTED_PARENTS_LIMIT = Integer.MAX_VALUE;
+    private static final int DEFAULT_NESTED_PARENTS_LIMIT = 50;
+    public static final Setting<Long> INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.nested_parents.limit",
+        settings -> {
+            final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+            return Integer.toString(
+                indexVersionCreated.onOrAfter(IndexVersions.NESTED_PATH_LIMIT) ? DEFAULT_NESTED_PARENTS_LIMIT : LEGACY_NESTED_PARENTS_LIMIT
+            );
+        },
         0,
         Property.Dynamic,
         Property.IndexScope
@@ -205,7 +227,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable DocumentMapper documentMapper
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -218,7 +241,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             idFieldMapper,
             scriptCompiler,
             bitSetProducer,
-            mapperMetrics
+            mapperMetrics,
+            documentMapper
         );
     }
 
@@ -234,7 +258,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable DocumentMapper documentMapper
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -267,6 +292,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
+        this.mapper = documentMapper;
     }
 
     public boolean hasNested() {

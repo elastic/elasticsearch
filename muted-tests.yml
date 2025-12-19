@@ -141,9 +141,6 @@ tests:
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
-- class: org.elasticsearch.search.query.VectorIT
-  method: testFilteredQueryStrategy
-  issue: https://github.com/elastic/elasticsearch/issues/129517
 - class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
   method: testUpdatingFileBasedRoleAffectsAllProjects
   issue: https://github.com/elastic/elasticsearch/issues/129775
@@ -250,9 +247,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/134865
-- class: org.elasticsearch.xpack.ml.integration.InferenceIT
-  method: testInferRegressionModel
-  issue: https://github.com/elastic/elasticsearch/issues/133603
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/126748
@@ -367,12 +361,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024
-- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
-  method: testInvalidateRefreshTokenThatIsAlreadyInvalidated
-  issue: https://github.com/elastic/elasticsearch/issues/139026
-- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
-  method: testSupersedingTokenEncryption
-  issue: https://github.com/elastic/elasticsearch/issues/139031
 - class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
   method: testConcurrentStatusFetchWhileTaskCloses
   issue: https://github.com/elastic/elasticsearch/issues/138543
@@ -388,18 +376,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
-  issue: https://github.com/elastic/elasticsearch/issues/139490
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testReductionPlanForTopNWithPushedDownFunctions
-  issue: https://github.com/elastic/elasticsearch/issues/139491
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
-  issue: https://github.com/elastic/elasticsearch/issues/139492
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testReductionPlanForTopNWithPushedDownFunctions
-  issue: https://github.com/elastic/elasticsearch/issues/139493
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139527
@@ -436,6 +412,17 @@ tests:
 - class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139741
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/139789
+- class: org.elasticsearch.xpack.esql.qa.single_node.AllSupportedFieldsIT
+  issue: https://github.com/elastic/elasticsearch/pull/139744
+- class: org.elasticsearch.index.mapper.SkipperSettingsTests
+  method: testTSDBSkipperSettingDefaults
+  issue: https://github.com/elastic/elasticsearch/issues/139824
+- class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
+  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
+  issue: https://github.com/elastic/elasticsearch/issues/139826
 
 # Examples:
 #

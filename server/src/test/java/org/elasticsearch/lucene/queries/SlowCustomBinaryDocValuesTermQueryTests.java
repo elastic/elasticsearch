@@ -9,6 +9,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -16,7 +17,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
-import org.elasticsearch.index.mapper.UpdatableNumericDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,12 +42,11 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
 
                         var field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder("field");
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
-                        var countField = new UpdatableNumericDocValuesField("field.counts");
-                        countField.setValue(field.count());
+                        var countField = new NumericDocValuesField("field.counts", 1);
 
                         if (randomBoolean()) {
                             field.add(new BytesRef("z".getBytes(StandardCharsets.UTF_8)));
-                            countField.setValue(field.count());
+                            countField.setLongValue(field.count());
                         }
                         document.add(field);
                         document.add(countField);
@@ -89,8 +88,7 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
 
                 var field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder("field");
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
-                var countField = new UpdatableNumericDocValuesField("field.counts");
-                countField.setValue(field.count());
+                var countField = new NumericDocValuesField("field.counts", 1);
                 document.add(field);
                 document.add(countField);
 

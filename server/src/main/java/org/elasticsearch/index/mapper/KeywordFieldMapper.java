@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesSkipIndexType;
@@ -1374,16 +1375,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             assert fieldType.docValuesType() == DocValuesType.NONE;
 
             var field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getField(fieldType().name());
-            var countField = (UpdatableNumericDocValuesField) context.doc().getByKey(fieldType().name() + COUNT_FIELD_SUFFIX);
+            var countField = (NumericDocValuesField) context.doc().getByKey(fieldType().name() + COUNT_FIELD_SUFFIX);
             if (field == null) {
                 field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder(fieldType().name());
                 context.doc().addWithKey(fieldType().name(), field);
-                countField = new UpdatableNumericDocValuesField(field.countFieldName());
+                countField = new NumericDocValuesField(field.countFieldName(), -1); // dummy value
                 context.doc().addWithKey(countField.name(), countField);
             }
 
             field.add(binaryValue);
-            countField.setValue(field.count());
+            countField.setLongValue(field.count());
         }
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)

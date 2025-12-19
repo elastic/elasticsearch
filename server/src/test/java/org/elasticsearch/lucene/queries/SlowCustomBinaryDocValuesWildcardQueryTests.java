@@ -9,6 +9,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -25,7 +26,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
-import org.elasticsearch.index.mapper.UpdatableNumericDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,12 +55,11 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                         var field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder("field");
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
-                        var countField = new UpdatableNumericDocValuesField("field.counts");
-                        countField.setValue(field.count());
+                        var countField = new NumericDocValuesField("field.counts", 1);
 
                         if (randomBoolean()) {
                             field.add(new BytesRef("z".getBytes(StandardCharsets.UTF_8)));
-                            countField.setValue(field.count());
+                            countField.setLongValue(field.count());
                         }
                         document.add(field);
                         document.add(countField);
@@ -102,8 +101,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 var field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder("field");
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
-                var countField = new UpdatableNumericDocValuesField("field.counts");
-                countField.setValue(field.count());
+                var countField = new NumericDocValuesField("field.counts", 1);
                 document.add(field);
                 document.add(countField);
 
@@ -129,15 +127,14 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                     var binaryDVField = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder("contender_field");
                     binaryDVField.add(new BytesRef(randomValue.getBytes(StandardCharsets.UTF_8)));
-                    var countField = new UpdatableNumericDocValuesField("contender_field.counts");
-                    countField.setValue(binaryDVField.count());
+                    var countField = new NumericDocValuesField("contender_field.counts", 1);
                     document.add(binaryDVField);
                     document.add(countField);
 
                     if (randomBoolean()) {
                         String extraRandomValue = randomFrom(randomValues);
                         binaryDVField.add(new BytesRef(extraRandomValue.getBytes(StandardCharsets.UTF_8)));
-                        countField.setValue(binaryDVField.count());
+                        countField.setLongValue(binaryDVField.count());
                         document.add(new SortedSetDocValuesField("baseline_field", new BytesRef(extraRandomValue)));
                     }
                     writer.addDocument(document);

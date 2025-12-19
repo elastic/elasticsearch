@@ -43,7 +43,7 @@ public class RLike extends RegexMatch<RLikePattern> {
         detailedDescription = """
             When used on `text` fields, `RLIKE` treats the field as a `keyword` and does not use the analyzer.
             This means the pattern matching is case-sensitive and must match the exact string indexed.
-            To perform full-text search, use the [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) or [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr) functions.
+            To perform full-text search, use the `MATCH` or `QSTR` functions.
 
             Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
             The escape character is backslash `\\`. Since also backslash is a special character in string literals,

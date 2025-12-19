@@ -25,10 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractVectorTestCase {
 
-    // Base tolerance for vector score comparisons, scaled by dimensionality to
-    // accommodate minor floating-point rounding differences from SIMD arithmetic.
-    static final double BASE_DELTA = 1e-5;
-
     protected AbstractVectorSimilarityFunctionTestCase(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }

@@ -29,6 +29,9 @@ public abstract sealed class DiskBBQBulkWriter {
         this.out = out;
     }
 
+    public abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter, boolean encodeAll)
+        throws IOException;
+
     public abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException;
 
     /**
@@ -55,7 +58,8 @@ public abstract sealed class DiskBBQBulkWriter {
         }
 
         @Override
-        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter, boolean encodeAll)
+            throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
@@ -73,12 +77,30 @@ public abstract sealed class DiskBBQBulkWriter {
                 docsWriter.accept(i);
             }
             // write tail
-            for (; i < qvv.count(); ++i) {
-                byte[] qv = qvv.next();
-                OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
-                out.writeBytes(qv, qv.length);
-                writeCorrection(correction);
+            if (encodeAll) {
+                OptimizedScalarQuantizer.QuantizationResult[] tailCorrections = new OptimizedScalarQuantizer.QuantizationResult[qvv.count()
+                    - i];
+                int j = 0;
+                for (; i < qvv.count(); ++i) {
+                    byte[] qv = qvv.next();
+                    tailCorrections[j] = qvv.getCorrections();
+                    out.writeBytes(qv, qv.length);
+                    j++;
+                }
+                writeCorrections(tailCorrections);
+            } else {
+                for (; i < qvv.count(); ++i) {
+                    byte[] qv = qvv.next();
+                    OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
+                    out.writeBytes(qv, qv.length);
+                    writeCorrection(correction);
+                }
             }
+        }
+
+        @Override
+        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+            writeVectors(qvv, docsWriter, false);
         }
 
         private void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {
@@ -117,7 +139,8 @@ public abstract sealed class DiskBBQBulkWriter {
         }
 
         @Override
-        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter, boolean encodeAll)
+            throws IOException {
             int limit = qvv.count() - bulkSize + 1;
             int i = 0;
             for (; i < limit; i += bulkSize) {
@@ -129,12 +152,30 @@ public abstract sealed class DiskBBQBulkWriter {
                 writeCorrections(corrections);
             }
             // write tail
-            for (; i < qvv.count(); ++i) {
-                byte[] qv = qvv.next();
-                OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
-                out.writeBytes(qv, qv.length);
-                writeCorrection(correction);
+            if (encodeAll) {
+                OptimizedScalarQuantizer.QuantizationResult[] tailCorrections = new OptimizedScalarQuantizer.QuantizationResult[qvv.count()
+                    - i];
+                int j = 0;
+                for (; i < qvv.count(); ++i) {
+                    byte[] qv = qvv.next();
+                    tailCorrections[j] = qvv.getCorrections();
+                    out.writeBytes(qv, qv.length);
+                    j++;
+                }
+                writeCorrections(tailCorrections);
+            } else {
+                for (; i < qvv.count(); ++i) {
+                    byte[] qv = qvv.next();
+                    OptimizedScalarQuantizer.QuantizationResult correction = qvv.getCorrections();
+                    out.writeBytes(qv, qv.length);
+                    writeCorrection(correction);
+                }
             }
+        }
+
+        @Override
+        public void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException {
+            writeVectors(qvv, docsWriter, false);
         }
 
         private void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections) throws IOException {

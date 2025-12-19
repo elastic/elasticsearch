@@ -512,23 +512,32 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             }
         }
 
-        for (; i < size; i++) {
-            int centroidOrd = scoresOffset + i;
-            if (acceptCentroids == null || acceptCentroids.get(centroidOrd)) {
-                float score = scorer.score(
+        int tailBulkSize = size - i;
+        if (tailBulkSize > 0) {
+            if (acceptCentroids == null || acceptCentroids.cardinality(scoresOffset + i, scoresOffset + i + tailBulkSize) > 0) {
+                float[] tailScores = new float[tailBulkSize];
+                scorer.scoreBulk(
                     quantizeQuery,
                     queryCorrections.lowerInterval(),
                     queryCorrections.upperInterval(),
                     queryCorrections.quantizedComponentSum(),
                     queryCorrections.additionalCorrection(),
                     similarityFunction,
-                    centroidDp
+                    centroidDp,
+                    tailScores,
+                    tailBulkSize
                 );
-                neighborQueue.add(centroidOrd, score);
+                for (int j = 0; j < tailBulkSize; j++) {
+                    int centroidOrd = scoresOffset + i + j;
+                    if (acceptCentroids == null || acceptCentroids.get(centroidOrd)) {
+                        neighborQueue.add(centroidOrd, tailScores[j]);
+                    }
+                }
             } else {
-                centroids.skipBytes(centroidQuantizeSize);
+                centroids.skipBytes(tailBulkSize * centroidQuantizeSize);
             }
         }
+
     }
 
     @Override

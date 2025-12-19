@@ -451,7 +451,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             osq,
             globalCentroid
         );
-        bulkWriter.writeVectors(parentQuantizeCentroid, null);
+        bulkWriter.writeVectors(parentQuantizeCentroid, null, true);
         int offset = 0;
         for (int[] centroidVectors : centroidGroups.vectors()) {
             centroidOutput.writeInt(offset);
@@ -467,7 +467,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         );
         for (int[] centroidVectors : centroidGroups.vectors()) {
             childrenQuantizeCentroid.reset(idx -> centroidVectors[idx], centroidVectors.length);
-            bulkWriter.writeVectors(childrenQuantizeCentroid, null);
+            bulkWriter.writeVectors(childrenQuantizeCentroid, null, true);
         }
         // write the centroid offsets at the end of the file
         for (int[] centroidVectors : centroidGroups.vectors()) {
@@ -494,7 +494,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             osq,
             globalCentroid
         );
-        bulkWriter.writeVectors(quantizedCentroids, null);
+        bulkWriter.writeVectors(quantizedCentroids, null, true);
         // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidSupplier.size(); i++) {
             centroidOutput.writeLong(centroidOffsetAndLength.offsets().get(i));

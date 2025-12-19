@@ -16,12 +16,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -170,7 +170,7 @@ public class ScriptScoreBenchmark {
 
     private Query scriptScoreQuery(ScoreScript.Factory factory) {
         ScoreScript.LeafFactory leafFactory = factory.newFactory(Map.of(), lookup);
-        return new ScriptScoreQuery(new MatchAllDocsQuery(), null, leafFactory, lookup, null, "test", 0, IndexVersion.current());
+        return new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, null, leafFactory, lookup, null, "test", 0, IndexVersion.current());
     }
 
     private ScoreScript.Factory bareMetalScript() {

@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -49,12 +48,12 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        for (ElementType elementType : Set.of(ElementType.FLOAT, ElementType.BYTE, ElementType.BIT)) {
+        for (ElementType elementType : ElementType.values()) {
             params.add(new Object[] { "v_cosine", CosineSimilarity.SIMILARITY_FUNCTION, elementType });
             params.add(new Object[] { "v_dot_product", DotProduct.SIMILARITY_FUNCTION, elementType });
             params.add(new Object[] { "v_l1_norm", L1Norm.SIMILARITY_FUNCTION, elementType });
             params.add(new Object[] { "v_l2_norm", L2Norm.SIMILARITY_FUNCTION, elementType });
-            if (elementType != ElementType.FLOAT) {
+            if (elementType != ElementType.FLOAT && elementType != ElementType.BFLOAT16) {
                 params.add(new Object[] { "v_hamming", Hamming.EVALUATOR_SIMILARITY_FUNCTION, elementType });
             }
         }
@@ -236,7 +235,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             case BYTE, BIT -> {
                 return (double) similarityFunction.calculateSimilarity(asByteArray(randomVector), asByteArray(vector));
             }
-            case FLOAT -> {
+            case FLOAT, BFLOAT16 -> {
                 return (double) similarityFunction.calculateSimilarity(asFloatArray(randomVector), asFloatArray(vector));
             }
             default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
@@ -335,7 +334,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         List<Number> vector = new ArrayList<>(dimensions);
         for (int j = 0; j < dimensions; j++) {
             switch (elementType) {
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (dimensions == 1) {
                         vector.add(randomValueOtherThan(0f, () -> randomFloat()));
                     } else {

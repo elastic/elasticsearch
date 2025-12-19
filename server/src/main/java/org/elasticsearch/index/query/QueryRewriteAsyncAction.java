@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -24,7 +25,7 @@ import java.util.function.Consumer;
  * Since we need to determine whether an action has already been registered, we require implementors to provide implementations for
  * {@link #hashCode()} and {@link #equals(Object)},
  */
-public abstract class QueryRewriteAsyncAction<T> {
+public abstract class QueryRewriteAsyncAction<T, U extends QueryRewriteAsyncAction<T, U>> {
     /**
      * The execute method will:
      * - Execute the action using {@link #execute(Client, ActionListener)}
@@ -36,7 +37,7 @@ public abstract class QueryRewriteAsyncAction<T> {
      * @param consumers A list of consumer that expect the result of the action.
      */
     @SuppressWarnings("unchecked")
-    public void execute(Client client, ActionListener<?> listener, List<Consumer<?>> consumers) {
+    public final void execute(Client client, ActionListener<?> listener, List<Consumer<?>> consumers) {
         execute(client, listener.delegateFailureAndWrap((l, result) -> {
             consumers.forEach(consumer -> ((Consumer<T>) consumer).accept(result));
             l.onResponse(null);
@@ -52,8 +53,25 @@ public abstract class QueryRewriteAsyncAction<T> {
     protected abstract void execute(Client client, ActionListener<T> listener);
 
     @Override
-    public abstract int hashCode();
+    public int hashCode() {
+        return Objects.hash(getClass(), doHashCode());
+    };
+
+    public abstract int doHashCode();
 
     @Override
-    public abstract boolean equals(Object obj);
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        @SuppressWarnings("unchecked")
+        U other = (U) obj;
+        return doEquals(other);
+    }
+
+    public abstract boolean doEquals(U other);
 }

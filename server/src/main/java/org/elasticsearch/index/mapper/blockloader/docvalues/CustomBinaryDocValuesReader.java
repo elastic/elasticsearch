@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 /**
  * Helper class to read custom binary doc values.
@@ -26,11 +27,7 @@ public final class CustomBinaryDocValuesReader {
     public CustomBinaryDocValuesReader() {}
 
     public void read(BytesRef bytes, BlockLoader.BytesRefBuilder builder) throws IOException {
-        assert bytes.length > 0;
-        in.reset(bytes.bytes, bytes.offset, bytes.length);
-        int count = in.readVInt();
-        scratch.bytes = bytes.bytes;
-
+        int count = getCount(bytes);
         if (count == 1) {
             scratch.length = in.readVInt();
             scratch.offset = in.getPosition();
@@ -39,11 +36,35 @@ public final class CustomBinaryDocValuesReader {
         }
         builder.beginPositionEntry();
         for (int v = 0; v < count; v++) {
-            scratch.length = in.readVInt();
-            scratch.offset = in.getPosition();
-            in.setPosition(scratch.offset + scratch.length);
+            initializeScratch();
             builder.appendBytesRef(scratch);
         }
         builder.endPositionEntry();
+    }
+
+    public boolean match(BytesRef bytes, Predicate<BytesRef> predicate) throws IOException {
+        int count = getCount(bytes);
+        for (int v = 0; v < count; v++) {
+            initializeScratch();
+            boolean match = predicate.test(scratch);
+            if (match) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void initializeScratch() throws IOException {
+        scratch.length = in.readVInt();
+        scratch.offset = in.getPosition();
+        in.setPosition(scratch.offset + scratch.length);
+    }
+
+    private int getCount(BytesRef bytes) throws IOException {
+        assert bytes.length > 0;
+        in.reset(bytes.bytes, bytes.offset, bytes.length);
+        int count = in.readVInt();
+        scratch.bytes = bytes.bytes;
+        return count;
     }
 }

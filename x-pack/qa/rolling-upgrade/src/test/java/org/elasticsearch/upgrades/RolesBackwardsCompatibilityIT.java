@@ -35,7 +35,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testRolesWithDescription() throws Exception {
         assumeTrue(
             "The role description is supported after transport version: " + SECURITY_ROLE_DESCRIPTION,
-            minimumTransportVersion().before(SECURITY_ROLE_DESCRIPTION)
+            minimumTransportVersion().supports(SECURITY_ROLE_DESCRIPTION) == false
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -150,7 +150,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testRolesWithManageRoles() throws Exception {
         assumeTrue(
             "The manage roles privilege is supported after transport version: " + MANAGE_ROLES_PRIVILEGE,
-            minimumTransportVersion().before(MANAGE_ROLES_PRIVILEGE)
+            minimumTransportVersion().supports(MANAGE_ROLES_PRIVILEGE) == false
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -311,7 +311,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertTrue(nodeIsCurrent);
             return true;
         }
-        return testNodeInfo.transportVersion().onOrAfter(transportVersion);
+        return testNodeInfo.transportVersion().supports(transportVersion);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeDescription, boolean includeManageRoles) {

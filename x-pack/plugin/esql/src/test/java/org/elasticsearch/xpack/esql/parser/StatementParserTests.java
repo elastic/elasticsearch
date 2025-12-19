@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -87,6 +89,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -4221,9 +4224,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             .resolve("definition");
         Files.createDirectories(dir);
         Path file = dir.resolve("inline_cast.json");
-        try (XContentBuilder report = new XContentBuilder(JsonXContent.jsonXContent, Files.newOutputStream(file))) {
-            report.humanReadable(true).prettyPrint();
-            report.startObject();
+        try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd().startObject()) {
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
             if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
@@ -4243,9 +4244,24 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 assertThat(functionCall.dataType(), equalTo(expectedType));
                 report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
             }
-            report.endObject();
+            String rendered = Strings.toString(report.endObject());
+            (new TestInlineCastDocsSupport(rendered)).renderDocs();
         }
         logger.info("Wrote to file: {}", file);
+    }
+
+    private static class TestInlineCastDocsSupport extends DocsV3Support {
+        private final String rendered;
+
+        protected TestInlineCastDocsSupport(String rendered) {
+            super(null, "inline_cast", StatementParserTests.class, Set::of, new DocsV3Support.WriteCallbacks());
+            this.rendered = rendered;
+        }
+
+        @Override
+        protected void renderDocs() throws IOException {
+            this.writeToTempKibanaDir("definition", "json", rendered);
+        }
     }
 
     public void testTooBigQuery() {

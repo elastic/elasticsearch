@@ -817,12 +817,12 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
      * value delta to produce correct results.
      */
     private static double interpolateBetweenStates(
-            ReducedState lowerState,
-            ReducedState upperState,
-            double tbucketStart,
-            double tbucketEnd,
-            double dateFactor,
-            boolean isLowerBoundary
+        ReducedState lowerState,
+        ReducedState upperState,
+        double tbucketStart,
+        double tbucketEnd,
+        double dateFactor,
+        boolean isLowerBoundary
     ) {
         final double startValue = lowerState.intervals[0].v1;
         final double startTs = lowerState.intervals[0].t1 / dateFactor;

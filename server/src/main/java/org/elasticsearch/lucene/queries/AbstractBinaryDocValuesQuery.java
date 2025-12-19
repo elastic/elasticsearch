@@ -23,7 +23,6 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.ZipDocIdSetIterator;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
@@ -56,12 +55,12 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                     return null;
                 }
 
-                var valuesWithCounts = new ZipDocIdSetIterator(values, counts);
-                final TwoPhaseIterator iterator = new TwoPhaseIterator(valuesWithCounts) {
+                final TwoPhaseIterator iterator = new TwoPhaseIterator(counts) {
                     final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
                     @Override
                     public boolean matches() throws IOException {
+                        values.advance(counts.docID());
                         return reader.match(values.binaryValue(), counts.longValue(), matcher);
                     }
 

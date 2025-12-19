@@ -74,22 +74,24 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
-        diversificationContext.setFieldVectors(new MockFieldVectorSuppler(
-            Map.of(
-                1,
-                new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
-                2,
-                new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
-                3,
-                new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
-                4,
-                new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-                5,
-                new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
-                6,
-                new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
+        diversificationContext.setFieldVectors(
+            new MockFieldVectorSuppler(
+                Map.of(
+                    1,
+                    new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
+                    2,
+                    new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
+                    3,
+                    new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
+                    4,
+                    new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+                    5,
+                    new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+                    6,
+                    new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
+                )
             )
-        ));
+        );
 
         expectedDocIds.addAll(List.of(3, 4, 6));
 
@@ -109,22 +111,24 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         Supplier<VectorData> queryVectorData = () -> new VectorData(new byte[] { 0x50, 0x20, 0x40, 0x40 });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
-        diversificationContext.setFieldVectors(new MockFieldVectorSuppler(
-            Map.of(
-                1,
-                new VectorData(new byte[] { 0x40, 0x20, 0x40, 0x40 }),
-                2,
-                new VectorData(new byte[] { 0x40, 0x20, 0x30, 0x30 }),
-                3,
-                new VectorData(new byte[] { 0x40, 0x10, 0x30, 0x30 }),
-                4,
-                new VectorData(new byte[] { 0x10, (byte) 0x90, 0x50, (byte) 0x90 }),
-                5,
-                new VectorData(new byte[] { 0x10, (byte) 0x90, 0x50, (byte) 0x90 }),
-                6,
-                new VectorData(new byte[] { 0x50, 0x50, 0x50, 0x50 })
+        diversificationContext.setFieldVectors(
+            new MockFieldVectorSuppler(
+                Map.of(
+                    1,
+                    new VectorData(new byte[] { 0x40, 0x20, 0x40, 0x40 }),
+                    2,
+                    new VectorData(new byte[] { 0x40, 0x20, 0x30, 0x30 }),
+                    3,
+                    new VectorData(new byte[] { 0x40, 0x10, 0x30, 0x30 }),
+                    4,
+                    new VectorData(new byte[] { 0x10, (byte) 0x90, 0x50, (byte) 0x90 }),
+                    5,
+                    new VectorData(new byte[] { 0x10, (byte) 0x90, 0x50, (byte) 0x90 }),
+                    6,
+                    new VectorData(new byte[] { 0x50, 0x50, 0x50, 0x50 })
+                )
             )
-        ));
+        );
 
         expectedDocIds.addAll(List.of(2, 3, 6));
 

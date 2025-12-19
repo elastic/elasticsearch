@@ -603,10 +603,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
                 var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
 
-                byte[] vector = new byte[fieldInfo.getVectorDimension()];
-                for (int i = 0; i < numVectors; ++i) {
-                    input.readBytes(vector, 0, fieldInfo.getVectorDimension());
-                    builder.addVector(vector);
+                try (IndexInput clonedSlice = slice.clone()) {
+                    clonedSlice.seek(0);
+                    byte[] vector = new byte[fieldInfo.getVectorDimension()];
+                    for (int i = 0; i < numVectors; ++i) {
+                        clonedSlice.readBytes(vector, 0, fieldInfo.getVectorDimension());
+                        builder.addVector(vector);
+                    }
                 }
 
                 try (
@@ -680,10 +683,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
                 var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), dataType);
 
-                float[] vector = new float[fieldInfo.getVectorDimension()];
-                for (int i = 0; i < numVectors; ++i) {
-                    input.readFloats(vector, 0, fieldInfo.getVectorDimension());
-                    builder.addVector(vector);
+                try (IndexInput clonedSlice = slice.clone()) {
+                    clonedSlice.seek(0);
+                    float[] vector = new float[fieldInfo.getVectorDimension()];
+                    for (int i = 0; i < numVectors; ++i) {
+                        clonedSlice.readFloats(vector, 0, fieldInfo.getVectorDimension());
+                        builder.addVector(vector);
+                    }
                 }
 
                 try (

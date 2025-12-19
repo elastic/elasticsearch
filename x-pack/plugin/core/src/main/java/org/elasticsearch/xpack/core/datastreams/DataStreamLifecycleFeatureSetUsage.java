@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -124,13 +123,11 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeVLong(dataStreamsWithLifecyclesCount);
-                out.writeBoolean(defaultRolloverUsed);
-                dataRetentionStats.writeTo(out);
-                effectiveRetentionStats.writeTo(out);
-                out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
-            }
+            out.writeVLong(dataStreamsWithLifecyclesCount);
+            out.writeBoolean(defaultRolloverUsed);
+            dataRetentionStats.writeTo(out);
+            effectiveRetentionStats.writeTo(out);
+            out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
         }
 
         @Override

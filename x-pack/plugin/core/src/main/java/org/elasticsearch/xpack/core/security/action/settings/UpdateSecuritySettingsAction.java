@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.settings;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
@@ -135,9 +134,7 @@ public class UpdateSecuritySettingsAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                super.writeTo(out);
-            }
+            super.writeTo(out);
             out.writeGenericMap(this.mainIndexSettings);
             out.writeGenericMap(this.tokensIndexSettings);
             out.writeGenericMap(this.profilesIndexSettings);

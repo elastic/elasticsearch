@@ -227,7 +227,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable DocumentMapper documentMapper
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -240,7 +241,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             idFieldMapper,
             scriptCompiler,
             bitSetProducer,
-            mapperMetrics
+            mapperMetrics,
+            documentMapper
         );
     }
 
@@ -256,7 +258,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable DocumentMapper documentMapper
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -289,6 +292,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
+        this.mapper = documentMapper;
     }
 
     public boolean hasNested() {

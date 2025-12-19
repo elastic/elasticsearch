@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
  * Context-aware extension of {@link IndexSearcher}.
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
+    private static final MatchNoDocsQuery REWRITE_TIMEOUT = new MatchNoDocsQuery("rewrite timed out");
 
     /**
      * The interval at which we check for search cancellation when we cannot use
@@ -207,7 +208,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.rewrite(original);
         } catch (TimeExceededException e) {
             timeExceeded = true;
-            return new MatchNoDocsQuery("rewrite timed out");
+            return REWRITE_TIMEOUT;
         } catch (TooManyClauses e) {
             throw new IllegalArgumentException("Query rewrite failed: too many clauses", e);
         } finally {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.action.shard;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -439,18 +438,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         }
 
         final var eventIngestedRange = resultingState.metadata().getProject().index(indexName).getEventIngestedRange();
-        if (clusterState.getMinTransportVersion().before(TransportVersions.V_8_15_0)) {
+        if (shardEventIngestedRange == ShardLongFieldRange.UNKNOWN) {
             assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+        } else if (shardEventIngestedRange == ShardLongFieldRange.EMPTY) {
+            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
         } else {
-            if (shardEventIngestedRange == ShardLongFieldRange.UNKNOWN) {
-                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
-            } else if (shardEventIngestedRange == ShardLongFieldRange.EMPTY) {
-                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
-            } else {
-                assertTrue(eventIngestedRange.isComplete());
-                assertThat(eventIngestedRange.getMin(), equalTo(shardEventIngestedRange.getMin()));
-                assertThat(eventIngestedRange.getMax(), equalTo(shardEventIngestedRange.getMax()));
-            }
+            assertTrue(eventIngestedRange.isComplete());
+            assertThat(eventIngestedRange.getMin(), equalTo(shardEventIngestedRange.getMin()));
+            assertThat(eventIngestedRange.getMax(), equalTo(shardEventIngestedRange.getMax()));
         }
     }
 

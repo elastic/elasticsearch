@@ -68,6 +68,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -251,6 +252,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
                         || type == TDIGEST
+                        || type == HISTOGRAM
                         || type == GEOHASH
                         || type == GEOTILE
                         || type == GEOHEX

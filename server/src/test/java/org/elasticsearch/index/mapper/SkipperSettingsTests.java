@@ -23,14 +23,9 @@ import java.util.function.Consumer;
 public class SkipperSettingsTests extends ESTestCase {
 
     public void testSkipperSettingDefaults() {
-        assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
             IndexSettings indexSettings = settings(IndexVersion.current(), b -> {});
             assertFalse(indexSettings.useDocValuesSkipper());
-        }
-        {
-            IndexSettings indexSettings = settings(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS, b -> {});
-            assertTrue(indexSettings.useDocValuesSkipper());
         }
         {
             IndexSettings indexSettings = settings(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB, b -> {});
@@ -39,7 +34,6 @@ public class SkipperSettingsTests extends ESTestCase {
     }
 
     public void testTSDBSkipperSettingDefaults() {
-        assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
             IndexSettings indexSettings = settings(IndexVersion.current(), b -> {
                 b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
@@ -68,19 +62,12 @@ public class SkipperSettingsTests extends ESTestCase {
     }
 
     public void testLogsDBSkipperSettingDefaults() {
-        assumeTrue("Skipper feature flag is not enabled", IndexSettings.DOC_VALUES_SKIPPER);
         {
             IndexSettings indexSettings = settings(
                 IndexVersion.current(),
                 b -> { b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()); }
             );
             assertFalse(indexSettings.useDocValuesSkipper());
-        }
-        {
-            IndexSettings indexSettings = settings(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS, b -> {
-                b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
-            });
-            assertTrue(indexSettings.useDocValuesSkipper());
         }
         {
             IndexSettings indexSettings = settings(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB, b -> {

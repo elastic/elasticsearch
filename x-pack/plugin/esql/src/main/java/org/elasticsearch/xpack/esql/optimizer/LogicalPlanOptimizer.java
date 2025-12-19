@@ -167,6 +167,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSurrogateExpressions(),
+            // check for a trivial conversion introduced by a surrogate
+            new ReplaceTrivialTypeConversions(),
             new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );

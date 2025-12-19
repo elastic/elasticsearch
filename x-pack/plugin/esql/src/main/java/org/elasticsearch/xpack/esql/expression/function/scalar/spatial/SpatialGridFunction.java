@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,7 +66,7 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
 
     protected SpatialGridFunction(StreamInput in, boolean spatialDocsValues) throws IOException {
         this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
+            Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),

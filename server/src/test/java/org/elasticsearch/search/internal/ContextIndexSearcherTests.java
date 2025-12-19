@@ -39,7 +39,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -61,6 +60,7 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -249,7 +249,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     Integer.MAX_VALUE,
                     1
                 );
-                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+                Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
                 assertEquals(numDocs, totalHits.intValue());
                 int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
                 // check that each slice except for one that executes on the calling thread goes to the executor, no matter the queue size
@@ -351,7 +351,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertEquals(1, searcher.count(new TermQuery(new Term("foo", "bar"))));
 
         // make sure scorers are created only once, see #1725
-        assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
+        assertEquals(1, searcher.count(new CreateScorerOnceQuery(Queries.ALL_DOCS_INSTANCE)));
 
         TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
         assertEquals(1, topDocs.totalHits.value());

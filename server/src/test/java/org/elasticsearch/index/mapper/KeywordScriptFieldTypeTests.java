@@ -17,7 +17,6 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -28,6 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -80,7 +80,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 IndexSearcher searcher = newSearcher(reader);
                 KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"), OnScriptError.FAIL);
                 StringScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
-                searcher.search(new MatchAllDocsQuery(), new Collector() {
+                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -119,7 +119,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 IndexSearcher searcher = newSearcher(reader);
                 BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
+                TopFieldDocs docs = searcher.search(Queries.ALL_DOCS_INSTANCE, 3, new Sort(sf));
                 StoredFields storedFields = reader.storedFields();
                 assertThat(
                     storedFields.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(),
@@ -146,28 +146,31 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
+                assertThat(
+                    searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
+                        @Override
+                        public boolean needs_score() {
+                            return false;
+                        }
 
-                    @Override
-                    public boolean needs_termStats() {
-                        return false;
-                    }
+                        @Override
+                        public boolean needs_termStats() {
+                            return false;
+                        }
 
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
-                            @Override
-                            public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) getDoc().get("test");
-                                return bytes.get(0).length();
-                            }
-                        };
-                    }
-                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())), equalTo(1));
+                        @Override
+                        public ScoreScript newInstance(DocReader docReader) {
+                            return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                                @Override
+                                public double execute(ExplanationHolder explanation) {
+                                    ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) getDoc().get("test");
+                                    return bytes.get(0).length();
+                                }
+                            };
+                        }
+                    }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
+                    equalTo(1)
+                );
             }
         }
     }

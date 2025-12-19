@@ -88,6 +88,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -4242,7 +4243,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
-                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()));
+                report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()).toLowerCase(Locale.ROOT));
             }
             String rendered = Strings.toString(report.endObject());
             (new TestInlineCastDocsSupport(rendered)).renderDocs();

@@ -36,13 +36,9 @@ public abstract class ResultDiversificationContext {
         return size;
     }
 
-    /**
-     * Sets the field vectors for this context.
-     * Note that the key should be the `RankDoc` rank in the total result set
-     * @param fieldVectors the vectors to set
-     */
-    public void setFieldVectors(Map<Integer, VectorData> fieldVectors) {
-        this.fieldVectors = fieldVectors;
+    public int setFieldVectors(FieldVectorSupplier fieldVectorSupplier) {
+        this.fieldVectors = fieldVectorSupplier.getFieldVectors();
+        return this.fieldVectors.size();
     }
 
     public VectorData getQueryVector() {

@@ -36,11 +36,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -344,26 +341,23 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             return new RankDoc[0];
         }
 
-        ResultDiversificationContext diversificationContext = getResultDiversificationContext();
-
         // gather and set the query vectors
         // and create our intermediate results set
-        RankDoc[] results = new RankDoc[scoreDocs.length];
-        Map<Integer, VectorData> fieldVectors = new HashMap<>();
+        RankDocWithSearchHit[] results = new RankDocWithSearchHit[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
-            RankDocWithSearchHit asRankDoc = (RankDocWithSearchHit) scoreDocs[i];
-            results[i] = asRankDoc;
-
-            var field = asRankDoc.hit().getFields().getOrDefault(diversificationField, null);
-            if (field != null) {
-                var fieldValue = field.getValue();
-                if (fieldValue != null) {
-                    extractFieldVectorData(asRankDoc.rank, fieldValue, fieldVectors);
-                }
-            }
+            results[i] = (RankDocWithSearchHit) scoreDocs[i];
         }
 
-        if (fieldVectors.isEmpty()) {
+        ResultDiversificationContext diversificationContext = getResultDiversificationContext();
+
+        // temporary
+        int vectorCount = 0;
+        if (DenseVectorFieldVectorSupplier.canFieldBeDenseVector(diversificationField, results[0])) {
+            FieldVectorSupplier fieldVectorSupplier = new DenseVectorFieldVectorSupplier(diversificationField, results);
+            vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier);
+        }
+
+        if (vectorCount == 0) {
             throw new ElasticsearchStatusException(
                 String.format(
                     Locale.ROOT,
@@ -373,8 +367,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 RestStatus.BAD_REQUEST
             );
         }
-
-        diversificationContext.setFieldVectors(fieldVectors);
 
         try {
             ResultDiversification<?> diversification = ResultDiversificationFactory.getDiversifier(
@@ -395,72 +387,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         // should not happen
         throw new IllegalArgumentException("Unknown diversification type [" + diversificationType + "]");
-    }
-
-    private void extractFieldVectorData(int docId, Object fieldValue, Map<Integer, VectorData> fieldVectors) {
-        switch (fieldValue) {
-            case float[] floatArray -> {
-                fieldVectors.put(docId, new VectorData(floatArray));
-                return;
-            }
-            case byte[] byteArray -> {
-                fieldVectors.put(docId, new VectorData(byteArray));
-                return;
-            }
-            case Float[] boxedFloatArray -> {
-                fieldVectors.put(docId, new VectorData(unboxedFloatArray(boxedFloatArray)));
-                return;
-            }
-            case Byte[] boxedByteArray -> {
-                fieldVectors.put(docId, new VectorData(unboxedByteArray(boxedByteArray)));
-                return;
-            }
-            default -> {
-            }
-        }
-
-        // CCS search returns a generic Object[] array, so we must
-        // examine the individual element type here.
-        if (fieldValue instanceof Object[] objectArray) {
-            if (objectArray.length == 0) {
-                return;
-            }
-
-            if (objectArray[0] instanceof Byte) {
-                Byte[] asByteArray = Arrays.stream(objectArray).map(x -> (Byte) x).toArray(Byte[]::new);
-                fieldVectors.put(docId, new VectorData(unboxedByteArray(asByteArray)));
-                return;
-            }
-
-            if (objectArray[0] instanceof Float) {
-                Float[] asFloatArray = Arrays.stream(objectArray).map(x -> (Float) x).toArray(Float[]::new);
-                fieldVectors.put(docId, new VectorData(unboxedFloatArray(asFloatArray)));
-                return;
-            }
-        }
-
-        throw new ElasticsearchStatusException(
-            String.format(Locale.ROOT, "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?", diversificationField),
-            RestStatus.BAD_REQUEST
-        );
-    }
-
-    private static float[] unboxedFloatArray(Float[] array) {
-        float[] unboxedArray = new float[array.length];
-        int bIndex = 0;
-        for (Float b : array) {
-            unboxedArray[bIndex++] = b;
-        }
-        return unboxedArray;
-    }
-
-    private static byte[] unboxedByteArray(Byte[] array) {
-        byte[] unboxedArray = new byte[array.length];
-        int bIndex = 0;
-        for (Byte b : array) {
-            unboxedArray[bIndex++] = b;
-        }
-        return unboxedArray;
     }
 
     @Override

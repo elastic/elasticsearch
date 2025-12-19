@@ -12,6 +12,7 @@ package org.elasticsearch.search.diversification.mmr;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.diversification.FieldVectorSupplier;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
@@ -73,7 +74,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
-        diversificationContext.setFieldVectors(
+        diversificationContext.setFieldVectors(new MockFieldVectorSuppler(
             Map.of(
                 1,
                 new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
@@ -88,7 +89,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
                 6,
                 new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
             )
-        );
+        ));
 
         expectedDocIds.addAll(List.of(3, 4, 6));
 
@@ -108,7 +109,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         Supplier<VectorData> queryVectorData = () -> new VectorData(new byte[] { 0x50, 0x20, 0x40, 0x40 });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
-        diversificationContext.setFieldVectors(
+        diversificationContext.setFieldVectors(new MockFieldVectorSuppler(
             Map.of(
                 1,
                 new VectorData(new byte[] { 0x40, 0x20, 0x40, 0x40 }),
@@ -123,7 +124,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
                 6,
                 new VectorData(new byte[] { 0x50, 0x50, 0x50, 0x50 })
             )
-        );
+        ));
 
         expectedDocIds.addAll(List.of(2, 3, 6));
 
@@ -150,5 +151,18 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
         assertSame(emptyDocs, resultDiversification.diversify(emptyDocs));
         assertNull(resultDiversification.diversify(null));
+    }
+
+    private class MockFieldVectorSuppler implements FieldVectorSupplier {
+        private final Map<Integer, VectorData> vectors;
+
+        MockFieldVectorSuppler(Map<Integer, VectorData> vectors) {
+            this.vectors = vectors;
+        }
+
+        @Override
+        public Map<Integer, VectorData> getFieldVectors() {
+            return vectors;
+        }
     }
 }

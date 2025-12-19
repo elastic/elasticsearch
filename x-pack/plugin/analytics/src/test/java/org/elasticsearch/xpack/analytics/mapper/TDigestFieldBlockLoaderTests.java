@@ -105,7 +105,7 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
         toReturn.put("encoded_digest", streamOutput.bytes().toBytesRef());
         toReturn.put("min", valueAsMap.get("min"));
         toReturn.put("max", valueAsMap.get("max"));
-        toReturn.put("sum",  valueAsMap.get("sum"));
+        toReturn.put("sum", valueAsMap.get("sum"));
         toReturn.put("value_count", totalCount);
         return toReturn;
     }

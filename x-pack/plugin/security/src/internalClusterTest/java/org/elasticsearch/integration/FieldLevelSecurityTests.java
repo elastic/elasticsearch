@@ -119,20 +119,26 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     @Before
     public void setup() throws Exception {
         // Disable chunkPhase
-        assertTrue(client().admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().put(FETCH_PHASE_CHUNKED_ENABLED.getKey(), false).build())
-            .get().isAcknowledged());
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put(FETCH_PHASE_CHUNKED_ENABLED.getKey(), false).build())
+                .get()
+                .isAcknowledged()
+        );
     }
 
     @After
     public void cleanup() throws Exception {
-        assertTrue(client().admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().putNull(FETCH_PHASE_CHUNKED_ENABLED.getKey()).build())
-            .get().isAcknowledged());
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(FETCH_PHASE_CHUNKED_ENABLED.getKey()).build())
+                .get()
+                .isAcknowledged()
+        );
     }
 
     @Override

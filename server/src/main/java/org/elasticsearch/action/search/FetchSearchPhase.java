@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -278,7 +277,6 @@ class FetchSearchPhase extends SearchPhase {
         boolean isCCSQuery = false;
         boolean remoteDataNodeRequest = false;
         boolean isScrollOrReindex = false;
-
 
         if (connection != null) {
             // Check if this is a local request (coordinator == data node)

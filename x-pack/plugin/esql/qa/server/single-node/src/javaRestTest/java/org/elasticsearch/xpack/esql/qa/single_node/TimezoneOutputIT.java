@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -78,7 +79,7 @@ public class TimezoneOutputIT extends ESRestTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         request = new Request("POST", "/_bulk?index=test&refresh=true");
-        request.setJsonEntity(String.format("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {"index": {"_id": "1"}}
             {"date": "%s", "date_nanos": "%s"}
             """, DATE, DATE));
@@ -86,8 +87,9 @@ public class TimezoneOutputIT extends ESRestTestCase {
     }
 
     private Response esql(String timezone, String expectedContentType) throws IOException {
-        String query = (randomBoolean() ? "FROM test" : String.format("ROW date=\"%s\"::date, date_nanos=\"%s\"::date_nanos", DATE, DATE))
-            + "| SORT date ASC | LIMIT 2";
+        String query = (randomBoolean()
+            ? "FROM test"
+            : String.format(Locale.ROOT, "ROW date=\"%s\"::date, date_nanos=\"%s\"::date_nanos", DATE, DATE)) + "| SORT date ASC | LIMIT 2";
 
         RestEsqlTestCase.RequestObjectBuilder bodyBuilder = new RestEsqlTestCase.RequestObjectBuilder();
         if (randomBoolean()) {

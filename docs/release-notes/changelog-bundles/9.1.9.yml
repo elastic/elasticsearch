@@ -1,7 +1,24 @@
 version: 9.1.9
 released: false
-generated: 2025-12-13T00:13:16.356358962Z
+generated: 2025-12-17T05:12:22.170025384Z
 changelogs:
+  - pr: 132536
+    summary: Avoid stack overflow in `IndicesClusterStateService` `applyClusterState`
+    area: Cluster Coordination
+    type: bug
+    issues: []
+  - pr: 136732
+    summary: Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 137511
+    summary: Fixes esql class cast bug in STATS at planning level
+    area: ES|QL
+    type: bug
+    issues:
+      - 133992
+      - 136598
   - pr: 137558
     summary: Improve security migration resilience by handling version conflicts
     area: Security
@@ -13,6 +30,17 @@ changelogs:
     type: bug
     issues:
       - 137005
+  - pr: 138126
+    summary: Improving performance of stats APIs when the number of shards is very large
+    area: Stats
+    type: bug
+    issues:
+      - 97222
+  - pr: 138583
+    summary: "Fix: Correctly pickup MRT value for `msearch`'s search requests"
+    area: CCS
+    type: bug
+    issues: []
   - pr: 138624
     summary: Handle individual doc parsing failure in bulk request with pipeline
     area: Ingest Node
@@ -47,5 +75,15 @@ changelogs:
   - pr: 139080
     summary: "[ES|QL] Compare query builders using identity"
     area: ES|QL
+    type: bug
+    issues: []
+  - pr: 139267
+    summary: Upgrading tika to 3.2.3
+    area: Ingest Node
+    type: upgrade
+    issues: []
+  - pr: 139413
+    summary: "[Inference API] Use dimensions field in JinaAI `text_embedding` requests"
+    area: Inference
     type: bug
     issues: []

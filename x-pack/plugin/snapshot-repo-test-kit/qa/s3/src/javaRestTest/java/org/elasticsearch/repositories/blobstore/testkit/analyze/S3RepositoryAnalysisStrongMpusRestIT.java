@@ -35,4 +35,9 @@ public class S3RepositoryAnalysisStrongMpusRestIT extends AbstractS3RepositoryAn
             super.testRepositoryAnalysis();
         } // else we're running against a real AWS S3 which has a different consistency model, so this test isn't meaningful
     }
+
+    @Override
+    S3ConsistencyModel consistencyModel() {
+        return S3ConsistencyModel.STRONG_MPUS;
+    }
 }

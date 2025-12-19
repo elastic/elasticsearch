@@ -20,7 +20,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -232,7 +231,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 InternalRandomSampler randomSampler = searchAndReduce(
                     reader,
                     new AggTestConfig(randomSamplerAggregationBuilder, textFieldType).withQuery(
-                        randomBoolean() ? new MatchAllDocsQuery() : new TermQuery(new Term("text", "common"))
+                        randomBoolean() ? Queries.ALL_DOCS_INSTANCE : new TermQuery(new Term("text", "common"))
                     )
                 );
                 SignificantStringTerms terms = randomSampler.getAggregations().get("sig_text");

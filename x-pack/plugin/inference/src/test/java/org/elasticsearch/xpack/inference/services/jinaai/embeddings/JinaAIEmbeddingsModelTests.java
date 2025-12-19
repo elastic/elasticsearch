@@ -125,7 +125,8 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
                 tokenLimit,
-                embeddingType
+                embeddingType,
+                dimensions != null
             ),
             taskSettings,
             chunkingSettings,
@@ -150,7 +151,8 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
                 tokenLimit,
-                embeddingType
+                embeddingType,
+                dimensions != null
             ),
             taskSettings,
             null,
@@ -176,7 +178,8 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
                 similarityMeasure,
                 dimensions,
                 tokenLimit,
-                embeddingType
+                embeddingType,
+                dimensions != null
             ),
             taskSettings,
             null,

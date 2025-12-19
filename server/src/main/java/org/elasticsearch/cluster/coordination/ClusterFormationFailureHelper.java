@@ -236,12 +236,7 @@ public class ClusterFormationFailureHelper {
                 calculateHasDiscoveredQuorum(
                     foundPeers,
                     electionStrategy,
-                    clusterFormationClusterStateView.localNode,
-                    clusterFormationClusterStateView.currentTerm,
-                    clusterFormationClusterStateView.lastAcceptedTerm,
-                    clusterFormationClusterStateView.lastAcceptedVersion,
-                    clusterFormationClusterStateView.lastCommittedConfiguration,
-                    clusterFormationClusterStateView.lastAcceptedConfiguration
+                    clusterFormationClusterStateView
                 ),
                 statusInfo,
                 inFlightJoinStatuses
@@ -251,22 +246,17 @@ public class ClusterFormationFailureHelper {
         private static boolean calculateHasDiscoveredQuorum(
             List<DiscoveryNode> foundPeers,
             ElectionStrategy electionStrategy,
-            DiscoveryNode localNode,
-            long currentTerm,
-            long acceptedTerm,
-            long clusterStateVersion,
-            VotingConfiguration lastCommittedConfiguration,
-            VotingConfiguration lastAcceptedConfiguration
+            ClusterFormationClusterStateView clusterFormationClusterStateView
         ) {
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
             return electionStrategy.isElectionQuorum(
-                localNode,
-                currentTerm,
-                acceptedTerm,
-                clusterStateVersion,
-                lastCommittedConfiguration,
-                lastAcceptedConfiguration,
+                clusterFormationClusterStateView.localNode,
+                clusterFormationClusterStateView.currentTerm,
+                clusterFormationClusterStateView.lastAcceptedTerm,
+                clusterFormationClusterStateView.lastAcceptedVersion,
+                clusterFormationClusterStateView.lastCommittedConfiguration,
+                clusterFormationClusterStateView.lastAcceptedConfiguration,
                 voteCollection
             );
         }

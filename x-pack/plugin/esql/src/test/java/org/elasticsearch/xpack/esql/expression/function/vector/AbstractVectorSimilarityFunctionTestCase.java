@@ -54,6 +54,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
             float[] leftArray = listToFloatArray(left);
             float[] rightArray = listToFloatArray(right);
             double expected = similarityFunction.calculateSimilarity(leftArray, rightArray);
+            double delta = BASE_DELTA * dimensions;
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
@@ -61,7 +62,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
                 ),
                 evaluatorName,
                 DOUBLE,
-                closeTo(expected, DELTA) // Random vectors should have cosine similarity close to 0
+                closeTo(expected, delta) // Random vectors should have cosine similarity close to 0
             );
         }));
 

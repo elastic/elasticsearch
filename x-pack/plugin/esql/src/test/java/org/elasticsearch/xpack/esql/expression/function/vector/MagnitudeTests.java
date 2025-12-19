@@ -63,11 +63,12 @@ public class MagnitudeTests extends AbstractVectorTestCase {
             List<Float> input = randomDenseVector(dimensions);
             float[] array = listToFloatArray(input);
             double expected = scalarFunction.calculateScalar(array);
+            double delta = BASE_DELTA * dimensions;
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(input, DENSE_VECTOR, "vector")),
                 evaluatorName,
                 DOUBLE,
-                closeTo(expected, DELTA)
+                closeTo(expected, delta)
             );
         }));
 

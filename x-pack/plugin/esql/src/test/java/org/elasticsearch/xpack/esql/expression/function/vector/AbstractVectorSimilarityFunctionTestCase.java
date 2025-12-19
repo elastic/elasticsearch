@@ -25,6 +25,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractVectorTestCase {
 
+    // Base tolerance for vector score comparisons, scaled by dimensionality to
+    // accommodate minor floating-point rounding differences from SIMD arithmetic.
+    static final double BASE_DELTA = 1e-5;
+
     protected AbstractVectorSimilarityFunctionTestCase(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -52,6 +56,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
             float[] leftArray = listToFloatArray(left);
             float[] rightArray = listToFloatArray(right);
             double expected = similarityFunction.calculateSimilarity(leftArray, rightArray);
+            double delta = BASE_DELTA * dimensions;
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
@@ -59,7 +64,7 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
                 ),
                 evaluatorName,
                 DOUBLE,
-                closeTo(expected, 0.000001f) // Random vectors should have cosine similarity close to 0
+                closeTo(expected, delta) // Random vectors should have cosine similarity close to 0
             );
         }));
 

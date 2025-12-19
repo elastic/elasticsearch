@@ -196,6 +196,7 @@ crimson    | 170.0
 l1NormWithEnrich
 required_capability: vector_similarity_functions_pushdown
 required_capability: enrich_load
+required_capability: enrich_dense_vector_bugfix
 
 from colors
 | eval s = v_l1_norm(rgb_vector, [1, 2, 3])

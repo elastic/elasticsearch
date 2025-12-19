@@ -108,6 +108,7 @@ vector:dense_vector
 
 denseVectorWithEnrich
 required_capability: enrich_load
+required_capability: enrich_dense_vector_bugfix
 
 from colors 
 | enrich colors_policy
@@ -131,6 +132,7 @@ chocolate       | [0.0, 50.0, 86.0, 18.0]
 
 denseVectorRowWithEnrich
 required_capability: enrich_load
+required_capability: enrich_dense_vector_bugfix
 
 row id=0
 | enrich colors_policy

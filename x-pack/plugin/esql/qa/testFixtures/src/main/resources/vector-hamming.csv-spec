@@ -196,6 +196,7 @@ lime       | 11.0
 hammingWithEnrich
 required_capability: vector_similarity_functions_pushdown
 required_capability: enrich_load
+required_capability: enrich_dense_vector_bugfix
 
 from colors
 | eval s = v_hamming(rgb_byte_vector, [1, 2, 3])

@@ -196,6 +196,7 @@ teal       | 109.22454071044922
 l2NormWithEnrich
 required_capability: vector_similarity_functions_pushdown
 required_capability: enrich_load
+required_capability: enrich_dense_vector_bugfix
 
 from colors
 | eval s = v_l2_norm(rgb_vector, [1, 2, 3])

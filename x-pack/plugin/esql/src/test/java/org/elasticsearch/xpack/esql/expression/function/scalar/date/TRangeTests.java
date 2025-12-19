@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -142,6 +144,9 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         ),
                         DataType.BOOLEAN,
                         equalTo(testCase.expectedResult)
+                    ).withConfiguration(
+                        TEST_SOURCE,
+                        randomConfigurationBuilder().query(TestCaseSupplier.TEST_SOURCE.text()).now(fixedNow.toInstant()).build()
                     )
                 )
             );

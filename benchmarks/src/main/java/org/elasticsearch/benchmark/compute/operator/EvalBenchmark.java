@@ -71,6 +71,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
@@ -361,6 +362,7 @@ public class EvalBenchmark {
     private static Configuration configuration() {
         return new Configuration(
             ZoneOffset.UTC,
+            Instant.now(),
             Locale.ROOT,
             null,
             null,

@@ -218,7 +218,7 @@ public class TRange extends EsqlConfigurationFunction
         try {
             Object foldFirst = first.fold(foldContext);
             if (second == null) {
-                rangeEnd = configuration().now().toInstant();
+                rangeEnd = configuration().now();
                 rangeStart = timeWithOffset(foldFirst, rangeEnd);
             } else {
                 Object foldSecond = second.fold(foldContext);

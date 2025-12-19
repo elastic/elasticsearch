@@ -62,7 +62,10 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             // when there are more threads than scheduler(s)' concurrency capacity, excess merges will be backlogged
             // alternatively, when scheduler(s)' concurrency capacity exceeds the executor's thread count, excess merges will be enqueued
-            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2))
+            .put(
+                EsExecutors.NODE_PROCESSORS_SETTING.getKey(),
+                Math.min(MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2), Runtime.getRuntime().availableProcessors())
+            )
             .build();
     }
 

@@ -153,7 +153,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
         assertEquals("should write all blobs", created, container.listBlobsByPrefix(purpose, blobNamePrefix).size());
 
-        container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobNames.iterator());
+        container.deleteBlobsIgnoringIfNotExists(purpose, blobNames.iterator());
         assertEquals("should delete all blobs", 0, container.listBlobsByPrefix(purpose, blobNamePrefix).size());
     }
 

@@ -773,7 +773,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final var retryBlobId = batchFailures.getLast().blobId;
                 try {
                     client().delete(purpose, retryBlobId);
-                    // remaining items go the next batch
+                    // remaining items go into the next batch
                     batchFailures.removeLast();
                 } catch (StorageException e) {
                     throw new IOException(

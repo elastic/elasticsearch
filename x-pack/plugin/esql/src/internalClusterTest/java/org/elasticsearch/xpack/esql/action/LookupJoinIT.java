@@ -376,19 +376,17 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         ensureIndices(List.of(AIRPORTS_INDEX, AIRPORT_CITY_BOUNDARIES_INDEX));
 
         // Run the query
-        String query = String.format(
-            Locale.ROOT,
-            """
-                FROM %s
-                | RENAME abbrev AS airport_code
-                | LOOKUP JOIN %s ON airport_code == abbrev AND ST_CONTAINS(TO_GEOSHAPE("POLYGON((-0.3 51.0, -0.1 51.0, -0.1 51.2, -0.3 51.2, -0.3 51.0))"), city_boundary)
-                | WHERE city is not null
-                | KEEP airport_code, name, city, country, city_boundary
-                | SORT airport_code, name, city, country
-                """,
-            AIRPORTS_INDEX,
-            AIRPORT_CITY_BOUNDARIES_INDEX
-        );
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | RENAME abbrev AS airport_code
+            | LOOKUP JOIN %s ON airport_code == abbrev AND ST_CONTAINS(
+                TO_GEOSHAPE("POLYGON((-0.3 51.0, -0.1 51.0, -0.1 51.2, -0.3 51.2, -0.3 51.0))"),
+                city_boundary
+            )
+            | WHERE city is not null
+            | KEEP airport_code, name, city, country, city_boundary
+            | SORT airport_code, name, city, country
+            """, AIRPORTS_INDEX, AIRPORT_CITY_BOUNDARIES_INDEX);
 
         try (EsqlQueryResponse response = runQuery(query)) {
             assertValues(
@@ -399,7 +397,8 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
                         "London Gatwick",
                         "Crawley",
                         "United Kingdom",
-                        "POLYGON ((-0.2556 51.1418, -0.2003 51.1391, -0.2369 51.1094, -0.1964 51.0848, -0.1395 51.1081, -0.133 51.1589, -0.1785 51.1672, -0.2556 51.1418))"
+                        "POLYGON ((-0.2556 51.1418, -0.2003 51.1391, -0.2369 51.1094, -0.1964 51.0848, "
+                            + "-0.1395 51.1081, -0.133 51.1589, -0.1785 51.1672, -0.2556 51.1418))"
                     )
                 )
             );

@@ -37,6 +37,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -56,7 +57,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -74,8 +74,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         "esql_lookup_join_operator_session_id"
     );
 
-    // Thread-safe cache for PhysicalOperation by lookupSessionId
-    private final ConcurrentHashMap<String, PhysicalOperation> physicalOperationCache = new ConcurrentHashMap<>();
+    private final PhysicalOperationCache physicalOperationCache;
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -99,6 +98,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             false,
             TransportRequest::readFrom,
             projectResolver
+        );
+        this.physicalOperationCache = new PhysicalOperationCache(
+            clusterService.getSettings(),
+            transportService.getThreadPool(),
+            ThreadPool.Names.SEARCH
         );
     }
 
@@ -230,7 +234,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         // Use cache if lookupSessionId is present, otherwise build directly
         if (request.lookupSessionId != null) {
             String sessionId = request.lookupSessionId;
-            return physicalOperationCache.computeIfAbsent(sessionId, id -> {
+            return physicalOperationCache.getOrCompute(sessionId, id -> {
                 try {
                     // When building for cache, use a temporary releasables list since these resources
                     // are only needed for planning and will be cleaned up immediately

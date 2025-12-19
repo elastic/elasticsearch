@@ -75,7 +75,8 @@ public class LookupExecutionMapper {
 
     /**
      * Extended DriverContext that provides access to ShardContext, LookupShardContext, collectedPages, and inputPage.
-     * This allows factories to retrieve ShardContext, SearchExecutionContext (from LookupShardContext), collectedPages, and inputPage at operator creation time.
+     * This allows factories to retrieve ShardContext, SearchExecutionContext (from LookupShardContext),
+     * collectedPages, and inputPage at operator creation time.
      * Used by both LookupExecutionMapper and AbstractLookupService.
      * SearchExecutionContext is retrieved dynamically from LookupShardContext to avoid caching stale references.
      */

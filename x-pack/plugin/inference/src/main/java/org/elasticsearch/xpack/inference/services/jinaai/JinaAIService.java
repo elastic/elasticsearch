@@ -304,7 +304,8 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
                 similarityToUse,
                 embeddingSize,
                 maxInputTokens,
-                serviceSettings.getEmbeddingType()
+                serviceSettings.getEmbeddingType(),
+                serviceSettings.dimensionsSetByUser()
             );
 
             return new JinaAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);

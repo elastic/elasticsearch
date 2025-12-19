@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -66,7 +67,6 @@ import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
@@ -100,6 +100,21 @@ import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Contains one "check" method for each distinct JDK method we want to instrument.
+ * <p>
+ * Methods starting with {@code check$} (with the dollar sign) follow a strict naming convention
+ * that allows them to be matched up directly against the corresponding target method or constructor
+ * by {@code InstrumentationService}.
+ * The naming convention uses dollar signs as separators,
+ * which works nicely because JCL methods don't use dollar signs.
+ * <p>
+ * Methods not starting with {@code check$} (for example, {@link #checkPathToRealPath})
+ * are processed by {@code DynamicInstrumentation} and follow a different convention.
+ * They are matched up with the appropriate implementation classes at runtime
+ * once we know what they are.
+ * <p>
+ * Some of these methods have a {@code throws} clause.
+ * The rule is that the check method should not throw a checked exception
+ * unless that exception is also thrown by the instrumented method under the same circumstances.
  */
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
@@ -1243,7 +1258,14 @@ public interface EntitlementChecker {
     void checkType(Class<?> callerClass, FileStore that);
 
     // path
-    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException;
+
+    /**
+     * From {@link Path#toRealPath(LinkOption...)}...
+     *
+     * @throws  IOException
+     *          if the file does not exist or an I/O error occurs
+     */
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws IOException;
 
     void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
 

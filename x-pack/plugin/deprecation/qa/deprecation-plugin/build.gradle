@@ -16,6 +16,5 @@ esplugin {
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(":libs:swisshash")
   implementation project(':x-pack:plugin:deprecation:qa::common')
 }

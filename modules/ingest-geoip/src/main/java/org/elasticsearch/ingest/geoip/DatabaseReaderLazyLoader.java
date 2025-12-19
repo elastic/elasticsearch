@@ -115,7 +115,10 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
 
     @Override
     @Nullable
-    public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
+    public <RESPONSE extends Response> RESPONSE getResponse(
+        String ipAddress,
+        CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider
+    ) {
         return cache.putIfAbsent(projectId, ipAddress, cachedDatabasePathToString, ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);

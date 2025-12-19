@@ -84,8 +84,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Files.createDirectories(geoIpConfigDir);
 
         Client client = mock(Client.class);
-        GeoIpCache cache = new GeoIpCache(1000);
-        configDatabases = new ConfigDatabases(geoIpConfigDir, new GeoIpCache(1000));
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1000);
+        configDatabases = new ConfigDatabases(geoIpConfigDir, GeoIpCache.createGeoIpCacheWithMaxCount(1000));
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
         geoipTmpDir = createTempDir();
         clusterService = mock(ClusterService.class);
@@ -391,7 +391,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
-        GeoIpCache cache = new GeoIpCache(1000);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
 
@@ -460,7 +460,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         final Path configDir = createTempDir();
         final Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
-        ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, new GeoIpCache(1000));
+        ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, GeoIpCache.createGeoIpCacheWithMaxCount(1000));
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
         // fake the GeoIP2-City database
         copyDatabase("GeoLite2-City.mmdb", geoIpConfigDir);
@@ -473,7 +473,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool("test");
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         Client client = mock(Client.class);
-        GeoIpCache cache = new GeoIpCache(1000);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1000);
         DatabaseNodeService databaseNodeService = new DatabaseNodeService(
             createTempDir(),
             client,

@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
@@ -43,6 +45,7 @@ import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
 import org.elasticsearch.ingest.geoip.stats.RestGeoIpStatsAction;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -86,7 +89,20 @@ public class IngestGeoIpPlugin extends Plugin
         PersistentTaskPlugin,
         ActionPlugin,
         ReloadablePlugin {
-    public static final Setting<Long> CACHE_SIZE = Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
+
+    private static final Setting<Long> CACHE_SIZE_COUNT = Setting.longSetting(
+        "ingest.geoip.cache_size",
+        0, // default is never used, we use CACHE_SIZE_BYTES if this is not set
+        0,
+        Setting.Property.NodeScope
+    );
+
+    private static final Setting<ByteSizeValue> CACHE_SIZE_BYTES = Setting.byteSizeSetting(
+        "ingest.geoip.cache_memory_size",
+        // TODO: Think more carefully about this default before merging:
+        ByteSizeValue.ofBytes((long) (0.01 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())),
+        Setting.Property.NodeScope
+    );
     private static final int GEOIP_INDEX_MAPPINGS_VERSION = 1;
     /**
      * No longer used for determining the age of mappings, but system index descriptor
@@ -105,7 +121,8 @@ public class IngestGeoIpPlugin extends Plugin
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            CACHE_SIZE,
+            CACHE_SIZE_COUNT,
+            CACHE_SIZE_BYTES,
             GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
             GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
@@ -119,8 +136,7 @@ public class IngestGeoIpPlugin extends Plugin
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         ingestService.set(parameters.ingestService);
 
-        long cacheSize = CACHE_SIZE.get(parameters.env.settings());
-        GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
+        GeoIpCache geoIpCache = createGeoIpCache(parameters.env.settings());
         DatabaseNodeService registry = new DatabaseNodeService(
             parameters.env,
             parameters.client,
@@ -135,6 +151,30 @@ public class IngestGeoIpPlugin extends Plugin
             entry(GeoIpProcessor.GEOIP_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.GEOIP_TYPE, registry)),
             entry(GeoIpProcessor.IP_LOCATION_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.IP_LOCATION_TYPE, registry))
         );
+    }
+
+    private static GeoIpCache createGeoIpCache(Settings settings) {
+        if (settings.hasValue(CACHE_SIZE_COUNT.getKey())) {
+            if (settings.hasValue(CACHE_SIZE_BYTES.getKey())) {
+                // Both CACHE_SIZE_COUNT and CACHE_SIZE_BYTES are set, which is an error:
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Both %s and %s are set: "
+                            + "please use either %s to set a size based on count or %s to set a size based on bytes of memory",
+                        CACHE_SIZE_COUNT.getKey(),
+                        CACHE_SIZE_BYTES.getKey(),
+                        CACHE_SIZE_COUNT.getKey(),
+                        CACHE_SIZE_BYTES.getKey()
+                    )
+                );
+            } else {
+                // Only CACHE_SIZE_COUNT is set, so use that:
+                return GeoIpCache.createGeoIpCacheWithMaxCount(CACHE_SIZE_COUNT.get(settings));
+            }
+        } else {
+            // CACHE_SIZE_COUNT is not set, so use either the explicit or default value of CACHE_SIZE_BYTES:
+            return GeoIpCache.createGeoIpCacheWithMaxBytes(CACHE_SIZE_BYTES.get(settings));
+        }
     }
 
     @Override

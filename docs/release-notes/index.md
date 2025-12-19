@@ -90,12 +90,53 @@ Vector Search:
 ```{applies_to}
 stack: ga 9.1.9
 ```
+### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
+Infra/Core:
+* Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
+Infra/Logging:
+* Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
+
+Ingest Node:
+* Upgrading tika to 3.2.3 [#139267](https://github.com/elastic/elasticsearch/pull/139267)
+
+Security:
+* Improve security migration resilience by handling version conflicts [#137558](https://github.com/elastic/elasticsearch/pull/137558)
+
 
 ### Fixes [elasticsearch-9.1.9-fixes]
 
+CCS:
+* Fix: Correctly pickup MRT value for `msearch`'s search requests [#138583](https://github.com/elastic/elasticsearch/pull/138583)
+
+Cluster Coordination:
+* Avoid stack overflow in `IndicesClusterStateService` `applyClusterState` [#132536](https://github.com/elastic/elasticsearch/pull/132536)
+
+Downsampling:
+* Fix multi fields in downsampling [#138869](https://github.com/elastic/elasticsearch/pull/138869)
+
+ES|QL:
+* Fixes esql class cast bug in STATS at planning level [#137511](https://github.com/elastic/elasticsearch/pull/137511) (issues: [#133992](https://github.com/elastic/elasticsearch/issues/133992), [#136598](https://github.com/elastic/elasticsearch/issues/136598))
+* [ES|QL] Compare query builders using identity [#139080](https://github.com/elastic/elasticsearch/pull/139080)
+
+Inference:
+* [Inference API] Use dimensions field in JinaAI `text_embedding` requests [#139413](https://github.com/elastic/elasticsearch/pull/139413)
+
+Infra/Core:
+* GET /_migration/deprecations doesn't check disk watermarks against correct settings values [#138115](https://github.com/elastic/elasticsearch/pull/138115) (issue: [#137005](https://github.com/elastic/elasticsearch/issues/137005))
+
 Ingest Node:
 * Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
+Machine Learning:
+* Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
 
+Search:
+* Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder` [#136732](https://github.com/elastic/elasticsearch/pull/136732)
+
+Security:
+* More reliable trigger for security index migration [#139028](https://github.com/elastic/elasticsearch/pull/139028)
+
+Stats:
+* Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
 
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]

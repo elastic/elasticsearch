@@ -79,6 +79,11 @@ public class EsqlCapabilities {
         ST_DISJOINT,
 
         /**
+         * Support for spatial simplification {@code ST_SIMPLIFY}
+         */
+        ST_SIMPLIFY,
+
+        /**
          * The introduction of the {@code VALUES} agg.
          */
         AGG_VALUES,
@@ -1615,6 +1620,10 @@ public class EsqlCapabilities {
         HISTOGRAM_FIELD_SUPPORT_V0,
 
         /**
+         * histogram to tdigest conversion function
+         */
+        HISTOGRAM_TO_TDIGEST_CAST,
+        /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,
@@ -1786,6 +1795,11 @@ public class EsqlCapabilities {
          * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
          */
         FN_MV_INTERSECTION,
+
+        /**
+         * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
+         */
+        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

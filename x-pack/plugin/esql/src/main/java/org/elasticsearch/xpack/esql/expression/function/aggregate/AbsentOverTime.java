@@ -61,6 +61,7 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
@@ -69,7 +70,8 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
                 "unsigned_long",
                 "version",
                 "exponential_histogram",
-                "tdigest" }
+                "tdigest" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

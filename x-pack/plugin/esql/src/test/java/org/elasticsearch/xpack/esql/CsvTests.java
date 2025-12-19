@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -662,6 +663,8 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
+        EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(randomBoolean());
+        esqlExecutionInfo.planningProfile().planning().start();
         EsqlStatement statement = EsqlParser.INSTANCE.createStatement(testCase.query);
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
@@ -699,7 +702,7 @@ public class CsvTests extends ESTestCase {
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
-                createEsqlExecutionInfo(randomBoolean()),
+                esqlExecutionInfo,
                 planRunner(bigArrays, physicalOperationProviders),
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),
                 configuration,

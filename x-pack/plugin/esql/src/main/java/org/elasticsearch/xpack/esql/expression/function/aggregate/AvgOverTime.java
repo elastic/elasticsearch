@@ -50,9 +50,9 @@ public class AvgOverTime extends TimeSeriesAggregateFunction implements Optional
     public AvgOverTime(
         Source source,
         @Param(
-            name = "number",
+            name = "field",
             type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram", "tdigest" },
-            description = "Expression that outputs values to average."
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

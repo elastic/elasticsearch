@@ -2,8 +2,8 @@
 
 **Parameters**
 
-`number`
-:   Expression that outputs values to calculate the standard deviation of.
+`field`
+:   the metric field to calculate the standard deviation for
 
 `window`
 :   the time window over which to compute the standard deviation over time

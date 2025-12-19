@@ -1,0 +1,5 @@
+pr: 139661
+summary: Separate counts columns for multi-value binary doc value keywords
+area: Mapping
+type: enhancement
+issues: []

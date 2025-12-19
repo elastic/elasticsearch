@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
@@ -32,6 +33,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -241,6 +243,15 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         assertThat(
             assignment.getReason().get(),
             containsString("Could not assign (more) allocations on node [node-1]. Reason: This node has insufficient available memory.")
+        );
+        assertThat(
+            assignment.getReason().get(),
+            containsString(
+                Strings.format(
+                    "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                    MACHINE_LEARNING_SETTINGS
+                )
+            )
         );
     }
 

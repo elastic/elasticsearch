@@ -41,6 +41,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LOW_PRIORITY_MODELS_PER_NODE;
 
@@ -439,14 +440,16 @@ class TrainedModelAssignmentRebalancer {
                 ParameterizedMessage.format(
                     "This node has insufficient available memory. Available memory for ML [{} ({})], "
                         + "free memory [{} ({})], "
-                        + "estimated memory required for this model [{} ({})].",
+                        + "estimated memory required for this model [{} ({})]. "
+                        + "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [{}]",
                     new Object[] {
                         load.getMaxMlMemory(),
                         ByteSizeValue.ofBytes(load.getMaxMlMemory()).toString(),
                         nodeFreeMemory,
                         ByteSizeValue.ofBytes(nodeFreeMemory).toString(),
                         requiredMemory,
-                        ByteSizeValue.ofBytes(requiredMemory).toString() }
+                        ByteSizeValue.ofBytes(requiredMemory).toString(),
+                        MACHINE_LEARNING_SETTINGS }
                 )
             );
         }

@@ -111,6 +111,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -1372,13 +1373,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
 
-            MultiValuedBinaryDocValuesField.SeparateCount field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc()
-                .getField(fieldType().name());
-            var countField = (UpdatableNumericDocValuesField) context.doc().getByKey(fieldType().name() + ".counts");
+            var field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getField(fieldType().name());
+            var countField = (UpdatableNumericDocValuesField) context.doc().getByKey(fieldType().name() + COUNT_FIELD_SUFFIX);
             if (field == null) {
                 field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder(fieldType().name());
                 context.doc().addWithKey(fieldType().name(), field);
-                countField = new UpdatableNumericDocValuesField(fieldType().name() + ".counts");
+                countField = new UpdatableNumericDocValuesField(field.countFieldName());
                 context.doc().addWithKey(countField.name(), countField);
             }
 
@@ -1403,10 +1403,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private boolean storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck() {
         return indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
-    }
-
-    private boolean multiValueFormatUsedSeparateCountColumns() {
-        return indexCreatedVersion.onOrAfter(IndexVersions.BINARY_DV_MULTI_VALUED_PARALLEL_COUNT);
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {

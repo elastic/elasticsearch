@@ -41,7 +41,7 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
             return null;
         }
 
-        var counts = leafReader.getNumericDocValues(name + ".counts");
+        var counts = leafReader.getNumericDocValues(name + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
         bytesValues = MultiValuedSortedBinaryDocValues.from(docValues, counts);
 
         return docId -> {

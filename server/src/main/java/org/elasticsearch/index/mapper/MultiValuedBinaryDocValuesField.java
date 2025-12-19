@@ -51,6 +51,14 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         return uniqueValues.size();
     }
 
+    protected void writeLenAndValues(BytesStreamOutput out) throws IOException {
+       for (BytesRef value : uniqueValues) {
+           int valueLength = value.length;
+           out.writeVInt(valueLength);
+           out.writeBytes(value.bytes, value.offset, valueLength);
+       }
+    }
+
     @Override
     public abstract BytesRef binaryValue();
 
@@ -60,8 +68,8 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
-         * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}. This array takes
-         * the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
+         * Encodes the collection of BytesRef into a single BytesRef, using the form:
+         * [doc value count][length of value 1][value 1][length of value 2][value 2]...
          */
         @Override
         public BytesRef binaryValue() {
@@ -71,11 +79,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
                 out.writeVInt(docValuesCount);
-                for (BytesRef value : uniqueValues) {
-                    int valueLength = value.length;
-                    out.writeVInt(valueLength);
-                    out.writeBytes(value.bytes, value.offset, valueLength);
-                }
+                writeLenAndValues(out);
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);
@@ -84,6 +88,8 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     public static class SeparateCount extends MultiValuedBinaryDocValuesField {
+        public static final String COUNT_FIELD_SUFFIX = ".counts";
+
         private SeparateCount(String name, Ordering ordering) {
             super(name, ordering);
         }
@@ -92,6 +98,12 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             return new SeparateCount(name, Ordering.NATURAL);
         }
 
+        /**
+         * Encodes the collection of BytesRef into a single BytesRef. Unlike Integegrated counts, the number of values is not stored, and
+         * if there is only a single value, the length is not stored.
+         * For multiple values, the format is: [length of value 1][value 1][length of value 2][value 2]...
+         * For a single value, the format is: [value 1]
+         */
         @Override
         public BytesRef binaryValue() {
             int docValuesCount = uniqueValues.size();
@@ -102,11 +114,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                     BytesRef value = uniqueValues.stream().findFirst().get();
                     out.writeBytes(value.bytes, value.offset, value.length);
                 } else {
-                    for (BytesRef value : uniqueValues) {
-                        int valueLength = value.length;
-                        out.writeVInt(valueLength);
-                        out.writeBytes(value.bytes, value.offset, valueLength);
-                    }
+                    writeLenAndValues(out);
                 }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
@@ -114,6 +122,9 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             }
         }
 
+        public String countFieldName() {
+            return name() + COUNT_FIELD_SUFFIX;
+        }
     }
 
 }

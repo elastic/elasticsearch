@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCo
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Predicate;
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 abstract class AbstractBinaryDocValuesQuery extends Query {
 
@@ -48,7 +49,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + ".counts");
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
 
                 if (values == null) {
                     return null;
@@ -60,9 +61,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
 
                     @Override
                     public boolean matches() throws IOException {
-                        BytesRef binaryValue = values.binaryValue();
-                        int count = Math.toIntExact(counts.longValue());
-                        return reader.match(binaryValue, count, matcher);
+                        return reader.match(values.binaryValue(), counts.longValue(), matcher);
                     }
 
                     @Override

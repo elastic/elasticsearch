@@ -26,7 +26,7 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
 
     public MultiValueSeparateCountBinaryDocValuesReader() {}
 
-    public void read(BytesRef bytes, int count, BlockLoader.BytesRefBuilder builder) throws IOException {
+    public void read(BytesRef bytes, long count, BlockLoader.BytesRefBuilder builder) throws IOException {
         if (count == 1) {
             builder.appendBytesRef(bytes);
             return;
@@ -42,7 +42,7 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
         builder.endPositionEntry();
     }
 
-    public boolean match(BytesRef bytes, int count, Predicate<BytesRef> predicate) throws IOException {
+    public boolean match(BytesRef bytes, long count, Predicate<BytesRef> predicate) throws IOException {
         if (count == 1) {
             return predicate.test(bytes);
         }

@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
 import java.io.IOException;
 
@@ -22,8 +23,6 @@ import java.io.IOException;
  * Wrapper around {@link BinaryDocValues} to decode the typical multivalued encoding
  */
 public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
-
-    public static final String COUNT_FIELD_SUFFIX = ".counts";
 
     protected final ByteArrayStreamInput in = new ByteArrayStreamInput();
     protected final BytesRef scratch = new BytesRef();
@@ -41,7 +40,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         // Obtain counts directly from leafReader so that null is returned rather than an empty doc values.
         // Whether counts is null allows us to determine which multivalued format was used.
 
-        String countsFieldName = valuesFieldName + COUNT_FIELD_SUFFIX;
+        String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
         return from(values, counts);
     }

@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
  * Block loader for multi-value binary fields which store count in a separate parallel numeric doc value column.
@@ -36,16 +37,13 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
         BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        NumericDocValues counts = context.reader().getNumericDocValues(fieldName + ".counts");
+        NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
         return createReader(values, counts);
     }
 
     public static AllReader createReader(@Nullable BinaryDocValues docValues, @Nullable NumericDocValues numericDocValues) {
         if (docValues == null) {
             return new ConstantNullsReader();
-        }
-        if (numericDocValues == null) {
-            return new BytesRefsFromCustomBinaryBlockLoader.BytesRefsFromCustomBinary(docValues);
         }
         return new BytesRefsFromBinarySeparateCount(docValues, numericDocValues);
     }
@@ -72,10 +70,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             }
 
             assert counts.advanceExact(doc);
-            int count = Math.toIntExact(counts.longValue());
-
-            BytesRef bytes = docValues.binaryValue();
-            reader.read(bytes, count, builder);
+            reader.read(docValues.binaryValue(), counts.longValue(), builder);
         }
 
         @Override

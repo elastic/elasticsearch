@@ -702,7 +702,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     // GCS retry codes https://docs.cloud.google.com/storage/docs/retry-strategy#java
     private static boolean isRetryErrCode(int code) {
-        return switch (RestStatus.fromCode(code)) {
+        final var status = RestStatus.fromCode(code);
+        if (status == null) {
+            return false;
+        }
+        return switch (status) {
             case REQUEST_TIMEOUT, TOO_MANY_REQUESTS, INTERNAL_SERVER_ERROR, BAD_GATEWAY, SERVICE_UNAVAILABLE, GATEWAY_TIMEOUT -> true;
             default -> false;
         };
@@ -752,7 +756,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
             // The whole batch request uses GCS client's retry logic, but individual item failures are not retried.
             // Collect all retryable failures or terminate on non-retryable error.
-            batch.submit();
+            try {
+                batch.submit();
+            } catch (Exception e) {
+                throw new IOException("Failed to execute batch", e);
+            }
             for (var deleteResult : batchResults) {
                 try {
                     deleteResult.result.get();

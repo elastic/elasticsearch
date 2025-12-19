@@ -83,6 +83,9 @@ stack: preview 9.2
 
 The following settings can be used to customize the [OTLP endoint](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md):
 
+`xpack.otel_data.registry.enabled`
+:   Specifies whether OpenTelemetry related index templates should be created on startup. Defaults to *true*.
+
 `xpack.otel_data.histogram_field_type` {applies_to}`stack: preview 9.3`
 :   Defines how OTLP histograms are mapped in Elasticsearch. Valid values are:
 

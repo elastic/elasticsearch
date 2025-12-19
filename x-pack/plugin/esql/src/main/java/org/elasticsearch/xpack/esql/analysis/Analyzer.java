@@ -226,9 +226,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
-            new ResolveUnmapped(),
             new ImplicitCastAggregateMetricDoubles(),
-            new ResolveUnionTypesInUnionAll()
+            new ResolveUnionTypesInUnionAll(),
+            new ResolveUnmapped()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
     );
@@ -890,7 +890,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
-            Set<String> unsupportedAttributeNames = Fork.outputUnsupportedAttributeNames(fork.children());
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -2210,7 +2209,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             return switch (context.unmappedResolution()) {
                 case UnmappedResolution.FAIL -> plan;
-                case UnmappedResolution.NULLIFY -> nullify(plan);
+                case UnmappedResolution.NULLIFY -> hasUnresolvedFork(plan) ? plan : nullify(plan);
                 case UnmappedResolution.LOAD -> throw new IllegalArgumentException("unmapped fields resolution not yet supported");
             };
         }
@@ -2225,21 +2224,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     removeGroupingAliases(agg, unresolved);
                     yield p; // unchanged
                 }
-                case EsRelation relation -> {
-                    if (unresolved.isEmpty()) {
-                        yield p;
-                    }
-                    Map<String, Alias> aliasesMap = new LinkedHashMap<>(unresolved.size());
-                    for (var u : unresolved) {
-                        if (aliasesMap.containsKey(u.name()) == false) {
-                            aliasesMap.put(u.name(), new Alias(u.source(), u.name(), Literal.NULL));
-                        }
-                    }
-                    nullifiedUnresolved.addAll(unresolved);
-                    unresolved.clear(); // cleaning since the plan might be n-ary, with multiple sources
-                    yield new Eval(relation.source(), relation, List.copyOf(aliasesMap.values()));
-                }
-                case Project project -> {
+                case EsRelation relation -> evalUnresolved(relation, unresolved, nullifiedUnresolved);
+                // each subquery aliases its own unresolved attributes "internally" (before UnionAll)
+                case Fork fork -> evalUnresolved(fork, unresolved, nullifiedUnresolved);
+                case Project project -> { // TODO: redo handling of "KEEP *", "KEEP foo* | EVAL foo_does_not_exist + 1" etc.
                     // if an attribute gets dropped by Project (DROP, KEEP), report it as unknown
                     unresolved.removeIf(u -> project.outputSet().contains(u) == false);
                     collectUnresolved(project, unresolved);
@@ -2257,11 +2245,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (nullifiedUnresolved.contains(ua)) {
                     nullifiedUnresolved.remove(ua);
                     // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
-                    // This `new UnresolvedAttribute(ua.source(), ua.name())` would save an allocation, but is problematic with subtypes.
-                    ua = ua.withId(new NameId()).withUnresolvedMessage(null);
+                    // (A `new UnresolvedAttribute(ua.source(), ua.name())` would save an allocation, but is problematic with subtypes.)
+                    ua = ((UnresolvedAttribute) ua.withId(new NameId())).withUnresolvedMessage(null);
                 }
                 return ua;
             });
+        }
+
+        private static LogicalPlan evalUnresolved(
+            LogicalPlan p,
+            List<UnresolvedAttribute> unresolved,
+            List<UnresolvedAttribute> nullifiedUnresolved
+        ) {
+            if (unresolved.isEmpty()) {
+                return p; // unchanged
+            }
+
+            Map<String, Alias> aliasesMap = new LinkedHashMap<>(unresolved.size());
+            for (var u : unresolved) {
+                if (aliasesMap.containsKey(u.name()) == false) {
+                    aliasesMap.put(u.name(), new Alias(u.source(), u.name(), Literal.NULL));
+                }
+            }
+            nullifiedUnresolved.addAll(unresolved);
+            unresolved.clear(); // cleaning since the plan might be n-ary, with multiple sources
+            return new Eval(p.source(), p, List.copyOf(aliasesMap.values()));
         }
 
         private static void collectUnresolved(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
@@ -2293,6 +2301,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     unresolved.removeIf(ua -> ua.name().equals(a.name()));
                 }
             }
+        }
+
+        /**
+         * @return true, if the plan contains a (top) unresolved Fork; i.e., has no output. The top one is chosen, as the plan is resolved
+         * bottom up.
+         */
+        private static boolean hasUnresolvedFork(LogicalPlan plan) {
+            List<Fork> forks = plan.collect(Fork.class);
+            return forks.isEmpty() == false && forks.getFirst().output().isEmpty();
         }
     }
 

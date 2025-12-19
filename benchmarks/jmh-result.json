@@ -1,0 +1,248 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.elasticsearch.benchmark.compute.operator.BlockKeepMaskBenchmark.run",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/sidosera/.gradle/jdks/oracle_corporation-25-aarch64-os_x.2/jdk-25.0.1.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Des.nativelibs.path=/Users/sidosera/dist/elasticsearch/libs/native/libraries/build/platform/darwin-aarch64",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.country=US",
+            "-Duser.language=en",
+            "-Duser.variant"
+        ],
+        "jdkVersion" : "25.0.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.1+8-27",
+        "warmupIterations" : 5,
+        "warmupTime" : "10 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "10 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "dataTypeAndBlockKind" : "BytesRef/array"
+        },
+        "primaryMetric" : {
+            "score" : 26.97325481453015,
+            "scoreError" : 0.4114546808275431,
+            "scoreConfidence" : [
+                26.561800133702608,
+                27.384709495357693
+            ],
+            "scorePercentiles" : {
+                "0.0" : 26.741479950029838,
+                "50.0" : 26.910885562486275,
+                "90.0" : 27.248479736757005,
+                "95.0" : 27.248479736757005,
+                "99.0" : 27.248479736757005,
+                "99.9" : 27.248479736757005,
+                "99.99" : 27.248479736757005,
+                "99.999" : 27.248479736757005,
+                "99.9999" : 27.248479736757005,
+                "100.0" : 27.248479736757005
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    26.840043099344328,
+                    26.910885562486275,
+                    26.741479950029838,
+                    27.044630155366505,
+                    26.87081878621902,
+                    27.156446411508085,
+                    27.248479736757005
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.elasticsearch.benchmark.compute.operator.BlockKeepMaskBenchmark.run",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/sidosera/.gradle/jdks/oracle_corporation-25-aarch64-os_x.2/jdk-25.0.1.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Des.nativelibs.path=/Users/sidosera/dist/elasticsearch/libs/native/libraries/build/platform/darwin-aarch64",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.country=US",
+            "-Duser.language=en",
+            "-Duser.variant"
+        ],
+        "jdkVersion" : "25.0.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.1+8-27",
+        "warmupIterations" : 5,
+        "warmupTime" : "10 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "10 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "dataTypeAndBlockKind" : "BytesRef/vector"
+        },
+        "primaryMetric" : {
+            "score" : 20.604918241968612,
+            "scoreError" : 0.054875552292492,
+            "scoreConfidence" : [
+                20.55004268967612,
+                20.659793794261105
+            ],
+            "scorePercentiles" : {
+                "0.0" : 20.571577856064227,
+                "50.0" : 20.605237591663546,
+                "90.0" : 20.640481691890116,
+                "95.0" : 20.640481691890116,
+                "99.0" : 20.640481691890116,
+                "99.9" : 20.640481691890116,
+                "99.99" : 20.640481691890116,
+                "99.999" : 20.640481691890116,
+                "99.9999" : 20.640481691890116,
+                "100.0" : 20.640481691890116
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    20.584394202338096,
+                    20.629711589403065,
+                    20.571577856064227,
+                    20.605237591663546,
+                    20.593563923938298,
+                    20.60946083848296,
+                    20.640481691890116
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.elasticsearch.benchmark.compute.operator.BlockKeepMaskBenchmark.run",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/sidosera/.gradle/jdks/oracle_corporation-25-aarch64-os_x.2/jdk-25.0.1.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Des.nativelibs.path=/Users/sidosera/dist/elasticsearch/libs/native/libraries/build/platform/darwin-aarch64",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.country=US",
+            "-Duser.language=en",
+            "-Duser.variant"
+        ],
+        "jdkVersion" : "25.0.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.1+8-27",
+        "warmupIterations" : 5,
+        "warmupTime" : "10 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "10 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "dataTypeAndBlockKind" : "long/array"
+        },
+        "primaryMetric" : {
+            "score" : 2.0059155361308987,
+            "scoreError" : 0.020934175129458714,
+            "scoreConfidence" : [
+                1.98498136100144,
+                2.026849711260357
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1.9970240371928898,
+                "50.0" : 2.0025414397901105,
+                "90.0" : 2.024625290264212,
+                "95.0" : 2.024625290264212,
+                "99.0" : 2.024625290264212,
+                "99.9" : 2.024625290264212,
+                "99.99" : 2.024625290264212,
+                "99.999" : 2.024625290264212,
+                "99.9999" : 2.024625290264212,
+                "100.0" : 2.024625290264212
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    2.0046880743410367,
+                    2.010852135116885,
+                    1.9970240371928898,
+                    2.0013141900186304,
+                    2.000363586192524,
+                    2.024625290264212,
+                    2.0025414397901105
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.elasticsearch.benchmark.compute.operator.BlockKeepMaskBenchmark.run",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/sidosera/.gradle/jdks/oracle_corporation-25-aarch64-os_x.2/jdk-25.0.1.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Des.nativelibs.path=/Users/sidosera/dist/elasticsearch/libs/native/libraries/build/platform/darwin-aarch64",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.country=US",
+            "-Duser.language=en",
+            "-Duser.variant"
+        ],
+        "jdkVersion" : "25.0.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.1+8-27",
+        "warmupIterations" : 5,
+        "warmupTime" : "10 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 7,
+        "measurementTime" : "10 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "dataTypeAndBlockKind" : "long/vector"
+        },
+        "primaryMetric" : {
+            "score" : 1.6923044146150725,
+            "scoreError" : 0.024483821555364445,
+            "scoreConfidence" : [
+                1.667820593059708,
+                1.716788236170437
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1.6773734151767334,
+                "50.0" : 1.6933926819601168,
+                "90.0" : 1.709058660899675,
+                "95.0" : 1.709058660899675,
+                "99.0" : 1.709058660899675,
+                "99.9" : 1.709058660899675,
+                "99.99" : 1.709058660899675,
+                "99.999" : 1.709058660899675,
+                "99.9999" : 1.709058660899675,
+                "100.0" : 1.709058660899675
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    1.6861674532228137,
+                    1.6933926819601168,
+                    1.698228760702106,
+                    1.6989500167364104,
+                    1.709058660899675,
+                    1.6829599136076518,
+                    1.6773734151767334
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

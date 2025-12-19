@@ -1412,7 +1412,8 @@ public class ServerlessStatelessPlugin extends Plugin
                 splitSourceService.get(),
                 projectResolver.get(),
                 bccHeaderReadExecutor.get(),
-                clusterService.get().getClusterSettings()
+                clusterService.get().getClusterSettings(),
+                getStatelessSharedBlobCacheService()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

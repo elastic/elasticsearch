@@ -54,6 +54,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.Text;
@@ -133,7 +135,16 @@ public class MasterService extends AbstractLifecycleComponent {
     private final int maxExecutionHistorySize;
     private final Deque<ExecutionHistoryEntry> executionHistory;
 
-    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
+    private final MeterRegistry meterRegistry;
+    private final List<Releasable> metricsToUnregister = new ArrayList<>(Priority.values().length + 1);
+
+    public MasterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        MeterRegistry meterRegistry
+    ) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -154,6 +165,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.maxExecutionHistorySize = MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING.get(settings);
         this.executionHistory = new ArrayDeque<>(maxExecutionHistorySize);
+
+        this.meterRegistry = meterRegistry;
     }
 
     private static ThreadContext.StoredContext getClusterStateUpdateContext(ThreadContext threadContext) {
@@ -182,6 +195,38 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
+
+        registerLongGaugeCountMetric(
+            "es.cluster.nonempty_age.total_millis",
+            "Time in milliseconds since the master's pending task queue was empty",
+            starvationWatcher::getNonemptyAge
+        );
+
+        for (var priority : Priority.values()) {
+            registerLongGaugeCountMetric(
+                "es.cluster.nonempty_age." + Strings.toLowercaseAscii(priority.toString()) + ".total_millis",
+                "Time in milliseconds since the master's pending task queue was empty for priorities no lower than " + priority,
+                () -> starvationWatcher.getPriorityNonemptyAge(priority)
+            );
+        }
+    }
+
+    private void registerLongGaugeCountMetric(String name, String description, LongSupplier valueSupplier) {
+        @SuppressWarnings("resource")
+        final var longGauge = meterRegistry.registerLongGauge(
+            name,
+            description,
+            "count",
+            () -> new LongWithAttributes(valueSupplier.getAsLong())
+        );
+        metricsToUnregister.add(() -> {
+            try {
+                longGauge.close();
+            } catch (Exception e) {
+                assert false : e;
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     protected ExecutorService createThreadPoolExecutor() {
@@ -203,7 +248,11 @@ public class MasterService extends AbstractLifecycleComponent {
 
     @Override
     protected synchronized void doStop() {
-        ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+        try {
+            Releasables.close(metricsToUnregister);
+        } finally {
+            ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+        }
     }
 
     @Override
@@ -1169,6 +1218,16 @@ public class MasterService extends AbstractLifecycleComponent {
         private long nonemptySinceMillis;
         private boolean isEmpty = true;
 
+        private final EnumMap<Priority, AtomicLong> lastClearTimeMillis;
+
+        StarvationWatcher() {
+            final Map<Priority, AtomicLong> lastClearTimeMillisBuilder = new HashMap<>();
+            for (var priority : Priority.values()) {
+                lastClearTimeMillisBuilder.put(priority, new AtomicLong());
+            }
+            lastClearTimeMillis = new EnumMap<>(lastClearTimeMillisBuilder);
+        }
+
         synchronized void onEmptyQueue() {
             isEmpty = true;
             executionHistory.clear();
@@ -1182,6 +1241,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     isEmpty = false;
                     nonemptySinceMillis = nowMillis;
                     lastLogMillis = nowMillis;
+                    lastClearTimeMillis.values().forEach(v -> v.set(nowMillis));
                     return;
                 }
 
@@ -1217,6 +1277,42 @@ public class MasterService extends AbstractLifecycleComponent {
                 );
                 logger.info("{}", descriptionBuilder.toString());
             }
+        }
+
+        void onCurrentBatchPriority(Priority batchPriority) {
+            final long nowMillis = threadPool.relativeTimeInMillis();
+            synchronized (this) {
+                for (var priority : Priority.values()) {
+                    if (priority == batchPriority) {
+                        break;
+                    }
+                    lastClearTimeMillis.get(priority).set(nowMillis);
+                }
+            }
+        }
+
+        long getNonemptyAge() {
+            final long localNonemptySinceMillis;
+            synchronized (this) {
+                if (isEmpty) {
+                    return 0L;
+                } else {
+                    localNonemptySinceMillis = nonemptySinceMillis;
+                }
+            }
+            return Math.max(0L, threadPool.relativeTimeInMillis() - localNonemptySinceMillis);
+        }
+
+        long getPriorityNonemptyAge(Priority priority) {
+            final long localNonemptySinceMillis;
+            synchronized (this) {
+                if (isEmpty) {
+                    return 0L;
+                } else {
+                    localNonemptySinceMillis = lastClearTimeMillis.get(priority).get();
+                }
+            }
+            return Math.max(0L, threadPool.relativeTimeInMillis() - localNonemptySinceMillis);
         }
     }
 
@@ -1338,6 +1434,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 final var nextBatch = takeNextBatch();
                 assert currentlyExecutingBatch == nextBatch;
                 if (lifecycle.started()) {
+                    starvationWatcher.onCurrentBatchPriority(nextBatch.getPriority());
                     nextBatch.run(batchCompletionListener);
                 } else {
                     nextBatch.onRejection(new NotMasterException("node closed", getRejectionException()));
@@ -1494,6 +1591,11 @@ public class MasterService extends AbstractLifecycleComponent {
          * @return the name of the queue that owns this batch.
          */
         String queueName();
+
+        /**
+         * @return the priority of the queue that owns this batch.
+         */
+        Priority getPriority();
     }
 
     /**
@@ -1815,6 +1917,11 @@ public class MasterService extends AbstractLifecycleComponent {
             @Override
             public String queueName() {
                 return name;
+            }
+
+            @Override
+            public Priority getPriority() {
+                return perPriorityQueue.priority();
             }
         }
     }

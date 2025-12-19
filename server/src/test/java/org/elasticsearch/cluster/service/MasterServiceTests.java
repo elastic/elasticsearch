@@ -54,6 +54,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -73,6 +76,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -88,6 +92,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
+import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -148,6 +153,16 @@ public class MasterServiceTests extends ESTestCase {
         ThreadPool threadPool,
         ExecutorService threadPoolExecutor
     ) {
+        return createMasterService(makeMaster, taskManager, threadPool, threadPoolExecutor, MeterRegistry.NOOP);
+    }
+
+    private MasterService createMasterService(
+        boolean makeMaster,
+        TaskManager taskManager,
+        ThreadPool threadPool,
+        ExecutorService threadPoolExecutor,
+        MeterRegistry meterRegistry
+    ) {
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         final Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
@@ -162,7 +177,8 @@ public class MasterServiceTests extends ESTestCase {
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            taskManager
+            taskManager,
+            meterRegistry
         ) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {
@@ -1161,7 +1177,8 @@ public class MasterServiceTests extends ESTestCase {
                 settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
-                new TaskManager(settings, threadPool, emptySet())
+                new TaskManager(settings, threadPool, emptySet()),
+                MeterRegistry.NOOP
             ) {
                 @Override
                 protected boolean publicationMayFail() {
@@ -1767,7 +1784,11 @@ public class MasterServiceTests extends ESTestCase {
         final long startTimeMillis = relativeTimeInMillis;
         final long taskDurationMillis = TimeValue.timeValueSeconds(1).millis();
 
-        try (MasterService masterService = createMasterService(true); var mockLog = MockLog.capture(MasterService.class)) {
+        final var meterRegistry = new RecordingMeterRegistry();
+        try (
+            var masterService = createMasterService(true, null, threadPool, null, meterRegistry);
+            var mockLog = MockLog.capture(MasterService.class)
+        ) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
             final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
             final Runnable awaitNextTask = () -> {
@@ -1848,6 +1869,27 @@ public class MasterServiceTests extends ESTestCase {
             awaitNextTask.run();
             mockLog.assertAllExpectationsMatched();
 
+            meterRegistry.getRecorder().resetCalls();
+            meterRegistry.getRecorder().collect();
+            assertThat(
+                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.nonempty_age.total_millis"),
+                measures(301000L)
+            );
+            for (var priority : Priority.values()) {
+                assertThat(
+                    priority.toString(),
+                    meterRegistry.getRecorder()
+                        .getMeasurements(
+                            InstrumentType.LONG_GAUGE,
+                            "es.cluster.nonempty_age." + priority.toString().toLowerCase(Locale.ROOT) + ".total_millis"
+                        ),
+                    measures(switch (priority) {
+                        case IMMEDIATE, URGENT -> 0L; // we're running tasks at HIGH priority so higher-priority queues must be empty
+                        case HIGH, NORMAL, LOW, LANGUID -> 301000L;
+                    })
+                );
+            }
+
             // check that another warning is logged after 10m
             final MockLog.EventuallySeenEventExpectation warnExpectation2 = new MockLog.EventuallySeenEventExpectation(
                 "starvation warning",
@@ -1874,6 +1916,24 @@ public class MasterServiceTests extends ESTestCase {
             keepRunning.set(false);
             awaitNextTask.run();
             assertTrue(starvedTaskExecuted.await(10, TimeUnit.SECONDS));
+
+            meterRegistry.getRecorder().resetCalls();
+            meterRegistry.getRecorder().collect();
+            assertThat(
+                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.nonempty_age.total_millis"),
+                measures(0L)
+            );
+            for (var priority : Priority.values()) {
+                assertThat(
+                    priority.toString(),
+                    meterRegistry.getRecorder()
+                        .getMeasurements(
+                            InstrumentType.LONG_GAUGE,
+                            "es.cluster.nonempty_age." + priority.toString().toLowerCase(Locale.ROOT) + ".total_millis"
+                        ),
+                    measures(0L)
+                );
+            }
         }
     }
 

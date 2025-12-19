@@ -307,11 +307,7 @@ class FetchSearchPhase extends SearchPhase {
         boolean isScrollOrReindex = context.getRequest().scroll() != null || shardFetchRequest.getShardSearchRequest().scroll() != null;
 
         // Use chunked fetch for remote requests (not local, not CCS)
-        if (fetchPhaseChunked
-            && remoteDataNodeRequest
-            && dataNodeSupports
-            && isCCSQuery == false
-            && isScrollOrReindex == false) {
+        if (fetchPhaseChunked && remoteDataNodeRequest && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
 

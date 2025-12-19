@@ -1315,7 +1315,13 @@ public class EsqlFunctionRegistry {
     ) {
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsOptionalTriFunction(function, children.size());
-            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() >= 2 ? children.get(1) : null,
+                children.size() == 3 ? children.get(2) : null,
+                cfg
+            );
         };
         return def(function, builder, names);
     }

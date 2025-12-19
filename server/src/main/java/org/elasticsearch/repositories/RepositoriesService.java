@@ -191,7 +191,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     private void setDefaultRepository(String repositoryName) {
         this.defaultRepository = repositoryName;
-        logger.info("Default repository set to [{}]", repositoryName);
+        logger.debug("Default repository set to [{}]", repositoryName);
     }
 
     /**
@@ -215,7 +215,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
         if (Strings.isEmpty(repositoryName)) {
-            logger.info("Default repository cleared");
+            logger.debug("Default repository cleared");
             return;
         }
         validateDefaultRepositoryName(repositoryName);

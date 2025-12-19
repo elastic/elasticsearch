@@ -1279,22 +1279,18 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
             // clusterFormationClusterStateView is unsynchronised to unblock the health reporting from depending on the mutex
             // However, since we are inside the mutex now, we expect it have been synchronised
-            assert clusterFormationClusterStateView.localNode() == lastAcceptedClusterState.nodes().getLocalNode()
-                : "clusterFormationClusterStateView is unsynchronised on localNode";
-            assert clusterFormationClusterStateView.masterEligibleNodes().equals(lastAcceptedClusterState.nodes().getMasterNodes())
-                : "clusterFormationClusterStateView is unsynchronised on masterNodes";
-            assert clusterFormationClusterStateView.lastAcceptedVersion() == lastAcceptedClusterState.version()
-                : "clusterFormationClusterStateView is unsynchronised on lastAcceptedVersion";
-            assert clusterFormationClusterStateView.lastAcceptedTerm() == lastAcceptedClusterState.term()
-                : "clusterFormationClusterStateView is unsynchronised on lastAcceptedTerm";
-            assert clusterFormationClusterStateView.lastAcceptedConfiguration()
-                .equals(lastAcceptedClusterState.getLastAcceptedConfiguration())
-                : "clusterFormationClusterStateView is unsynchronised on lastAcceptedConfiguration";
-            assert clusterFormationClusterStateView.lastCommittedConfiguration()
-                .equals(lastAcceptedClusterState.getLastCommittedConfiguration())
-                : "clusterFormationClusterStateView is unsynchronised on lastCommittedConfiguration";
-            assert clusterFormationClusterStateView.currentTerm() == getCurrentTerm()
-                : "clusterFormationClusterStateView is unsynchronised on current term";
+            ClusterFormationFailureHelper.ClusterFormationClusterStateView synchronisedClusterFormationClusterStateView =
+                new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                    lastAcceptedClusterState.nodes().getLocalNode(),
+                    lastAcceptedClusterState.nodes().getMasterNodes(),
+                    lastAcceptedClusterState.version(),
+                    lastAcceptedClusterState.term(),
+                    lastAcceptedClusterState.getLastAcceptedConfiguration(),
+                    lastAcceptedClusterState.getLastCommittedConfiguration(),
+                    getCurrentTerm()
+                );
+            assert clusterFormationClusterStateView.equals(synchronisedClusterFormationClusterStateView)
+                : "clusterFormationClusterStateView is unsynchronised despite being beneath a mutex";
 
             if (mode == Mode.LEADER) {
                 final boolean becomingMaster = lastAcceptedClusterState.term() != getCurrentTerm();

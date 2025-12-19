@@ -454,23 +454,8 @@ public class ClusterFormationFailureHelper {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-//            out.writeStringCollection(initialMasterNodesSetting);
-//            clusterFormationClusterStateView.localNode.writeTo(out);
-//            out.writeMap(clusterFormationClusterStateView.masterEligibleNodes, StreamOutput::writeWriteable);
-//            out.writeLong(clusterFormationClusterStateView.lastAcceptedVersion);
-//            out.writeLong(clusterFormationClusterStateView.lastAcceptedTerm);
-//            clusterFormationClusterStateView.lastAcceptedConfiguration.writeTo(out);
-//            clusterFormationClusterStateView.lastCommittedConfiguration.writeTo(out);
-//            out.writeCollection(resolvedAddresses);
-//            out.writeCollection(foundPeers);
-//            out.writeCollection(mastersOfPeers);
-//            out.writeLong(clusterFormationClusterStateView.currentTerm);
-//            out.writeBoolean(hasDiscoveredQuorum);
-//            statusInfo.writeTo(out);
-//            out.writeCollection(inFlightJoinStatuses);
-
             out.writeStringCollection(initialMasterNodesSetting);
-            clusterFormationClusterStateView.writeTo(out);;
+            clusterFormationClusterStateView.writeTo(out);
             out.writeCollection(resolvedAddresses);
             out.writeCollection(foundPeers);
             out.writeCollection(mastersOfPeers);

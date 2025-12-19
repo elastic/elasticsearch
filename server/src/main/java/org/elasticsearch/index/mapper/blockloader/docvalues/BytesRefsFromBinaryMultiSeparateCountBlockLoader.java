@@ -69,7 +69,9 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
                 return;
             }
 
-            assert counts.advanceExact(doc);
+            boolean advanced = counts.advanceExact(doc);
+            assert advanced;
+
             reader.read(docValues.binaryValue(), counts.longValue(), builder);
         }
 

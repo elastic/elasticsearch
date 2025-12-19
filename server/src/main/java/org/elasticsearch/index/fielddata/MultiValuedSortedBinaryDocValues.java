@@ -113,19 +113,10 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         @Override
         public boolean advanceExact(int doc) throws IOException {
             if (values.advanceExact(doc)) {
-                assert counts.advanceExact(doc);
+                boolean advanced = counts.advanceExact(doc);
+                assert advanced;
                 count = Math.toIntExact(counts.longValue());
-
-                final BytesRef bytes = values.binaryValue();
-
-                if (count == 1) {
-                    scratch.bytes = bytes.bytes;
-                    scratch.offset = bytes.offset;
-                    scratch.length = bytes.length;
-                } else {
-                    in.reset(bytes.bytes, bytes.offset, bytes.length);
-                    scratch.bytes = bytes.bytes;
-                }
+                scratch.bytes = null;
                 return true;
             } else {
                 count = 0;
@@ -135,11 +126,22 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
         @Override
         public BytesRef nextValue() throws IOException {
-            if (count != 1) {
-                scratch.length = in.readVInt();
-                scratch.offset = in.getPosition();
-                in.setPosition(scratch.offset + scratch.length);
+            if (scratch.bytes == null) {
+                final BytesRef bytes = values.binaryValue();
+                scratch.bytes = bytes.bytes;
+                if (count == 1) {
+                    scratch.offset = bytes.offset;
+                    scratch.length = bytes.length;
+                    return scratch;
+                } else {
+                    in.reset(bytes.bytes, bytes.offset, bytes.length);
+                }
             }
+
+            // multiple values
+            scratch.length = in.readVInt();
+            scratch.offset = in.getPosition();
+            in.setPosition(scratch.offset + scratch.length);
             return scratch;
         }
     }

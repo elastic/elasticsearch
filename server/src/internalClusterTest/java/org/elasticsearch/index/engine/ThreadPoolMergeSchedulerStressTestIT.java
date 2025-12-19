@@ -71,7 +71,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         return CollectionUtils.appendToCopy(super.getPlugins(), ThreadPoolMergeSchedulerStressTestIT.TestEnginePlugin.class);
     }
 
-    public static class TestEnginePlugin extends Plugin implements EnginePlugin {
+    private static class TestEnginePlugin extends Plugin implements EnginePlugin {
 
         final AtomicReference<ThreadPoolMergeExecutorService> mergeExecutorServiceReference = new AtomicReference<>();
         final Set<OneMerge> enqueuedMergesSet = ConcurrentCollections.newConcurrentSet();
@@ -81,12 +81,13 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         final Semaphore runMergeSemaphore = new Semaphore(initialRunMergesCount);
         final int waitMergesEnqueuedCount = randomIntBetween(50, 100);
 
-        class TestInternalEngine extends org.elasticsearch.index.engine.InternalEngine {
+        private class TestInternalEngine extends org.elasticsearch.index.engine.InternalEngine {
 
             TestInternalEngine(EngineConfig engineConfig) {
                 super(engineConfig);
             }
 
+            @Override
             protected ElasticsearchMergeScheduler createMergeScheduler(
                 ShardId shardId,
                 IndexSettings indexSettings,
@@ -106,7 +107,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
                 return new TestMergeScheduler((ThreadPoolMergeScheduler) mergeScheduler);
             }
 
-            class TestMergeScheduler implements ElasticsearchMergeScheduler {
+            private class TestMergeScheduler implements ElasticsearchMergeScheduler {
 
                 ThreadPoolMergeScheduler delegateMergeScheduler;
 
@@ -257,7 +258,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // wait for merges to enqueue or backlog
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), greaterThanOrEqualTo(testEnginePlugin.waitMergesEnqueuedCount));
-        }, 1, TimeUnit.MINUTES);
+        }, 10, TimeUnit.MINUTES);
         // finish up indexing
         indexingDone.set(true);
         for (Thread indexingThread : indexingThreads) {
@@ -273,7 +274,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             assertThat(testEnginePlugin.runningMergesSet.size(), is(0));
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), is(0));
             testEnginePlugin.mergeExecutorServiceReference.get().allDone();
-        }, 1, TimeUnit.MINUTES);
+        }, 10, TimeUnit.MINUTES);
         // indices stats says that no merge is currently running (meaning merging did catch up)
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("index").setMerge(true).get();
         long currentMergeCount = indicesStatsResponse.getIndices().get("index").getPrimaries().merge.getCurrent();

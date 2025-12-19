@@ -20,19 +20,9 @@ dependencies {
   testImplementation "com.google.jimfs:jimfs:1.3.0"
   testImplementation "com.google.guava:guava:${versions.jimfs_guava}"
   testImplementation project(":test:framework")
-  testImplementation project(':distribution:tools:plugin-cli')
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
 tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'
-}
-
-if (buildParams.inFipsJvm) {
-  // Disable evil tests in FIPS mode due to jar hell between plugin-cli's
-  // BouncyCastle dependencies and the BC FIPS dependencies added by the FIPS gradle config
-  // TODO: re-evaluate this after updating plugin-cli to use BC FIPS 2.x
-  tasks.named("test").configure {
-    enabled = false
-  }
 }

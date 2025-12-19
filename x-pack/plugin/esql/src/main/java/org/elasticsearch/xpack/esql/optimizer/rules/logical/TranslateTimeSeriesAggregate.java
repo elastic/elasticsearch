@@ -227,7 +227,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
 
                     // We use merge_over_time as default for histograms and last_over_time for other types
                     TimeSeriesAggregateFunction tsAgg;
-                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM || aggField.dataType() == DataType.TDIGEST) {
                         tsAgg = new HistogramMergeOverTime(af.source(), aggField, Literal.TRUE, af.window());
                     } else {
                         tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());

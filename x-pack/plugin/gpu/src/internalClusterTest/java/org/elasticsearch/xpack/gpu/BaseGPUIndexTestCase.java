@@ -39,8 +39,6 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
     protected static boolean isGpuIndexingFeatureAllowed = true;
 
-    protected String similarity;
-
     public static class TestGPUPlugin extends GPUPlugin {
         public TestGPUPlugin(Settings settings) {
             super(settings);
@@ -55,7 +53,6 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     @After
     public void reset() {
         isGpuIndexingFeatureAllowed = true;
-        similarity = null;
     }
 
     @Override
@@ -83,31 +80,43 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         assumeTrue("cuvs not supported", GPUSupport.isSupported());
     }
 
+    protected static String randomSimilarity() {
+        return randomFrom("dot_product", "l2_norm", "cosine");
+    }
+
+    protected static String randomType() {
+        return randomFrom("hnsw", "int8_hnsw");
+    }
+
     public void testBasic() {
         String indexName = "index1";
         final int dims = randomIntBetween(4, 128);
+        final String similarity = randomSimilarity();
+        final String type = randomType();
         final int[] numDocs = new int[] { randomIntBetween(1, 100), 1, 2, randomIntBetween(1, 100) };
-        createIndex(indexName, dims, false);
+        createIndex(indexName, dims, false, internalCluster().numDataNodes(), similarity, type);
         int totalDocs = 0;
         for (int i = 0; i < numDocs.length; i++) {
-            indexDocs(indexName, numDocs[i], dims, i * 100);
+            indexDocs(indexName, numDocs[i], dims, i * 100, similarity);
             totalDocs += numDocs[i];
         }
         refresh();
-        assertSearch(indexName, randomFloatVector(dims), totalDocs);
+        assertSearch(indexName, randomFloatVector(dims, similarity), totalDocs);
     }
 
     public void testSearchAndIndexAfterDisablingGpu() {
         String indexName = "index1";
         final int dims = randomIntBetween(4, 128);
+        final String similarity = randomSimilarity();
+        final String type = randomType();
         final int numDocs = randomIntBetween(1, 500);
-        createIndex(indexName, dims, false);
+        createIndex(indexName, dims, false, internalCluster().numDataNodes(), similarity, type);
         ensureGreen();
 
-        indexDocs(indexName, numDocs, dims, 0);
+        indexDocs(indexName, numDocs, dims, 0, similarity);
         refresh();
 
-        // Disable GPU usage via feature flag (simulating missing license)
+        // Disable GPU usage: simulating missing license
         isGpuIndexingFeatureAllowed = false;
         ensureGreen();
 
@@ -115,26 +124,28 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareOpen(indexName).get());
         ensureGreen();
 
-        assertSearch(indexName, randomFloatVector(dims), numDocs);
+        assertSearch(indexName, randomFloatVector(dims, similarity), numDocs);
 
         // Add more data to the index
         final int additionalDocs = randomIntBetween(1, 100);
-        indexDocs(indexName, additionalDocs, dims, numDocs);
+        indexDocs(indexName, additionalDocs, dims, numDocs, similarity);
         refresh();
         final int totalDocs = numDocs + additionalDocs;
 
         // Perform another search with the additional data
-        assertSearch(indexName, randomFloatVector(dims), totalDocs);
+        assertSearch(indexName, randomFloatVector(dims, similarity), totalDocs);
     }
 
     public void testSortedIndexReturnsSameResultsAsUnsorted() {
-        assumeTrue("Sort not consistent if graph built in different ways", isGpuEnabledOnAllNodes());
+        assumeTrue("The test requires GPU on all nodes to ensure graphs are built in the same way", isGpuEnabledOnAllNodes());
 
         String indexName1 = "index_unsorted";
         String indexName2 = "index_sorted";
         final int dims = randomIntBetween(4, 128);
-        createIndex(indexName1, dims, false);
-        createIndex(indexName2, dims, true);
+        final String similarity = randomSimilarity();
+        final String type = randomType();
+        createIndex(indexName1, dims, false, similarity, type);
+        createIndex(indexName2, dims, true, similarity, type);
 
         final int[] numDocs = new int[] { randomIntBetween(300, 999), randomIntBetween(300, 999) };
         for (int i = 0; i < numDocs.length; i++) {
@@ -143,7 +154,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
             for (int j = 0; j < numDocs[i]; j++) {
                 String id = String.valueOf(i * 1000 + j);
                 String keywordValue = String.valueOf(numDocs[i] - j);
-                float[] vector = randomFloatVector(dims);
+                float[] vector = randomFloatVector(dims, similarity);
                 bulkRequest1.add(prepareIndex(indexName1).setId(id).setSource("my_vector", vector, "my_keyword", keywordValue));
                 bulkRequest2.add(prepareIndex(indexName2).setId(id).setSource("my_vector", vector, "my_keyword", keywordValue));
             }
@@ -154,7 +165,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         }
         refresh();
 
-        float[] queryVector = randomFloatVector(dims);
+        float[] queryVector = randomFloatVector(dims, similarity);
         int k = 10;
         int numCandidates = k * 5;
 
@@ -255,10 +266,12 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     public void testDeletesUpdates() {
         String indexName = "index_deletes_updates";
         final int dims = randomIntBetween(4, 128);
-        createIndex(indexName, dims, false);
+        final String similarity = randomSimilarity();
+        final String type = randomType();
+        createIndex(indexName, dims, false, internalCluster().numDataNodes(), similarity, type);
 
         final int numDocs = randomIntBetween(700, 1000);
-        indexDocs(indexName, numDocs, dims, 0);
+        indexDocs(indexName, numDocs, dims, 0, similarity);
         refresh();
 
         // Perform random updates and deletes
@@ -269,7 +282,12 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
             if (randomBoolean()) {
                 bulkRequest.add(
                     prepareIndex(indexName).setId(String.valueOf(docId))
-                        .setSource("my_vector", randomFloatVector(dims), "my_keyword", String.valueOf(randomIntBetween(1, numDocs)))
+                        .setSource(
+                            "my_vector",
+                            randomFloatVector(dims, similarity),
+                            "my_keyword",
+                            String.valueOf(randomIntBetween(1, numDocs))
+                        )
                 );
             } else {
                 bulkRequest.add(client().prepareDelete(indexName, String.valueOf(docId)));
@@ -280,7 +298,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         refresh();
 
         // Assert that approximate and exact searches return same sets of results
-        float[] queryVector = randomFloatVector(dims);
+        float[] queryVector = randomFloatVector(dims, similarity);
         int k = 10;
         int numCandidates = k * 10;
 
@@ -305,7 +323,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     public void testInt8HnswMaxInnerProductProductFails() {
-        assumeTrue("CPU indexing nodes will not fail", isGpuEnabledOnAllNodes());
+        assumeTrue("This test requires GPU on all nodes", isGpuEnabledOnAllNodes());
 
         String indexName = "index_int8_max_inner_product_fails";
         final int dims = randomIntBetween(4, 128);
@@ -343,18 +361,17 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         );
     }
 
-    protected void createIndex(String indexName, int dims, boolean sorted) {
+    protected void createIndex(String indexName, int dims, boolean sorted, String similarity, String type) {
+        createIndex(indexName, dims, sorted, 1, similarity, type);
+    }
+
+    protected void createIndex(String indexName, int dims, boolean sorted, int numberOfShards, String similarity, String type) {
         var settings = Settings.builder().put(indexSettings());
-        settings.put("index.number_of_shards", 1);
+        settings.put("index.number_of_shards", numberOfShards);
         if (sorted) {
             settings.put("index.sort.field", "my_keyword");
         }
 
-        if (similarity == null) {
-            similarity = randomFrom("dot_product", "l2_norm", "cosine");
-        }
-
-        String type = randomFrom("hnsw", "int8_hnsw");
         String mapping = String.format(Locale.ROOT, """
             {
               "properties": {
@@ -376,12 +393,12 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         ensureGreen();
     }
 
-    protected void indexDocs(String indexName, int numDocs, int dims, int startDoc) {
+    protected void indexDocs(String indexName, int numDocs, int dims, int startDoc, String similarity) {
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             String id = String.valueOf(startDoc + i);
             String keywordValue = String.valueOf(numDocs - i);
-            float[] vector = randomFloatVector(dims);
+            float[] vector = randomFloatVector(dims, similarity);
             var indexRequest = prepareIndex(indexName).setId(id).setSource("my_vector", vector, "my_keyword", keywordValue);
             bulkRequest.add(indexRequest);
         }
@@ -425,7 +442,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         return vector;
     }
 
-    protected float[] randomFloatVector(int dims) {
+    protected float[] randomFloatVector(int dims, String similarity) {
         boolean useUnitVectors = "dot_product".equals(similarity);
         return useUnitVectors ? randomUnitVector(dims) : randomNonUnitFloatVector(dims);
     }

@@ -20,7 +20,7 @@ public class DateParseSerializationTests extends AbstractExpressionSerialization
         Expression first = randomChild();
         Expression second = randomBoolean() ? null : randomChild();
         Expression third = randomBoolean() ? randomChild() : null;
-        return new DateParse(source, first, second, third);
+        return new DateParse(source, first, second, third, configuration());
     }
 
     @Override
@@ -34,6 +34,6 @@ public class DateParseSerializationTests extends AbstractExpressionSerialization
             case 1 -> second = randomValueOtherThan(second, () -> randomBoolean() ? null : randomChild());
             case 2 -> third = randomValueOtherThan(third, () -> randomBoolean() ? null : randomChild());
         }
-        return new DateParse(source, first, second, third);
+        return new DateParse(source, first, second, third, configuration());
     }
 }

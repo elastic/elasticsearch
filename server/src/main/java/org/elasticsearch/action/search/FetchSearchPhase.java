@@ -25,7 +25,6 @@ import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActio
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
-import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.Transport;
 
@@ -281,7 +280,7 @@ class FetchSearchPhase extends SearchPhase {
         if (connection != null) {
             TransportVersion dataNodeVersion = connection.getTransportVersion();
             dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
-            isCCSQuery =  connection instanceof RemoteConnectionManager.ProxyConnection || shardTarget.getClusterAlias() != null;
+            isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection || shardTarget.getClusterAlias() != null;
 
             // Check if this is a local request (coordinator == data node)
             remoteDataNodeRequest = connection.getNode()

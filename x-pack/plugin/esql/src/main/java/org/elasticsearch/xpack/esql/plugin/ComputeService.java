@@ -582,7 +582,8 @@ public class ComputeService {
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         execInfo.markEndQuery();
         if ((execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) && execInfo.isMainPlan()) {
-            assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
+            assert execInfo.planningProfile().planning().timeTook() != null
+                : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook());

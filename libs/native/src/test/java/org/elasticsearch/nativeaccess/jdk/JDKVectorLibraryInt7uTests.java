@@ -323,7 +323,13 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         }
     }
 
-    static void bulkWithOffsetsScalar(ToIntBiFunction<byte[], byte[]> function,byte[] query, byte[][] data, int[] offsets, float[] scores) {
+    static void bulkWithOffsetsScalar(
+        ToIntBiFunction<byte[], byte[]> function,
+        byte[] query,
+        byte[][] data,
+        int[] offsets,
+        float[] scores
+    ) {
         for (int i = 0; i < data.length; i++) {
             scores[i] = function.applyAsInt(query, data[offsets[i]]);
         }

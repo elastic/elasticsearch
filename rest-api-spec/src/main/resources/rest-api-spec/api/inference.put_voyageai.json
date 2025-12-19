@@ -27,7 +27,8 @@
               "description": "The task type",
               "options": [
                 "text_embedding",
-                "rerank"
+                "rerank",
+                "embedding"
               ]
             },
             "voyageai_inference_id": {

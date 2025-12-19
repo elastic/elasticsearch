@@ -10,26 +10,35 @@ package org.elasticsearch.xpack.inference.services.voyageai.request;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal.VoyageAIMultimodalEmbeddingsServiceSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
+/**
+ * HTTP request for VoyageAI multimodal embeddings API.
+ * Supports multimodal inputs including text, images (base64/url), and videos (base64/url).
+ */
+public class VoyageAIMultimodalEmbeddingsRequest extends VoyageAIRequest {
 
-    private final List<String> input;
+    private final List<InferenceStringGroup> inputs;
     private final InputType inputType;
-    private final VoyageAIEmbeddingsModel embeddingsModel;
+    private final VoyageAIMultimodalEmbeddingsModel embeddingsModel;
 
-    public VoyageAIEmbeddingsRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
+    public VoyageAIMultimodalEmbeddingsRequest(
+        List<InferenceStringGroup> inputs,
+        InputType inputType,
+        VoyageAIMultimodalEmbeddingsModel embeddingsModel
+    ) {
         this.embeddingsModel = Objects.requireNonNull(embeddingsModel);
-        this.input = Objects.requireNonNull(input);
+        this.inputs = Objects.requireNonNull(inputs);
         this.inputType = inputType;
     }
 
@@ -39,8 +48,8 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new VoyageAIEmbeddingsRequestEntity(
-                    input,
+                new VoyageAIMultimodalEmbeddingsRequestEntity(
+                    inputs,
                     inputType,
                     embeddingsModel.getServiceSettings(),
                     embeddingsModel.getTaskSettings(),
@@ -75,7 +84,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         return null;
     }
 
-    public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
+    public VoyageAIMultimodalEmbeddingsServiceSettings getServiceSettings() {
         return embeddingsModel.getServiceSettings();
     }
 }

@@ -48,7 +48,7 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
-        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override

@@ -77,7 +77,7 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
             "long",
             "unsigned_long",
             "version" },
-        description = "Returns all unique values from the combined input fields (set union). Returns `null` if either field is null.",
+        description = "Returns all unique values from the combined input fields (set union). Null values are treated as empty sets; returns `null` only if both fields are null.",
         preview = true,
         examples = {
             @Example(file = "mv_union", tag = "testMvUnionWithIntValues"),
@@ -110,7 +110,7 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Multivalue expression. Null values are treated as empty sets."
         ) Expression field1,
         @Param(
             name = "field2",
@@ -133,7 +133,7 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Multivalue expression. Null values are treated as empty sets."
         ) Expression field2
     ) {
         super(source, field1, field2);
@@ -274,8 +274,8 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
 
-        // If either field has no values (is null), return null
-        if (firstValueCount == 0 || secondValueCount == 0) {
+        // If both field has no values, return null
+        if (firstValueCount == 0 && secondValueCount == 0) {
             builder.appendNull();
             return;
         }

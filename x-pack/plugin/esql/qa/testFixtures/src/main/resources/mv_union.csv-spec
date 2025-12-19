@@ -183,7 +183,7 @@ ROW a = [1, 2, 3, 4]
 | KEEP finalValue;
 
 finalValue:integer
-null
+[1, 2, 3, 4]
 ;
 
 testMvUnionNullReturnedWhenSecondArgIsNull
@@ -194,7 +194,7 @@ ROW a = [1, 2, 3, 4]
 | KEEP finalValue;
 
 finalValue:integer
-null
+[1, 2, 3, 4]
 ;
 
 testMvUnionNullReturnedWhenBothArgsAreNull

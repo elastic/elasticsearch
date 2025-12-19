@@ -169,11 +169,13 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
     public interface TransformTaskMatcher {
         static boolean match(Task task, String expectedTransformId) {
             return task instanceof TransformTaskMatcher
+                && expectedTransformId != null
                 && task.getDescription().equals(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + expectedTransformId);
         }
 
         static boolean match(Task task, Collection<String> expectedTransformIds) {
-            return task instanceof PutTransformAction.TransformTaskMatcher
+            return task instanceof TransformTaskMatcher
+                && expectedTransformIds != null
                 && expectedTransformIds.stream()
                     .anyMatch(transformId -> task.getDescription().equals(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId));
         }

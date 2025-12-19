@@ -73,8 +73,7 @@ public class StopTransformActionRequestTests extends AbstractWireSerializingTest
             TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId,
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
-        ) {
-        };
+        );
 
         Request request = new Request("unrelated", false, false, null, false, false);
         request.setExpandedIds(Set.of("foo", "bar"));

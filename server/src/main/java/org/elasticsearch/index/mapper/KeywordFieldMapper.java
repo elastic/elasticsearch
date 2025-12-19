@@ -72,6 +72,7 @@ import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -1080,15 +1081,16 @@ public final class KeywordFieldMapper extends FieldMapper {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
 
-                if (caseInsensitive == false && storedInBinaryDocValues() == false) {
+                if (storedInBinaryDocValues()) {
+                    return new SlowCustomBinaryDocValuesWildcardQuery(name(), value, caseInsensitive);
+                }
+
+                if (caseInsensitive == false) {
                     Term term = new Term(name(), value);
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
-                StringFieldScript.LeafFactory leafFactory = storedInBinaryDocValues()
-                    ? ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx)
-                    : ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-
+                StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
                 return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
             }
         }

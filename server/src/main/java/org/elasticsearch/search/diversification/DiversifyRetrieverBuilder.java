@@ -23,6 +23,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -299,8 +301,16 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
-        SearchSourceBuilder builder = sourceBuilder.from(0);
-        return super.finalizeSourceBuilder(builder).docValueField(diversificationField);
+        StoredFieldsContext sfCtx = StoredFieldsContext.fromList(List.of("_inference_fields", diversificationField));
+        FetchSourceContext fsCtx = FetchSourceContext.of(false, false, new String[] { "_inference_fields", diversificationField }, null);
+
+        SearchSourceBuilder builder = sourceBuilder.from(0)
+            .excludeVectors(false)
+            .storedFields(sfCtx)
+            .fetchSource(fsCtx)
+            .fetchField("_inference_fields")
+            .fetchField(diversificationField);
+        return super.finalizeSourceBuilder(builder);
     }
 
     @Override
@@ -352,7 +362,10 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         // temporary
         int vectorCount = 0;
-        if (DenseVectorFieldVectorSupplier.canFieldBeDenseVector(diversificationField, results[0])) {
+        if (SemanticTextFieldVectorSupplier.isFieldSemanticTextVector(diversificationField, results[0])) {
+            FieldVectorSupplier fieldVectorSupplier = new SemanticTextFieldVectorSupplier();// (diversificationField, results);
+            vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier);
+        } else if (DenseVectorFieldVectorSupplier.canFieldBeDenseVector(diversificationField, results[0])) {
             FieldVectorSupplier fieldVectorSupplier = new DenseVectorFieldVectorSupplier(diversificationField, results);
             vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier);
         }

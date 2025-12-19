@@ -195,6 +195,8 @@ public class AnalyzerTests extends ESTestCase {
         Settings.EMPTY
     );
 
+    private static final String DENSE_VECTOR_MAPPING_FILE = "mapping-dense_vector-all_element_types.json";
+
     public void testIndexResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
@@ -1673,7 +1675,7 @@ public class AnalyzerTests extends ESTestCase {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
             + "or dense_vector or exponential_histogram or geo_point "
-            + "or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
+            + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -2393,12 +2395,14 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorCastingKnn("bit_vector");
         checkDenseVectorCastingHexKnn("bit_vector");
         checkDenseVectorEvalCastingKnn("bit_vector");
+        checkDenseVectorEvalCastingKnn("bfloat16_vector");
+        checkDenseVectorCastingHexKnn("bfloat16_vector");
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
-            """, fieldName), "mapping-dense_vector.json");
+            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2411,7 +2415,7 @@ public class AnalyzerTests extends ESTestCase {
     private static void checkDenseVectorCastingHexKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
-            """, fieldName), "mapping-dense_vector.json");
+            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2424,7 +2428,7 @@ public class AnalyzerTests extends ESTestCase {
     private static void checkDenseVectorEvalCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
-            """, fieldName), "mapping-dense_vector.json");
+            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2438,12 +2442,13 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorCastingKnnQueryParams("float_vector");
         checkDenseVectorCastingKnnQueryParams("byte_vector");
         checkDenseVectorCastingKnnQueryParams("bit_vector");
+        checkDenseVectorCastingKnnQueryParams("bfloat16_vector");
     }
 
     private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | where knn(%s, ?query_vector)
-            """, fieldName), "mapping-dense_vector.json", new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+            """, fieldName), DENSE_VECTOR_MAPPING_FILE, new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2456,17 +2461,21 @@ public class AnalyzerTests extends ESTestCase {
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
         checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(float_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
         checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction(
             "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
             List.of(0.342, 0.164, 0.234)
         );
         checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(float_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
         checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(bit_vector, [1, 2])", List.of(1, 2));
@@ -2475,7 +2484,7 @@ public class AnalyzerTests extends ESTestCase {
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval similarity = %s
-            """, similarityFunction), "mapping-dense_vector.json");
+            """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2483,7 +2492,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertThat(List.of("float_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
+        assertThat(List.of("float_vector", "byte_vector", "bit_vector", "bfloat16_vector"), hasItem(left.name()));
         var right = as(similarity.right(), ToDenseVector.class);
         var literal = as(right.field(), Literal.class);
         assertThat(literal.value(), equalTo(expectedElems));
@@ -2492,20 +2501,25 @@ public class AnalyzerTests extends ESTestCase {
     public void testDenseVectorEvalCastingSimilarityFunctions() {
         checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_cosine(bfloat16_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(bfloat16_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(bfloat16_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
-        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(bit_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(bfloat16_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
-        checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_hamming(bit_vector, query)");
     }
 
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
-            """, similarityFunction), "mapping-dense_vector.json");
+            """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2513,7 +2527,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
+        assertThat(List.of("float_vector", "byte_vector", "bit_vector", "bfloat16_vector"), hasItem(left.name()));
         var right = as(similarity.right(), ReferenceAttribute.class);
         assertThat(right.dataType(), is(DENSE_VECTOR));
         assertThat(right.name(), is("query"));
@@ -2529,7 +2543,7 @@ public class AnalyzerTests extends ESTestCase {
 
     private void checkVectorFunctionHexImplicitCastingError(String clause) {
         var query = "from test | " + clause;
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, "mapping-dense_vector.json"));
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, DENSE_VECTOR_MAPPING_FILE));
         assertThat(
             error.getMessage(),
             containsString(
@@ -2544,7 +2558,7 @@ public class AnalyzerTests extends ESTestCase {
 
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval scalar = v_magnitude([1, 2, 3])
-            """), "mapping-dense_vector.json");
+            """), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -3896,7 +3910,7 @@ public class AnalyzerTests extends ESTestCase {
         LogicalPlan plan = analyze(
             String.format(Locale.ROOT, """
                 from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID),
-            "mapping-dense_vector.json"
+            DENSE_VECTOR_MAPPING_FILE
         );
 
         Limit limit = as(plan, Limit.class);
@@ -4698,13 +4712,10 @@ public class AnalyzerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from k8s* | stats std_dev(metric_field)
-            """, analyzer));
-        assertThat(
-            e.getMessage(),
-            containsString("Cannot use field [metric_field] due to ambiguities being mapped as [2] incompatible types")
-        );
+        var stddevPlan = analyze("""
+            from k8s* | stats std_dev = std_dev(metric_field)
+            """, analyzer);
+        assertProjection(stddevPlan, "std_dev");
 
         var plan = analyze("""
             from k8s* | stats max = max(metric_field),

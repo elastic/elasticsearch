@@ -150,3 +150,15 @@ is_present:integer
 0
 // end::present-as-integer-result[]
 ;
+
+fixPresentOnStatsWithFalseFilter
+required_capability: fix_present_and_absent_on_stats_with_false_filter
+
+ROW a = 3
+| STATS x = PRESENT(a) WHERE FALSE
+| KEEP x
+;
+
+x:boolean
+false
+;

@@ -85,7 +85,7 @@ public interface SupportedVersion {
      * using them should continue to work.
      */
     static SupportedVersion supportedSince(TransportVersion createdVersion, TransportVersion supportedVersion) {
-        assert supportedVersion.onOrAfter(createdVersion) : "support for a type cannot be enabled before its initial creation";
+        assert supportedVersion.supports(createdVersion) : "support for a type cannot be enabled before its initial creation";
         return new SupportedVersion() {
             @Override
             public boolean supportedOn(TransportVersion version, boolean currentBuildIsSnapshot) {

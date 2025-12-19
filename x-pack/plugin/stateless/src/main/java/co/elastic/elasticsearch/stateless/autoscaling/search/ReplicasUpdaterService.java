@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.IndexRankingProperties;
+import co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterExecutionListener.NoopExecutionListener;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.IndexProperties;
 
 import org.apache.logging.log4j.LogManager;
@@ -49,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING;
@@ -213,9 +215,23 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      */
     final Map<String, AtomicInteger> scaleDownCounters = new ConcurrentHashMap<>();
     private final ThreadPool threadPool;
-    // guard flag to prevent running the scheduled job in parallel when e.g. canceling
-    // the old job hasn't completed yet
-    private final AtomicBoolean running = new AtomicBoolean(false);
+    private final ReplicasUpdaterExecutionListener listener;
+
+    // State machine to manage the scheduling of the job (we want to prevent multiple runs in parallel, and
+    // to have a way to run a potential pending track that was scheduled outside of the scheduled loop, e.g. on master
+    // failover or setting change)
+    // The state will change from RUNNING to RUNNING_WITH_PENDING in case a new run is requested while a run is already in progress. The
+    // loop will then, immediately, execute another run after finishing the current one.
+    // If multiple concurrent trigger events occur while a run is in progress, they will be coalesced into a single pending run.
+    // The IDLE state means no run is in progress nor pending.
+    public enum State {
+        IDLE,
+        RUNNING,
+        RUNNING_WITH_PENDING
+    }
+
+    private final AtomicReference<State> state = new AtomicReference<>(State.IDLE);
+    private final AtomicBoolean pendingImmediateScaleDown = new AtomicBoolean(false);
 
     private volatile boolean pendingScaleDownAfterDisabling = false;
     private volatile boolean enableReplicasForInstantFailover;
@@ -226,12 +242,22 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     private volatile int searchPowerMinSetting;
     private volatile int numSearchNodes;
 
-    @SuppressWarnings("this-escape")
     public ReplicasUpdaterService(
         ThreadPool threadPool,
         ClusterService clusterService,
         NodeClient client,
         SearchMetricsService searchMetricsService
+    ) {
+        this(threadPool, clusterService, client, searchMetricsService, new NoopExecutionListener());
+    }
+
+    @SuppressWarnings("this-escape")
+    public ReplicasUpdaterService(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        NodeClient client,
+        SearchMetricsService searchMetricsService,
+        ReplicasUpdaterExecutionListener listener
     ) {
         this.threadPool = threadPool;
         this.client = client;
@@ -244,6 +270,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         clusterSettings.initializeAndWatch(REPLICA_UPDATER_SCALEDOWN_REPETITIONS, this::setScaledownRepetitionSetting);
         clusterSettings.initializeAndWatch(SEARCH_POWER_MIN_SETTING, this::updateSearchPowerMin);
         clusterSettings.initializeAndWatch(AUTO_EXPAND_REPLICA_INDICES, this::updateAutoExpandReplicaIndices);
+        this.listener = listener;
     }
 
     void setScaledownRepetitionSetting(Integer scaledownRepetitionSetting) {
@@ -409,143 +436,181 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         performReplicaUpdates(false);
     }
 
-    private void performReplicaUpdates(boolean immediateScaleDown) {
-        if (running.compareAndSet(false, true)) {
+    // visible for testing
+    void performReplicaUpdates(boolean immediateScaleDown) {
+        performReplicaUpdates(immediateScaleDown, 0);
+    }
+
+    private void performReplicaUpdates(boolean immediateScaleDown, int depth) {
+        if (immediateScaleDown) {
+            pendingImmediateScaleDown.set(true);
+        }
+        if (depth > 3) {
+            // quite unlucky to get a few chained pending runs while we were already running, so let's skip chaining the runs and
+            // at this point allow the run to go on the scheduled loop
+            LOGGER.warn("postponing performReplicaUpdates after {} recursive calls until the natural scheduled loop", depth);
+            return;
+        }
+
+        // make sure we record a pending run if the loop is currently running, or otherwise that we
+        // "claim" this run by changing status to RUNNING
+        State previousState = state.getAndUpdate(s -> s == State.IDLE ? State.RUNNING : State.RUNNING_WITH_PENDING);
+
+        if (previousState == State.IDLE) {
             try {
-                if (checkDisabledAndNeedsScaledown()) {
-                    return;
-                }
-
-                int indicesScaledDown = 0;
-                int indicesScaledUp = 0;
-                ReplicaRankingContext rankingContext = searchMetricsService.createRankingContext();
-                LOGGER.debug("Ranking context: " + rankingContext);
-                if (rankingContext.getSearchPowerMin() <= SEARCH_POWER_MIN_NO_REPLICATION) {
-                    // we can scale everything down immediately
-                    Set<String> indicesToScaleDown = resetReplicasForAllIndices();
-                    publishUpdateReplicaSetting(1, indicesToScaleDown);
-                    indicesScaledDown = indicesToScaleDown.size();
-                } else {
-                    int numSearchNodes = this.numSearchNodes;
-                    Map<String, Integer> recommendedReplicaChanges = getRecommendedReplicaChanges(
-                        rankingContext,
-                        autoExpandReplicaIndices,
-                        numSearchNodes
-                    );
-
-                    Map<Integer, Set<String>> indicesToScaleUp = new HashMap<>(rankingContext.indices().size());
-                    Map<Integer, Set<String>> indicesToScaleDown = new HashMap<>(rankingContext.indices().size());
-                    Map<Integer, Set<String>> autoExpandIndices = new HashMap<>(autoExpandReplicaIndices.size(), 1.0f);
-                    for (IndexRankingProperties property : rankingContext.properties()) {
-                        String indexName = property.indexProperties().name();
-                        int currentReplicas = property.indexProperties().replicas();
-                        Integer recommendedReplicas = recommendedReplicaChanges.get(indexName);
-                        if (recommendedReplicas != null) {
-                            // special handling for auto expand replica indices as we want to reduce their replicas regardless of the
-                            // scale down counters
-                            if (numSearchNodes > 2 && autoExpandReplicaIndices.contains(indexName)) {
-                                autoExpandIndices.compute(numSearchNodes, (currentReplicasEntry, indices) -> {
-                                    if (indices == null) {
-                                        indices = new HashSet<>();
-                                    }
-                                    indices.add(indexName);
-                                    return indices;
-                                });
-                            } else if (recommendedReplicas > currentReplicas) {
-                                indicesToScaleUp.compute(recommendedReplicas, (currentReplicasEntry, indices) -> {
-                                    if (indices == null) {
-                                        indices = new HashSet<>();
-                                    }
-                                    indices.add(indexName);
-                                    return indices;
-                                });
-                            } else if (recommendedReplicas < currentReplicas) {
-                                indicesToScaleDown.compute(recommendedReplicas, (currentReplicasEntry, indices) -> {
-                                    if (indices == null) {
-                                        indices = new HashSet<>();
-                                    }
-                                    indices.add(indexName);
-                                    return indices;
-                                });
-                            }
-                        }
-                    }
-
-                    // apply scaling up to two replica suggestions immediately
-                    for (Map.Entry<Integer, Set<String>> scaleUpEntry : indicesToScaleUp.entrySet()) {
-                        Integer targetReplicasCount = scaleUpEntry.getKey();
-                        Set<String> indices = scaleUpEntry.getValue();
-                        publishUpdateReplicaSetting(targetReplicasCount, indices);
-                        indicesScaledUp += indices.size();
-                    }
-
-                    for (Map.Entry<Integer, Set<String>> autoExpandEntry : autoExpandIndices.entrySet()) {
-                        Integer targetReplicasCount = autoExpandEntry.getKey();
-                        assert targetReplicasCount == numSearchNodes : "auto expand target replicas should match number of search nodes";
-                        Set<String> indices = autoExpandEntry.getValue();
-                        /*
-                         * We enter this block only when all the following conditions are met:
-                         * 1) some indices are configured via override to have their replicas auto-expanded
-                         * 2) SPmin >= 250
-                         * 3) there's more than 2 search nodes available
-                         *
-                         * These events may be scale up or down, depending on how the number of search nodes has changed.
-                         * Either way, these changes can and should be applied straight-away
-                         */
-                        publishUpdateReplicaSetting(numSearchNodes, indices);
-                    }
-
-                    // Scale down decisions require a certain number of repetitions to be considered stable.
-                    // We want to avoid flapping up/down scaling decisions because if we scale up again soon
-                    // the performance cost of this outweighs the cost of keeping two replicas around longer.
-                    // This is also necessary for SPmin >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} because
-                    // even in that case indices might enter and fall out of the interactive boosting window.
-                    Set<String> countersInUse = new HashSet<>();
-                    for (Map.Entry<Integer, Set<String>> scaleDownEntry : indicesToScaleDown.entrySet()) {
-                        if (ensureRunning() == false) {
-                            // break out if some other thread canceled the job at this point.
-                            return;
-                        }
-                        Integer targetReplicasCount = scaleDownEntry.getKey();
-                        Set<String> indices = scaleDownEntry.getValue();
-                        if (immediateScaleDown) {
-                            publishUpdateReplicaSetting(targetReplicasCount, indices);
-                            indicesScaledDown += indices.size();
-                        } else {
-                            Set<String> scaleDownUpdatesToSend = new HashSet<>();
-                            countersInUse.addAll(indices);
-                            for (String index : indices) {
-                                AtomicInteger scaleDownRepetitions = scaleDownCounters.computeIfAbsent(index, k -> new AtomicInteger(0));
-                                if (scaleDownRepetitions.incrementAndGet() >= scaledownRepetitionSetting) {
-                                    scaleDownUpdatesToSend.add(index);
-                                }
-                            }
-                            publishUpdateReplicaSetting(targetReplicasCount, scaleDownUpdatesToSend);
-                            indicesScaledDown += scaleDownUpdatesToSend.size();
-                        }
-                    }
-                    clearCountersExcept(countersInUse);
-                }
-
-                LOGGER.info(
-                    "Finished replicas update task. Indices scaled up: "
-                        + indicesScaledUp
-                        + ", scaled down: "
-                        + indicesScaledDown
-                        + ". SPmin: "
-                        + rankingContext.getSearchPowerMin()
-                        + ", totalInteractiveSize: "
-                        + rankingContext.getAllIndicesInteractiveSize()
-                        + ", replica threshold: "
-                        + rankingContext.getThreshold()
-                );
+                // set the pending scale down flag to false as we'll do the immediate scale down now (we're guaranteed to run) if there was
+                // a pending request
+                boolean shouldScaleDownImmediately = pendingImmediateScaleDown.getAndSet(false);
+                listener.onRunStart(shouldScaleDownImmediately);
+                run(shouldScaleDownImmediately);
+                listener.onRunComplete();
             } finally {
-                boolean running = this.running.compareAndSet(true, false);
-                assert running : "Job should still have been running at this moment";
+                State stateAfterRun = state.getAndSet(State.IDLE);
+                listener.onStateTransitionToIdle();
+                if (stateAfterRun == State.RUNNING_WITH_PENDING) {
+                    listener.onPendingRunExecution();
+                    // don't lose the potential pending run request, but go back through the performReplicaUpdates entry point
+                    // to make sure we didn't already re-start the loop after we set the state to IDLE
+                    LOGGER.debug("triggering pending replicas update run");
+                    // parameter doesn't matter here as we already captured the intent of a potential pending run
+                    // and will check pendingImmediateScaleDown flag at the top
+                    performReplicaUpdates(false, depth + 1);
+                }
             }
         } else {
             LOGGER.debug("skip running replicas update task, there is one instance in progress already");
+            listener.onSkipped();
         }
+    }
+
+    private void run(boolean immediateScaleDown) {
+        if (checkDisabledAndNeedsScaledown()) {
+            return;
+        }
+
+        int indicesScaledDown = 0;
+        int indicesScaledUp = 0;
+        ReplicaRankingContext rankingContext = searchMetricsService.createRankingContext();
+        LOGGER.debug("Ranking context: " + rankingContext);
+        if (rankingContext.getSearchPowerMin() <= SEARCH_POWER_MIN_NO_REPLICATION) {
+            // we can scale everything down immediately
+            Set<String> indicesToScaleDown = resetReplicasForAllIndices();
+            publishUpdateReplicaSetting(1, indicesToScaleDown);
+            indicesScaledDown = indicesToScaleDown.size();
+        } else {
+            int numSearchNodes = this.numSearchNodes;
+            Map<String, Integer> recommendedReplicaChanges = getRecommendedReplicaChanges(
+                rankingContext,
+                autoExpandReplicaIndices,
+                numSearchNodes
+            );
+
+            Map<Integer, Set<String>> indicesToScaleUp = new HashMap<>(rankingContext.indices().size());
+            Map<Integer, Set<String>> indicesToScaleDown = new HashMap<>(rankingContext.indices().size());
+            Map<Integer, Set<String>> autoExpandIndices = new HashMap<>(autoExpandReplicaIndices.size(), 1.0f);
+            for (IndexRankingProperties property : rankingContext.properties()) {
+                String indexName = property.indexProperties().name();
+                int currentReplicas = property.indexProperties().replicas();
+                Integer recommendedReplicas = recommendedReplicaChanges.get(indexName);
+                if (recommendedReplicas != null) {
+                    // special handling for auto expand replica indices as we want to reduce their replicas regardless of the
+                    // scale down counters
+                    if (numSearchNodes > 2 && autoExpandReplicaIndices.contains(indexName)) {
+                        autoExpandIndices.compute(numSearchNodes, (currentReplicasEntry, indices) -> {
+                            if (indices == null) {
+                                indices = new HashSet<>();
+                            }
+                            indices.add(indexName);
+                            return indices;
+                        });
+                    } else if (recommendedReplicas > currentReplicas) {
+                        indicesToScaleUp.compute(recommendedReplicas, (currentReplicasEntry, indices) -> {
+                            if (indices == null) {
+                                indices = new HashSet<>();
+                            }
+                            indices.add(indexName);
+                            return indices;
+                        });
+                    } else if (recommendedReplicas < currentReplicas) {
+                        indicesToScaleDown.compute(recommendedReplicas, (currentReplicasEntry, indices) -> {
+                            if (indices == null) {
+                                indices = new HashSet<>();
+                            }
+                            indices.add(indexName);
+                            return indices;
+                        });
+                    }
+                }
+            }
+
+            // apply scaling up to two replica suggestions immediately
+            for (Map.Entry<Integer, Set<String>> scaleUpEntry : indicesToScaleUp.entrySet()) {
+                Integer targetReplicasCount = scaleUpEntry.getKey();
+                Set<String> indices = scaleUpEntry.getValue();
+                publishUpdateReplicaSetting(targetReplicasCount, indices);
+                indicesScaledUp += indices.size();
+            }
+
+            for (Map.Entry<Integer, Set<String>> autoExpandEntry : autoExpandIndices.entrySet()) {
+                Integer targetReplicasCount = autoExpandEntry.getKey();
+                assert targetReplicasCount == numSearchNodes : "auto expand target replicas should match number of search nodes";
+                Set<String> indices = autoExpandEntry.getValue();
+                /*
+                 * We enter this block only when all the following conditions are met:
+                 * 1) some indices are configured via override to have their replicas auto-expanded
+                 * 2) SPmin >= 250
+                 * 3) there's more than 2 search nodes available
+                 *
+                 * These events may be scale up or down, depending on how the number of search nodes has changed.
+                 * Either way, these changes can and should be applied straight-away
+                 */
+                publishUpdateReplicaSetting(numSearchNodes, indices);
+            }
+
+            // Scale down decisions require a certain number of repetitions to be considered stable.
+            // We want to avoid flapping up/down scaling decisions because if we scale up again soon
+            // the performance cost of this outweighs the cost of keeping two replicas around longer.
+            // This is also necessary for SPmin >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} because
+            // even in that case indices might enter and fall out of the interactive boosting window.
+            Set<String> countersInUse = new HashSet<>();
+            for (Map.Entry<Integer, Set<String>> scaleDownEntry : indicesToScaleDown.entrySet()) {
+                if (ensureRunning() == false) {
+                    // break out if some other thread canceled the job at this point.
+                    return;
+                }
+                Integer targetReplicasCount = scaleDownEntry.getKey();
+                Set<String> indices = scaleDownEntry.getValue();
+                if (immediateScaleDown) {
+                    publishUpdateReplicaSetting(targetReplicasCount, indices);
+                    indicesScaledDown += indices.size();
+                } else {
+                    Set<String> scaleDownUpdatesToSend = new HashSet<>();
+                    countersInUse.addAll(indices);
+                    for (String index : indices) {
+                        AtomicInteger scaleDownRepetitions = scaleDownCounters.computeIfAbsent(index, k -> new AtomicInteger(0));
+                        if (scaleDownRepetitions.incrementAndGet() >= scaledownRepetitionSetting) {
+                            scaleDownUpdatesToSend.add(index);
+                        }
+                    }
+                    publishUpdateReplicaSetting(targetReplicasCount, scaleDownUpdatesToSend);
+                    indicesScaledDown += scaleDownUpdatesToSend.size();
+                }
+            }
+            clearCountersExcept(countersInUse);
+        }
+
+        LOGGER.info(
+            "Finished replicas update task. Indices scaled up: "
+                + indicesScaledUp
+                + ", scaled down: "
+                + indicesScaledDown
+                + ". SPmin: "
+                + rankingContext.getSearchPowerMin()
+                + ", totalInteractiveSize: "
+                + rankingContext.getAllIndicesInteractiveSize()
+                + ", replica threshold: "
+                + rankingContext.getThreshold()
+        );
     }
 
     private boolean checkDisabledAndNeedsScaledown() {
@@ -647,7 +712,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 if (searchPowerMinSetting >= SEARCH_POWER_MIN_FULL_REPLICATION) {
                     // Note: this won't do anything if the job is already running.
                     // The outcome may or may not take into account the updated setting.
-                    performReplicaUpdates(false);
+                    performReplicaUpdates();
                 }
             }
         }
@@ -667,11 +732,16 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                         if (numSearchNodesChanged) {
                             // Note: this won't do anything if the job is already running.
                             // The outcome may or may not take into account the updated number of search nodes.
-                            performReplicaUpdates(false);
+                            performReplicaUpdates();
                         }
                     }
                 }
             }
         }
+    }
+
+    // visible for testing
+    State state() {
+        return state.get();
     }
 }

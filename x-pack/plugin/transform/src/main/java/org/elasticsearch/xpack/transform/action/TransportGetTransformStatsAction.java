@@ -90,7 +90,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             actionFilters,
             Request::new,
             Response::new,
-            threadPool.executor(ThreadPool.Names.GENERIC)
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transformConfigManager = transformServices.configManager();
         this.transformCheckpointService = transformServices.checkpointService();

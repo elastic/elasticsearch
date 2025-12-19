@@ -195,7 +195,7 @@ POST my-index/_search
 }
 ```
 % TEST[skip:Requires {{infer}} endpoint]
-<1> The `match` query automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
+1. The `match` query automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
 
 ::::{important}
 When you query a `semantic_text` field directly with a [kNN query](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-with-semantic-text) in Query DSL, automatic pre-filtering does not apply. The kNN query provides a direct parameter for defining pre-filters as explained in [Pre-filters and post-filters](/reference/query-languages/query-dsl/query-dsl-knn-query.md#knn-query-filtering).

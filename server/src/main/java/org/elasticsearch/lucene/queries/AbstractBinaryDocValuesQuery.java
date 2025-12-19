@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCo
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Predicate;
+
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 abstract class AbstractBinaryDocValuesQuery extends Query {

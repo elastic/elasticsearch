@@ -12,10 +12,10 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**

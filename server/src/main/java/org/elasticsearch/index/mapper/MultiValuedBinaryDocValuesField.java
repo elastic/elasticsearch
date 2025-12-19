@@ -52,11 +52,11 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     protected void writeLenAndValues(BytesStreamOutput out) throws IOException {
-       for (BytesRef value : uniqueValues) {
-           int valueLength = value.length;
-           out.writeVInt(valueLength);
-           out.writeBytes(value.bytes, value.offset, valueLength);
-       }
+        for (BytesRef value : uniqueValues) {
+            int valueLength = value.length;
+            out.writeVInt(valueLength);
+            out.writeBytes(value.bytes, value.offset, valueLength);
+        }
     }
 
     @Override

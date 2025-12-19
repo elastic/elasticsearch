@@ -1,0 +1,5 @@
+pr: 138951
+summary: Retry bulk-delete items in GCS
+area: Snapshot/Restore
+type: enhancement
+issues: []

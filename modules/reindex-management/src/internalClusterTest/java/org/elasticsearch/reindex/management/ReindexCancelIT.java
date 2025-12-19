@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/** Integration tests for <code>POST _reindex/{taskId}/_cancel</code> endpoint. */
+/** Integration tests for <code>POST _reindex/{task_id}/_cancel</code> endpoint. */
 public class ReindexCancelIT extends ESIntegTestCase {
 
     private static final String SOURCE_INDEX = "reindex_src";
@@ -75,7 +75,7 @@ public class ReindexCancelIT extends ESIntegTestCase {
     }
 
     /**
-     * Test <code>POST _reindex/{taskId}/_cancel</code> endpoint, and its intended side effects, end-to-end, by doing the following:
+     * Test <code>POST _reindex/{task_id}/_cancel</code> endpoint, and its intended side effects, end-to-end, by doing the following:
      * 1. Create throttled reindex task that takes a while to complete
      * 2. Ensure task has expected number of sub-tasks
      * 3. Ensure there's an expected number of search scroll contexts open for the reindexing

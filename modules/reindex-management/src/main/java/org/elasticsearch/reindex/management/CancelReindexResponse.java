@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Response returned from {@code POST /_reindex/{taskId}/_cancel}.
+ * Response returned from {@code POST /_reindex/{task_id}/_cancel}.
  */
 public class CancelReindexResponse extends BaseTasksResponse implements ToXContentObject {
 

@@ -1,8 +1,4 @@
 ---
-applies_to:
-stack: ga 9.3
----
----
 navigation_title: "CEF"
 mapped_pages:
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/cef-processor.html

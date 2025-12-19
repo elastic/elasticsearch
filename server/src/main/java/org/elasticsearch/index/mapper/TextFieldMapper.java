@@ -1560,7 +1560,7 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     private static boolean storeFallbackFieldsInBinaryDocValues(final IndexVersion indexCreatedVersion) {
-        return indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
+        return indexCreatedVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
     }
 
     /**

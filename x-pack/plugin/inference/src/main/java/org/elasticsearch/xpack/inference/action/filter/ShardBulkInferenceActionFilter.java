@@ -378,7 +378,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                         if (ExceptionsHelper.status(exc).getStatus() >= 500) {
                             List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
-                            logger.error("Error loading inference for inference id [" + inferenceId + "] on fields " + fields, exc);
+                            logger.warn("Error loading inference for inference id [" + inferenceId + "] on fields " + fields, exc);
                         }
                     }
                 });
@@ -453,7 +453,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                     if (ExceptionsHelper.status(exc).getStatus() >= 500) {
                         List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
-                        logger.error(
+                        logger.warn(
                             "Exception when running inference id ["
                                 + inferenceProvider.model.getInferenceEntityId()
                                 + "] on fields "

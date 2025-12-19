@@ -1806,7 +1806,7 @@ public class EsqlCapabilities {
          * Support for the MV_UNION function which returns the set union of two multivalued fields
          */
         FN_MV_UNION,
-      
+
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */

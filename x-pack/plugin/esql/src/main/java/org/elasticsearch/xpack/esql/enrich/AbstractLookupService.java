@@ -141,12 +141,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     private final String actionName;
     protected final ClusterService clusterService;
     protected final IndicesService indicesService;
-    private final LookupShardContextFactory lookupShardContextFactory;
+    protected final LookupShardContextFactory lookupShardContextFactory;
     protected final TransportService transportService;
     IndexNameExpressionResolver indexNameExpressionResolver;
     protected final Executor executor;
-    private final BlockFactory blockFactory;
-    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    protected final BlockFactory blockFactory;
+    protected final LocalCircuitBreaker.SizeSettings localBreakerSettings;
     private final ProjectResolver projectResolver;
     /**
      * Should output {@link Page pages} be combined into a single resulting page?
@@ -157,7 +157,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * figure out what to do with a {@link List} of resulting pages.
      */
     private final boolean mergePages;
-    private final LookupExecutionMapper executionMapper;
+    protected final LookupExecutionMapper executionMapper;
 
     AbstractLookupService(
         String actionName,
@@ -362,7 +362,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * Creates a PhysicalPlan tree representing the lookup operation structure.
      * This plan can be cached and reused across multiple calls with different input data.
      */
-    private PhysicalPlan createLookupPhysicalPlan(T request, LookupShardContext shardContext) throws IOException {
+    protected PhysicalPlan createLookupPhysicalPlan(T request, LookupShardContext shardContext) throws IOException {
         var projectState = projectResolver.getProjectState(clusterService.state());
         AliasFilter aliasFilter = indicesService.buildAliasFilter(
             projectState,

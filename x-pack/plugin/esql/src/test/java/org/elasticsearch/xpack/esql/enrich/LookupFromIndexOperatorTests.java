@@ -281,6 +281,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         return new LookupFromIndexOperator.Factory(
             matchFields,
             sessionId,
+            sessionId + "/lookup/1", // Test lookup session ID
             parentTask,
             maxOutstandingRequests,
             this::lookupService,

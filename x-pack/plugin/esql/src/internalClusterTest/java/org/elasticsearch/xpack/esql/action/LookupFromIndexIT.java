@@ -407,6 +407,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 matchFields,
                 "test",
+                "test/lookup/1", // Test lookup session ID
                 parentTask,
                 QueryPragmas.ENRICH_MAX_WORKERS.get(Settings.EMPTY),
                 ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),

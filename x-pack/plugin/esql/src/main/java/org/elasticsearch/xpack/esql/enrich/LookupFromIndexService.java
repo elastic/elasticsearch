@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -17,17 +18,24 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -41,10 +49,12 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -60,6 +70,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
+    private static final TransportVersion ESQL_LOOKUP_JOIN_OPERATOR_SESSION_ID = TransportVersion.fromName(
+        "esql_lookup_join_operator_session_id"
+    );
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -98,7 +111,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.matchFields,
             request.source,
             request.rightPreJoinPlan,
-            request.joinOnConditions
+            request.joinOnConditions,
+            request.lookupSessionId
         );
     }
 
@@ -151,6 +165,85 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
+    protected void doLookup(TransportRequest request, CancellableTask task, ActionListener<List<Page>> listener) {
+        // If lookupSessionId is present, use the new implementation
+        if (request.lookupSessionId != null) {
+            doLookupWithSession(request, task, listener);
+        } else {
+            // Otherwise, use the base class implementation
+            super.doLookup(request, task, listener);
+        }
+    }
+
+    private void doLookupWithSession(TransportRequest request, CancellableTask task, ActionListener<List<Page>> listener) {
+        // Early exit for null input blocks
+        for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
+            Block inputBlock = request.inputPage.getBlock(j);
+            if (inputBlock.areAllValuesNull()) {
+                List<Page> nullResponse = List.of(); // mergePages is false for LookupFromIndexService
+                listener.onResponse(nullResponse);
+                return;
+            }
+        }
+        final List<Releasable> releasables = new ArrayList<>(6);
+        boolean started = false;
+        try {
+            // Phase 1: Physical Planning
+            LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
+            releasables.add(shardContext.release());
+            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext);
+
+            final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
+                blockFactory.breaker(),
+                localBreakerSettings.overReservedBytes(),
+                localBreakerSettings.maxOverReservedBytes()
+            );
+            releasables.add(localBreaker);
+
+            var warnings = Warnings.createWarnings(
+                DriverContext.WarningsMode.COLLECT,
+                request.source.source().getLineNumber(),
+                request.source.source().getColumnNumber(),
+                request.source.text()
+            );
+
+            // Determine optimization state
+            BlockOptimization blockOptimization = executionMapper.determineOptimization(request.inputPage);
+
+            List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+
+            // Phase 2: Build PhysicalOperation, a factory for Operators needed
+            PhysicalOperation physicalOperation = executionMapper.buildOperatorFactories(
+                request,
+                physicalPlan,
+                shardContext,
+                warnings,
+                blockOptimization,
+                collectedPages
+            );
+
+            // Phase 3: Build Operators
+            LookupQueryPlan lookupQueryPlan = executionMapper.buildOperators(
+                physicalOperation,
+                shardContext,
+                localBreaker,
+                collectedPages,
+                releasables
+            );
+
+            // Phase 4: Start Driver
+            startDriver(request, task, listener, lookupQueryPlan);
+            started = true;
+        } catch (Exception e) {
+            listener.onFailure(e);
+        } finally {
+            if (started == false) {
+                Releasables.close(releasables);
+            }
+        }
+    }
+
+    @Override
     protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
         return new LookupResponse(pages, blockFactory);
     }
@@ -164,6 +257,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
+        private final String lookupSessionId;
 
         Request(
             String sessionId,
@@ -174,12 +268,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields,
             Source source,
             PhysicalPlan rightPreJoinPlan,
-            Expression joinOnConditions
+            Expression joinOnConditions,
+            String lookupSessionId
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
+            this.lookupSessionId = lookupSessionId;
         }
     }
 
@@ -194,6 +290,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
         private final Expression joinOnConditions;
+        @Nullable
+        private final String lookupSessionId;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -207,12 +305,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<MatchConfig> matchFields,
             Source source,
             PhysicalPlan rightPreJoinPlan,
-            Expression joinOnConditions
+            Expression joinOnConditions,
+            @Nullable String lookupSessionId
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
+            this.lookupSessionId = lookupSessionId;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -262,6 +362,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
                 joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
+            String lookupSessionId = null;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_OPERATOR_SESSION_ID)) {
+                lookupSessionId = in.readOptionalString();
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -272,7 +376,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 matchFields,
                 source,
                 rightPreJoinPlan,
-                joinOnConditions
+                joinOnConditions,
+                lookupSessionId
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -329,6 +434,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 if (joinOnConditions != null) {
                     throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
                 }
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_OPERATOR_SESSION_ID)) {
+                out.writeOptionalString(lookupSessionId);
             }
         }
 

@@ -42,19 +42,48 @@ import java.util.function.Function;
 // TODO rename package
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
 
-    public record Factory(
-        List<MatchConfig> matchFields,
-        String sessionId,
-        CancellableTask parentTask,
-        int maxOutstandingRequests,
-        Function<DriverContext, LookupFromIndexService> lookupService,
-        String lookupIndexPattern,
-        String lookupIndex,
-        List<NamedExpression> loadFields,
-        Source source,
-        PhysicalPlan rightPreJoinPlan,
-        Expression joinOnConditions
-    ) implements OperatorFactory {
+    public static class Factory implements OperatorFactory {
+        private final List<MatchConfig> matchFields;
+        private final String sessionId;
+        private final String lookupSessionId;
+        private final CancellableTask parentTask;
+        private final int maxOutstandingRequests;
+        private final Function<DriverContext, LookupFromIndexService> lookupService;
+        private final String lookupIndexPattern;
+        private final String lookupIndex;
+        private final List<NamedExpression> loadFields;
+        private final Source source;
+        private final PhysicalPlan rightPreJoinPlan;
+        private final Expression joinOnConditions;
+
+        public Factory(
+            List<MatchConfig> matchFields,
+            String sessionId,
+            String lookupSessionId,
+            CancellableTask parentTask,
+            int maxOutstandingRequests,
+            Function<DriverContext, LookupFromIndexService> lookupService,
+            String lookupIndexPattern,
+            String lookupIndex,
+            List<NamedExpression> loadFields,
+            Source source,
+            PhysicalPlan rightPreJoinPlan,
+            Expression joinOnConditions
+        ) {
+            this.matchFields = matchFields;
+            this.sessionId = sessionId;
+            this.lookupSessionId = lookupSessionId;
+            this.parentTask = parentTask;
+            this.maxOutstandingRequests = maxOutstandingRequests;
+            this.lookupService = lookupService;
+            this.lookupIndexPattern = lookupIndexPattern;
+            this.lookupIndex = lookupIndex;
+            this.loadFields = loadFields;
+            this.source = source;
+            this.rightPreJoinPlan = rightPreJoinPlan;
+            this.joinOnConditions = joinOnConditions;
+        }
+
         @Override
         public String describe() {
             StringBuilder stringBuilder = new StringBuilder();
@@ -78,6 +107,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             return new LookupFromIndexOperator(
                 matchFields,
                 sessionId,
+                lookupSessionId,
                 driverContext,
                 parentTask,
                 maxOutstandingRequests,
@@ -94,6 +124,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     private final LookupFromIndexService lookupService;
     private final String sessionId;
+    private final String lookupSessionId;
     private final CancellableTask parentTask;
     private final String lookupIndexPattern;
     private final String lookupIndex;
@@ -119,6 +150,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     public LookupFromIndexOperator(
         List<MatchConfig> matchFields,
         String sessionId,
+        String lookupSessionId,
         DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
@@ -133,6 +165,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.matchFields = matchFields;
         this.sessionId = sessionId;
+        this.lookupSessionId = lookupSessionId;
         this.parentTask = parentTask;
         this.lookupService = lookupService;
         this.lookupIndexPattern = lookupIndexPattern;
@@ -170,7 +203,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             loadFields,
             source,
             rightPreJoinPlan,
-            joinOnConditions
+            joinOnConditions,
+            lookupSessionId
         );
         lookupService.lookupAsync(
             request,

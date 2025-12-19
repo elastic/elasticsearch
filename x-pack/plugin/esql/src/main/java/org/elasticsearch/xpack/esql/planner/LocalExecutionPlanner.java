@@ -139,6 +139,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -159,6 +160,7 @@ public class LocalExecutionPlanner {
     private final String sessionId;
     private final String clusterAlias;
     private final CancellableTask parentTask;
+    private final AtomicLong lookupJoinSessionIdGenerator = new AtomicLong();
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final Settings settings;
@@ -795,10 +797,15 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(fieldName, input));
         }
+        // Generate unique lookup session ID for this join operation
+        // The sessionId already includes child session ID (e.g., "sessionId/1", "sessionId/2")
+        // so this counter only needs to ensure uniqueness within this planner instance
+        String lookupSessionId = sessionId + "/lookup/" + lookupJoinSessionIdGenerator.incrementAndGet();
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
                 sessionId,
+                lookupSessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 ctx -> lookupFromIndexService,

@@ -9,22 +9,82 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.StoredValue;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.util.BytesRef;
 
-public class UpdatableNumericDocValuesField extends NumericDocValuesField {
-    public UpdatableNumericDocValuesField(String name, long value) {
-        super(name, value);
+import java.io.Reader;
+
+public class UpdatableNumericDocValuesField  implements IndexableField {
+
+    public static final FieldType TYPE;
+
+    static {
+        FieldType ft = new FieldType();
+        ft.setDocValuesType(DocValuesType.NUMERIC);
+        ft.setOmitNorms(true);
+        TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
-    public UpdatableNumericDocValuesField(String name, Long value) {
-        super(name, value);
-    }
+    private final String name;
+    private long value = 0;
 
     public UpdatableNumericDocValuesField(String name) {
-        this(name, 0);
+        this.name = name;
     }
 
     public void setValue(long value) {
-        fieldsData = value;
+        this.value = value;
+    }
+
+    @Override
+    public String name() {
+        return name;
+    }
+
+    @Override
+    public IndexableFieldType fieldType() {
+        return TYPE;
+    }
+
+    @Override
+    public String stringValue() {
+        return null;
+    }
+
+    @Override
+    public Reader readerValue() {
+        return null;
+    }
+
+    @Override
+    public Number numericValue() {
+        return value;
+    }
+
+    @Override
+    public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
+        return null;
+    }
+
+    @Override
+    public BytesRef binaryValue() {
+        return null;
+    }
+
+    @Override
+    public StoredValue storedValue() {
+        return null;
+    }
+
+    @Override
+    public InvertableType invertableType() {
+        return InvertableType.BINARY;
     }
 }

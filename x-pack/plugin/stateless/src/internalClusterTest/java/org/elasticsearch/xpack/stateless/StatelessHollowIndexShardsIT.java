@@ -685,7 +685,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         }
     }
 
-    public void testRecoverHollowShardReadsSingleRegion() throws Exception {
+    public void testRecoverHollowShardReadsSingleRegionAndEvictsCache() throws Exception {
         // large cache and region to ensure that all commits we generate can be read in a single region BCC read
         final var regionSize = ByteSizeValue.ofMb(10);
         final var nodeSettings = Settings.builder()
@@ -746,6 +746,12 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         failShardsAndEnsureGreen.run();
 
         // assert that blob accesses were just the number of shards
+        assertThat(bccAccesses.get(), equalTo(clusterInfo.numberOfShards));
+        bccAccesses.set(0);
+
+        // Fail shards to recover them again. We expect that the previous hollow recovery invalidated the cache, so we should see blob
+        // accesses again.
+        failShardsAndEnsureGreen.run();
         assertThat(bccAccesses.get(), equalTo(clusterInfo.numberOfShards));
         bccAccesses.set(0);
 

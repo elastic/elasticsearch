@@ -37,7 +37,12 @@ public final class VectorScoringUtils {
      * @param scorer       the vector scorer
      * @throws IOException if an I/O error occurs
      */
-    public static void scoreAndCollectAll(KnnCollector knnCollector, AcceptDocs acceptDocs, KnnVectorValues vectorValues, RandomVectorScorer scorer) throws IOException {
+    public static void scoreAndCollectAll(
+        KnnCollector knnCollector,
+        AcceptDocs acceptDocs,
+        KnnVectorValues vectorValues,
+        RandomVectorScorer scorer
+    ) throws IOException {
         if (knnCollector.k() == 0 || scorer == null || vectorValues == null) {
             return;
         }
@@ -60,15 +65,15 @@ public final class VectorScoringUtils {
         float[] scores = new float[BULK_SCORE_BLOCKS];
         int count = 0;
         int maxOrd = scorer.maxOrd();
-        
+
         for (int i = 0; i < maxOrd; i++) {
             if (knnCollector.earlyTerminated()) {
                 break;
             }
-            
+
             ords[count] = i;
             count++;
-            
+
             if (count == BULK_SCORE_BLOCKS) {
                 scorer.bulkScore(ords, scores, count);
                 for (int j = 0; j < count; j++) {
@@ -78,7 +83,7 @@ public final class VectorScoringUtils {
                 count = 0;
             }
         }
-        
+
         if (count > 0) {
             scorer.bulkScore(ords, scores, count);
             for (int j = 0; j < count; j++) {
@@ -88,25 +93,30 @@ public final class VectorScoringUtils {
         }
     }
 
-    private static void bulkScoreWithFilter(KnnCollector knnCollector, DocIdSetIterator acceptDocsIterator, KnnVectorValues vectorValues, RandomVectorScorer scorer) throws IOException {
+    private static void bulkScoreWithFilter(
+        KnnCollector knnCollector,
+        DocIdSetIterator acceptDocsIterator,
+        KnnVectorValues vectorValues,
+        RandomVectorScorer scorer
+    ) throws IOException {
         int[] ords = new int[BULK_SCORE_BLOCKS];
         int[] docs = new int[BULK_SCORE_BLOCKS];
         float[] scores = new float[BULK_SCORE_BLOCKS];
         int count = 0;
-        
+
         var conjunction = ConjunctionUtils.intersectIterators(List.of(vectorValues, acceptDocsIterator));
-        
+
         int doc;
         while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             if (knnCollector.earlyTerminated()) {
                 break;
             }
-            
+
             int ord = vectorValues.ordValue();
             ords[count] = ord;
             docs[count] = doc;
             count++;
-            
+
             if (count == BULK_SCORE_BLOCKS) {
                 scorer.bulkScore(ords, scores, count);
                 for (int j = 0; j < count; j++) {
@@ -116,7 +126,7 @@ public final class VectorScoringUtils {
                 count = 0;
             }
         }
-        
+
         if (count > 0) {
             scorer.bulkScore(ords, scores, count);
             for (int j = 0; j < count; j++) {

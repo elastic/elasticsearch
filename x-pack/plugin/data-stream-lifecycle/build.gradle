@@ -1,0 +1,23 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+  name = 'x-pack-data-streams'
+  description = 'Elasticsearch Expanded Pack Plugin - Data Stream Lifecycle'
+  classname = 'org.elasticsearch.xpack.datastreams.XPackDataStreamsPlugin'
+  extendedPlugins = ['data-streams', 'x-pack-core']
+  hasNativeController =false
+  requiresKeystore =true
+}
+base {
+  archivesName = 'x-pack-data-stream-lifecycle'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':modules:data-streams')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies(project)

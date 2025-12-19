@@ -62,7 +62,15 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState newClusterFormationState =
                     new ClusterFormationFailureHelper.ClusterFormationState(
                         clusterFormationState.initialMasterNodesSetting(),
-                        clusterFormationState.clusterFormationClusterStateView(),
+                        new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                            clusterFormationState.clusterFormationClusterStateView().localNode(),
+                            clusterFormationState.clusterFormationClusterStateView().masterEligibleNodes(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedVersion() + 1,
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedTerm(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().lastCommittedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().currentTerm()
+                        ),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
                         clusterFormationState.mastersOfPeers(),
@@ -98,7 +106,15 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState newClusterFormationState =
                     new ClusterFormationFailureHelper.ClusterFormationState(
                         clusterFormationState.initialMasterNodesSetting(),
-                        clusterFormationState.clusterFormationClusterStateView(),
+                        new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                            clusterFormationState.clusterFormationClusterStateView().localNode(),
+                            clusterFormationState.clusterFormationClusterStateView().masterEligibleNodes(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedVersion(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedTerm(),
+                            clusterFormationState.clusterFormationClusterStateView().lastAcceptedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().lastCommittedConfiguration(),
+                            clusterFormationState.clusterFormationClusterStateView().currentTerm()
+                        ),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
                         clusterFormationState.mastersOfPeers(),

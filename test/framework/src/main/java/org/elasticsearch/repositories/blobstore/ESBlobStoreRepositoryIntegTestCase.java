@@ -131,7 +131,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             expectThrows(NoSuchFileException.class, () -> {
-                try (InputStream is = container.readBlob(randomPurpose(), "non-existing")) {
+                try (InputStream is = container.readBlob(randomRetryingPurpose(), "non-existing")) {
                     is.read();
                 }
             });

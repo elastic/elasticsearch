@@ -11,13 +11,13 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteAsyncAction;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
@@ -283,18 +284,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.visitPercentage = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.queryVector = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.queryVector = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.queryVector = in.readOptionalWriteable(VectorData::new);
         this.filterQueries.addAll(readQueries(in));
         this.vectorSimilarity = in.readOptionalFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
-        } else {
-            this.queryVectorBuilder = null;
-        }
+        this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
         if (in.getTransportVersion().supports(AUTO_PREFILTERING)) {
             this.isAutoPrefilteringEnabled = in.readBoolean();
@@ -376,25 +369,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(queryVector);
-        } else {
-            out.writeFloatArray(queryVector.asFloatVector());
-        }
+        out.writeOptionalWriteable(queryVector);
         writeQueries(out, filterQueries);
         out.writeOptionalFloat(vectorSimilarity);
-        if (out.getTransportVersion().before(TransportVersions.V_8_14_0) && queryVectorBuilder != null) {
-            throw new IllegalArgumentException(
-                format(
-                    "cannot serialize [%s] to older node of version [%s]",
-                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                    out.getTransportVersion()
-                )
-            );
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalNamedWriteable(queryVectorBuilder);
-        }
+        out.writeOptionalNamedWriteable(queryVectorBuilder);
         out.writeOptionalWriteable(rescoreVectorBuilder);
         if (out.getTransportVersion().supports(AUTO_PREFILTERING)) {
             out.writeBoolean(isAutoPrefilteringEnabled);
@@ -465,22 +443,18 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
-            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, l.delegateFailureAndWrap((ll, v) -> {
+            ctx.registerUniqueAsyncAction(new QueryVectorBuilderAsyncAction(queryVectorBuilder), v -> {
                 toSet.set(v);
                 if (v == null) {
-                    ll.onFailure(
-                        new IllegalArgumentException(
-                            format(
-                                "[%s] with name [%s] returned null query_vector",
-                                QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                                queryVectorBuilder.getWriteableName()
-                            )
+                    throw new IllegalArgumentException(
+                        format(
+                            "[%s] with name [%s] returned null query_vector",
+                            QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                            queryVectorBuilder.getWriteableName()
                         )
                     );
-                    return;
                 }
-                ll.onResponse(null);
-            })));
+            });
             return new KnnVectorQueryBuilder(
                 fieldName,
                 queryVector,
@@ -552,7 +526,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, NUM_CANDS_LIMIT)) : numCands;
 
         if (fieldType == null) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         if (fieldType instanceof DenseVectorFieldType == false) {
             throw new IllegalArgumentException(
@@ -704,5 +678,28 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder setAutoPrefilteringEnabled(boolean isAutoPrefilteringEnabled) {
         this.isAutoPrefilteringEnabled = isAutoPrefilteringEnabled;
         return this;
+    }
+
+    private static final class QueryVectorBuilderAsyncAction extends QueryRewriteAsyncAction<float[], QueryVectorBuilderAsyncAction> {
+        private final QueryVectorBuilder queryVectorBuilder;
+
+        private QueryVectorBuilderAsyncAction(QueryVectorBuilder queryVectorBuilder) {
+            this.queryVectorBuilder = Objects.requireNonNull(queryVectorBuilder);
+        }
+
+        @Override
+        protected void execute(Client client, ActionListener<float[]> listener) {
+            queryVectorBuilder.buildVector(client, listener);
+        }
+
+        @Override
+        public int doHashCode() {
+            return Objects.hash(queryVectorBuilder);
+        }
+
+        @Override
+        public boolean doEquals(QueryVectorBuilderAsyncAction other) {
+            return Objects.equals(queryVectorBuilder, other.queryVectorBuilder);
+        }
     }
 }

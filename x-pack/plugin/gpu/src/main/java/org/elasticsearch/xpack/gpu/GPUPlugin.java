@@ -13,7 +13,6 @@ import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
@@ -34,8 +33,6 @@ import java.util.List;
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
 
     private static final Logger log = LogManager.getLogger(GPUPlugin.class);
-
-    public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_vectors_indexing");
 
     public static final LicensedFeature.Momentary GPU_INDEXING_FEATURE = LicensedFeature.momentary(
         null,
@@ -76,11 +73,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public List<Setting<?>> getSettings() {
-        if (GPU_FORMAT.isEnabled()) {
-            return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING);
-        } else {
-            return List.of();
-        }
+        return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING);
     }
 
     // Allow tests to override the license state
@@ -91,11 +84,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-        if (GPU_FORMAT.isEnabled()) {
-            return List.of(new GpuModeBootstrapCheck());
-        } else {
-            return List.of();
-        }
+        return List.of(new GpuModeBootstrapCheck());
     }
 
     /**
@@ -126,25 +115,23 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
         return (indexSettings, indexOptions, similarity, elementType) -> {
-            if (GPU_FORMAT.isEnabled()) {
-                if (vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType) == false) {
-                    return null;
-                }
+            if (vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType) == false) {
+                return null;
+            }
 
-                if (gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported())) {
-                    assert GPUSupport.isSupported();
-                    if (isGpuIndexingFeatureAllowed()) {
-                        return getVectorsFormat(indexOptions, similarity);
-                    } else {
-                        log.warn(
-                            Strings.format(
-                                "The current configuration supports GPU indexing, but it is not allowed by the current license. "
-                                    + "If this is intentional, it is possible to suppress this message by setting [%s] to FALSE",
-                                VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey()
-                            )
-                        );
-                        return null;
-                    }
+            if (gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported())) {
+                assert GPUSupport.isSupported();
+                if (isGpuIndexingFeatureAllowed()) {
+                    return getVectorsFormat(indexOptions, similarity);
+                } else {
+                    log.warn(
+                        Strings.format(
+                            "The current configuration supports GPU indexing, but it is not allowed by the current license. "
+                                + "If this is intentional, it is possible to suppress this message by setting [%s] to FALSE",
+                            VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey()
+                        )
+                    );
+                    return null;
                 }
             }
             return null;

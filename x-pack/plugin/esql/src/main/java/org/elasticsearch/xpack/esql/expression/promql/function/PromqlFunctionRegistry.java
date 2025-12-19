@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOver
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
@@ -75,7 +75,7 @@ public class PromqlFunctionRegistry {
                 withinSeriesOverTimeWithWindow("max_over_time", MaxOverTime::new),
                 withinSeriesOverTimeWithWindow("min_over_time", MinOverTime::new),
                 withinSeriesOverTimeWithWindow("sum_over_time", SumOverTime::new),
-                withinSeriesOverTime("stddev_over_time", StdDevOverTime::new),
+                withinSeriesOverTime("stddev_over_time", StddevOverTime::new),
                 withinSeriesOverTime("stdvar_over_time", VarianceOverTime::new) },
             // Selection range functions (require timestamp)
             new FunctionDefinition[] {

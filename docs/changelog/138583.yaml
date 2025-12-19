@@ -1,0 +1,5 @@
+pr: 138583
+summary: "Fix: Correctly pickup MRT value for `msearch`'s search requests"
+area: CCS
+type: bug
+issues: []

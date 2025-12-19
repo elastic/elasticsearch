@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramToString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -69,7 +70,7 @@ public final class CsvAssert {
         var actualColumnNames = new ArrayList<String>(actualColumns.size());
         var actualColumnTypes = actualColumns.stream()
             .peek(c -> actualColumnNames.add(c.get("name")))
-            .map(c -> CsvTestUtils.Type.asType(c.get("type")))
+            .map(c -> Type.asType(c.get("type")))
             .toList();
         assertMetadata(expected, actualColumnNames, actualColumnTypes, List.of(), logger);
     }
@@ -226,16 +227,16 @@ public final class CsvAssert {
                     logger.info(row(actualValues, row));
                 }
 
-                var expectedRow = expectedValues.get(row);
-                var actualRow = actualValues.get(row);
+                List<Object> expectedRow = expectedValues.get(row);
+                List<Object> actualRow = actualValues.get(row);
 
                 for (int column = 0; column < expectedRow.size(); column++) {
-                    var expectedType = expected.columnTypes().get(column);
-                    var expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
-                    var actualValue = actualRow.get(column);
+                    Type expectedType = expected.columnTypes().get(column);
+                    Object expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
+                    Object actualValue = actualRow.get(column);
 
-                    var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
-                    var transformedActual = valueTransformer.apply(expectedType, actualValue);
+                    Object transformedExpected = valueTransformer.apply(expectedType, expectedValue);
+                    Object transformedActual = valueTransformer.apply(expectedType, actualValue);
                     if (equals(transformedExpected, transformedActual) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
@@ -456,7 +457,9 @@ public final class CsvAssert {
                 ExponentialHistogram.class,
                 x -> exponentialHistogramToString((ExponentialHistogram) x)
             );
-            default -> expectedValue;
+            case HISTOGRAM -> rebuildExpected(expectedValue, BytesRef.class, x -> histogramToString((BytesRef) x));
+            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, INTEGER_RANGE,
+                DOUBLE_RANGE, DATE_RANGE, NULL, BOOLEAN, DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
         };
     }
 

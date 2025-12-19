@@ -1,0 +1,5 @@
+pr: 136732
+summary: Added logic for individual shard failure handling for `CompoundRetrieverBuilder` and fixed how partial search results flag is passed through to `CompoundRetrieverBuilder`
+area: Search
+type: bug
+issues: []

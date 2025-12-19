@@ -287,7 +287,7 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 
 ## Cross-cluster search limitations [esql-ccs-limitations]
 
-{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
+{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
 ## Known issues [esql-known-issues]
 

@@ -70,16 +70,7 @@ public final class DocIdsWriter {
         // check the tail
         if (i < count) {
             int offset = i;
-            IntToIntFunction paddedWriter = (d) -> {
-                int tailSize = count - offset;
-                if (d < tailSize) {
-                    return docIds.apply(offset + d);
-                } else {
-                    // repeat the last value for padding so that maxmin is stable
-                    return docIds.apply(offset + tailSize - 1);
-                }
-            };
-            var r = sortedAndMaxAndMin2Max(d -> paddedWriter.apply(offset + d), blockSize);
+            var r = sortedAndMaxAndMin2Max(d -> docIds.apply(offset + d), blockSize);
             continuousIds &= r[0] == 1;
             maxValue = Math.max(maxValue, r[1]);
             maxMin2Max = Math.max(maxMin2Max, r[2]);

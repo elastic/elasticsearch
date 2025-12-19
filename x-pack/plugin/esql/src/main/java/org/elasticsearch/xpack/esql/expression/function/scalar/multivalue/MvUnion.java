@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -145,7 +147,26 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public Object fold(FoldContext ctx) {
-        return EvaluatorMapper.super.fold(source(), ctx);
+        Object leftVal = left().fold(ctx);
+        Object rightVal = right().fold(ctx);
+
+        // If both are null, return null
+        if (leftVal == null && rightVal == null) {
+            return null;
+        }
+
+        // Treat null as empty set
+        List<?> leftList = leftVal == null ? List.of() : (leftVal instanceof List<?> l ? l : List.of(leftVal));
+        List<?> rightList = rightVal == null ? List.of() : (rightVal instanceof List<?> l ? l : List.of(rightVal));
+
+        // Compute union using LinkedHashSet to maintain order
+        Set<Object> result = new LinkedHashSet<>(leftList);
+        result.addAll(rightList);
+
+        if (result.isEmpty()) {
+            return null;
+        }
+        return result.size() == 1 ? result.iterator().next() : new ArrayList<>(result);
     }
 
     @Evaluator(extraName = "Boolean")
@@ -246,7 +267,10 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public Nullability nullable() {
-        return Nullability.TRUE;
+        // Return UNKNOWN to prevent the optimizer from replacing the entire
+        // expression with null when one argument is null. MV_UNION treats
+        // null as an empty set - only returns null if BOTH arguments are null.
+        return Nullability.UNKNOWN;
     }
 
     @Override

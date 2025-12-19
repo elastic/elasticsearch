@@ -2,7 +2,7 @@
 
 ## `MV_UNION` [esql-mv_union]
 ```{applies_to}
-stack: preview 9.3.0
+stack: preview 9.4.0
 serverless: preview
 ```
 

@@ -743,15 +743,15 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
             if (state.samples == 1) {
                 if (previousState != null) {
                     assert state.intervals[0].t1 == firstTsSec * 1000 : firstTsSec + ":" + state.intervals[0].t1;
-                    final double slope = slopeBetweenStates(previousState, state, dateFactor);
                     final double startTs = previousState.intervals[0].t1 / dateFactor;
-                    return isRateOverTime ? slope : slope * (firstTsSec - startTs);
+                    final double delta = deltaBetweenStates(previousState, state, dateFactor);
+                    return isRateOverTime ? delta / (firstTsSec - startTs) : delta;
                 }
                 if (nextState != null) {
                     assert state.intervals[0].t1 == lastTsSec * 1000 : lastTsSec + ":" + state.intervals[0].t1;
-                    final double slope = slopeBetweenStates(state, nextState, dateFactor);
                     final double endTs = nextState.intervals[nextState.intervals.length - 1].t2 / dateFactor;
-                    return isRateOverTime ? slope : slope * (endTs - lastTsSec);
+                    final double delta = deltaBetweenStates(state, nextState, dateFactor);
+                    return isRateOverTime ? delta / (endTs - lastTsSec) : delta;
                 }
             }
             return Double.NaN;
@@ -817,19 +817,20 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
      * value delta to produce correct results.
      */
     private static double interpolateBetweenStates(
-            ReducedState lowerState,
-            ReducedState upperState,
-            double tbucketStart,
-            double tbucketEnd,
-            double dateFactor,
-            boolean isLowerBoundary
+        ReducedState lowerState,
+        ReducedState upperState,
+        double tbucketStart,
+        double tbucketEnd,
+        double dateFactor,
+        boolean isLowerBoundary
     ) {
         final double startValue = lowerState.intervals[0].v1;
         final double startTs = lowerState.intervals[0].t1 / dateFactor;
         final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
         final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
-        final double slope = slopeBetweenStates(lowerState, upperState, dateFactor);
+        final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
+        final double slope = delta / (endTs - startTs);
         if (isLowerBoundary) {
             assert startTs <= tbucketStart : startTs + " <= " + tbucketStart;
             final double baseValue = (endValue >= startValue) ? startValue : 0;
@@ -842,7 +843,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         }
     }
 
-    private static double slopeBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
+    private static double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
         final double startValue = lowerState.intervals[0].v1;
         final double startTs = lowerState.intervals[0].t1 / dateFactor;
         final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
@@ -850,7 +851,6 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
 
         // If the end value is smaller than the start value, a counter reset occurred.
         // In this case, the delta is considered equal to the end value.
-        final double delta = (endValue >= startValue) ? endValue - startValue : endValue;
-        return delta / (endTs - startTs);
+        return (endValue >= startValue) ? endValue - startValue : endValue;
     }
 }

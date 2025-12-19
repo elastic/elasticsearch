@@ -17,6 +17,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
+import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.Chunker;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 
@@ -54,13 +55,8 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
 
                     List<String> bestChunks;
                     MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-                    List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(
-                        chunks,
-                        chunkScorerConfig.inferenceText(),
-                        size,
-                        true
-                    );
-                    bestChunks = scoredChunks.stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(size).toList();
+                    List<ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, chunkScorerConfig.inferenceText(), size, true);
+                    bestChunks = scoredChunks.stream().map(ScoredChunk::content).limit(size).toList();
                     rankFeatureDocs[i].featureData(bestChunks);
 
                 } else {

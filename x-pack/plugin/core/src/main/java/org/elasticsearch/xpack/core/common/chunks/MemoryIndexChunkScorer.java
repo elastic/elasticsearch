@@ -92,11 +92,6 @@ public class MemoryIndexChunkScorer {
         }
     }
 
-    /**
-     * Represents a chunk with its relevance score.
-     */
-    public record ScoredChunk(String content, float score) {}
-
     @Override
     public String toString() {
         return getClass().getSimpleName();

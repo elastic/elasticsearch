@@ -50,6 +50,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -115,14 +116,20 @@ class TopHitsAggregator extends MetricsAggregator {
         leafCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         return new LeafBucketCollectorBase(sub, null) {
 
-            Scorable scorer;
+            // use the same Scorable for the leaf collectors
+            ResettableScorable scorer = null;
 
             @Override
             public void setScorer(Scorable scorer) throws IOException {
-                this.scorer = scorer;
-                super.setScorer(scorer);
-                for (Cursor<LeafCollector> leafCollector : leafCollectors) {
-                    leafCollector.value.setScorer(scorer);
+                if (this.scorer != null) {
+                    this.scorer.reset(scorer);
+                    super.setScorer(scorer);
+                } else {
+                    this.scorer = new ResettableScorable(scorer);
+                    super.setScorer(scorer);
+                    for (Cursor<LeafCollector> leafCollector : leafCollectors) {
+                        leafCollector.value.setScorer(scorer);
+                    }
                 }
             }
 
@@ -294,5 +301,38 @@ class TopHitsAggregator extends MetricsAggregator {
     @Override
     protected void doClose() {
         Releasables.close(topDocsCollectors, leafCollectors);
+    }
+
+    private static class ResettableScorable extends Scorable {
+
+        private Scorable scorable;
+
+        private ResettableScorable(Scorable scorable) {
+            this.scorable = scorable;
+        }
+
+        private void reset(Scorable scorable) {
+            this.scorable = scorable;
+        }
+
+        @Override
+        public float score() throws IOException {
+            return scorable.score();
+        }
+
+        @Override
+        public float smoothingScore(int docId) throws IOException {
+            return scorable.smoothingScore(docId);
+        }
+
+        @Override
+        public void setMinCompetitiveScore(float minScore) throws IOException {
+            scorable.setMinCompetitiveScore(minScore);
+        }
+
+        @Override
+        public Collection<ChildScorable> getChildren() throws IOException {
+            return scorable.getChildren();
+        }
     }
 }

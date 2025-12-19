@@ -14,14 +14,15 @@ import org.elasticsearch.search.vectors.VectorData;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public abstract class ResultDiversificationContext {
     private final String field;
     private final int size;
-    private final VectorData queryVector;
+    private final Supplier<VectorData> queryVector;
     private Map<Integer, VectorData> fieldVectors = null;
 
-    protected ResultDiversificationContext(String field, int size, @Nullable VectorData queryVector) {
+    protected ResultDiversificationContext(String field, int size, @Nullable Supplier<VectorData> queryVector) {
         this.field = field;
         this.size = size;
         this.queryVector = queryVector;
@@ -45,7 +46,7 @@ public abstract class ResultDiversificationContext {
     }
 
     public VectorData getQueryVector() {
-        return queryVector;
+        return queryVector == null ? null : queryVector.get();
     }
 
     public VectorData getFieldVector(int rank) {

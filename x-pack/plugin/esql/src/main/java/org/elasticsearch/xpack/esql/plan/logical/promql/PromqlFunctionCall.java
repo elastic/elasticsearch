@@ -31,7 +31,6 @@ public class PromqlFunctionCall extends UnaryPlan {
 
     private final String functionName;
     private final List<Expression> parameters;
-    protected List<Attribute> output;
 
     public PromqlFunctionCall(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child);
@@ -95,5 +94,10 @@ public class PromqlFunctionCall extends UnaryPlan {
         return Objects.equals(child(), other.child())
             && Objects.equals(functionName, other.functionName)
             && Objects.equals(parameters, other.parameters);
+    }
+
+    @Override
+    public List<Attribute> output() {
+        return List.of();
     }
 }

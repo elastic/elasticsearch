@@ -14,8 +14,12 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,12 +41,21 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware, TimestampAware {
 
+    /**
+     * The name of the column containing the step value (aka time bucket) in range queries.
+     */
+    private static final String STEP_COLUMN_NAME = "step";
+
     private final LogicalPlan promqlPlan;
     private final Literal start;
     private final Literal end;
     private final Literal step;
     // TODO: this should be made available through the planner
     private final Expression timestamp;
+    private final String valueColumnName;
+    private final NameId valueId;
+    private final NameId stepId;
+    private List<Attribute> output;
 
     // Range query constructor
     public PromqlCommand(
@@ -51,6 +65,23 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         Literal start,
         Literal end,
         Literal step,
+        String valueColumnName,
+        Expression timestamp
+    ) {
+        this(source, child, promqlPlan, start, end, step, valueColumnName, new NameId(), new NameId(), timestamp);
+    }
+
+    // Range query constructor
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        String valueColumnName,
+        NameId valueId,
+        NameId stepId,
         Expression timestamp
     ) {
         super(source, child);
@@ -58,21 +89,58 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         this.start = start;
         this.end = end;
         this.step = step;
+        this.valueColumnName = valueColumnName;
+        this.valueId = valueId;
+        this.stepId = stepId;
         this.timestamp = timestamp;
     }
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
-        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), start(), end(), step(), timestamp());
+        return NodeInfo.create(
+            this,
+            PromqlCommand::new,
+            child(),
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     @Override
     public PromqlCommand replaceChild(LogicalPlan newChild) {
-        return new PromqlCommand(source(), newChild, promqlPlan(), start(), end(), step(), timestamp());
+        return new PromqlCommand(
+            source(),
+            newChild,
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
-        return new PromqlCommand(source(), child(), newPromqlPlan, start(), end(), step(), timestamp());
+        return new PromqlCommand(
+            source(),
+            child(),
+            newPromqlPlan,
+            start(),
+            end(),
+            step(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     @Override
@@ -119,9 +187,38 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         return step.value() != null;
     }
 
+    public String valueColumnName() {
+        return valueColumnName;
+    }
+
+    public NameId valueId() {
+        return valueId;
+    }
+
+    public NameId stepId() {
+        return stepId;
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
+    }
+
+    @Override
+    public List<Attribute> output() {
+        if (output == null) {
+            List<Attribute> additionalOutput = promqlPlan.output();
+            output = new ArrayList<>(additionalOutput.size() + 2);
+            output.add(new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false));
+            output.add(new ReferenceAttribute(source(), null, STEP_COLUMN_NAME, DataType.DATETIME, Nullability.FALSE, stepId, false));
+            output.addAll(additionalOutput);
+        }
+        return output;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, timestamp);
+        return Objects.hash(child(), promqlPlan, start, end, step, valueColumnName, valueId, stepId, timestamp);
     }
 
     @Override
@@ -134,6 +231,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 && Objects.equals(start, other.start)
                 && Objects.equals(end, other.end)
                 && Objects.equals(step, other.step)
+                && Objects.equals(valueColumnName, other.valueColumnName)
+                && Objects.equals(valueId, other.valueId)
+                && Objects.equals(stepId, other.stepId)
                 && Objects.equals(timestamp, other.timestamp);
         }
 
@@ -147,6 +247,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         sb.append(" start=[").append(start);
         sb.append("] end=[").append(end);
         sb.append("] step=[").append(step);
+        sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
         sb.append(promqlPlan.toString());
         sb.append("\n<>]]");
@@ -190,15 +291,5 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 }
             }
         });
-    }
-
-    @Override
-    public Expression timestamp() {
-        return timestamp;
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return promqlPlan.output();
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -27,6 +28,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
+import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -78,9 +80,9 @@ public class EsqlCCSUtils {
      */
     abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
         private final EsqlExecutionInfo executionInfo;
-        private final ActionListener<Result> listener;
+        private final ActionListener<Versioned<Result>> listener;
 
-        CssPartialErrorsActionListener(EsqlExecutionInfo executionInfo, ActionListener<Result> listener) {
+        CssPartialErrorsActionListener(EsqlExecutionInfo executionInfo, ActionListener<Versioned<Result>> listener) {
             this.executionInfo = executionInfo;
             this.listener = listener;
         }
@@ -89,7 +91,12 @@ public class EsqlCCSUtils {
         public void onFailure(Exception e) {
             if (returnSuccessWithEmptyResult(executionInfo, e)) {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), DriverCompletionInfo.EMPTY, executionInfo));
+                listener.onResponse(
+                    new Versioned<>(
+                        new Result(Analyzer.NO_FIELDS, Collections.emptyList(), DriverCompletionInfo.EMPTY, executionInfo),
+                        TransportVersion.current()
+                    )
+                );
             } else {
                 listener.onFailure(e);
             }
@@ -291,14 +298,15 @@ public class EsqlCCSUtils {
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
-        execInfo.markEndPlanning();
+        PlanningProfile.TimeSpanMarker planningProfile = execInfo.planningProfile().planning();
+        planningProfile.stop();
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
                 if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                     execInfo.swapCluster(
                         clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.planningTookTime())
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(planningProfile.timeTook())
                             .setTotalShards(0)
                             .setSuccessfulShards(0)
                             .setSkippedShards(0)
@@ -338,7 +346,11 @@ public class EsqlCCSUtils {
                 // so that the CCS telemetry handler can recognize that this error is CCS-related
                 try {
                     groupedIndices.forEach((clusterAlias, indices) -> {
-                        executionInfo.initCluster(clusterAlias, Strings.arrayToCommaDelimitedString(indices.indices()));
+                        executionInfo.initCluster(
+                            clusterAlias,
+                            EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION,
+                            Strings.arrayToCommaDelimitedString(indices.indices())
+                        );
                     });
                 } finally {
                     executionInfo.clusterInfoInitializing(false);
@@ -359,7 +371,11 @@ public class EsqlCCSUtils {
 
     public static void initCrossClusterState(EsIndex esIndex, EsqlExecutionInfo executionInfo) {
         esIndex.originalIndices().forEach((clusterAlias, indices) -> {
-            executionInfo.initCluster(clusterAlias, Strings.collectionToCommaDelimitedString(indices));
+            executionInfo.initCluster(
+                clusterAlias,
+                EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION,
+                Strings.collectionToCommaDelimitedString(indices)
+            );
         });
     }
 

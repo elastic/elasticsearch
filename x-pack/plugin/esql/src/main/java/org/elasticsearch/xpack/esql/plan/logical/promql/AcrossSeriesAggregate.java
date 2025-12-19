@@ -10,13 +10,9 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -33,8 +29,6 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     private final Grouping grouping;
     private final List<NamedExpression> groupings;
-    private final NameId stepId;
-    private final NameId valueId;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -44,24 +38,9 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
         Grouping grouping,
         List<NamedExpression> groupings
     ) {
-        this(source, child, functionName, parameters, grouping, groupings, new NameId(), new NameId());
-    }
-
-    public AcrossSeriesAggregate(
-        Source source,
-        LogicalPlan child,
-        String functionName,
-        List<Expression> parameters,
-        Grouping grouping,
-        List<NamedExpression> groupings,
-        NameId stepId,
-        NameId valueId
-    ) {
         super(source, child, functionName, parameters);
         this.grouping = grouping;
         this.groupings = groupings;
-        this.stepId = stepId;
-        this.valueId = valueId;
     }
 
     public Grouping grouping() {
@@ -79,22 +58,12 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(
-            this,
-            AcrossSeriesAggregate::new,
-            child(),
-            functionName(),
-            parameters(),
-            grouping(),
-            groupings(),
-            stepId(),
-            valueId()
-        );
+        return NodeInfo.create(this, AcrossSeriesAggregate::new, child(), functionName(), parameters(), grouping(), groupings());
     }
 
     @Override
     public AcrossSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new AcrossSeriesAggregate(source(), newChild, functionName(), parameters(), grouping(), groupings(), stepId(), valueId());
+        return new AcrossSeriesAggregate(source(), newChild, functionName(), parameters(), grouping(), groupings());
     }
 
     // @Override
@@ -113,23 +82,11 @@ public class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        if (output == null) {
-            output = new ArrayList<>(groupings.size() + 2);
-            output.add(new ReferenceAttribute(source(), null, sourceText(), DataType.DOUBLE, Nullability.FALSE, valueId, false));
-            output.add(new ReferenceAttribute(source(), null, "step", DataType.DATETIME, Nullability.FALSE, stepId, false));
-            for (NamedExpression exp : groupings) {
-                output.add(exp.toAttribute());
-            }
+        List<Attribute> output = new ArrayList<>(groupings.size());
+        for (NamedExpression exp : groupings) {
+            output.add(exp.toAttribute());
         }
         return output;
-    }
-
-    public NameId valueId() {
-        return valueId;
-    }
-
-    public NameId stepId() {
-        return stepId;
     }
 
     @Override

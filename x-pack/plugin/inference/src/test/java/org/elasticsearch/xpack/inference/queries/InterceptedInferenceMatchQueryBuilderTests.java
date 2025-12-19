@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
 import java.util.List;
@@ -166,5 +167,10 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         );
         QueryBuilder dataRewrittenTestIndex3 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex3);
         assertThat(dataRewrittenTestIndex3, equalTo(matchQuery));
+    }
+
+    @Override
+    public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
+        ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.SPARSE_EMBEDDING, MatchQueryBuilder.NAME);
     }
 }

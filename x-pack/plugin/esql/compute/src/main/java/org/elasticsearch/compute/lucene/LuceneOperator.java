@@ -16,7 +16,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -367,11 +366,7 @@ public abstract class LuceneOperator extends SourceOperator {
             sliceMin = in.readVInt();
             sliceMax = in.readVInt();
             current = in.readVInt();
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsEmitted = 0;
-            }
+            rowsEmitted = in.readVLong();
             partitioningStrategies = serializeShardPartitioning(in.getTransportVersion())
                 ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
                 : Map.of();
@@ -389,9 +384,7 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVInt(sliceMin);
             out.writeVInt(sliceMax);
             out.writeVInt(current);
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsEmitted);
             if (serializeShardPartitioning(out.getTransportVersion())) {
                 out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
             }
@@ -525,7 +518,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

@@ -22,7 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
-import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.AuthenticationFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -55,12 +55,12 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     private final ThreadPool threadPool;
     private final Logger logger;
     private final CountDownLatch requestCompleteLatch = new CountDownLatch(1);
-    private CCMAuthenticationApplierFactory authFactory;
+    private final AuthenticationFactory authFactory;
 
     public ElasticInferenceServiceAuthorizationRequestHandler(
         @Nullable String baseUrl,
         ThreadPool threadPool,
-        CCMAuthenticationApplierFactory authFactory
+        AuthenticationFactory authFactory
     ) {
         this(
             baseUrl,
@@ -75,7 +75,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         @Nullable String baseUrl,
         ThreadPool threadPool,
         Logger logger,
-        CCMAuthenticationApplierFactory authFactory
+        AuthenticationFactory authFactory
     ) {
         this.baseUrl = baseUrl;
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -94,7 +94,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
 
             if (Strings.isNullOrEmpty(baseUrl)) {
                 logger.debug("The base URL for the authorization service is not valid, rejecting authorization.");
-                listener.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
+                listener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
                 return;
             }
 
@@ -121,7 +121,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                 .andThenApply(authResult -> {
                     if (authResult instanceof ElasticInferenceServiceAuthorizationResponseEntity authResponseEntity) {
                         logger.debug(() -> Strings.format("Received authorization information from gateway %s", authResponseEntity));
-                        return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity);
+                        return ElasticInferenceServiceAuthorizationModel.of(authResponseEntity, baseUrl);
                     }
 
                     var errorMessage = Strings.format(

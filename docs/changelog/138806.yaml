@@ -1,0 +1,5 @@
+pr: 138806
+summary: Bump lz4 dependency
+area: Infra/Core
+type: upgrade
+issues: []

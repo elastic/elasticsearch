@@ -1,0 +1,5 @@
+pr: 137431
+summary: Fix enrich and lookup join resolution based on min transport version
+area: ES|QL
+type: bug
+issues: []

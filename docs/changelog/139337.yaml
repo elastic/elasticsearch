@@ -1,0 +1,6 @@
+pr: 139337
+summary: Consistently prevent using exclusion prefix on its own
+area: Security
+type: bug
+issues:
+ - 45504

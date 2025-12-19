@@ -7,12 +7,9 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -36,6 +33,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationSerializationTests extends ESTestCase {
 
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
     private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
         "security_cloud_api_key_realm_and_type"
     );
@@ -85,40 +83,6 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFrom, equalTo(authentication));
     }
 
-    public void testWriteToWithCrossClusterAccessThrowsOnUnsupportedVersion() throws Exception {
-        final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
-            : AuthenticationTestHelper.builder().build();
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersionUtils.getPreviousVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-        );
-        out.setTransportVersion(version);
-
-        if (authentication.isCrossClusterAccess()) {
-            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
-            assertThat(
-                ex.getMessage(),
-                containsString(
-                    "versions of Elasticsearch before ["
-                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                        + "] can't handle cross cluster access authentication and attempted to send to ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "]"
-                )
-            );
-        } else {
-            authentication.writeTo(out);
-            final StreamInput in = out.bytes().streamInput();
-            in.setTransportVersion(out.getTransportVersion());
-            final Authentication readFrom = new Authentication(in);
-            assertThat(readFrom, equalTo(authentication.maybeRewriteForOlderVersion(out.getTransportVersion())));
-        }
-    }
-
     public void testWriteToAndReadFromWithCloudApiKeyAuthentication() throws Exception {
         final Authentication authentication = Authentication.newCloudAuthentication(
             Authentication.AuthenticationType.API_KEY,
@@ -151,7 +115,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             final TransportVersion version = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.V_8_0_0,
+                TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)
             );
             out.setTransportVersion(version);
@@ -234,21 +198,16 @@ public class AuthenticationSerializationTests extends ESTestCase {
     }
 
     public void testRolesRemovedFromUserForLegacyApiKeys() throws IOException {
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_0_0,
-            TransportVersions.V_7_8_0
-        );
         Subject authenticatingSubject = new Subject(
             new User("foo", "role"),
             new Authentication.RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "node"),
-            transportVersion,
+            VERSION_7_0_0,
             Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
         );
         Subject effectiveSubject = new Subject(
             new User("bar", "role"),
             new Authentication.RealmRef("native", "native", "node"),
-            transportVersion,
+            VERSION_7_0_0,
             Map.of()
         );
 

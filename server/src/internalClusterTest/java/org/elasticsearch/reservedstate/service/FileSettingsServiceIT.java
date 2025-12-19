@@ -138,9 +138,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
     }
 
     public static void writeJSONFile(String node, String json, Logger logger, Long version, Path targetPath) throws Exception {
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
+        Files.createDirectories(targetPath.getParent());
         Path tempFilePath = createTempFile();
 
         String jsonWithVersion = Strings.format(json, version);
@@ -519,11 +517,19 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
         assertHasErrors(metadataVersion, "not_cluster_settings");
 
-        // write json with new error without version increment to simulate ES failing to process settings after a restart for a new reason
-        // (usually, this would be due to a code change)
-        writeJSONFile(masterNode, testOtherErrorJSON, logger, versionCounter.get());
-        assertHasErrors(metadataVersion, "not_cluster_settings");
-        internalCluster().restartNode(masterNode);
+        // capture the watched file settings file before shutting down the master node
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        Path fileSettingsFile = fileSettingsService.watchedFile();
+
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                // write json with new error without version increment to simulate ES failing to process settings after a restart for
+                // a new reason (usually, this would be due to a code change)
+                writeJSONFile(masterNode, testOtherErrorJSON, logger, versionCounter.get(), fileSettingsFile);
+                return Settings.EMPTY;
+            }
+        });
         ensureGreen();
 
         assertBusy(() -> assertHasErrors(metadataVersion, "bad_cluster_settings"));

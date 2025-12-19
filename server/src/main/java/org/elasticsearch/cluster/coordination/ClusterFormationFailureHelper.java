@@ -233,11 +233,7 @@ public class ClusterFormationFailureHelper {
                 resolvedAddresses,
                 foundPeers,
                 mastersOfPeers,
-                calculateHasDiscoveredQuorum(
-                    foundPeers,
-                    electionStrategy,
-                    clusterFormationClusterStateView
-                ),
+                calculateHasDiscoveredQuorum(foundPeers, electionStrategy, clusterFormationClusterStateView),
                 statusInfo,
                 inFlightJoinStatuses
             );

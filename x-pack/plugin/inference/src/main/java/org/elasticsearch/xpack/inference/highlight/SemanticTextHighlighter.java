@@ -34,7 +34,7 @@ import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighte
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.OffsetAndScore;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractOffsetAndScores;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getContentFromLegacyNestedSources;
-import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.queries;
+import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractQueries;
 
 /**
  * A {@link Highlighter} designed for the {@link SemanticTextFieldMapper}.
@@ -60,7 +60,7 @@ public class SemanticTextHighlighter implements Highlighter {
             return null;
         }
 
-        List<Query> queries = queries(fieldType.getEmbeddingsField(), fieldType.getModelSettings().taskType(), fieldContext.query);
+        List<Query> queries = extractQueries(fieldType.getEmbeddingsField(), fieldType.getModelSettings().taskType(), fieldContext.query);
         if (queries.isEmpty()) {
             // nothing to highlight
             return null;

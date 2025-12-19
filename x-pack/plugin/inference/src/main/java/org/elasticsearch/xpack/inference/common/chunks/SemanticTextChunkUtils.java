@@ -80,7 +80,7 @@ public class SemanticTextChunkUtils {
         return (String) nestedSources.get(cand.index()).get(SemanticTextField.CHUNKED_TEXT_FIELD);
     }
 
-    public static List<Query> queries(FieldMapper embeddingsField, TaskType taskType, Query query) throws IOException {
+    public static List<Query> extractQueries(FieldMapper embeddingsField, TaskType taskType, Query query) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> extractSparseVectorQueries(
                 (SparseVectorFieldMapper.SparseVectorFieldType) embeddingsField.fieldType(),

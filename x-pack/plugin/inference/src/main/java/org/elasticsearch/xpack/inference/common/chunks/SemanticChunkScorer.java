@@ -66,7 +66,7 @@ public class SemanticChunkScorer {
         }
 
         // TODO: We may need to pass in the actual rewritten query here for future uses of this class
-        List<Query> queries = SemanticTextChunkUtils.queries(
+        List<Query> queries = SemanticTextChunkUtils.extractQueries(
             fieldType.getEmbeddingsField(),
             modelSettings.taskType(),
             searchContext.query()

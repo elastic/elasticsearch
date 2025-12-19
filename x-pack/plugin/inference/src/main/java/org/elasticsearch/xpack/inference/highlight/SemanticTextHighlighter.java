@@ -33,8 +33,8 @@ import java.util.function.Function;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.OffsetAndScore;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractOffsetAndScores;
-import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getContentFromLegacyNestedSources;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractQueries;
+import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getContentFromLegacyNestedSources;
 
 /**
  * A {@link Highlighter} designed for the {@link SemanticTextFieldMapper}.

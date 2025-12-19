@@ -85,7 +85,7 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
             @Example(file = "mv_union", tag = "testMvUnionWithBooleanValues"),
             @Example(file = "mv_union", tag = "testMvUnionWithDoubleValues"),
             @Example(file = "mv_union", tag = "testMvUnionWithBytesRefValues") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") }
     )
     public MvUnion(
         Source source,

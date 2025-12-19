@@ -301,7 +301,7 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         builder = new BooleanQuery.Builder();
         builder.add(termQuery1, BooleanClause.Occur.MUST_NOT);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST);
         booleanQuery = builder.build();
         result = analyze(booleanQuery);
         assertThat(result.matchAllDocs, is(true));
@@ -594,7 +594,7 @@ public class QueryAnalyzerTests extends ESTestCase {
     }
 
     public void testExtractQueryMetadata_matchAllDocsQuery() {
-        Result result = analyze(new MatchAllDocsQuery());
+        Result result = analyze(Queries.ALL_DOCS_INSTANCE);
         assertThat(result.verified, is(true));
         assertThat(result.matchAllDocs, is(true));
         assertThat(result.minimumShouldMatch, equalTo(0));
@@ -602,7 +602,7 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST);
         result = analyze(builder.build());
         assertThat(result.verified, is(true));
         assertThat(result.matchAllDocs, is(false));
@@ -610,9 +610,9 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("field", "value"));
 
         builder = new BooleanQuery.Builder();
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST);
         BooleanQuery bq1 = builder.build();
         result = analyze(bq1);
         assertThat(result.verified, is(true));
@@ -621,9 +621,9 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.extractions.size(), equalTo(0));
 
         builder = new BooleanQuery.Builder();
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST_NOT);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST);
         BooleanQuery bq2 = builder.build();
         result = analyze(bq2);
         assertThat(result.verified, is(false));
@@ -632,9 +632,9 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.extractions.size(), equalTo(0));
 
         builder = new BooleanQuery.Builder();
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
         BooleanQuery bq3 = builder.build();
         result = analyze(bq3);
         assertThat(result.verified, is(true));
@@ -643,9 +643,9 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.extractions.size(), equalTo(0));
 
         builder = new BooleanQuery.Builder();
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST_NOT);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
         BooleanQuery bq4 = builder.build();
         result = analyze(bq4);
         assertThat(result.verified, is(false));
@@ -655,7 +655,7 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         builder = new BooleanQuery.Builder();
         builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
         BooleanQuery bq5 = builder.build();
         result = analyze(bq5);
         assertThat(result.verified, is(true));
@@ -664,7 +664,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.extractions.size(), equalTo(0));
 
         builder = new BooleanQuery.Builder();
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
         builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
         builder.setMinimumNumberShouldMatch(2);
         BooleanQuery bq6 = builder.build();
@@ -676,8 +676,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("field", "value"));
 
         builder = new BooleanQuery.Builder();
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
+        builder.add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD);
         builder.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
         builder.setMinimumNumberShouldMatch(2);
         BooleanQuery bq7 = builder.build();
@@ -808,7 +808,7 @@ public class QueryAnalyzerTests extends ESTestCase {
     }
 
     public void testFunctionScoreQuery_withMatchAll() {
-        MatchAllDocsQuery innerQuery = new MatchAllDocsQuery();
+        MatchAllDocsQuery innerQuery = Queries.ALL_DOCS_INSTANCE;
         FunctionScoreQuery functionScoreQuery1 = new FunctionScoreQuery(innerQuery, new RandomScoreFunction(0, 0, null));
         Result result = analyze(functionScoreQuery1);
         assertThat(result.verified, is(true));

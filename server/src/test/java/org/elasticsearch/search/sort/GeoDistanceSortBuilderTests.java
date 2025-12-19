@@ -11,12 +11,12 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -478,7 +478,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
 
         sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0).setNestedSort(new NestedSortBuilder("path"));
         sortField = sortBuilder.build(searchExecutionContext).field();
@@ -496,7 +496,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
     }
 
     /**

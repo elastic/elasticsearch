@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
@@ -59,7 +58,8 @@ public class PresentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.histogramCases(1, 100)
         ).flatMap(List::stream).map(PresentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -81,11 +81,9 @@ public class PresentTests extends AbstractAggregationTestCase {
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
             DataType.VERSION,
-            DataType.EXPONENTIAL_HISTOGRAM
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
         );
-        if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
-            types = Stream.concat(types.stream(), Stream.of(DataType.TDIGEST)).toList();
-        }
         for (var dataType : types) {
             suppliers.add(
                 new TestCaseSupplier(

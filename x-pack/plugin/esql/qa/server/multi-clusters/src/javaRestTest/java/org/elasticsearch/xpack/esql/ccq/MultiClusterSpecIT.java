@@ -326,7 +326,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
         // Check if query contains enrich source indices - these are loaded into both clusters,
         // so we should use onlyRemotes=true to avoid duplicates
-        if (onlyRemotes == false && EsqlTestUtils.queryContainsIndices(query, ENRICH_SOURCE_INDICES)) {
+        if (onlyRemotes == false && EsqlTestUtils.queryContainsIndices(query, Set.copyOf(ENRICH_SOURCE_INDICES))) {
             onlyRemotes = true;
         }
         testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, LOOKUP_INDICES, onlyRemotes);

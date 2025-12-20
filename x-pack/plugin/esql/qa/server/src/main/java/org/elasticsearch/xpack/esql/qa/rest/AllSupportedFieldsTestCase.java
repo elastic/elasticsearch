@@ -1112,6 +1112,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
                 // will always be "unsupported" here.
                 yield equalTo("unsupported");
+            }
             case HISTOGRAM -> {
                 // support for histogram was added later
                 if (HISTOGRAM.supportedVersion().supportedOn(minimumVersion, false) == false) {

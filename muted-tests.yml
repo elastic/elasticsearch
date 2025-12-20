@@ -426,6 +426,12 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139848
+- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
+  method: testRescoreDocs
+  issue: https://github.com/elastic/elasticsearch/issues/139859
+- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
+  method: testRescoreSingleAndBulkEquality
+  issue: https://github.com/elastic/elasticsearch/issues/139869
 
 # Examples:
 #

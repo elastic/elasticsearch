@@ -80,6 +80,7 @@ import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -2168,6 +2169,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder settings(Settings settings) {
             this.settings = settings;
+            return this;
+        }
+
+        public Builder applySettingUpdate(Consumer<Settings.Builder> updater) {
+            var settingsBuilder = Settings.builder().put(this.settings);
+            updater.accept(settingsBuilder);
+            this.settings = settingsBuilder.build();
             return this;
         }
 

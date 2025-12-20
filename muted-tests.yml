@@ -386,6 +386,9 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
   method: testTransportStatsWithException
   issue: https://github.com/elastic/elasticsearch/issues/139862
+- class: org.elasticsearch.transport.netty4.SimpleNetty4TransportTests
+  method: testTransportStatsWithException
+  issue: https://github.com/elastic/elasticsearch/issues/139863
 
 # Examples:
 #

@@ -429,6 +429,9 @@ tests:
 - class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
   method: testRescoreDocs
   issue: https://github.com/elastic/elasticsearch/issues/139859
+- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
+  method: testRescoreSingleAndBulkEquality
+  issue: https://github.com/elastic/elasticsearch/issues/139869
 
 # Examples:
 #

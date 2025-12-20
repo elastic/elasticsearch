@@ -120,7 +120,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.modelId = modelId;
         this.similarity = similarity;

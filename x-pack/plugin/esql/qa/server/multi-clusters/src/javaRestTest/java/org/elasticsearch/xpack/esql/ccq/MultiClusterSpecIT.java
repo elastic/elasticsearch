@@ -27,9 +27,6 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -329,36 +326,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
         // Check if query contains enrich source indices - these are loaded into both clusters,
         // so we should use onlyRemotes=true to avoid duplicates
-        if (onlyRemotes == false) {
-            String[] commands = query.split("\\|");
-            // remove subqueries
-            String first = commands[0].split(",\\s+\\(")[0].trim();
-            // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
-            Pattern setSplitPattern = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
-            var setMatcher = setSplitPattern.matcher(first);
-            int lastSetDelimiterPosition = -1;
-            if (setMatcher.find()) {
-                lastSetDelimiterPosition = setMatcher.end();
-            }
-            String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
-            // Split "FROM a, b, c" into "FROM" and "a, b, c"
-            String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
-            String command = commandParts[0].trim();
-            if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-                String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
-                    .collect(UnresolvedRelation.class)
-                    .getFirst()
-                    .indexPattern()
-                    .indexPattern()
-                    .split(",");
-                for (String index : indices) {
-                    String indexName = index.trim().toLowerCase(Locale.ROOT);
-                    if (ENRICH_SOURCE_INDICES.contains(indexName)) {
-                        onlyRemotes = true;
-                        break;
-                    }
-                }
-            }
+        if (onlyRemotes == false && EsqlTestUtils.queryContainsIndices(query, ENRICH_SOURCE_INDICES)) {
+            onlyRemotes = true;
         }
         testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, LOOKUP_INDICES, onlyRemotes);
 

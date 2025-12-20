@@ -403,9 +403,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/40_unsupported_types/unsupported with sort}
   issue: https://github.com/elastic/elasticsearch/issues/139702
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/139732
 - class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139740
@@ -420,6 +417,15 @@ tests:
 - class: org.elasticsearch.index.mapper.SkipperSettingsTests
   method: testTSDBSkipperSettingDefaults
   issue: https://github.com/elastic/elasticsearch/issues/139824
+- class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
+  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
+  issue: https://github.com/elastic/elasticsearch/issues/139826
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:stats_all_first_all_last.All_last_long_by_date}
+  issue: https://github.com/elastic/elasticsearch/issues/139841
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139848
 
 # Examples:
 #

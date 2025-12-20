@@ -165,7 +165,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
             "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], sortedInput=false]"
         );
     }
 
@@ -780,7 +780,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             + fixedLength
             + "]], sortOrders=["
             + sorts
-            + "]]";
+            + "], sortedInput=false]";
         assertThat(factory.describe(), equalTo("TopNOperator[count=10" + tail));
         try (Operator operator = factory.get(driverContext())) {
             assertThat(operator.toString(), equalTo("TopNOperator[count=0/10" + tail));

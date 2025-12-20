@@ -438,9 +438,9 @@ public class TopNOperator implements Operator, Accountable {
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
                 }
-                // else {
-                // break;
-                // }
+//                else {
+//                    break;
+//                }
             }
         } finally {
             page.releaseBlocks();

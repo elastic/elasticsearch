@@ -1,0 +1,23 @@
+The elastic/elasticsearch repository is a large and complex codebase for a distributed search and analytics engine. While the repository has documentation spread across files like CONTRIBUTING.md and the official website, there is no clear, centralized README at the root that provides an easy onboarding path for new contributors.
+>> What’s missing
+A concise overview of the project
+Simple setup and build instructions
+How to run tests locally
+How to contribute code with examples
+Links to official docs
+
+>> Why this matters
+Helps new contributors understand the project quickly
+Improves first-time contributor experience
+Reduces confusion when cloning the repo
+Encourages more community participation
+
+>> Suggested content for README
+Project description (what it is and what it does)
+Quick start (dependencies, build steps, how to run)
+Running tests
+How to contribute (fork/branch/commit/PR steps)
+Useful links (docs, issue tracker, community channels)
+>> Notes
+Elasticsearch is a large OSS project with many open issues for enhancements and tests currently in various components. 
+GitHub A good README will help reduce onboarding friction and encourage contributions, especially for newcomers.

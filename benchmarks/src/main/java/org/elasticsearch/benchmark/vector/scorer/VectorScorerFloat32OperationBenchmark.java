@@ -141,11 +141,7 @@ public class VectorScorerFloat32OperationBenchmark {
         return nativeImpl.run(heapSegA, heapSegB, size);
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = vectorSimilarityFunctions();
-
-    static VectorSimilarityFunctions vectorSimilarityFunctions() {
-        return NativeAccess.instance().getVectorSimilarityFunctions().get();
-    }
+    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 
     static float cosineFloat32(MemorySegment a, MemorySegment b, int length) {
         try {

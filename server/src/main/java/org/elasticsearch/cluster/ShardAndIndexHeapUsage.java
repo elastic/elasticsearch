@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * Tracks a shard's heap usage, as well as any index-level heap usage overhead that should be deduplicated per node.
  */
-public record ShardAndIndexHeapUsage(long shardHeap, long indexHeap) implements Writeable {
+public record ShardAndIndexHeapUsage(long shardHeapUsageBytes, long indexHeapUsageBytes) implements Writeable {
 
     public ShardAndIndexHeapUsage(StreamInput in) throws IOException {
         this(in.readLong(), in.readLong());
@@ -26,12 +26,17 @@ public record ShardAndIndexHeapUsage(long shardHeap, long indexHeap) implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(this.shardHeap);
-        out.writeLong(this.indexHeap);
+        out.writeLong(this.shardHeapUsageBytes);
+        out.writeLong(this.indexHeapUsageBytes);
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{shardHeap=" + shardHeap + ", indexHeap=" + indexHeap + "}";
+        return getClass().getSimpleName()
+            + "{shardHeapUsageBytes="
+            + shardHeapUsageBytes
+            + ", indexHeapUsageBytes="
+            + indexHeapUsageBytes
+            + "}";
     }
 }

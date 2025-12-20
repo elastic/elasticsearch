@@ -79,6 +79,11 @@ public class EsqlCapabilities {
         ST_DISJOINT,
 
         /**
+         * Support for spatial simplification {@code ST_SIMPLIFY}
+         */
+        ST_SIMPLIFY,
+
+        /**
          * The introduction of the {@code VALUES} agg.
          */
         AGG_VALUES,
@@ -1332,6 +1337,11 @@ public class EsqlCapabilities {
         KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
+         * Support timezones in DATE_FORMAT and DATE_PARSE.
+         */
+        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1544,6 +1554,7 @@ public class EsqlCapabilities {
          * Rate and increase calculations use interpolation at the boundaries between time buckets
          */
         RATE_WITH_INTERPOLATION,
+        RATE_WITH_INTERPOLATION_V2,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -1624,7 +1635,7 @@ public class EsqlCapabilities {
         FIX_FILTER_ORDINALS,
 
         /**
-         * "time_zone" parameter in request body and in {@code SET "time_zone"="x"}
+         * "time_zone" parameter in request body and in {@code SET time_zone="x"}
          */
         GLOBAL_TIMEZONE_PARAMETER(Build.current().isSnapshot()),
 

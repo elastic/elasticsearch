@@ -89,3 +89,4 @@ setup:
       catch: missing
   - is_true: error
   - match: { error.type: 'resource_not_found_exception' }
+

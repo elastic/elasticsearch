@@ -4,10 +4,10 @@
  * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
  * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * License v 3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -27,7 +27,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 
-import static org.elasticsearch.reindex.TransportGetReindexAction.notFoundException;
+import static org.elasticsearch.reindex.management.TransportGetReindexAction.notFoundException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -294,3 +294,4 @@ public class TransportGetReindexActionTests extends ESTestCase {
     }
 
 }
+

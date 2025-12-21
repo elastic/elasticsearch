@@ -4,10 +4,10 @@
  * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
  * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * License v 3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.reindex.management.ReindexManagementPlugin.CAPABILITY_REINDEX_RESILIENCE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.Scope.PUBLIC;
 
@@ -50,7 +51,8 @@ public class RestGetReindexAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(ReindexPlugin.CAPABILITY_REINDEX_RESILIENCE);
+        return Set.of(CAPABILITY_REINDEX_RESILIENCE);
     }
 
 }
+

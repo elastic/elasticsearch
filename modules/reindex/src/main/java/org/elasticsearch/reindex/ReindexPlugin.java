@@ -53,8 +53,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
      */
     public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
 
-    public static final String CAPABILITY_REINDEX_RESILIENCE = "reindex_resilience";
-
     private final SetOnce<ReindexRelocationNodePicker> relocationNodePicker = new SetOnce<>();
 
     @Override
@@ -67,9 +65,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
                 new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
             )
         );
-        if (REINDEX_RESILIENCE_ENABLED) {
-            actions.add(new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class));
-        }
         return actions;
     }
 
@@ -100,9 +95,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
                 new RestRethrottleAction(nodesInCluster)
             )
         );
-        if (REINDEX_RESILIENCE_ENABLED) {
-            handlers.add(new RestGetReindexAction());
-        }
         return handlers;
     }
 

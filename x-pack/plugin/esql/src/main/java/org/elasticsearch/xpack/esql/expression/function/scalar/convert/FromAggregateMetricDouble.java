@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -45,6 +46,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction, BlockLoaderExpression {
@@ -62,7 +64,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
         Source source,
         @Param(
             name = "aggregate_metric_double",
-            type = { "aggregate_metric_double" },
+            type = { "aggregate_metric_double", "int", "double", "long" },
             description = "Aggregate double metric to convert."
         ) Expression field,
         @Param(name = "subfieldIndex", type = "int", description = "Index of subfield") Expression subfieldIndex
@@ -194,12 +196,14 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
 
     @Override
     public Set<DataType> supportedTypes() {
-        return Set.of(AGGREGATE_METRIC_DOUBLE);
+        return Set.of(AGGREGATE_METRIC_DOUBLE, INTEGER, LONG, DOUBLE);
     }
 
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
-        if (field() instanceof FieldAttribute f && f.dataType() == AGGREGATE_METRIC_DOUBLE) {
+        if (field() instanceof FieldAttribute f
+            && f.dataType() == AGGREGATE_METRIC_DOUBLE
+            && (f.field() instanceof MultiTypeEsField) == false) {
             var folded = subfieldIndex.fold(FoldContext.small());
             if (folded == null) {
                 throw new IllegalArgumentException("Subfield Index was null");
@@ -210,6 +214,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
                 case MAX -> BlockLoaderFunctionConfig.Function.AMD_MAX;
                 case SUM -> BlockLoaderFunctionConfig.Function.AMD_SUM;
                 case COUNT -> BlockLoaderFunctionConfig.Function.AMD_COUNT;
+                case DEFAULT -> BlockLoaderFunctionConfig.Function.AMD_DEFAULT;
                 case null -> throw new IllegalArgumentException("Received invalid subfield index [" + subfield + "].");
             };
             return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.JustFunction(functionConfig));

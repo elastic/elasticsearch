@@ -51,4 +51,9 @@ class KMeansLocalSerial extends KMeansLocal {
     ) throws IOException {
         assignSpilledSlice(vectors, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
     }
+
+    @Override
+    protected NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException {
+        return NeighborHood.computeNeighborhoods(centroids, clustersPerNeighborhood);
+    }
 }

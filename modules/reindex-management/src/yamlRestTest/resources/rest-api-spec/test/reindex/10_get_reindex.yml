@@ -1,11 +1,11 @@
 setup:
   - requires:
       test_runner_features: capabilities
-      reason: Reindex GET is added as part of reindex resilience feature
+      reason: Reindex GET is added as part of reindex management feature
       capabilities:
         - method: GET
           path: /_reindex/{task_id}
-          capabilities: [reindex_resilience]
+          capabilities: [reindex_management_api]
 
   - do:
       index:
@@ -33,7 +33,6 @@ setup:
         wait_for_completion: true
         human: true
   - is_true: completed
-  - exists: description
   - match: { cancelled: false }
   - exists: start_time
   - exists: start_time_in_millis

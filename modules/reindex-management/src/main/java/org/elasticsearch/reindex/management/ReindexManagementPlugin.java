@@ -31,7 +31,7 @@ import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_RESILIENCE_ENABLED
 
 public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
 
-    public static final String CAPABILITY_REINDEX_RESILIENCE = "reindex_resilience";
+    public static final String CAPABILITY_REINDEX_MANAGEMENT_API = "reindex_management_api";
 
     @Override
     public List<ActionHandler> getActions() {
@@ -56,7 +56,7 @@ public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         if (REINDEX_RESILIENCE_ENABLED) {
-            handlers.addAll(List.of(new RestGetReindexAction()));
+            handlers.addAll(List.of(new RestGetReindexAction(clusterSupportsFeature)));
         }
         return handlers;
     }

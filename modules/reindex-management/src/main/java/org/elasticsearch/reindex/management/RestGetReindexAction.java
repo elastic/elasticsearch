@@ -11,6 +11,7 @@ package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -18,16 +19,23 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
-import static org.elasticsearch.reindex.management.ReindexManagementPlugin.CAPABILITY_REINDEX_RESILIENCE;
+import static org.elasticsearch.reindex.management.ReindexManagementPlugin.CAPABILITY_REINDEX_MANAGEMENT_API;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.Scope.PUBLIC;
 
 @ServerlessScope(PUBLIC)
 public class RestGetReindexAction extends BaseRestHandler {
+
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    RestGetReindexAction(final Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = Objects.requireNonNull(clusterSupportsFeature);
+    }
 
     @Override
     public List<Route> routes() {
@@ -40,7 +48,11 @@ public class RestGetReindexAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        if (clusterSupportsFeature.test(ReindexManagementFeatures.NEW_ENDPOINTS) == false) {
+            throw new IllegalArgumentException("endpoint not supported on all nodes in the cluster");
+        }
+
         TaskId taskId = new TaskId(request.param("task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = RestUtils.getTimeout(request);
@@ -51,7 +63,7 @@ public class RestGetReindexAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(CAPABILITY_REINDEX_RESILIENCE);
+        return Set.of(CAPABILITY_REINDEX_MANAGEMENT_API);
     }
 
 }

@@ -53,7 +53,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         TaskInfo taskInfo = task.getTask();
         builder.startObject();
         builder.field("completed", task.isCompleted());
-        builder.field("description", taskInfo.description());
+        // TODO: revisit if we should expose taskInfo.description
         builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
         if (builder.humanReadable()) {
             builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());

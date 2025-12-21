@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 
@@ -24,9 +25,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetReindexRequest extends ActionRequest {
     private final TaskId taskId;
     private final boolean waitForCompletion;
+    @Nullable
     private final TimeValue timeout;
 
-    public GetReindexRequest(TaskId taskId, boolean waitForCompletion, TimeValue timeout) {
+    public GetReindexRequest(TaskId taskId, boolean waitForCompletion, @Nullable TimeValue timeout) {
         this.taskId = Objects.requireNonNull(taskId, "id cannot be null");
         this.waitForCompletion = waitForCompletion;
         this.timeout = timeout;
@@ -47,6 +49,7 @@ public class GetReindexRequest extends ActionRequest {
         return waitForCompletion;
     }
 
+    @Nullable
     public TimeValue getTimeout() {
         return timeout;
     }

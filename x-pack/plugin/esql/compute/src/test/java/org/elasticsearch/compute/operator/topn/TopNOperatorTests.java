@@ -272,6 +272,66 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(outputValues, equalTo(expectedValues));
     }
 
+    private void testTopNSortedInput(int topNCount, List<List<Integer>> values, List<Integer> expectedResult) {
+        List<Page> pages = new ArrayList<>(values.size());
+
+        for (var pageValues : values) {
+            List<Block> blocks = new ArrayList<>(pageValues.size());
+
+            try (
+                Block.Builder column = INT.newBlockBuilder(8, driverContext().blockFactory());
+            ) {
+                for (var value : pageValues) {
+                    append(column, value);
+                }
+                blocks.add(column.build());
+            }
+            pages.add(new Page(blocks.toArray(Block[]::new)));
+        }
+        List<List<Object>> actual = new ArrayList<>();
+        DriverContext driverContext = driverContext();
+
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(pages.iterator()),
+                List.of(
+                    new TopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        topNCount,
+                        List.of(INT),
+                        List.of(DEFAULT_SORTABLE),
+                        List.of(
+                            new TopNOperator.SortOrder(0, true, false)
+                        ),
+                        randomPageSize(),
+                        true
+                    )
+                ),
+                new PageConsumerOperator(p -> readInto(actual, p))
+            )
+        ) {
+            runDriver(driver);
+        }
+
+        assertThat(actual, equalTo(List.of(expectedResult)));
+    }
+
+    public void testTopNWithSortedInput() {
+        testTopNSortedInput(
+            6,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            Arrays.asList(1, 2, 4, 4, 5, 10)
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            Arrays.asList(1, 2, 4)
+        );
+    }
+
     public void testBasicTopN() {
         List<Long> values = Arrays.asList(2L, 1L, 4L, null, 5L, 10L, null, 20L, 4L, 100L);
         assertThat(topNLong(values, 1, true, false), equalTo(Arrays.asList(1L)));

@@ -44,7 +44,7 @@ public final class ToAscii extends UnaryScalarFunction {
         returnType = { "keyword" },
         description = "Escape non ASCII characters.",
         examples = @Example(file = "string", tag = "to_ascii"),
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") }
     )
     public ToAscii(
         Source source,

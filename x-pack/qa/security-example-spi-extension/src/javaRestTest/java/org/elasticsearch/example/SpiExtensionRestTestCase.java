@@ -56,4 +56,3 @@ public abstract class SpiExtensionRestTestCase extends ESRestTestCase {
             .build();
     }
 }
-

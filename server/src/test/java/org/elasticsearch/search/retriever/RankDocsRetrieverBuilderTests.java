@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -124,6 +125,9 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             }
         }
         assertNull(source.postFilter());
+
+        // the default `from` is -1, when `extractToSearchSourceBuilder` is run, it should modify this to the default
+        assertEquals(SearchService.DEFAULT_FROM, source.from());
     }
 
     public void testTopDocsQuery() throws IOException {

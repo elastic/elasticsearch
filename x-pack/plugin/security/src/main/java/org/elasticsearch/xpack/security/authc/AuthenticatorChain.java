@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -83,11 +84,16 @@ class AuthenticatorChain {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
-        final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+        final ActionListener<Authentication> listener = ActionListener.wrap(authentication -> {
             assert authentication != null;
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
-            return authentication;
+            logger.trace(() -> Strings.format("Authentication for [%s]", authentication));
+            originalListener.onResponse(authentication);
+        }, ex -> {
+            logger.debug(() -> Strings.format("Authentication for context [%s] failed", context), ex);
+            originalListener.onFailure(ex);
         });
+
         // If a token is directly provided in the context, authenticate with it
         if (context.getMostRecentAuthenticationToken() != null) {
             doAuthenticate(context, listener);

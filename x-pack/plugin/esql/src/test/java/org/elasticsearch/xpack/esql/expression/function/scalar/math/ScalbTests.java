@@ -94,26 +94,26 @@ public class ScalbTests extends AbstractScalarFunctionTestCase {
         Number res,
         Iterable<String> warns
     ) {
-        var supplier = new TestCaseSupplier.TestCase(
-            List.of(new TestCaseSupplier.TypedData(d, dType, "d"), new TestCaseSupplier.TypedData(scaleFactor, scaleType, "scaleFactor")),
-            Strings.format(
-                "Scalb%sEvaluator[d=%s, scaleFactor=Attribute[channel=1]]",
-                pascalize(scaleType),
-                cast(dType)
+        return new TestCaseSupplier(Strings.format("<%s>, <%s>", dType.typeName(), scaleType.typeName()), List.of(dType, scaleType), () -> {
+            var supplier = new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(d, dType, "d"),
+                    new TestCaseSupplier.TypedData(scaleFactor, scaleType, "scaleFactor")
+                ),
+                Strings.format(
+                    "Scalb%sEvaluator[d=%s, scaleFactor=Attribute[channel=1]]",
+                    pascalize(scaleType),
+                    cast(dType)
 
-            ),
-            DataType.DOUBLE,
-            equalTo(res)
-        );
-        for (var warn : warns) {
-            supplier = supplier.withWarning(warn);
-        }
-        var finalSupplier = supplier;
-        return new TestCaseSupplier(
-            Strings.format("<%s>, <%s>", dType.typeName(), scaleType.typeName()),
-            List.of(dType, scaleType),
-            () -> finalSupplier
-        );
+                ),
+                DataType.DOUBLE,
+                equalTo(res)
+            );
+            for (var warn : warns) {
+                supplier = supplier.withWarning(warn);
+            }
+            return supplier;
+        });
     }
 
     private static String cast(DataType from) {

@@ -1,5 +1,0 @@
-pr: 134117
-summary: Improve block loader for source only runtime fields of type long
-area: Mapping
-type: enhancement
-issues: []

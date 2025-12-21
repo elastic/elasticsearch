@@ -40,7 +40,7 @@ record CmdLineArgs(
     int k,
     double[] visitPercentages,
     int ivfClusterSize,
-    int overSamplingFactor,
+    float overSamplingFactor,
     int hnswM,
     int hnswEfConstruction,
     int searchThreads,
@@ -58,7 +58,9 @@ record CmdLineArgs(
     KnnIndexTester.MergePolicyType mergePolicy,
     double writerBufferSizeInMb,
     int writerMaxBufferedDocs,
-    int forceMergeMaxNumSegments
+    int forceMergeMaxNumSegments,
+    boolean onDiskRescore,
+    boolean filterCached
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -90,6 +92,8 @@ record CmdLineArgs(
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
+    static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
+    static final ParseField FILTER_CACHED = new ParseField("filter_cache");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -116,7 +120,7 @@ record CmdLineArgs(
         // PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
         PARSER.declareDoubleArray(Builder::setVisitPercentages, VISIT_PERCENTAGE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
-        PARSER.declareInt(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
+        PARSER.declareFloat(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
         PARSER.declareInt(Builder::setHnswEfConstruction, HNSW_EF_CONSTRUCTION_FIELD);
         PARSER.declareInt(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
@@ -135,6 +139,8 @@ record CmdLineArgs(
         PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_MB_FIELD);
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
+        PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
+        PARSER.declareBoolean(Builder::setFilterCached, FILTER_CACHED);
     }
 
     @Override
@@ -173,6 +179,11 @@ record CmdLineArgs(
         builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
         builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
         builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
+        builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
+        builder.field(FILTER_CACHED.getPreferredName(), filterCached);
+        if (mergePolicy != null) {
+            builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
+        }
         return builder.endObject();
     }
 
@@ -191,7 +202,7 @@ record CmdLineArgs(
         private int k = 10;
         private double[] visitPercentages = new double[] { 1.0 };
         private int ivfClusterSize = 1000;
-        private int overSamplingFactor = 1;
+        private float overSamplingFactor = 0;
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
         private int searchThreads = 1;
@@ -209,6 +220,8 @@ record CmdLineArgs(
         private long seed = 1751900822751L;
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
+        private boolean onDiskRescore = false;
+        private boolean filterCached = true;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -265,7 +278,7 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setOverSamplingFactor(int overSamplingFactor) {
+        public Builder setOverSamplingFactor(float overSamplingFactor) {
             this.overSamplingFactor = overSamplingFactor;
             return this;
         }
@@ -360,6 +373,16 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setOnDiskRescore(boolean onDiskRescore) {
+            this.onDiskRescore = onDiskRescore;
+            return this;
+        }
+
+        public Builder setFilterCached(boolean filterCached) {
+            this.filterCached = filterCached;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -397,7 +420,9 @@ record CmdLineArgs(
                 mergePolicy,
                 writerBufferSizeInMb,
                 writerMaxBufferedDocs,
-                forceMergeMaxNumSegments
+                forceMergeMaxNumSegments,
+                onDiskRescore,
+                filterCached
             );
         }
     }

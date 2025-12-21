@@ -14,14 +14,12 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -73,7 +71,7 @@ public class DeleteSampleConfigurationAction extends ActionType<AcknowledgedResp
      */
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
 
-        private String[] indices = Strings.EMPTY_ARRAY;
+        private String index;
 
         /**
          * Constructs a new request with specified timeouts.
@@ -93,7 +91,7 @@ public class DeleteSampleConfigurationAction extends ActionType<AcknowledgedResp
          */
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readStringArray();
+            this.index = in.readString();
         }
 
         /**
@@ -109,7 +107,7 @@ public class DeleteSampleConfigurationAction extends ActionType<AcknowledgedResp
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(indices);
+            out.writeString(index);
         }
 
         /**
@@ -124,15 +122,14 @@ public class DeleteSampleConfigurationAction extends ActionType<AcknowledgedResp
          */
         @Override
         public String[] indices() {
-            return indices;
+            return new String[] { index };
         }
 
         /**
-         * Sets the array of index names or patterns for this request.
+         * Sets the array of index name for this request.
          * <p>
-         * Specifies which indices and/or data streams should have their sampling
-         * configurations deleted. Supports individual index names, comma-separated
-         * lists, and wildcard patterns.
+         * Specifies which index and/or data stream should have their sampling
+         * configurations deleted. Supports individual index names
          * </p>
          *
          * @param indices the index names or patterns to target, null will be converted to empty array
@@ -140,7 +137,10 @@ public class DeleteSampleConfigurationAction extends ActionType<AcknowledgedResp
          */
         @Override
         public IndicesRequest indices(String... indices) {
-            this.indices = indices == null ? Strings.EMPTY_ARRAY : indices;
+            if (indices == null || indices.length != 1) {
+                throw new IllegalArgumentException("[indices] must contain only one index");
+            }
+            this.index = indices[0];
             return this;
         }
 
@@ -185,7 +185,7 @@ public class DeleteSampleConfigurationAction extends ActionType<AcknowledgedResp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(indices, request.indices)
+            return Objects.equals(index, request.index)
                 && Objects.equals(this.masterNodeTimeout(), request.masterNodeTimeout())
                 && Objects.equals(this.ackTimeout(), request.ackTimeout());
         }
@@ -201,7 +201,7 @@ public class DeleteSampleConfigurationAction extends ActionType<AcknowledgedResp
          */
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(indices), masterNodeTimeout(), ackTimeout());
+            return Objects.hash(index, masterNodeTimeout(), ackTimeout());
         }
     }
 }

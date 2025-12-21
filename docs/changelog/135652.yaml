@@ -1,5 +1,0 @@
-pr: 135652
-summary: DFS search phase per shard duration APM metric
-area: Search
-type: enhancement
-issues: []

@@ -1,10 +1,10 @@
 {
   "project.tags": {
     "documentation": {
-      "url": null,
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch-serverless/operation/operation-project-tags",
       "description": "Return tags defined for the project"
     },
-    "stability": "experimental",
+    "stability": "stable",
     "visibility": "public",
     "headers": {
       "accept": [

@@ -20,10 +20,12 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -66,11 +68,12 @@ public class CloneIndexIT extends ESIntegTestCase {
 
             final boolean createWithReplicas = randomBoolean();
             assertAcked(
-                indicesAdmin().prepareResizeIndex("source", "target")
-                    .setResizeType(ResizeType.CLONE)
-                    .setSettings(
-                        Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).putNull("index.blocks.write").build()
-                    )
+                executeResize(
+                    ResizeType.CLONE,
+                    "source",
+                    "target",
+                    Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).putNull("index.blocks.write")
+                )
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
@@ -124,9 +127,10 @@ public class CloneIndexIT extends ESIntegTestCase {
             Settings.builder().put("index.mode", "lookup").build()
         );
         for (Settings settings : indexSettings) {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
-                indicesAdmin().prepareResizeIndex("source", "target").setResizeType(ResizeType.CLONE).setSettings(settings).get();
-            });
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> executeResize(ResizeType.CLONE, "source", "target", Settings.builder().put(settings)).actionGet()
+            );
             assertThat(error.getMessage(), equalTo("can't change setting [index.mode] during resize"));
         }
     }
@@ -136,12 +140,15 @@ public class CloneIndexIT extends ESIntegTestCase {
             .setMapping("@timestamp", "type=date", "host.name", "type=keyword")
             .get();
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
-            indicesAdmin().prepareResizeIndex("source", "target")
-                .setResizeType(ResizeType.CLONE)
-                .setSettings(Settings.builder().put("index.mapping.source.mode", "synthetic").putNull("index.blocks.write").build())
-                .get();
-        });
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> executeResize(
+                ResizeType.CLONE,
+                "source",
+                "target",
+                Settings.builder().put("index.mapping.source.mode", "synthetic").putNull("index.blocks.write")
+            ).actionGet()
+        );
         assertThat(error.getMessage(), containsString("can't change setting [index.mapping.source.mode] during resize"));
     }
 
@@ -158,26 +165,26 @@ public class CloneIndexIT extends ESIntegTestCase {
                 )
         ).setMapping("@timestamp", "type=date", "host.name", "type=keyword").get();
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
-            indicesAdmin().prepareResizeIndex("source", "target")
-                .setResizeType(ResizeType.CLONE)
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            "index.version.created",
-                            IndexVersionUtils.randomVersionBetween(
-                                random(),
-                                IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
-                                IndexVersion.current()
-                            )
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> executeResize(
+                ResizeType.CLONE,
+                "source",
+                "target",
+                Settings.builder()
+                    .put(
+                        "index.version.created",
+                        IndexVersionUtils.randomVersionBetween(
+                            random(),
+                            IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
+                            IndexVersion.current()
                         )
-                        .put("index.recovery.use_synthetic_source", true)
-                        .put("index.mode", "logsdb")
-                        .putNull("index.blocks.write")
-                        .build()
-                )
-                .get();
-        });
+                    )
+                    .put("index.recovery.use_synthetic_source", true)
+                    .put("index.mode", "logsdb")
+                    .putNull("index.blocks.write")
+            ).actionGet()
+        );
         // The index.recovery.use_synthetic_source setting requires either index.mode or index.mapping.source.mode
         // to be present in the settings. Since these are all unmodifiable settings with a non-deterministic evaluation
         // order, any of them may trigger a failure first.
@@ -195,12 +202,71 @@ public class CloneIndexIT extends ESIntegTestCase {
             .setMapping("@timestamp", "type=date", "host.name", "type=keyword")
             .get();
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
-        ValidationException error = expectThrows(ValidationException.class, () -> {
-            indicesAdmin().prepareResizeIndex("source", "target")
-                .setResizeType(ResizeType.CLONE)
-                .setSettings(Settings.builder().putList("index.sort.field", List.of("@timestamp")).build())
-                .get();
-        });
+        ValidationException error = expectThrows(
+            ValidationException.class,
+            () -> executeResize(ResizeType.CLONE, "source", "target", Settings.builder().putList("index.sort.field", List.of("@timestamp")))
+                .actionGet()
+        );
         assertThat(error.getMessage(), containsString("can't override index sort when resizing an index"));
+    }
+
+    /**
+     * Test that cloning a logsdb index with a non-default timestamp mapping doesn't result in any mapping conflicts.
+     */
+    public void testCloneLogsdbIndexWithNonDefaultTimestamp() {
+        // Create a logsdb index with a date_nanos @timestamp field
+        final int numberOfReplicas = randomInt(internalCluster().numDataNodes() - 1);
+        final var settings = indexSettings(1, numberOfReplicas).put("index.mode", "logsdb").put("index.blocks.write", true);
+        prepareCreate("source").setSettings(settings).setMapping("@timestamp", "type=date_nanos").get();
+        ensureGreen();
+
+        // Clone the index
+        executeResize(
+            ResizeType.CLONE,
+            "source",
+            "target",
+            // We need to explicitly set the number of replicas in case the source has 0 replicas and the cluster has only 1 data node
+            Settings.builder().put("index.number_of_replicas", numberOfReplicas)
+        ).actionGet();
+
+        // Verify that the target index has the correct @timestamp mapping
+        final var targetMappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "target").get();
+        assertThat(
+            ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
+            equalTo("date_nanos")
+        );
+        ensureGreen();
+    }
+
+    /**
+     * Test that cloning a time series index with a non-default timestamp mapping doesn't result in any mapping conflicts.
+     */
+    public void testCloneTimeSeriesIndexWithNonDefaultTimestamp() {
+        // Create a time series index with a date_nanos @timestamp field
+        final int numberOfReplicas = randomInt(internalCluster().numDataNodes() - 1);
+        final var settings = indexSettings(1, numberOfReplicas).put("index.mode", "time_series")
+            .put("index.routing_path", "sensor_id")
+            .put("index.blocks.write", true);
+        prepareCreate("source").setSettings(settings)
+            .setMapping("@timestamp", "type=date_nanos", "sensor_id", "type=keyword,time_series_dimension=true")
+            .get();
+        ensureGreen();
+
+        // Clone the index
+        executeResize(
+            ResizeType.CLONE,
+            "source",
+            "target",
+            // We need to explicitly set the number of replicas in case the source has 0 replicas and the cluster has only 1 data node
+            Settings.builder().put("index.number_of_replicas", numberOfReplicas)
+        ).actionGet();
+
+        // Verify that the target index has the correct @timestamp mapping
+        final var targetMappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "target").get();
+        assertThat(
+            ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
+            equalTo("date_nanos")
+        );
+        ensureGreen();
     }
 }

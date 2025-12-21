@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.shards;
 
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -109,7 +110,7 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndex);
 
         assertHealthDuring(equalTo(GREEN), () -> {
-            indicesAdmin().prepareResizeIndex(sourceIndex, targetIndex).setResizeType(ResizeType.CLONE).get();
+            ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndex, targetIndex, Settings.builder()).actionGet();
             ensureGreen(targetIndex);
         });
     }

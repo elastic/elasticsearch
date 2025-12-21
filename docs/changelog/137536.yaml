@@ -1,0 +1,5 @@
+pr: 137536
+summary: Use DV rewrites where possible in Keyword queries
+area: Search
+type: enhancement
+issues: []

@@ -1,4 +1,4 @@
-* [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`CHANGE_POINT`](/reference/query-languages/esql/commands/change-point.md)
 * [`COMPLETION`](/reference/query-languages/esql/commands/completion.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`DISSECT`](/reference/query-languages/esql/commands/dissect.md)
 * [`DROP`](/reference/query-languages/esql/commands/drop.md)
@@ -10,7 +10,7 @@
 * [`KEEP`](/reference/query-languages/esql/commands/keep.md)
 * [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
 * [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md)
-* [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md)
 * [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`RENAME`](/reference/query-languages/esql/commands/rename.md)
 * [`RERANK`](/reference/query-languages/esql/commands/rerank.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`

@@ -1,5 +1,0 @@
-pr: 130463
-summary: Refresh potential lost connections at query start for `_search`
-area: Search
-type: enhancement
-issues: []

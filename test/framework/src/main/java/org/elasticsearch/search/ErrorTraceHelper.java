@@ -42,15 +42,23 @@ import static org.junit.Assert.assertTrue;
 public enum ErrorTraceHelper {
     ;
 
-    public static void assertStackTraceObserved(InternalTestCluster internalTestCluster) {
-        assertStackTraceObserved(internalTestCluster, true);
+    /**
+     * Sets up transport interception to assert that stack traces are present in error responses for batched query requests.
+     * Must be called before executing requests that are expected to generate errors.
+     */
+    public static void expectStackTraceObserved(InternalTestCluster internalCluster) {
+        expectStackTraceObserved(internalCluster, true);
     }
 
-    public static void assertStackTraceCleared(InternalTestCluster internalTestCluster) {
-        assertStackTraceObserved(internalTestCluster, false);
+    /**
+     * Sets up transport interception to assert that stack traces are NOT present in error responses for batched query requests.
+     * Must be called before executing requests that are expected to generate errors.
+     */
+    public static void expectStackTraceCleared(InternalTestCluster internalCluster) {
+        expectStackTraceObserved(internalCluster, false);
     }
 
-    private static void assertStackTraceObserved(InternalTestCluster internalCluster, boolean shouldObserveStackTrace) {
+    private static void expectStackTraceObserved(InternalTestCluster internalCluster, boolean shouldObserveStackTrace) {
         internalCluster.getDataNodeInstances(TransportService.class)
             .forEach(
                 ts -> asInstanceOf(MockTransportService.class, ts).addRequestHandlingBehavior(
@@ -80,21 +88,22 @@ public enum ErrorTraceHelper {
                                 } catch (IOException e) {
                                     throw new UncheckedIOException(e);
                                 } finally {
+                                    // Always forward to the original channel
+                                    channel.sendResponse(response);
                                     if (nodeQueryResponse != null) {
                                         nodeQueryResponse.decRef();
                                     }
                                 }
-
-                                // Forward to the original channel
-                                channel.sendResponse(response);
                             }
 
                             @Override
                             public void sendResponse(Exception error) {
-                                inspectStackTraceAndAssert(error);
-
-                                // Forward to the original channel
-                                channel.sendResponse(error);
+                                try {
+                                    inspectStackTraceAndAssert(error);
+                                } finally {
+                                    // Always forward to the original channel
+                                    channel.sendResponse(error);
+                                }
                             }
 
                             private void inspectStackTraceAndAssert(Exception error) {

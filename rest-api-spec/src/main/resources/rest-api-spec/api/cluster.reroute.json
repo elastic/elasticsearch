@@ -42,17 +42,10 @@
       },
       "metric": {
         "type": "list",
-        "options": [
-          "_all",
-          "blocks",
-          "metadata",
-          "nodes",
-          "none",
-          "routing_table",
-          "master_node",
-          "version"
-        ],
-        "default": "all",
+        "deprecated": {
+          "version": "8.6.0",
+          "description": "This parameter has no effect; its use will be forbidden in a future version."
+        },
         "description": "Limit the information returned to the specified metrics. Defaults to all but metadata"
       },
       "master_timeout": {

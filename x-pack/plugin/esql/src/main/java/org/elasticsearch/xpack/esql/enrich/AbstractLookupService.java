@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -232,7 +233,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
         var projectState = projectResolver.getProjectState(clusterState);
-        List<ShardIterator> shardIterators = clusterService.operationRouting()
+        List<SearchShardRouting> shardIterators = clusterService.operationRouting()
             .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
@@ -431,7 +432,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             BlockLoader loader = shardContext.blockLoader(
                 fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
-                MappedFieldType.FieldExtractPreference.NONE
+                MappedFieldType.FieldExtractPreference.NONE,
+                null
             );
             fields.add(
                 new ValuesSourceReaderOperator.FieldInfo(

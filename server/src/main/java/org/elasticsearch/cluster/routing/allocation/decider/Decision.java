@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,7 +40,13 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
     Single THROTTLE = new Single(Type.THROTTLE);
 
     /**
-     * Creates a simple decision
+     * Creates a new {@link Decision} instance including some (optional) extra details to explain it. Do not call this method to create a
+     * new {@link Decision} instance in an {@link AllocationDecider} implementation unless the explanation is required, because allocation
+     * decision-making is a hot path and constructing fresh instances for each decision can be very expensive. Instead, check
+     * {@link RoutingAllocation#debugDecision()} before doing nontrivial explanation work, and use one of the constants above such as
+     * {@link #YES} or {@link #NO} if no explanation is required. See also {@link RoutingAllocation#decision} for a utility method to
+     * perform this check automatically.
+     *
      * @param type {@link Type} of the decision
      * @param label label for the Decider that produced this decision
      * @param explanation explanation of the decision
@@ -111,8 +118,10 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
     enum Type implements Writeable {
         // ordered by positiveness; order matters for serialization and comparison
         NO,
-        THROTTLE,
         NOT_PREFERRED,
+        // Temporarily throttled is a better choice than choosing a not-preferred node,
+        // but NOT_PREFERRED and THROTTLED are generally not comparable.
+        THROTTLE,
         YES;
 
         private static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName(
@@ -160,8 +169,8 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
         /**
          * @return true if Type is one of {NOT_PREFERRED, YES}
          */
-        public boolean allowed() {
-            return this.compareTo(NOT_PREFERRED) >= 0;
+        public boolean assignmentAllowed() {
+            return this == NOT_PREFERRED || this == YES;
         }
 
     }

@@ -243,8 +243,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
             MappedFieldType ft = new RootFlattenedFieldType(
                 context.buildFullName(leafName()),
-                indexed.get(),
-                hasDocValues.get(),
+                IndexType.terms(indexed.get(), hasDocValues.get()),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
                 eagerGlobalOrdinals.get(),
@@ -273,8 +272,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         KeyedFlattenedFieldType(
             String rootName,
-            boolean indexed,
-            boolean hasDocValues,
+            IndexType indexType,
             String key,
             boolean splitQueriesOnWhitespace,
             Map<String, String> meta,
@@ -282,9 +280,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         ) {
             super(
                 rootName + KEYED_FIELD_SUFFIX,
-                indexed,
+                indexType,
                 false,
-                hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta
             );
@@ -294,15 +291,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
-            this(
-                rootName,
-                ref.indexType().hasTerms(),
-                ref.hasDocValues(),
-                key,
-                ref.splitQueriesOnWhitespace,
-                ref.meta(),
-                ref.dimensions.contains(key)
-            );
+            this(rootName, ref.indexType(), key, ref.splitQueriesOnWhitespace, ref.meta(), ref.dimensions.contains(key));
         }
 
         @Override
@@ -685,20 +674,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         RootFlattenedFieldType(
             String name,
-            boolean indexed,
-            boolean hasDocValues,
+            IndexType indexType,
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals,
             IgnoreAbove ignoreAbove
         ) {
-            this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
+            this(name, indexType, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
         }
 
         RootFlattenedFieldType(
             String name,
-            boolean indexed,
-            boolean hasDocValues,
+            IndexType indexType,
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals,
@@ -707,9 +694,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         ) {
             super(
                 name,
-                indexed,
+                indexType,
                 false,
-                hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta
             );
@@ -926,7 +912,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
                     fullPath(),
                     fullPath() + KEYED_FIELD_SUFFIX,
-                    fieldType().ignoreAbove.isSet() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
                     leafName()
                 )
             );

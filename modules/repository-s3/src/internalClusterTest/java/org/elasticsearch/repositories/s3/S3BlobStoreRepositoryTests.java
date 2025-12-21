@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
@@ -708,7 +709,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     protected class S3BlobStoreHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
 
         S3BlobStoreHttpHandler(final String bucket) {
-            super(bucket);
+            super(bucket, S3ConsistencyModel.AWS_DEFAULT);
         }
 
         @Override
@@ -777,7 +778,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         private S3HttpHandler.S3Request parseRequest(HttpExchange exchange) {
-            return new S3HttpHandler("bucket").parseRequest(exchange);
+            return new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()).parseRequest(exchange);
         }
 
         @Override

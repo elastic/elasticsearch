@@ -29,7 +29,7 @@
     },
     "params": {
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -51,14 +51,13 @@
         "default": true
       },
       "mode": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "standard",
           "time_series",
           "logsdb",
           "lookup"
         ],
-        "default": "",
         "description": "Filter indices by index mode. Comma-separated list of IndexMode. Empty means no filter."
       },
       "project_routing": {

@@ -40,7 +40,10 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
+
+  internalClusterTestImplementation project(path: ':modules:lang-painless')
+  internalClusterTestImplementation project(path: ':modules:lang-painless:spi')
 
   // the following are all SAML dependencies - might as well download the whole internet
   api "org.opensaml:opensaml-core:${versions.opensaml}"
@@ -67,8 +70,8 @@ dependencies {
     exclude group: 'org.bouncycastle'
   }
 
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  // provided by x-pack-core
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -89,7 +92,7 @@ dependencies {
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.5.2"
   api "net.minidev:accessors-smart:2.5.2"
-  api "org.ow2.asm:asm:9.8"
+  api "org.ow2.asm:asm:9.9"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
@@ -428,8 +431,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.DataSource',
     'javax.activation.FileDataSource',
     'javax.activation.FileTypeMap',
-    // SLF4j
-    'org.slf4j.ext.EventData'
   )
 }
 

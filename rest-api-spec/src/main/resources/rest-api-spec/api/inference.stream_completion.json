@@ -33,6 +33,13 @@
     "body": {
       "description": "The inference payload",
       "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "The amount of time to wait for the inference request to complete.",
+        "default": "30s"
+      }
     }
   }
 }

@@ -62,9 +62,9 @@ Response:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 9/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 9/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 ## Anonymous filters [anonymous-filters]
 
@@ -112,9 +112,9 @@ The filtered buckets are returned in the same order as provided in the request. 
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 4/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 4/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 ## `Other` Bucket [other-bucket]
 
@@ -181,9 +181,9 @@ The response would be something like the following:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 3/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 3/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 ## Non-keyed Response [non-keyed-response]
 

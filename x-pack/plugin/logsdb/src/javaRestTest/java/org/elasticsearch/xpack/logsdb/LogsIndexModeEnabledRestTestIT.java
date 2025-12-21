@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -24,6 +27,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
 
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     @ClassRule()
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -32,7 +38,8 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         .module("mapper-extras")
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
         .build();
@@ -175,6 +182,11 @@ public class LogsIndexModeEnabledRestTestIT extends LogsIndexModeRestTestIT {
         { "@timestamp": "2023-01-01T05:13:00Z", "method" : "PUT", "message": "baz put message", \
         "host": { "cloud_region" : "us-west", "availability_zone" : "us-west-4b", "name" : "fdfgf-881197" } }
         """;
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
 
     public void testCreateDataStream() throws IOException {
         assertOK(putComponentTemplate(client, "logs@custom", MAPPINGS));

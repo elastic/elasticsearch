@@ -10,7 +10,13 @@
           "name" : "field",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -22,7 +28,13 @@
           "name" : "field",
           "type" : "boolean",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -34,7 +46,13 @@
           "name" : "field",
           "type" : "date",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -46,7 +64,13 @@
           "name" : "field",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -58,7 +82,31 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -70,7 +118,13 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -82,7 +136,13 @@
           "name" : "field",
           "type" : "ip",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -94,7 +154,13 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -106,7 +172,13 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -116,9 +188,33 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -130,7 +226,13 @@
           "name" : "field",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,
@@ -142,7 +244,13 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the maximum"
         }
       ],
       "variadic" : false,

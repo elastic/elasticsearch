@@ -55,7 +55,7 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = inferenceInputs.castTo(EmbeddingsInput.class).getInputs();
+        List<String> docsInput = inferenceInputs.castTo(EmbeddingsInput.class).getTextInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
 
         execute(

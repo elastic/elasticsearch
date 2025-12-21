@@ -1,5 +1,0 @@
-pr: 130824
-summary: Add read permissions for osquery manager result indices
-area: Security
-type: enhancement
-issues: []

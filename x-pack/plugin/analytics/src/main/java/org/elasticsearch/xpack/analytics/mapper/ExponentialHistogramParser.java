@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
@@ -21,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -53,20 +53,32 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class ExponentialHistogramParser {
 
-    public static final ParseField SCALE_FIELD = new ParseField(ExponentialHistogramXContent.SCALE_FIELD);
-    public static final ParseField SUM_FIELD = new ParseField(ExponentialHistogramXContent.SUM_FIELD);
-    public static final ParseField MIN_FIELD = new ParseField(ExponentialHistogramXContent.MIN_FIELD);
-    public static final ParseField MAX_FIELD = new ParseField(ExponentialHistogramXContent.MAX_FIELD);
-    public static final ParseField ZERO_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_FIELD);
-    public static final ParseField ZERO_COUNT_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_COUNT_FIELD);
-    public static final ParseField ZERO_THRESHOLD_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD);
+    private static final ParseField SCALE_FIELD = new ParseField(ExponentialHistogramXContent.SCALE_FIELD);
+    private static final ParseField SUM_FIELD = new ParseField(ExponentialHistogramXContent.SUM_FIELD);
+    private static final ParseField MIN_FIELD = new ParseField(ExponentialHistogramXContent.MIN_FIELD);
+    private static final ParseField MAX_FIELD = new ParseField(ExponentialHistogramXContent.MAX_FIELD);
+    private static final ParseField ZERO_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_FIELD);
+    private static final ParseField ZERO_COUNT_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_COUNT_FIELD);
+    private static final ParseField ZERO_THRESHOLD_FIELD = new ParseField(ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD);
 
-    public static final ParseField POSITIVE_FIELD = new ParseField(ExponentialHistogramXContent.POSITIVE_FIELD);
-    public static final ParseField NEGATIVE_FIELD = new ParseField(ExponentialHistogramXContent.NEGATIVE_FIELD);
-    public static final ParseField BUCKET_INDICES_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_INDICES_FIELD);
-    public static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
+    private static final ParseField POSITIVE_FIELD = new ParseField(ExponentialHistogramXContent.POSITIVE_FIELD);
+    private static final ParseField NEGATIVE_FIELD = new ParseField(ExponentialHistogramXContent.NEGATIVE_FIELD);
+    private static final ParseField BUCKET_INDICES_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_INDICES_FIELD);
+    private static final ParseField BUCKET_COUNTS_FIELD = new ParseField(ExponentialHistogramXContent.BUCKET_COUNTS_FIELD);
 
-    public static final FeatureFlag EXPONENTIAL_HISTOGRAM_FEATURE = new FeatureFlag("exponential_histogram");
+    private static final Set<String> ROOT_FIELD_NAMES = Set.of(
+        SCALE_FIELD.getPreferredName(),
+        SUM_FIELD.getPreferredName(),
+        MIN_FIELD.getPreferredName(),
+        MAX_FIELD.getPreferredName(),
+        ZERO_FIELD.getPreferredName(),
+        POSITIVE_FIELD.getPreferredName(),
+        NEGATIVE_FIELD.getPreferredName()
+    );
+
+    public static boolean isExponentialHistogramSubFieldName(String subFieldName) {
+        return ROOT_FIELD_NAMES.contains(subFieldName);
+    }
 
     /**
      * Represents a parsed exponential histogram.
@@ -98,7 +110,7 @@ public class ExponentialHistogramParser {
 
     /**
      * Parses an XContent object into an exponential histogram.
-     * The parse is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
+     * The parser is expected to point at the next token after {@link XContentParser.Token#START_OBJECT}.
      *
      * @param mappedFieldName the name of the field being parsed, used for error messages
      * @param parser the parser to use

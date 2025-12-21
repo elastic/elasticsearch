@@ -78,9 +78,11 @@ import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
+import static org.elasticsearch.compute.data.ElementType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
+import static org.elasticsearch.compute.data.ElementType.TDIGEST;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
@@ -534,7 +536,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -605,7 +607,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1037,7 +1039,12 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE || t == AGGREGATE_METRIC_DOUBLE,
+                t -> t == ElementType.UNKNOWN
+                    || t == ElementType.DOC
+                    || t == COMPOSITE
+                    || t == AGGREGATE_METRIC_DOUBLE
+                    || t == EXPONENTIAL_HISTOGRAM
+                    || t == TDIGEST,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

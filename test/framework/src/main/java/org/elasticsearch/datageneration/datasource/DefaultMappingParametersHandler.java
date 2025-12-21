@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datageneration.datasource;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -26,6 +27,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public class DefaultMappingParametersHandler implements DataSourceHandler {
     @Override
@@ -81,7 +84,15 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
-            var mapping = commonMappingParameters();
+            var mapping = new HashMap<String, Object>();
+            mapping.put("store", ESTestCase.randomBoolean());
+            mapping.put("index", ESTestCase.randomBoolean());
+
+            if (ESTestCase.randomBoolean()) {
+                mapping.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
+            }
+
+            mapping.put("doc_values", extendedDocValuesParams());
 
             // Inject copy_to sometimes but reflect that it is not widely used in reality.
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
@@ -94,7 +105,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                     .collect(Collectors.toSet());
 
                 if (options.isEmpty() == false) {
-                    mapping.put("copy_to", ESTestCase.randomFrom(options));
+                    mapping.put("copy_to", randomFrom(options));
                 }
             }
 
@@ -113,7 +124,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = commonMappingParameters();
 
-            mapping.put("scaling_factor", ESTestCase.randomFrom(10, 1000, 100000, 100.5));
+            mapping.put("scaling_factor", randomFrom(10, 1000, 100000, 100.5));
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomDouble());
@@ -136,7 +147,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             var mapping = commonMappingParameters();
 
             if (ESTestCase.randomDouble() <= 0.2) {
-                mapping.put("null_value", ESTestCase.randomFrom(true, false, "true", "false"));
+                mapping.put("null_value", randomFrom(true, false, "true", "false"));
             }
 
             if (ESTestCase.randomBoolean()) {
@@ -263,10 +274,25 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         map.put("doc_values", ESTestCase.randomBoolean());
 
         if (ESTestCase.randomBoolean()) {
-            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
+            map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
         }
 
         return map;
+    }
+
+    protected Object extendedDocValuesParams() {
+        // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+        if (Build.current().isSnapshot() == false) {
+            return ESTestCase.randomBoolean();
+        }
+
+        return switch (ESTestCase.randomInt(3)) {
+            case 0 -> false;
+            case 1 -> Map.of("cardinality", "low");
+            case 2 -> Map.of("cardinality", "high");
+            case 3 -> true;
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override
@@ -278,7 +304,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 var parameters = new HashMap<String, Object>();
 
                 if (ESTestCase.randomBoolean()) {
-                    parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict"));
+                    parameters.put("dynamic", randomFrom("true", "false", "strict"));
                 }
                 if (ESTestCase.randomBoolean()) {
                     parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "all");  // [arrays] doesn't apply to nested objects
@@ -295,11 +321,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             // TODO enable subobjects: auto
             // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using
             // copy_to.
-            var subobjects = ESTestCase.randomValueOtherThan(
-                ObjectMapper.Subobjects.AUTO,
-                () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
-            );
-
+            var subobjects = randomFrom(ObjectMapper.Subobjects.values());
             if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED || subobjects == ObjectMapper.Subobjects.DISABLED) {
                 // "enabled: false" is not compatible with subobjects: false
                 // changing "dynamic" from parent context is not compatible with subobjects: false
@@ -315,14 +337,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 parameters.put("subobjects", subobjects.toString());
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict", "runtime"));
+                parameters.put("dynamic", randomFrom("true", "false", "strict", "runtime"));
             }
             if (ESTestCase.randomBoolean()) {
-                parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
+                parameters.put("enabled", randomFrom("true", "false"));
             }
 
             if (ESTestCase.randomBoolean()) {
-                var value = request.isRoot() ? ESTestCase.randomFrom("none", "arrays") : ESTestCase.randomFrom("none", "arrays", "all");
+                var value = request.isRoot() ? randomFrom("none", "arrays") : randomFrom("none", "arrays", "all");
                 parameters.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
             }
 

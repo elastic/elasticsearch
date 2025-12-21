@@ -434,7 +434,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             AnalysisStats.of(metadata, () -> {}),
             VersionStats.of(metadata, singletonList(mockNodeResponse)),
             ClusterSnapshotStats.EMPTY,
-            null
+            null,
+            false
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);

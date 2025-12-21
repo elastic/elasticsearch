@@ -1,5 +1,0 @@
-pr: 130939
-summary: Expose HTTP connection metrics to telemetry
-area: Network
-type: enhancement
-issues: []

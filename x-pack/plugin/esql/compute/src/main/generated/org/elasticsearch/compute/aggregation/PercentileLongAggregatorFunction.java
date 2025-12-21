@@ -149,8 +149,8 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    PercentileLongAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    PercentileLongAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

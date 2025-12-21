@@ -1,6 +1,0 @@
-pr: 133930
-summary: Improve memory estimation methods accuracy in `TrainedModelAssignmentRebalancer`
-  and related classes
-area: Machine Learning
-type: bug
-issues: []

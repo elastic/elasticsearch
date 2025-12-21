@@ -21,11 +21,11 @@ options {
 }
 
 import Expression,
-       Join;
+       Join,
+       Promql;
 
 statements
-    : {this.isDevVersion()}? setCommand+ singleStatement EOF
-    | singleStatement EOF
+    : setCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -44,6 +44,7 @@ sourceCommand
     | timeSeriesCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? promqlCommand
     ;
 
 processingCommand
@@ -108,8 +109,17 @@ timeSeriesCommand
     : TS indexPatternAndMetadataFields
     ;
 
-indexPatternAndMetadataFields:
-    indexPattern (COMMA indexPattern)* metadata?
+indexPatternAndMetadataFields
+    : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
+    ;
+
+indexPatternOrSubquery
+    : indexPattern
+    | {this.isDevVersion()}? subquery
+    ;
+
+subquery
+    : LP fromCommand (PIPE processingCommand)* RP
     ;
 
 indexPattern
@@ -202,6 +212,11 @@ identifierOrParameter
     : identifier
     | parameter
     | doubleParameter
+    ;
+
+stringOrParameter
+    : string
+    | parameter
     ;
 
 limitCommand
@@ -332,10 +347,14 @@ fuseCommand
 
 fuseConfiguration
     : SCORE BY score=qualifiedName
-    | KEY BY key=fields
+    | KEY BY key=fuseKeyByFields
     | GROUP BY group=qualifiedName
     | WITH options=mapExpression
     ;
+
+fuseKeyByFields
+   : qualifiedName (COMMA qualifiedName)*
+   ;
 
 //
 // In development

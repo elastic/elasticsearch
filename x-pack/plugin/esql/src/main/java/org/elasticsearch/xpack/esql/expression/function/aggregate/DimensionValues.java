@@ -50,7 +50,7 @@ public class DimensionValues extends AggregateFunction implements ToAggregator {
     public static final TransportVersion DIMENSION_VALUES_VERSION = TransportVersion.fromName("dimension_values");
 
     public DimensionValues(Source source, Expression field) {
-        super(source, field, Literal.TRUE, emptyList());
+        super(source, field, Literal.TRUE, NO_WINDOW, emptyList());
     }
 
     private DimensionValues(StreamInput in) throws IOException {
@@ -87,7 +87,7 @@ public class DimensionValues extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return new Values(source(), field(), filter()).resolveType();
+        return new Values(source(), field(), filter(), window()).resolveType();
     }
 
     @Override
@@ -96,6 +96,6 @@ public class DimensionValues extends AggregateFunction implements ToAggregator {
         if (supplier != null) {
             return supplier.get();
         }
-        return new Values(source(), field(), filter()).supplier();
+        return new Values(source(), field(), filter(), window()).supplier();
     }
 }

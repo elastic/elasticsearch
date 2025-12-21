@@ -48,10 +48,12 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Enrich extends UnaryPlan
     implements
         GeneratingPlan<Enrich>,
-        PostOptimizationVerificationAware,
+        PostOptimizationVerificationAware.CoordinatorOnly,
         PostAnalysisVerificationAware,
         TelemetryAware,
+        Streaming,
         SortAgnostic,
+        SortPreserving,
         ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -71,12 +73,11 @@ public class Enrich extends UnaryPlan
 
     @Override
     public ExecuteLocation executesOn() {
-        if (mode == Mode.REMOTE) {
-            return ExecuteLocation.REMOTE;
-        } else if (mode == Mode.COORDINATOR) {
-            return ExecuteLocation.COORDINATOR;
-        }
-        return ExecuteLocation.ANY;
+        return switch (mode) {
+            case REMOTE -> ExecuteLocation.REMOTE;
+            case COORDINATOR -> ExecuteLocation.COORDINATOR;
+            default -> ExecuteLocation.ANY;
+        };
     }
 
     public enum Mode {
@@ -233,7 +234,9 @@ public class Enrich extends UnaryPlan
             if (enrichField.name().equals(newName)) {
                 newEnrichFields.add(enrichField);
             } else if (enrichField instanceof ReferenceAttribute ra) {
-                newEnrichFields.add(new Alias(ra.source(), newName, ra, new NameId(), ra.synthetic()));
+                // It's safe to generate new name ids when assigning new names - the original attribute representing
+                // the field in the enrich index cannot be directly referenced in downstream plans, anyway
+                newEnrichFields.add(new Alias(ra.source(), newName, ra.withId(new NameId()), new NameId(), ra.synthetic()));
             } else if (enrichField instanceof Alias a) {
                 newEnrichFields.add(new Alias(a.source(), newName, a.child(), new NameId(), a.synthetic()));
             } else {
@@ -277,13 +280,21 @@ public class Enrich extends UnaryPlan
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
         Set<Source> fails = new HashSet<>();
 
-        this.forEachUp(LogicalPlan.class, u -> {
+        this.forEachDown(LogicalPlan.class, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
-                fails.add(u.source());
+                failures.add(
+                    fail(this, "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source())
+                );
             }
         });
+    }
 
-        fails.forEach(f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source())));
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (this.mode == Mode.REMOTE) {
+            checkMvExpandAfterLimit(failures);
+        }
+
     }
 
     /**
@@ -305,14 +316,6 @@ public class Enrich extends UnaryPlan
                 }
             });
         });
-
-    }
-
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        if (this.mode == Mode.REMOTE) {
-            checkMvExpandAfterLimit(failures);
-        }
 
     }
 

@@ -77,7 +77,6 @@ public class CrossClusterApiKeySignatureManager {
                     true
                 ) ? wrapInDiagnosticTrustManager(trustConfig.createTrustManager()) : trustConfig.createTrustManager();
 
-                trustConfig.createTrustManager();
                 if (newTrustManager.getAcceptedIssuers().length == 0) {
                     logger.warn("Cross cluster API Key trust configuration [{}] has no accepted certificate issuers", trustConfig);
                     trustManager.set(null);
@@ -178,7 +177,7 @@ public class CrossClusterApiKeySignatureManager {
             }
 
             // Make sure the provided certificate chain is trusted
-            var leaf = signature.certificates()[0];
+            var leaf = signature.leafCertificate();
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "checking signing chain (len={}) [{}] with leaf subject [{}] using algorithm [{}]",
@@ -190,13 +189,12 @@ public class CrossClusterApiKeySignatureManager {
                     leaf.getPublicKey().getAlgorithm()
                 );
             }
-            authTrustManager.checkClientTrusted(signature.certificates(), signature.certificates()[0].getPublicKey().getAlgorithm());
 
-            // TODO Make sure the signing certificate belongs to the correct DN (the configured api key cert identity)
-            // TODO Make sure the signing certificate is valid
-            // Make sure signature is correct
+            authTrustManager.checkClientTrusted(signature.certificates(), leaf.getPublicKey().getAlgorithm());
+            signature.leafCertificate().checkValidity();
+
             final Signature signer = Signature.getInstance(signature.algorithm());
-            signer.initVerify(signature.certificates()[0]);
+            signer.initVerify(leaf);
             signer.update(getSignableBytes(headers));
             return signer.verify(signature.signature().array());
         }

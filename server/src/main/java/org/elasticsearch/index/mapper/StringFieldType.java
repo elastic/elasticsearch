@@ -43,15 +43,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+    public StringFieldType(String name, IndexType indexType, boolean isStored, TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, indexType, isStored, textSearchInfo, meta);
     }
 
     @Override

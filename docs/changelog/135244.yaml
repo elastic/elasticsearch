@@ -1,5 +1,0 @@
-pr: 135244
-summary: Add reload listener to `SslProfile`
-area: TLS
-type: enhancement
-issues: []

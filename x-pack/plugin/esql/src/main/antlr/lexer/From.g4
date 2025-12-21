@@ -23,7 +23,11 @@ FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
 
 // we need this for EXPLAIN
-FROM_RP : RP -> type(RP), popMode;
+// change to double popMode to accommodate subquerys in FROM, when see ')' pop out of subquery(default) mode and from mode
+FROM_RP : RP -> type(RP), popMode, popMode;
+
+// accommodate subQuery inside FROM
+FROM_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
 
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting

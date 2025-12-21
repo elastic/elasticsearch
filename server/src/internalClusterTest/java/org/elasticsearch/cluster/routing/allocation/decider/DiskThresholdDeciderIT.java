@@ -12,8 +12,14 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.ResizeIndexTestUtils;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
@@ -53,6 +59,7 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShard
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,6 +108,60 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         // increase disk size of node 0 to allow just enough room for one shard, and check that it's rebalanced back
         getTestFileStore(dataNodeName).setTotalSpace(shardSizes.getSmallestShardSize() + WATERMARK_BYTES);
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, contains(in(shardSizes.getSmallestShardIds())));
+    }
+
+    public void testAllocateCloneIgnoresLowWatermark() throws Exception {
+        final var lowWatermarkBytes = randomLongBetween(WATERMARK_BYTES + 1, WATERMARK_BYTES * 5);
+
+        internalCluster().startMasterOnlyNode(
+            Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), lowWatermarkBytes + "b")
+                .build()
+        );
+        final var dataNodeName = internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+
+        final InternalClusterInfoService clusterInfoService = getInternalClusterInfoService();
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+        });
+
+        final var sourceIndexName = "source-" + randomIdentifier();
+        createIndex(sourceIndexName, indexSettings(1, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
+        final var shardSizes = createReasonableSizedShards(sourceIndexName);
+
+        updateIndexSettings(Settings.builder().put("blocks.write", true), sourceIndexName);
+
+        final var totalSpace = randomLongBetween(
+            /* do not exceed the high watermark */
+            shardSizes.getSmallestShardSize() + WATERMARK_BYTES + 1,
+            /* but make it so that naively duplicating the shard would exceed the low watermark, or else it's not a meaningful test */
+            2 * shardSizes.getSmallestShardSize() + lowWatermarkBytes
+        );
+
+        getTestFileStore(dataNodeName).setTotalSpace(totalSpace);
+        refreshDiskUsage();
+
+        final var targetIndexName = "target-" + randomIdentifier();
+        final var resizeRequest = ResizeIndexTestUtils.resizeRequest(
+            ResizeType.CLONE,
+            sourceIndexName,
+            targetIndexName,
+            indexSettings(1, 0)
+        );
+        resizeRequest.setWaitForActiveShards(ActiveShardCount.ALL);
+
+        safeAwait(
+            SubscribableListener.<CreateIndexResponse>newForked(l -> client().execute(TransportResizeAction.TYPE, resizeRequest, l))
+                .andThenAccept(
+                    createIndexResponse -> assertThat(
+                        true,
+                        allOf(equalTo(createIndexResponse.isAcknowledged()), equalTo(createIndexResponse.isShardsAcknowledged()))
+                    )
+                )
+        );
+
+        ensureGreen(sourceIndexName, targetIndexName);
     }
 
     public void testRestoreSnapshotAllocationDoesNotExceedWatermark() throws Exception {

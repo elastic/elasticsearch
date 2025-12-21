@@ -3,23 +3,23 @@
 **Example**
 
 ```esql
- from colors
- | where color != "black"
- | eval similarity = v_cosine(rgb_vector, [0, 255, 255])
- | sort similarity desc, color asc
+from colors
+| where color != "black"
+| eval similarity = v_cosine(rgb_vector, [0, 255, 255])
+| sort similarity desc, color asc
 ```
 
 | color:text | similarity:double |
 | --- | --- |
 | cyan | 1.0 |
 | teal | 1.0 |
-| turquoise | 0.9890533685684204 |
-| aqua marine | 0.964962363243103 |
-| azure | 0.916246771812439 |
-| lavender | 0.9136701822280884 |
-| mint cream | 0.9122757911682129 |
-| honeydew | 0.9122424125671387 |
-| gainsboro | 0.9082483053207397 |
-| gray | 0.9082483053207397 |
+| turquoise | 0.9781067967414856 |
+| aqua marine | 0.929924726486206 |
+| azure | 0.8324936032295227 |
+| lavender | 0.827340304851532 |
+| mint cream | 0.8245516419410706 |
+| honeydew | 0.8244848847389221 |
+| gainsboro | 0.8164966106414795 |
+| gray | 0.8164966106414795 |
 
 

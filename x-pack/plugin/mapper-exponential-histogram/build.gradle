@@ -6,7 +6,6 @@
  */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   name = 'exponential-histogram'
@@ -18,21 +17,11 @@ base {
   archivesName = 'x-pack-exponential-histogram'
 }
 
-restResources {
-  restApi {
-    include 'bulk', 'search'
-  }
-}
 dependencies {
   api project(":libs:exponential-histogram")
   api project(xpackModule('analytics'))
-  compileOnly project(path: xpackModule('core'))
-  testImplementation(testArtifact(project(":libs:exponential-histogram")))
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-}
 
-restResources {
-  restApi {
-    include '_common', 'indices', 'index', 'get'
-  }
+  compileOnly project(path: xpackModule('core'))
+
+  testImplementation(testArtifact(project(":libs:exponential-histogram")))
 }

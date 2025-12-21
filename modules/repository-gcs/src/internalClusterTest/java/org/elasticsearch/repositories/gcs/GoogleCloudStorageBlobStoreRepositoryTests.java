@@ -13,7 +13,6 @@ import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
 
-import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
@@ -59,10 +58,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
@@ -118,6 +120,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         settings.put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl());
         settings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token");
+        settings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), 6);
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
@@ -195,7 +198,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 random().nextBytes(data);
                 writeBlob(container, "foobar", new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob(randomPurpose(), "foobar")) {
+            try (InputStream stream = container.readBlob(randomRetryingPurpose(), "foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -218,8 +221,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             byte[] initialValue = randomByteArrayOfLength(uploadSize);
             container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
 
-            BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
-            assertEquals(new BytesArray(initialValue), reference);
+            BytesReference reference = readFully(container.readBlob(randomRetryingPurpose(), key));
+            assertThat(reference, equalBytes(new BytesArray(initialValue)));
 
             container.deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single(key));
         }
@@ -247,19 +250,12 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
                     return options.toBuilder()
                         .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
-                        .setHost(options.getHost())
-                        .setCredentials(options.getCredentials())
                         .setRetrySettings(
-                            RetrySettings.newBuilder()
-                                .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
+                            options.getRetrySettings()
+                                .toBuilder()
                                 .setInitialRetryDelay(Duration.ofMillis(10L))
-                                .setRetryDelayMultiplier(options.getRetrySettings().getRetryDelayMultiplier())
                                 .setMaxRetryDelay(Duration.ofSeconds(1L))
-                                .setMaxAttempts(0)
                                 .setJittered(false)
-                                .setInitialRpcTimeout(options.getRetrySettings().getInitialRpcTimeout())
-                                .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
-                                .setMaxRpcTimeout(options.getRetrySettings().getMaxRpcTimeout())
                                 .build()
                         )
                         .build();

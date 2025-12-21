@@ -1,5 +1,0 @@
-pr: 131296
-summary: Enable failure store for newly created APM datastreams
-area: Ingest Node
-type: enhancement
-issues: []

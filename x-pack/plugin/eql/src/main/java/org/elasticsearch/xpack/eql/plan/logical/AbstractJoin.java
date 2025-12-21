@@ -31,7 +31,7 @@ public abstract class AbstractJoin extends LogicalPlan {
         List<KeyedFilter> keyed = new ArrayList<>(list.size());
 
         for (LogicalPlan logicalPlan : list) {
-            Check.isTrue(KeyedFilter.class.isInstance(logicalPlan), "Expected a KeyedFilter but received [{}]", logicalPlan);
+            Check.isTrueInternal(KeyedFilter.class.isInstance(logicalPlan), "Expected a KeyedFilter but received [{}]", logicalPlan);
             keyed.add((KeyedFilter) logicalPlan);
         }
 
@@ -39,7 +39,7 @@ public abstract class AbstractJoin extends LogicalPlan {
     }
 
     static KeyedFilter asKeyed(LogicalPlan plan) {
-        Check.isTrue(KeyedFilter.class.isInstance(plan), "Expected a KeyedFilter but received [{}]", plan);
+        Check.isTrueInternal(KeyedFilter.class.isInstance(plan), "Expected a KeyedFilter but received [{}]", plan);
         return (KeyedFilter) plan;
     }
 

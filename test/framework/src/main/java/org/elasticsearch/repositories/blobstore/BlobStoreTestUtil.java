@@ -32,7 +32,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -67,12 +70,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_NAME_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -457,11 +462,32 @@ public final class BlobStoreTestUtil {
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
+        Set<Setting<?>> settingSet = new HashSet<>();
+        settingSet.add(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING);
+        ClusterSettings mockClusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
+        when(clusterService.getClusterSettings()).thenReturn(mockClusterSettings);
         return clusterService;
     }
 
     public static OperationPurpose randomPurpose() {
         return randomFrom(OperationPurpose.values());
+    }
+
+    /**
+     * Random {@link OperationPurpose} that will be retried by {@link RetryingInputStream}
+     */
+    public static OperationPurpose randomRetryingPurpose() {
+        return randomValueOtherThanMany(
+            purpose -> purpose != OperationPurpose.REPOSITORY_ANALYSIS == false,
+            BlobStoreTestUtil::randomPurpose
+        );
+    }
+
+    /**
+     * Random {@link OperationPurpose} that will be retried a finite number of times by {@link RetryingInputStream}
+     */
+    public static OperationPurpose randomFiniteRetryingPurpose() {
+        return randomValueOtherThanMany(purpose -> purpose == OperationPurpose.INDICES, BlobStoreTestUtil::randomRetryingPurpose);
     }
 
     public static OperationPurpose randomNonDataPurpose() {

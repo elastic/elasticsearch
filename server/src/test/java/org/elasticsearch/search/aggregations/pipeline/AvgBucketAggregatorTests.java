@@ -14,13 +14,13 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -76,7 +76,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
      * `reduce()` needed for testing this
      */
     public void testSameAggNames() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         AvgAggregationBuilder avgBuilder = new AvgAggregationBuilder("foo").field(VALUE_FIELD);
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo").calendarInterval(DateHistogramInterval.YEAR)
@@ -131,7 +131,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
     }
 
     public void testComplicatedBucketPath() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         final String textField = "text";
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo").calendarInterval(DateHistogramInterval.YEAR)
             .field(DATE_FIELD)

@@ -12,7 +12,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -46,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -55,6 +55,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -1865,7 +1866,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testAggContextGetsMatchAll() throws IOException {
         createIndex("test");
-        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(Queries.ALL_DOCS_INSTANCE)));
     }
 
     public void testAggContextGetsNestedFilter() throws IOException {
@@ -1874,7 +1875,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         mapping.endObject().endObject();
 
         createIndex("test", Settings.EMPTY, mapping);
-        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(Queries.ALL_DOCS_INSTANCE)));
     }
 
     /**
@@ -2000,6 +2001,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             clusterAlias
         );
         try (SearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+            assertTrue(searchContext.searcher().hasExecutor());
             SearchShardTarget searchShardTarget = searchContext.shardTarget();
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;
@@ -2459,7 +2461,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
@@ -2495,7 +2498,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
         IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
@@ -2533,7 +2537,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2570,7 +2575,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             -1,
             null,
             null,
-            null
+            null,
+            SplitShardCountSummary.UNSET
         );
         service.executeQueryPhase(request, task, future);
 
@@ -2943,7 +2949,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override

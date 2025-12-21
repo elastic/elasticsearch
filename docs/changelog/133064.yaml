@@ -1,5 +1,0 @@
-pr: 133064
-summary: Mark LOOKUP JOIN as `ExecutesOn.Any` by default
-area: ES|QL
-type: bug
-issues: []

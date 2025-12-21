@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * The function that checks for the presence of a field in the output result.
  * Presence means that the input expression yields any non-null value.
  */
-public class Present extends AggregateFunction implements ToAggregator {
+public class Present extends AggregateFunction implements ToAggregator, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Present", Present::new);
 
     @FunctionInfo(
@@ -76,20 +77,23 @@ public class Present extends AggregateFunction implements ToAggregator {
                 "geotile",
                 "geohex",
                 "integer",
+                "histogram",
                 "ip",
                 "keyword",
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "exponential_histogram",
+                "tdigest" },
             description = "Expression that outputs values to be checked for presence."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Present(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Present(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Present(StreamInput in) throws IOException {
@@ -103,17 +107,17 @@ public class Present extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Present> info() {
-        return NodeInfo.create(this, Present::new, field(), filter());
+        return NodeInfo.create(this, Present::new, field(), filter(), window());
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Present(source(), field(), filter);
+        return new Present(source(), field(), filter, window());
     }
 
     @Override
     public Present replaceChildren(List<Expression> newChildren) {
-        return new Present(source(), newChildren.get(0), newChildren.get(1));
+        return new Present(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override

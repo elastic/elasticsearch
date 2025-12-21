@@ -18,12 +18,13 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -44,12 +45,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 
 public class ClusterRequestTests extends AbstractWireSerializingTestCase<ClusterComputeRequest> {
 
     @Override
     protected Writeable.Reader<ClusterComputeRequest> instanceReader() {
-        return ClusterComputeRequest::new;
+        return (in) -> new ClusterComputeRequest(in, new SerializationTestUtils.TestNameIdMapper());
     }
 
     @Override
@@ -169,8 +171,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
 
     static Versioned<LogicalPlan> parse(String query) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         LogicalOptimizerContext context = unboundLogicalOptimizerContext();
         TransportVersion minimumVersion = context.minimumVersion();
         var logicalOptimizer = new LogicalPlanOptimizer(context);
@@ -178,7 +179,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 Map.of(),
                 emptyPolicyResolution(),
                 emptyInferenceResolution(),
@@ -186,7 +187,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             ),
             TEST_VERIFIER
         );
-        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query))), minimumVersion);
+        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query))), minimumVersion);
     }
 
     @Override

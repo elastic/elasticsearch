@@ -62,7 +62,7 @@ public record BuilderArgument(ClassName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
         // nothing to do
     }
 

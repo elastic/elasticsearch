@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -47,9 +48,10 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     private InterceptedInferenceMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        boolean ccsRequest
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
     ) {
-        super(other, inferenceResultsMap, ccsRequest);
+        super(other, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override
@@ -59,11 +61,11 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
 
     @Override
     protected String getQuery() {
-        return (String) originalQuery.value();
+        return originalQuery.value().toString();
     }
 
     @Override
-    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = this;
         if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {
             rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
@@ -73,8 +75,12 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest) {
-        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap, ccsRequest);
+    protected InterceptedInferenceQueryBuilder<MatchQueryBuilder> copy(
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
+    ) {
+        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
     }
 
     @Override

@@ -66,6 +66,12 @@ public class SearchResponseMetrics {
         );
 
         phaseNameToDurationHistogram = Map.of(
+            "can_match",
+            meterRegistry.registerLongHistogram(
+                String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "can_match"),
+                "The search phase can_match duration in milliseconds at the coordinator, expressed as a histogram",
+                "millis"
+            ),
             "dfs",
             meterRegistry.registerLongHistogram(
                 String.format(Locale.ROOT, SEARCH_PHASE_METRIC_FORMAT, "dfs"),
@@ -123,9 +129,9 @@ public class SearchResponseMetrics {
         responseCountTotalCounter.incrementBy(1L, attributesWithStatus);
     }
 
-    public void recordSearchPhaseDuration(String phaseName, long tookInNanos) {
+    public void recordSearchPhaseDuration(String phaseName, long tookInNanos, Map<String, Object> attributes) {
         LongHistogram queryPhaseDurationHistogram = phaseNameToDurationHistogram.get(phaseName);
         assert queryPhaseDurationHistogram != null;
-        queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        queryPhaseDurationHistogram.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attributes);
     }
 }

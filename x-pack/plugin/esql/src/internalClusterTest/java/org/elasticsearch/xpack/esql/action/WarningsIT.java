@@ -68,9 +68,9 @@ public class WarningsIT extends AbstractEsqlIntegTestCase {
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
         client().admin().indices().prepareRefresh("index-1", "index-2").get();
 
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100");
-        request.pragmas(randomPragmas());
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(
+            "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100"
+        ).pragmas(randomPragmas());
         CountDownLatch latch = new CountDownLatch(1);
         client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
             try {

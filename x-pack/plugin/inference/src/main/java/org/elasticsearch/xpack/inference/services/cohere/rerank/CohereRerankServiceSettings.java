@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
@@ -109,14 +107,6 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     public CohereRerankServiceSettings(StreamInput in) throws IOException {
         this.uri = createOptionalUri(in.readOptionalString());
-
-        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            // An older node sends these fields, so we need to skip them to progress through the serialized data
-            in.readOptionalEnum(SimilarityMeasure.class);
-            in.readOptionalVInt();
-            in.readOptionalVInt();
-        }
-
         this.modelId = in.readOptionalString();
         this.rateLimitSettings = new RateLimitSettings(in);
 
@@ -180,7 +170,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

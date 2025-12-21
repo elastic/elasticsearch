@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsTaskSettingsTests;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -85,6 +85,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.completio
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettingsTests.createEmbeddingsRequestSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -154,7 +155,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     createEmbeddingsRequestSettingsMap("region", "model", "cohere", null, null, null, null),
-                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", CohereTruncation.START),
+                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", Truncation.START),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
                 modelVerificationListener
@@ -177,7 +178,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
-                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", CohereTruncation.START),
+                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", Truncation.START),
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
                 modelVerificationListener
@@ -1321,6 +1322,50 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         );
 
         testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = AmazonBedrockEmbeddingsModelTests.createModel(
+            "id",
+            "region",
+            "model",
+            AmazonBedrockProvider.AMAZONTITAN,
+            null,
+            "access",
+            "secret"
+        );
+
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
+            mockClusterServiceEmpty()
+        );
+
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+        }
     }
 
     private void testChunkedInfer(AmazonBedrockEmbeddingsModel model) throws IOException {

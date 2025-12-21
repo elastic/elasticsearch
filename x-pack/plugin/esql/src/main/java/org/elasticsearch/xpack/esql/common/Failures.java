@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.esql.common;
 
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Glorified list for managing {@link Failure}s.
+ * Glorified set for managing {@link Failure}s.
  */
 public class Failures {
 
-    private final Collection<Failure> failures;
+    private final Set<Failure> failures;
 
     public Failures() {
         this.failures = new LinkedHashSet<>();
@@ -33,7 +33,7 @@ public class Failures {
         return failures.size() > 0;
     }
 
-    public Collection<Failure> failures() {
+    public Set<Failure> failures() {
         return failures;
     }
 

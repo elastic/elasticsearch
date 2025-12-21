@@ -74,10 +74,11 @@ changelogs:
       body: |-
         Queries using LIMIT followed by MV_EXPAND before a remote ENRICH can produce incorrect results due to distributed execution semantics.
         These queries are now unsupported and produce an error. Example:
-        [source,yaml]
-        ----------------------------
+        
+        ```yaml
         FROM *:events | SORT @timestamp | LIMIT 2 | MV_EXPAND ip | ENRICH _remote:clientip_policy ON ip
-        ----------------------------
+        ```
+        
         To avoid this error, reorder your query, for example by moving ENRICH earlier in the pipeline.
       pr: 135051
   - pr: 135078

@@ -28,16 +28,16 @@ linen      | 415.93267822265625
 // end::vector-magnitude-result[] 
 ;
 
- magnitudeAsPartOfExpression
- required_capability: magnitude_scalar_vector_function
- required_capability: dense_vector_field_type_released
- 
- from colors
- | eval score = round((1 + v_magnitude(rgb_vector) / 2), 3) 
- | sort score desc, color asc 
- | limit 10
- | keep color, score
- ;
+magnitudeAsPartOfExpression
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+
+from colors
+| eval score = round((1 + v_magnitude(rgb_vector) / 2), 3) 
+| sort score desc, color asc 
+| limit 10
+| keep color, score
+;
 
 color:text | score:double
 white      | 221.836

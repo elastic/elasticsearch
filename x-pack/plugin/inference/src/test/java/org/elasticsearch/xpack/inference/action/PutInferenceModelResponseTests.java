@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
@@ -27,10 +28,8 @@ public class PutInferenceModelResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected PutInferenceModelAction.Response mutateInstance(PutInferenceModelAction.Response instance) {
-        return randomValueOtherThan(instance, () -> {
-            var mutatedModel = ModelConfigurationsTests.mutateTestInstance(instance.getModel());
-            return new PutInferenceModelAction.Response(mutatedModel);
-        });
+        ModelConfigurations newModel = randomValueOtherThan(instance.getModel(), ModelConfigurationsTests::createRandomInstance);
+        return new PutInferenceModelAction.Response(newModel);
     }
 
     @Override

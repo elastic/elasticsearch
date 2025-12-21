@@ -1,6 +1,0 @@
-pr: 135431
-summary: "[Downsampling++] Allow merging of passthrough mappers with object mappers\
-  \ under certain conditions"
-area: Mapping
-type: bug
-issues: []

@@ -90,8 +90,10 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
         var sourceLoaderLeaf = sourceLoader.leaf(ctx.reader(), null);
 
         assertThat(loader.rowStrideStoredFieldSpec().requiresSource(), equalTo(true));
+        var storedFieldSpec = loader.rowStrideStoredFieldSpec()
+            .merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-            StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+            StoredFieldLoader.fromSpec(storedFieldSpec).getLoader(ctx, null),
             sourceLoaderLeaf
         );
         BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);

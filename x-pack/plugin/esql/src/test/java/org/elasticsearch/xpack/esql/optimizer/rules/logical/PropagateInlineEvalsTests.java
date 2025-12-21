@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -42,27 +42,25 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PropagateInlineEvalsTests extends ESTestCase {
 
-    private static EsqlParser parser;
     private static Map<String, EsField> mapping;
     private static Analyzer analyzer;
 
     @BeforeClass
     public static void init() {
-        parser = new EsqlParser();
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 defaultLookupResolution(),
                 new EnrichResolution(),
                 defaultInferenceResolution()
@@ -169,7 +167,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        return optimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        return optimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
     }
 
     @Override

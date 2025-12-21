@@ -196,6 +196,14 @@ emp_no:integer | last_name:keyword | f_l:keyword
 10010 | Piveteau  | eau
 ;
 
+aggregate length
+FROM employees
+| STATS SUM(LENGTH(last_name));
+
+SUM(LENGTH(last_name)):long
+720
+;
+
 substring nested negative start
 from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | keep emp_no, last_name, f_l;
 ignoreOrder:true
@@ -662,6 +670,34 @@ min(salary):integer | max(salary):integer | job_positions:keyword
 29175               | 58121               | Business Analyst
 25945               | 74999               | Data Scientist
 25324               | 58715               | Head Human Resources
+;
+
+groupByMvMin
+  FROM employees
+| STATS MIN(salary), MAX(salary) BY job_positions=MV_MIN(job_positions)
+| SORT job_positions
+| LIMIT 5;
+
+MIN(salary):integer | MAX(salary):integer | job_positions:keyword
+25976               | 74970               | Accountant
+28941               | 69904               | Architect
+29175               | 50249               | Business Analyst
+25945               | 74999               | Data Scientist
+25324               | 50064               | Head Human Resources
+;
+
+groupByMvMax
+  FROM employees
+| STATS MIN(salary), MAX(salary) BY job_positions=MV_MAX(job_positions)
+| SORT job_positions
+| LIMIT 5;
+
+MIN(salary):integer | MAX(salary):integer | job_positions:keyword
+47411               | 47411               | Accountant
+28941               | 28941               | Architect
+39110               | 48942               | Head Human Resources
+26436               | 50128               | Internship
+25976               | 64675               | Junior Developer
 ;
 
 convertFromString
@@ -2580,6 +2616,78 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 
     @timestamp:date     | message:text
 2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+;
+
+mvStringEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message == ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvStringNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM mv_text
+| WHERE message != ["Connected to 10.1.0.1", "Banana"]
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != [\"Connected to 10.1.0.1\", \"Banana\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvString_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM mv_text
+| WHERE message IN (["Connected to 10.1.0.1", "Banana"])
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message IN ([\"Connected to 10.1.0.1\", \"Banana\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+;
+
+mvKeyword_IN_MultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions IN (["Tech Lead" , "Data Scientist", "Senior Team Lead"])
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions IN ([\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordEqualsMultiValueConstant
+required_capability: fix_mv_constant_equals_field
+FROM employees
+| WHERE job_positions == ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions == [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
+;
+
+mvKeywordNotEqualsMultiValueConstant
+required_capability: fix_mv_constant_comparison_field
+FROM employees
+| WHERE job_positions != ["Tech Lead" , "Data Scientist", "Senior Team Lead"]
+| KEEP emp_no, job_positions
+;
+warning:Line 2:9: evaluation of [job_positions != [\"Tech Lead\" , \"Data Scientist\", \"Senior Team Lead\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    emp_no:integer     | job_positions:keyword
 ;
 
 url_encode sample for docs

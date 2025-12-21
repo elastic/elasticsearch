@@ -1,6 +1,0 @@
-pr: 135011
-summary: Handle right hand side of Inline Stats coming optimized with `LocalRelation`
-  shortcut
-area: ES|QL
-type: bug
-issues: []

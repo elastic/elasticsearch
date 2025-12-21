@@ -28,6 +28,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
+
+    private static SettingsValidationContext NON_SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, false);
+
+    private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_ENABLED = new SettingsValidationContext(true, true);
+
+    private static SettingsValidationContext SNAPSHOT_CTX_WITH_CPS_DISABLED = new SettingsValidationContext(false, true);
+
     public void testValidate_NonExistingSetting() {
         String settingName = "non_existing";
 
@@ -44,6 +51,17 @@ public class QuerySettingsTests extends ESTestCase {
             setting.name(),
             new Literal(Source.EMPTY, 12, DataType.INTEGER),
             "Setting [" + setting.name() + "] must be of type KEYWORD"
+        );
+    }
+
+    public void testValidate_ProjectRouting_noCps() {
+        var setting = QuerySettings.PROJECT_ROUTING;
+        assertValid(setting, Literal.keyword(Source.EMPTY, "my-project"), equalTo("my-project"), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
+        assertInvalid(
+            setting.name(),
+            SNAPSHOT_CTX_WITH_CPS_DISABLED,
+            Literal.keyword(Source.EMPTY, "my-project"),
+            "Error validating setting [project_routing]: cross-project search not enabled"
         );
     }
 
@@ -67,10 +85,29 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
+    public void testValidate_TimeZone_nonSnapshot() {
+        var setting = QuerySettings.TIME_ZONE;
+        assertInvalid(
+            setting.name(),
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            Literal.keyword(Source.EMPTY, "UTC"),
+            "Setting [" + setting.name() + "] is only available in snapshot builds"
+        );
+    }
+
     private static <T> void assertValid(QuerySettings.QuerySettingDef<T> settingDef, Literal valueLiteral, Matcher<T> parsedValueMatcher) {
+        assertValid(settingDef, valueLiteral, parsedValueMatcher, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+    }
+
+    private static <T> void assertValid(
+        QuerySettings.QuerySettingDef<T> settingDef,
+        Literal valueLiteral,
+        Matcher<T> parsedValueMatcher,
+        SettingsValidationContext ctx
+    ) {
         QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingDef.name(), valueLiteral));
         EsqlStatement statement = new EsqlStatement(null, List.of(setting));
-        QuerySettings.validate(statement, null);
+        QuerySettings.validate(statement, ctx);
 
         T value = statement.setting(settingDef);
 
@@ -78,10 +115,19 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     private static void assertInvalid(String settingName, Expression valueExpression, String expectedMessage) {
+        assertInvalid(settingName, SNAPSHOT_CTX_WITH_CPS_ENABLED, valueExpression, expectedMessage);
+    }
+
+    private static void assertInvalid(
+        String settingName,
+        SettingsValidationContext ctx,
+        Expression valueExpression,
+        String expectedMessage
+    ) {
         QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingName, valueExpression));
         EsqlStatement statement = new EsqlStatement(null, List.of(setting));
         assertThat(
-            expectThrows(ParsingException.class, () -> QuerySettings.validate(statement, null)).getMessage(),
+            expectThrows(ParsingException.class, () -> QuerySettings.validate(statement, ctx)).getMessage(),
             containsString(expectedMessage)
         );
     }

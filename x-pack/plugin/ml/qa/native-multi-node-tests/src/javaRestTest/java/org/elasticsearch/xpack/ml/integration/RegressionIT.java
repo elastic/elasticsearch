@@ -361,6 +361,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
         indexData(sourceIndex, 100, 0);
+        // Force merge to single segment to ensure deterministic _doc sort order during reindexing
+        // Without this, multiple segments or segment merges can cause non-deterministic document processing order
+        client().admin().indices().prepareForceMerge(sourceIndex).setMaxNumSegments(1).setFlush(true).get();
 
         String firstJobId = "regression_two_jobs_with_same_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
@@ -630,8 +633,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 assertThat(resultsObject.containsKey(predictionField), is(true));
                 assertThat(resultsObject.containsKey("is_training"), is(true));
 
-                int featureValue = (int) destDoc.get("field_1");
-                double predictionValue = (double) resultsObject.get(predictionField);
+                int featureValue = ((Number) destDoc.get("field_1")).intValue();
+                double predictionValue = ((Number) resultsObject.get(predictionField)).doubleValue();
                 predictionErrorSum += Math.abs(predictionValue - 2 * featureValue);
             }
             // We assert on the mean prediction error in order to reduce the probability

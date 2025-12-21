@@ -1,6 +1,0 @@
-pr: 136577
-summary: Clean up inference indices on failed endpoint creation
-area: Machine Learning
-type: bug
-issues:
- - 123726

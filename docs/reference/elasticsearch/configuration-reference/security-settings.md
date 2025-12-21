@@ -769,6 +769,18 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 `username_pattern`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The regular expression pattern used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The first match group is the used as the username. Defaults to `CN=(.*?)(?:,|$)`.
 
+    This setting is ignored if either `username_rdn_oid` or `username_rdn_name` is set.
+
+`username_rdn_oid`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The relative distinguished name (RDN) attribute OID used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The value of the most specific RDN matching this attribute OID is used as the username.
+
+    This setting takes precedent over `username_pattern`. You cannot use this setting and `username_rdn_name` at the same time.
+
+`username_rdn_name`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The relative distinguished name (RDN) attribute name used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The value of the most specific RDN matching this attribute name is used as the username.
+
+    This setting takes precedent over `username_pattern`. You cannot use this setting and `username_rdn_oid` at the same time.
+
 `certificate_authorities`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of paths to the PEM certificate files that should be used to authenticate a user’s certificate as trusted. Defaults to the trusted certificates configured for SSL. This setting cannot be used with `truststore.path`.
 
@@ -826,6 +838,12 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 
 `idp.metadata.http.fail_on_error`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) If set to `true`, the realm will fail on startup (and prevent the node from starting) if it attempts to load metadata over HTTPS and that metadata is not available. If set to `false` (the default), the node will start but the affected SAML realm will not support user authentication until the metadata can be successfully loaded. This setting is ignored if metadata is loaded from a file.
+
+`idp.metadata.http.connect_timeout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted") {applies_to}`stack: ga 9.1`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the behavior of the HTTP client that is used for fetching the SAML 2.0 metadata file from a remote URL. Specifies the maximum time the client waits for a connection to be established. A value of zero means the timeout is not used. Defaults to `5s`.
+
+`idp.metadata.http.read_timeout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted") {applies_to}`stack: ga 9.1`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the behavior of the HTTP client that is used for fetching the SAML 2.0 metadata file from a remote URL. Specifies the maximum time the client waits when requesting a connection from the connection manager. Defaults to `10s`.
 
 `idp.metadata.http.refresh` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the frequency with which `https` metadata is checked for changes. Defaults to `1h` (1 hour).
@@ -1517,7 +1535,19 @@ $$$jwt-claim-pattern-principal$$$
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the time-to-live for the period of time to cache JWT entries. JWTs can only be cached if client authentication is successful (or disabled). Uses the standard {{es}} [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). If clients use a different JWT for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 
 `pkc_jwkset_path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The file name or URL to a JSON Web Key Set (JWKS) with the public key material that the JWT Realm uses for verifying token signatures. A value is considered a file name if it does not begin with `https`. The file name is resolved relative to the {{es}} configuration directory. If a URL is provided, then it must begin with `https://` (`http://` is not supported). {{es}} automatically caches the JWK set and will attempt to refresh the JWK set upon signature verification failure, as this might indicate that the JWT Provider has rotated the signing keys.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The file name or URL to a JSON Web Key Set (JWKS) with the public key material that the JWT Realm uses for verifying token signatures. A value is considered a file name if it does not begin with `https`. The file name is resolved relative to the {{es}} configuration directory. If a URL is provided, then it must begin with `https://` (`http://` is not supported). {{es}} automatically caches the JWK set and will attempt to refresh the JWK set upon signature verification failure, as this might indicate that the JWT Provider has rotated the signing keys. Background JWKS reloading can also be configured with the setting `pkc_jwkset_reload.enabled`. This ensures that rotated keys are automatically discovered and used to verify JWT signatures.
+
+`pkc_jwkset_reload.enabled` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Indicates whether JWKS background reloading is enabled. Defaults to `false`.
+
+`pkc_jwkset_reload.file_interval` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the reload interval for file-based JWKS. Defaults to `5m`.
+
+`pkc_jwkset_reload.url_interval_min` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the minimum reload interval for URL-based JWKS. The `Expires` and `Cache-Control` HTTP response headers inform the reload interval. This configuration setting is the lower bound of what is considered, and it is also the default interval in the absence of useful response headers. Defaults to `1h`.
+
+`pkc_jwkset_reload.url_interval_max` {applies_to}`stack: ga 9.3` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum reload interval for URL-based JWKS. This configuration setting is the upper bound of what is considered from header responses (`5d`).
 
 `hmac_jwkset` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Secure](docs-content://deploy-manage/security/secure-settings.md)) Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT realm uses to verify token signatures. This format supports multiple keys and optional attributes, and is preferred over the `hmac_key` setting. Cannot be used in conjunction with the `hmac_key` setting. Refer to [Configure {{es}} to use a JWT realm](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/jwt.md).
@@ -1893,7 +1923,13 @@ PKCS#12 files are configured in the same way as Java keystore files:
 
 ## Transport TLS/SSL settings [transport-tls-ssl-settings]
 
-You can configure the following TLS/SSL settings.
+The settings in this section relate to node-to-node transport connections.
+
+By default, {{es}} uses mutual TLS (mTLS) to secure node-to-node transport connections within a cluster. With mTLS, data is encrypted in transit and both nodes must present valid certificates when connecting. Each node requires that certificates be issued by a trusted certificate authority, ensuring that only authorized nodes can connect. [Learn about configuring node-to-node mTLS](docs-content://deploy-manage/security/secure-cluster-communications.md#encrypt-internode-communication).
+
+::::{warning}
+Transport connections between Elasticsearch nodes are security-critical and you must protect them carefully. Malicious actors who can observe or interfere with unencrypted node-to-node transport traffic can read or modify cluster data. A malicious actor who can establish a transport connection might be able to invoke system-internal APIs, including APIs that read or modify cluster data.
+::::
 
 `xpack.security.transport.ssl.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Used to enable or disable TLS/SSL on the transport networking layer, which nodes use to communicate with each other. The default is `false`.
@@ -1909,7 +1945,11 @@ You can configure the following TLS/SSL settings.
 
 
 `xpack.security.transport.ssl.client_authentication`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the server’s behavior in regard to requesting a certificate from client connections. Valid values are `required`, `optional`, and `none`. `required` forces a client to present a certificate, while `optional` requests a client certificate but the client is not required to present one. Defaults to `required`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the node's behavior in regard to requesting a certificate when accepting an inbound transport connections from another {{es}} node. Valid values are `required`, `optional`, and `none`. The default is `required` which means that the connecting node must present a valid client certificate during the connection process. May also be set to `optional` which means that a client certificate is requested but the connecting node may choose not to present one, or `none` which means that no client certificate is even requested during the connection process.
+
+    ::::{warning}
+    Turning off mTLS by setting `xpack.security.transport.ssl.client_authentication` to `optional` or `none` allows anyone with network access to establish transport connections. Malicious actors can use these connections to invoke system-internal APIs that might read or modify cluster data. Use mTLS to protect your node-to-node transport connections unless you are absolutely certain that unauthorized network access to these nodes cannot occur.
+    ::::
 
 `xpack.security.transport.ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Defines how to verify the certificates presented by another party in the TLS connection:

@@ -1,5 +1,0 @@
-pr: 135545
-summary: Add GPUPlugin for indexing vectors on GPU
-area: Vector Search
-type: feature
-issues: []

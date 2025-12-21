@@ -1,0 +1,5 @@
+pr: 137249
+summary: Add `chunk_rescorer` usage to output of explain and profile for `text_similarity_rank_retriever`
+area: Relevance
+type: enhancement
+issues: []

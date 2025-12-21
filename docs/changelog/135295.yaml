@@ -1,6 +1,0 @@
-pr: 135295
-summary: Replace any Attribute type when pushing down past Project
-area: ES|QL
-type: bug
-issues:
- - 134407

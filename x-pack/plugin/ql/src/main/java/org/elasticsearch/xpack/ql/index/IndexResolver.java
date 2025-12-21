@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -361,12 +364,60 @@ public class IndexResolver {
         Set<String> fieldNames,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
+        boolean crossProjectEnabled,
+        String projectRouting,
+        ResolvedIndexExpressions resolvedIndexExpressions,
         ActionListener<IndexResolution> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
-        client.fieldCaps(
-            fieldRequest,
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
+        IndicesOptions iOpts;
+        if (crossProjectEnabled) {
+            iOpts = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
+        } else {
+            iOpts = indicesOptions;
+        }
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, iOpts, runtimeMappings);
+        if (crossProjectEnabled) {
+            fieldRequest.includeResolvedTo(true);
+        }
+        client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((l, response) -> {
+            if (crossProjectEnabled) {
+                Map<String, ResolvedIndexExpressions> resolvedRemotely = response.getResolvedRemotely();
+                ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
+                    iOpts,
+                    projectRouting,
+                    resolvedIndexExpressions,
+                    resolvedRemotely
+                );
+                if (ex != null) {
+                    l.onFailure(ex);
+                    return;
+                }
+            }
+            l.onResponse(mergedMappings(typeRegistry, indexWildcard, response));
+        }));
+    }
+
+    /**
+     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
+     */
+    public void resolveAsMergedMapping(
+        String indexWildcard,
+        Set<String> fieldNames,
+        boolean includeFrozen,
+        Map<String, Object> runtimeMappings,
+        boolean setCpsOptions,
+        String projectRouting,
+        ActionListener<IndexResolution> listener
+    ) {
+        resolveAsMergedMapping(
+            indexWildcard,
+            fieldNames,
+            includeFrozen,
+            runtimeMappings,
+            setCpsOptions,
+            projectRouting,
+            listener,
+            (fieldName, types) -> null
         );
     }
 
@@ -378,23 +429,22 @@ public class IndexResolver {
         Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
-        ActionListener<IndexResolution> listener
-    ) {
-        resolveAsMergedMapping(indexWildcard, fieldNames, includeFrozen, runtimeMappings, listener, (fieldName, types) -> null);
-    }
-
-    /**
-     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
-     */
-    public void resolveAsMergedMapping(
-        String indexWildcard,
-        Set<String> fieldNames,
-        boolean includeFrozen,
-        Map<String, Object> runtimeMappings,
+        boolean setCpsOptions,
+        String projectRouting,
         ActionListener<IndexResolution> listener,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
+        if (setCpsOptions) {
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
+            fieldRequest.indicesOptions(
+                IndicesOptions.builder(fieldRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+        }
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap(
@@ -676,9 +726,21 @@ public class IndexResolver {
         String javaRegex,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
+        boolean crossProjectEnabled,
+        String projectRouting,
         ActionListener<List<EsIndex>> listener
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings);
+        if (crossProjectEnabled) {
+            fieldRequest.indicesOptions(
+                IndicesOptions.builder(fieldRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
+        }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
                 delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));

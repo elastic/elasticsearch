@@ -410,8 +410,8 @@ tests:
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139741
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingStandardSource
-  issue: https://github.com/elastic/elasticsearch/issues/139789
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139482
 - class: org.elasticsearch.xpack.esql.qa.single_node.AllSupportedFieldsIT
   issue: https://github.com/elastic/elasticsearch/pull/139744
 - class: org.elasticsearch.index.mapper.SkipperSettingsTests
@@ -426,6 +426,15 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139848
+- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
+  method: testRescoreDocs
+  issue: https://github.com/elastic/elasticsearch/issues/139859
+- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
+  method: testRescoreSingleAndBulkEquality
+  issue: https://github.com/elastic/elasticsearch/issues/139869
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/139872
 
 # Examples:
 #

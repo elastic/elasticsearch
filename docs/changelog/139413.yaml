@@ -1,5 +1,0 @@
-pr: 139413
-summary: "[Inference API] Use dimensions field in JinaAI `text_embedding` requests"
-area: Inference
-type: bug
-issues: []

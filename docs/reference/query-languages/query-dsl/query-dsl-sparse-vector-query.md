@@ -305,7 +305,7 @@ GET my-index/_search
 % TEST[skip: Requires inference]
 
 ::::{note}
-When performing [cross-cluster search](docs-content://solutions/search/cross-cluster-search.md), inference is performed on the local cluster.
+When performing [cross-cluster search](docs-content://explore-analyze/cross-cluster-search.md), inference is performed on the local cluster.
 ::::
 
 

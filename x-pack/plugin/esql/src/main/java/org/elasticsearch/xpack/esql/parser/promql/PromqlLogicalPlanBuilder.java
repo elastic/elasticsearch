@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
@@ -72,8 +73,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
 
-    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn) {
-        super(start, end, startLine, startColumn);
+    PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
+        super(start, end, startLine, startColumn, params);
     }
 
     protected LogicalPlan plan(ParseTree ctx) {

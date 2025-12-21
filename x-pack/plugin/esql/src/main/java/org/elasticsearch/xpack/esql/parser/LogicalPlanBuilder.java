@@ -1268,7 +1268,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 params.startLiteral(),
                 params.endLiteral(),
                 promqlStartLine,
-                promqlStartColumn
+                promqlStartColumn,
+                context.params()
             );
         } catch (ParsingException pe) {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);

@@ -78,17 +78,17 @@ public class MMRResultDiversificationTests extends ESTestCase {
             new MockFieldVectorSuppler(
                 Map.of(
                     1,
-                    new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }),
+                    List.of(new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f })),
                     2,
-                    new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }),
+                    List.of(new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f })),
                     3,
-                    new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }),
+                    List.of(new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f })),
                     4,
-                    new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+                    List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f })),
                     5,
-                    new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }),
+                    List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f })),
                     6,
-                    new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })
+                    List.of(new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f }))
                 )
             )
         );
@@ -115,17 +115,17 @@ public class MMRResultDiversificationTests extends ESTestCase {
             new MockFieldVectorSuppler(
                 Map.of(
                     1,
-                    new VectorData(new byte[] { 0x40, 0x20, 0x40, 0x40 }),
+                    List.of(new VectorData(new byte[] { 0x40, 0x20, 0x40, 0x40 })),
                     2,
-                    new VectorData(new byte[] { 0x40, 0x20, 0x30, 0x30 }),
+                    List.of(new VectorData(new byte[] { 0x40, 0x20, 0x30, 0x30 })),
                     3,
-                    new VectorData(new byte[] { 0x40, 0x10, 0x30, 0x30 }),
+                    List.of(new VectorData(new byte[] { 0x40, 0x10, 0x30, 0x30 })),
                     4,
-                    new VectorData(new byte[] { 0x10, (byte) 0x90, 0x50, (byte) 0x90 }),
+                    List.of(new VectorData(new byte[] { 0x10, (byte) 0x90, 0x50, (byte) 0x90 })),
                     5,
-                    new VectorData(new byte[] { 0x10, (byte) 0x90, 0x50, (byte) 0x90 }),
+                    List.of(new VectorData(new byte[] { 0x10, (byte) 0x90, 0x50, (byte) 0x90 })),
                     6,
-                    new VectorData(new byte[] { 0x50, 0x50, 0x50, 0x50 })
+                    List.of(new VectorData(new byte[] { 0x50, 0x50, 0x50, 0x50 }))
                 )
             )
         );
@@ -158,14 +158,14 @@ public class MMRResultDiversificationTests extends ESTestCase {
     }
 
     private class MockFieldVectorSuppler implements FieldVectorSupplier {
-        private final Map<Integer, VectorData> vectors;
+        private final Map<Integer, List<VectorData>> vectors;
 
-        MockFieldVectorSuppler(Map<Integer, VectorData> vectors) {
+        MockFieldVectorSuppler(Map<Integer, List<VectorData>> vectors) {
             this.vectors = vectors;
         }
 
         @Override
-        public Map<Integer, VectorData> getFieldVectors() {
+        public Map<Integer, List<VectorData>> getFieldVectors() {
             return vectors;
         }
     }

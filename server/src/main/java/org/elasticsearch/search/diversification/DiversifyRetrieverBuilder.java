@@ -363,7 +363,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         // temporary
         int vectorCount = 0;
         if (SemanticTextFieldVectorSupplier.isFieldSemanticTextVector(diversificationField, results[0])) {
-            FieldVectorSupplier fieldVectorSupplier = new SemanticTextFieldVectorSupplier();// (diversificationField, results);
+            FieldVectorSupplier fieldVectorSupplier = new SemanticTextFieldVectorSupplier(diversificationField, results);
             vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier);
         } else if (DenseVectorFieldVectorSupplier.canFieldBeDenseVector(diversificationField, results[0])) {
             FieldVectorSupplier fieldVectorSupplier = new DenseVectorFieldVectorSupplier(diversificationField, results);

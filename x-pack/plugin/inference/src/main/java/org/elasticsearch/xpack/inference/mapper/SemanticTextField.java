@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.search.diversification.InferenceChunkSupplier;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -58,7 +59,7 @@ public record SemanticTextField(
     @Nullable List<String> originalValues,
     InferenceResult inference,
     XContentType contentType
-) implements ToXContentObject {
+) implements ToXContentObject, InferenceChunkSupplier {
 
     static final String TEXT_FIELD = "text";
     static final String INFERENCE_FIELD = "inference";
@@ -79,6 +80,22 @@ public record SemanticTextField(
         ChunkingSettings chunkingSettings,
         Map<String, List<Chunk>> chunks
     ) {}
+
+    @Override
+    public List<ChunkedInference.Chunk> getChunks(String key) {
+        if (this.inference == null) {
+            return Collections.emptyList();
+        }
+
+        if (this.inference.chunks() == null) {
+            return Collections.emptyList();
+        }
+
+        List<Chunk> theseChumks = this.inference.chunks().getOrDefault(key, Collections.emptyList());
+        return theseChumks.stream()
+            .map(c -> new ChunkedInference.Chunk(new ChunkedInference.TextOffset(c.startOffset, c.endOffset), c.rawEmbeddings))
+            .toList();
+    }
 
     public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
 

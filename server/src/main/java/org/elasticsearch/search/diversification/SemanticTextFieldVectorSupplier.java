@@ -9,24 +9,58 @@
 
 package org.elasticsearch.search.diversification;
 
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.search.vectors.VectorData;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
 
-    // hit.hit().getFields().getOrDefault("_inference_fields", null)
+    private final String diversificationField;
+    private final DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits;
+    private Map<Integer, List<VectorData>> fieldVectors = null;
 
-    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields",
-    // null).getValues().get(0)).getOrDefault("content", null)).inference().chunks()
-    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields",
-    // null).getValues().get(0)).getOrDefault("content", null)).inference().chunks().get("content")
-    // ((SemanticTextField)((HashMap)hit.hit().getFields().getOrDefault("_inference_fields",
-    // null).getValues().get(0)).getOrDefault("content", null)).inference().chunks().get("content").get(0).rawEmbeddings()
+    public SemanticTextFieldVectorSupplier(String diversificationField, DiversifyRetrieverBuilder.RankDocWithSearchHit[] hits) {
+        this.diversificationField = diversificationField;
+        this.searchHits = hits;
+    }
 
     @Override
-    public Map<Integer, VectorData> getFieldVectors() {
-        return Map.of();
+    public Map<Integer, List<VectorData>> getFieldVectors() {
+        if (fieldVectors != null) {
+            return fieldVectors;
+        }
+
+        fieldVectors = new HashMap<>();
+
+        for (DiversifyRetrieverBuilder.RankDocWithSearchHit hit : searchHits) {
+            var inferenceFieldValue = hit.hit().getFields().getOrDefault("_inference_fields", null);
+            if (inferenceFieldValue == null) {
+                continue;
+            }
+
+            var fieldValues = inferenceFieldValue.getValues();
+            if (fieldValues == null || fieldValues.isEmpty()) {
+                continue;
+            }
+
+            if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
+                var fieldValue = mappedValues.getOrDefault(diversificationField, null);
+                if (fieldValue instanceof InferenceChunkSupplier chunkSupplier) {
+                    List<ChunkedInference.Chunk> chunks = chunkSupplier.getChunks(diversificationField);
+                    // chunks should be a bytesref value here that has the vector data
+
+                    List<VectorData> vectorData = new ArrayList<>();
+
+                    fieldVectors.put(hit.rank, vectorData);
+                }
+            }
+        }
+
+        return fieldVectors;
     }
 
     public static boolean isFieldSemanticTextVector(String fieldName, DiversifyRetrieverBuilder.RankDocWithSearchHit hit) {
@@ -42,20 +76,15 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
 
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
             var fieldValue = mappedValues.getOrDefault(fieldName, null);
-            if (fieldValue != null) {
-
-                // chunks are found at:
-                // ((SemanticTextField)fieldValue).inference().chunks().get(fieldName)
-                // Embeddings:
-                // for (var chunk : ((SemanticTextField)fieldValue).inference().chunks().get(fieldName)) {
-                // var embeddingBytesArray = chunk.rawEmbeddings()
-                // }
-
+            if (fieldValue instanceof InferenceChunkSupplier chunkSupplier) {
+                List<ChunkedInference.Chunk> chunks = chunkSupplier.getChunks(fieldName);
+                if (chunks == null || chunks.isEmpty()) {
+                    return false;
+                }
                 return true;
             }
         }
 
         return false;
     }
-
 }

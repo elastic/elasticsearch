@@ -19,7 +19,7 @@ public class DenseVectorFieldVectorSupplier implements FieldVectorSupplier {
 
     private final String diversificationField;
     private final DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits;
-    private Map<Integer, VectorData> fieldVectors = null;
+    private Map<Integer, List<VectorData>> fieldVectors = null;
 
     public DenseVectorFieldVectorSupplier(String diversificationField, DiversifyRetrieverBuilder.RankDocWithSearchHit[] hits) {
         this.diversificationField = diversificationField;
@@ -27,7 +27,7 @@ public class DenseVectorFieldVectorSupplier implements FieldVectorSupplier {
     }
 
     @Override
-    public Map<Integer, VectorData> getFieldVectors() {
+    public Map<Integer, List<VectorData>> getFieldVectors() {
         if (fieldVectors != null) {
             return fieldVectors;
         }
@@ -38,7 +38,7 @@ public class DenseVectorFieldVectorSupplier implements FieldVectorSupplier {
             if (field != null) {
                 VectorData vector = extractFieldVectorData(field.getValues());
                 if (vector != null) {
-                    fieldVectors.put(searchHit.rank, vector);
+                    fieldVectors.put(searchHit.rank, List.of(vector));
                 }
             }
         }

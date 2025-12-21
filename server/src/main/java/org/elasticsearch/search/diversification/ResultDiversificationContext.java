@@ -12,6 +12,7 @@ package org.elasticsearch.search.diversification;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.vectors.VectorData;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -20,7 +21,10 @@ public abstract class ResultDiversificationContext {
     private final String field;
     private final int size;
     private final Supplier<VectorData> queryVector;
-    private Map<Integer, VectorData> fieldVectors = null;
+    private Map<Integer, List<VectorData>> fieldVectors = null;
+
+    private boolean retrievedQueryVector = false;
+    private VectorData realizedQueryVector = null;
 
     protected ResultDiversificationContext(String field, int size, @Nullable Supplier<VectorData> queryVector) {
         this.field = field;
@@ -42,14 +46,19 @@ public abstract class ResultDiversificationContext {
     }
 
     public VectorData getQueryVector() {
-        return queryVector == null ? null : queryVector.get();
+        if (retrievedQueryVector) {
+            return realizedQueryVector;
+        }
+        realizedQueryVector = queryVector == null ? null : queryVector.get();
+        retrievedQueryVector = true;
+        return realizedQueryVector;
     }
 
-    public VectorData getFieldVector(int rank) {
+    public List<VectorData> getFieldVectorData(int rank) {
         return fieldVectors.getOrDefault(rank, null);
     }
 
-    public Set<Map.Entry<Integer, VectorData>> getFieldVectorsEntrySet() {
+    public Set<Map.Entry<Integer, List<VectorData>>> getFieldVectorsEntrySet() {
         return fieldVectors.entrySet();
     }
 }

@@ -37,9 +37,7 @@ public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler> getActions() {
         List<ActionHandler> actions = new ArrayList<>();
         if (REINDEX_RESILIENCE_ENABLED) {
-            actions.addAll(List.of(
-                new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class)
-            ));
+            actions.addAll(List.of(new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class)));
         }
         return actions;
     }

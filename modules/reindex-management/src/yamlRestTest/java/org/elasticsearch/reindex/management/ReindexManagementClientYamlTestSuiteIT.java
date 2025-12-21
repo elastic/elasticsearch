@@ -40,4 +40,3 @@ public class ReindexManagementClientYamlTestSuiteIT extends ESClientYamlSuiteTes
         return cluster.getHttpAddresses();
     }
 }
-

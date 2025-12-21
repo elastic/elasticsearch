@@ -294,4 +294,3 @@ public class TransportGetReindexActionTests extends ESTestCase {
     }
 
 }
-

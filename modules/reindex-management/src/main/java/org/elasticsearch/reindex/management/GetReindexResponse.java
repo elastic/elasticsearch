@@ -84,4 +84,3 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         return Objects.hash(task);
     }
 }
-

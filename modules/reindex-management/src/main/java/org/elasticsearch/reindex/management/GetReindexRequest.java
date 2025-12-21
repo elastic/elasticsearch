@@ -68,4 +68,3 @@ public class GetReindexRequest extends ActionRequest {
         out.writeBoolean(waitForCompletion);
     }
 }
-

@@ -55,4 +55,3 @@ public class RestGetReindexAction extends BaseRestHandler {
     }
 
 }
-

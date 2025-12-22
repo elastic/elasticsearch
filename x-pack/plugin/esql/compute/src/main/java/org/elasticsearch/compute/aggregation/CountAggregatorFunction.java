@@ -87,6 +87,11 @@ public class CountAggregatorFunction implements AggregatorFunction {
         }
     }
 
+    /**
+     * Returns the number of total values in a block
+     * @param block block to count values for
+     * @return number of total values present in the block
+     */
     protected int getBlockTotalValueCount(Block block) {
         return block.getTotalValueCount();
     }
@@ -103,13 +108,19 @@ public class CountAggregatorFunction implements AggregatorFunction {
         }
         for (int p = 0; p < block.getPositionCount(); p++) {
             if (mask.getBoolean(p)) {
-                count += getBlockValueCount(block, p);
+                count += getBlockValueCountAtPosition(block, p);
             }
         }
         return count;
     }
 
-    protected int getBlockValueCount(Block block, int position) {
+    /**
+     * Returns the number of values at a given position in a block
+     * @param block block
+     * @param position position to get the number of values
+     * @return
+     */
+    protected int getBlockValueCountAtPosition(Block block, int position) {
         return block.getValueCount(position);
     }
 

@@ -8,11 +8,15 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
+
+/**
+ * Specialized CountGroupingAggregatorFunction for dense_vectors. dense_vectors are represented as multivalued fields,
+ * so we should only count 1 value for each dense_vector row instead of counting the number of values
+ */
 public class DenseVectorCountGroupingAggregatorFunction extends CountGroupingAggregatorFunction {
 
     public static DenseVectorCountGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
@@ -28,12 +32,8 @@ public class DenseVectorCountGroupingAggregatorFunction extends CountGroupingAgg
     }
 
     @Override
-    protected int getValueCount(Block values, int position) {
-        return 1;
-    }
-
-    @Override
-    protected int getValueCount(IntArrayBlock groups, int groupPosition) {
+    protected int getBlockValueCountAtPosition(Block values, int position) {
+        // Count 1 for each position, not the number of values (which is the number of vector dimensions)
         return 1;
     }
 }

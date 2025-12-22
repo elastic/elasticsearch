@@ -12,6 +12,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
+/**
+ * Specialized CountAggregatorFunction for dense_vectors. dense_vectors are represented as multivalued fields,
+ * so we should only count 1 value for each dense_vector row instead of counting the number of values
+ */
 public class DenseVectorCountAggregatorFunction extends CountAggregatorFunction {
 
     public static AggregatorFunctionSupplier supplier() {
@@ -28,11 +32,13 @@ public class DenseVectorCountAggregatorFunction extends CountAggregatorFunction 
 
     @Override
     protected int getBlockTotalValueCount(Block block) {
+        // Count 1 for each position, not the total number of values
         return block.getPositionCount();
     }
 
     @Override
-    protected int getBlockValueCount(Block block, int position) {
+    protected int getBlockValueCountAtPosition(Block block, int position) {
+        // Count 1 for each position, not the number of values (which is the number of vector dimensions)
         return 1;
     }
 

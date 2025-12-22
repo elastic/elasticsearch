@@ -116,11 +116,17 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupId = groups.getInt(groupPosition);
-            state.increment(groupId, getValueCount(values, position));
+            state.increment(groupId, getBlockValueCountAtPosition(values, position));
         }
     }
 
-    protected int getValueCount(Block values, int position) {
+    /**
+     * Returns the number of values at a given position in a block
+     * @param values block
+     * @param position position to get the number of values
+     * @return
+     */
+    protected int getBlockValueCountAtPosition(Block values, int position) {
         return values.getValueCount(position);
     }
 
@@ -134,7 +140,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, getValueCount(values, position));
+                state.increment(groupId, getBlockValueCountAtPosition(values, position));
             }
         }
     }
@@ -149,7 +155,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, getValueCount(values, position));
+                state.increment(groupId, getBlockValueCountAtPosition(values, position));
             }
         }
     }
@@ -183,10 +189,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 state.increment(groupId, 1);
             }
         }
-    }
-
-    protected int getValueCount(IntArrayBlock groups, int groupPosition) {
-        return groups.getValueCount(groupPosition);
     }
 
     /**

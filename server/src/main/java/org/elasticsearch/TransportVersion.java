@@ -10,7 +10,6 @@
 package org.elasticsearch;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
-import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -65,17 +64,7 @@ import java.util.stream.Collectors;
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
  * newly-added feature, use {@link org.elasticsearch.cluster.ClusterState#getMinTransportVersion}.
  */
-public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
-
-    @Deprecated(forRemoval = true)
-    public boolean onOrAfter(TransportVersion version) {
-        throw new UnsupportedOperationException("use TransportVersion.supports(...) instead");
-    }
-
-    @Deprecated(forRemoval = true)
-    public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
-        throw new UnsupportedOperationException("use TransportVersion.supports(...) && TransportVersion.supports(...) == false instead");
-    }
+public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements Comparable<TransportVersion> {
 
     /**
      * Constructs an unnamed transport version.
@@ -345,7 +334,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
         TransportVersion bestSoFar = VersionsHolder.ZERO;
         for (final var knownVersion : VersionsHolder.ALL_VERSIONS_BY_ID.values()) {
-            if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
+            if (knownVersion.id > bestSoFar.id && knownVersion.id < this.id) {
                 bestSoFar = knownVersion;
             }
         }
@@ -437,6 +426,11 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     @Override
     public String toString() {
         return Integer.toString(id);
+    }
+
+    @Override
+    public int compareTo(TransportVersion tv) {
+        return Integer.compare(id(), tv.id());
     }
 
     /**

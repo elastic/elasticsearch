@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
@@ -32,13 +33,8 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> {
-            /*
-             * In general ToString should support all signatures. While building a
-             * new type you may we to temporarily remove this.
-             */
-            throw new UnsupportedOperationException("all signatures should be supported");
-        }));
+        String supportTypeNames = ToString.supportedTypesNames(new ToString(Source.EMPTY, Literal.NULL).supportedTypes());
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> supportTypeNames));
     }
 
     @Override
@@ -47,6 +43,10 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
          * In general ToString should support all signatures. While building a
          * new type you may we to temporarily relax this.
          */
-        assertThat("all signatures should be supported", invalidSignatureSamples, equalTo(Set.of()));
+        assertThat(
+            "all signatures except for TDigest should be supported",
+            invalidSignatureSamples,
+            equalTo(Set.of(List.of(DataType.TDIGEST)))
+        );
     }
 }

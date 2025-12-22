@@ -661,7 +661,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     null,
-                    "Allows users to manage reindex tasks, including getting, listing, cancelling, and rethrottling them."
+                    "Allows users to manage and monitor reindex tasks, including getting, listing, cancelling, and rethrottling them."
                 )
             ),
             entry(
@@ -678,7 +678,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     null,
-                    "Allows users to monitor reindex tasks, including getting abd listing them."
+                    "Allows users to monitor reindex tasks, including getting and listing them."
                 )
             ),
             entry(

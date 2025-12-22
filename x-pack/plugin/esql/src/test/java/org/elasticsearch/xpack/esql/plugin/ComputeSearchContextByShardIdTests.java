@@ -31,7 +31,7 @@ public class ComputeSearchContextByShardIdTests extends ESTestCase {
     private final ExecutorService executorService = Executors.newFixedThreadPool(nThreads);
 
     private static final int MAX_CONTEXTS = 1000;
-    private final ComputeSearchContextByShardId contexts = new ComputeSearchContextByShardId(MAX_CONTEXTS);
+    private final AcquiredSearchContexts contexts = new AcquiredSearchContexts(MAX_CONTEXTS);
 
     private static final int CHUNK_SIZE = 10;
 
@@ -82,7 +82,7 @@ public class ComputeSearchContextByShardIdTests extends ESTestCase {
         };
     }
 
-    private static Runnable newReader(AtomicBoolean shouldContinue, ComputeSearchContextByShardId contexts) {
+    private static Runnable newReader(AtomicBoolean shouldContinue, AcquiredSearchContexts contexts) {
         return () -> {
             while (shouldContinue.get()) {
                 int shardId = READER_RANDOM.nextInt(MAX_CONTEXTS);

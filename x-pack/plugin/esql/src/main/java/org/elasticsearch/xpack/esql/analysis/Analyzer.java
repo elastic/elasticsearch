@@ -871,7 +871,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
+
+                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || context.includesRemoteIndices());
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");

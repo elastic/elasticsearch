@@ -451,9 +451,6 @@ tests:
 - class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139741
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/139732
 
 # Examples:
 #

@@ -1621,14 +1621,9 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
-         * Development capability for the histogram field integration
+         * Histogram field integration
          */
-        HISTOGRAM_FIELD_SUPPORT_V0,
-
-        /**
-         * histogram to tdigest conversion function
-         */
-        HISTOGRAM_TO_TDIGEST_CAST,
+        HISTOGRAM_RELEASE_VERSION,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */

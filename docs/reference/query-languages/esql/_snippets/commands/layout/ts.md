@@ -72,19 +72,21 @@ TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 ::::
 
 You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-directly in the `STATS` command ({applies_to}`stack: preview 9.3`), or combine them with regular
-[aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md),
-such as `SUM()`, as outer aggregation functions. For example:
+directly in the `STATS` command ({applies_to}`stack: preview 9.3`). For example:
 
 ```esql
 TS metrics | STATS RATE(search_requests) BY host
 ```
 
-You can also combine time series aggregation functions with regular aggregation functions:
+You can also combine time series aggregation functions with regular
+[aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md)
+to perform additional aggregation across time series. The time series function is evaluated per time series first, then the regular aggregation function (such as `SUM()`, `AVG()`, `MAX()`, or `MIN()`) aggregates those results across multiple time series within each group. For example:
 
 ```esql
 TS metrics | STATS SUM(RATE(search_requests)) BY host
 ```
+
+This query calculates the rate per time series, then sums those rates for each host.
 
 However, using a time series aggregation function in combination with an inner time series function causes an error. For example, the
 following query is invalid:

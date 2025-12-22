@@ -230,7 +230,7 @@ EXPORT void vec_dot7u_bulk_offsets(
     dot7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
-static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {
+static inline int32_t sqr7u_inner(const int8_t *a, const int8_t *b, const int32_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
 
@@ -252,7 +252,7 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {
     return hsum_i32_8(acc1);
 }
 
-EXPORT int32_t vec_sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_sqr7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -264,6 +264,37 @@ EXPORT int32_t vec_sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
         res += dist * dist;
     }
     return res;
+}
+
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void sqr7u_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    for (size_t c = 0; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_sqr7u(a0, b, dims);
+    }
+}
+
+EXPORT void vec_sqr7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    sqr7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_sqr7u_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    sqr7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 // --- single precision floats

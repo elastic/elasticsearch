@@ -4451,16 +4451,25 @@ public class AnalyzerTests extends ESTestCase {
         String query = "FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL id = id::keyword";
         LogicalPlan plan = analyze(query, analyzer);
 
-        Limit limit = as(plan, Limit.class);
-        Eval eval = as(limit.child(), Eval.class);
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child().children().getFirst(), Eval.class);
         FieldAttribute convertedFa = as(eval.output().get(1), FieldAttribute.class);
         verifyNameAndType(convertedFa.name(), convertedFa.dataType(), "$$id$converted_to$keyword", KEYWORD);
 
-        eval.forEachDown(Project.class, project -> {
-            if (project.inputSet().contains(convertedFa)) {
-                assertTrue(project.outputSet().contains(convertedFa));
+        eval.forEachDown(Project.class, p -> {
+            if (p.inputSet().contains(convertedFa)) {
+                assertTrue(p.outputSet().contains(convertedFa));
             }
         });
+
+        var output = plan.output();
+        assertThat(output, hasSize(2));
+
+        var fooAttr = output.getFirst();
+        var idAttr = output.getLast();
+        assertThat(fooAttr.dataType(), equalTo(KEYWORD));
+        assertThat(idAttr.dataType(), equalTo(KEYWORD));
+        assertThat(idAttr.name(), equalTo("id"));
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {

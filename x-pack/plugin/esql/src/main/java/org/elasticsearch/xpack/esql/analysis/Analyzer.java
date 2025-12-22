@@ -1966,6 +1966,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<NamedExpression> newProjections = new ArrayList<>(p.projections());
                 newProjections.addAll(syntheticAttributesToCarryOver);
+                newProjections.removeIf(expr -> expr.dataType().equals(UNSUPPORTED));
                 return new Project(p.source(), p.child(), newProjections);
             });
             return res;

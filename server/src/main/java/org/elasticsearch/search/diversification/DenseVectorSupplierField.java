@@ -9,10 +9,10 @@
 
 package org.elasticsearch.search.diversification;
 
-import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.search.vectors.VectorData;
 
 import java.util.List;
 
-public interface InferenceChunkSupplier {
-    List<ChunkedInference.Chunk> getChunks(String key);
+public interface DenseVectorSupplierField {
+    List<VectorData> getVectorData(String key);
 }

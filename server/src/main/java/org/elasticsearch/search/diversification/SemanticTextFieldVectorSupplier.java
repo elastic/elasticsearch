@@ -9,10 +9,8 @@
 
 package org.elasticsearch.search.diversification;
 
-import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.search.vectors.VectorData;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,18 +47,24 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
 
             if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
                 var fieldValue = mappedValues.getOrDefault(diversificationField, null);
-                if (fieldValue instanceof InferenceChunkSupplier chunkSupplier) {
-                    List<ChunkedInference.Chunk> chunks = chunkSupplier.getChunks(diversificationField);
-                    // chunks should be a bytesref value here that has the vector data
-
-                    List<VectorData> vectorData = new ArrayList<>();
-
-                    fieldVectors.put(hit.rank, vectorData);
+                if (fieldValue instanceof DenseVectorSupplierField vectorSupplier) {
+                    List<VectorData> vectorData = vectorSupplier.getVectorData(diversificationField);
+                    if (vectorData != null && vectorData.isEmpty() == false) {
+                        fieldVectors.put(hit.rank, vectorData);
+                    }
                 }
             }
         }
 
         return fieldVectors;
+    }
+
+    private static float[] toFloatArray(byte[] values) {
+        float[] floatArray = new float[values.length];
+        for (int i = 0; i < values.length; i++) {
+            floatArray[i] = ((Byte) values[i]).floatValue();
+        }
+        return floatArray;
     }
 
     public static boolean isFieldSemanticTextVector(String fieldName, DiversifyRetrieverBuilder.RankDocWithSearchHit hit) {
@@ -76,12 +80,9 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
 
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
             var fieldValue = mappedValues.getOrDefault(fieldName, null);
-            if (fieldValue instanceof InferenceChunkSupplier chunkSupplier) {
-                List<ChunkedInference.Chunk> chunks = chunkSupplier.getChunks(fieldName);
-                if (chunks == null || chunks.isEmpty()) {
-                    return false;
-                }
-                return true;
+            if (fieldValue instanceof DenseVectorSupplierField vectorSupplier) {
+                List<VectorData> vectorData = vectorSupplier.getVectorData(fieldName);
+                return (vectorData != null && vectorData.isEmpty() == false);
             }
         }
 

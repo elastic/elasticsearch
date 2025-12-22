@@ -351,6 +351,8 @@ public class IndexNameExpressionResolver {
                             + " indices without one being designated as a write index"
                     );
                 }
+            } else if (ia.getType() == Type.VIEW) {
+                throw new IllegalArgumentException("an ESQL view [" + ia.getName() + "] may not be the target of an index operation");
             }
             SystemResourceAccess.checkSystemIndexAccess(context, threadContext, ia.getWriteIndex());
             return ia;
@@ -610,6 +612,10 @@ public class IndexNameExpressionResolver {
         for (ResolvedExpression expression : expressions) {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression.resource());
             assert indexAbstraction != null;
+            if (indexAbstraction.getType() == Type.VIEW) {
+                // A view should not resolve to any concrete indices, go to the next one.
+                continue;
+            }
             if (context.isResolveToWriteIndex()) {
                 if (shouldIncludeRegularIndices(context.getOptions(), expression.selector())) {
                     Index writeIndex = indexAbstraction.getWriteIndex();

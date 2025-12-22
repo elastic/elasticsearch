@@ -74,7 +74,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         return CollectionUtils.appendToCopy(super.getPlugins(), ThreadPoolMergeSchedulerStressTestIT.TestEnginePlugin.class);
     }
 
-    private static class TestEnginePlugin extends Plugin implements EnginePlugin {
+    public static class TestEnginePlugin extends Plugin implements EnginePlugin {
 
         final AtomicReference<ThreadPoolMergeExecutorService> mergeExecutorServiceReference = new AtomicReference<>();
         final Set<OneMerge> enqueuedMergesSet = ConcurrentCollections.newConcurrentSet();
@@ -84,7 +84,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         final Semaphore runMergeSemaphore = new Semaphore(initialRunMergesCount);
         final int waitMergesEnqueuedCount = randomIntBetween(50, 100);
 
-        private class TestInternalEngine extends org.elasticsearch.index.engine.InternalEngine {
+        class TestInternalEngine extends org.elasticsearch.index.engine.InternalEngine {
 
             TestInternalEngine(EngineConfig engineConfig) {
                 super(engineConfig);
@@ -110,7 +110,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
                 return new TestMergeScheduler((ThreadPoolMergeScheduler) mergeScheduler);
             }
 
-            private class TestMergeScheduler implements ElasticsearchMergeScheduler {
+            class TestMergeScheduler implements ElasticsearchMergeScheduler {
 
                 ThreadPoolMergeScheduler delegateMergeScheduler;
 

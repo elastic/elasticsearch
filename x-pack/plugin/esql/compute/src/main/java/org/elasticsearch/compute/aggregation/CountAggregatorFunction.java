@@ -19,35 +19,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import java.util.List;
 
 public class CountAggregatorFunction implements AggregatorFunction {
-    public static AggregatorFunctionSupplier supplier() {
-        return new AggregatorFunctionSupplier() {
-            @Override
-            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-                return CountAggregatorFunction.intermediateStateDesc();
-            }
-
-            @Override
-            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-                return CountGroupingAggregatorFunction.intermediateStateDesc();
-            }
-
-            @Override
-            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-                return CountAggregatorFunction.create(channels);
-            }
-
-            @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-                return CountGroupingAggregatorFunction.create(driverContext, channels);
-            }
-
-            @Override
-            public String describe() {
-                return "count";
-            }
-        };
-    }
-
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("count", ElementType.LONG),
         new IntermediateStateDesc("seen", ElementType.BOOLEAN)
@@ -65,7 +36,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
         return new CountAggregatorFunction(inputChannels, new LongState(0));
     }
 
-    private CountAggregatorFunction(List<Integer> channels, LongState state) {
+    protected CountAggregatorFunction(List<Integer> channels, LongState state) {
         this.channels = channels;
         this.state = state;
         // no channels specified means count-all/count(*)
@@ -108,12 +79,16 @@ public class CountAggregatorFunction implements AggregatorFunction {
                 if (mask.getBoolean(0) == false) {
                     return;
                 }
-                count = block.getTotalValueCount();
+                count = getBlockTotalValueCount(block);
             } else {
                 count = countMasked(block, mask);
             }
             state.longValue(state.longValue() + count);
         }
+    }
+
+    protected int getBlockTotalValueCount(Block block) {
+        return block.getTotalValueCount();
     }
 
     private int countMasked(Block block, BooleanVector mask) {
@@ -128,10 +103,14 @@ public class CountAggregatorFunction implements AggregatorFunction {
         }
         for (int p = 0; p < block.getPositionCount(); p++) {
             if (mask.getBoolean(p)) {
-                count += block.getValueCount(p);
+                count += getBlockValueCount(block, p);
             }
         }
         return count;
+    }
+
+    protected int getBlockValueCount(Block block, int position) {
+        return block.getValueCount(position);
     }
 
     @Override
@@ -172,5 +151,36 @@ public class CountAggregatorFunction implements AggregatorFunction {
     @Override
     public void close() {
         state.close();
+    }
+
+    public static AggregatorFunctionSupplier supplier() {
+        return new CountAggregatorFunctionSupplier();
+    }
+
+    protected static class CountAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+        @Override
+        public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+            return CountAggregatorFunction.intermediateStateDesc();
+        }
+
+        @Override
+        public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+            return CountGroupingAggregatorFunction.intermediateStateDesc();
+        }
+
+        @Override
+        public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+            return CountAggregatorFunction.create(channels);
+        }
+
+        @Override
+        public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
+            return CountGroupingAggregatorFunction.create(driverContext, channels);
+        }
+
+        @Override
+        public String describe() {
+            return "count";
+        }
     }
 }

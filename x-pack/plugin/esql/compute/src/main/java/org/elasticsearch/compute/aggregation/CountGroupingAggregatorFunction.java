@@ -42,7 +42,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
+    protected CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
         this.channels = channels;
         this.state = state;
         this.driverContext = driverContext;
@@ -116,8 +116,12 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupId = groups.getInt(groupPosition);
-            state.increment(groupId, values.getValueCount(position));
+            state.increment(groupId, getValueCount(values, position));
         }
+    }
+
+    protected int getValueCount(Block values, int position) {
+        return values.getValueCount(position);
     }
 
     private void addRawInput(int positionOffset, IntArrayBlock groups, Block values) {
@@ -127,10 +131,10 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
+            int groupEnd = groupStart + getValueCount(groups, groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, values.getValueCount(position));
+                state.increment(groupId, getValueCount(values, position));
             }
         }
     }
@@ -145,7 +149,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
-                state.increment(groupId, values.getValueCount(position));
+                state.increment(groupId, getValueCount(values, position));
             }
         }
     }
@@ -173,12 +177,16 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
+            int groupEnd = groupStart + getValueCount(groups, groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
                 state.increment(groupId, 1);
             }
         }
+    }
+
+    protected int getValueCount(IntArrayBlock groups, int groupPosition) {
+        return groups.getValueCount(groupPosition);
     }
 
     /**
@@ -216,7 +224,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
+            int groupEnd = groupStart + getValueCount(groups, groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
                 state.increment(groupId, count.getLong(groupPosition + positionOffset));

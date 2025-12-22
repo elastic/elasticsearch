@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.aggregation.DenseVectorCountAggregatorFunction;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -81,6 +82,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -135,6 +137,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        if (field().dataType() == DataType.DENSE_VECTOR) {
+            return DenseVectorCountAggregatorFunction.supplier();
+        }
         return CountAggregatorFunction.supplier();
     }
 
@@ -147,14 +152,10 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false
-                && dt != DataType.DENSE_VECTOR
-                && dt != DataType.EXPONENTIAL_HISTOGRAM
-                && dt != DataType.TDIGEST
-                && dt != DataType.HISTOGRAM,
+            dt -> dt.isCounter() == false && dt != DataType.EXPONENTIAL_HISTOGRAM && dt != DataType.TDIGEST && dt != DataType.HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "any type except counter types, dense_vector, tdigest, histogram, or exponential_histogram"
+            "any type except counter types, tdigest, histogram, or exponential_histogram"
         );
     }
 

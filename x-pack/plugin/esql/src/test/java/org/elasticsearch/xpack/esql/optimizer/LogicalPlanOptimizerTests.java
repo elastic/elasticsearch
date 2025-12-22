@@ -191,6 +191,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -9669,5 +9670,57 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // EsRelation[test]
         EsRelation relation = as(filter.child(), EsRelation.class);
         assertEquals("test", relation.indexPattern());
+    }
+
+    /**
+     * Project[[foo{r}#12, $$id$converted_to$keyword{f$}#13 AS id#9]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[foo{f}#10,foo{r}#12]
+     *     \_Project[[foo{f}#10, $$id$converted_to$keyword{f$}#13]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[union_index*][foo{f}#10, !id, $$id$converted_to$keyword{f$}#13]
+     */
+    public void testUnionTypesResolvePastProjections() {
+        LogicalPlan plan = planUnionIndex("""
+            FROM union_index*
+            | KEEP id, foo
+            | MV_EXPAND foo
+            | EVAL id = id::keyword
+            """);
+
+        Project topProject = as(plan, Project.class);
+        var topOutput = topProject.output();
+        assertThat(topOutput, hasSize(2));
+
+        var idAttr = topOutput.get(1);
+        assertThat(idAttr.name(), equalTo("id"));
+
+        // The id attribute should be a ReferenceAttribute that references the converted field
+        ReferenceAttribute idRef = as(idAttr, ReferenceAttribute.class);
+        assertThat(idRef.dataType(), equalTo(KEYWORD));
+
+        Limit limit1 = asLimit(topProject.child(), 1000, true);
+        MvExpand mvExpand = as(limit1.child(), MvExpand.class);
+
+        Project innerProject = as(mvExpand.child(), Project.class);
+        var innerOutput = innerProject.output();
+        assertThat(innerOutput, hasSize(2));
+        assertThat(Expressions.names(innerOutput), contains("foo", "$$id$converted_to$keyword"));
+
+        Limit limit2 = asLimit(innerProject.child(), 1000, false);
+        EsRelation relation = as(limit2.child(), EsRelation.class);
+        assertEquals("union_index*", relation.indexPattern());
+
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(3));
+
+        assertThat(relationOutput.get(0).name(), equalTo("foo"));
+        assertThat(relationOutput.get(0).dataType(), equalTo(KEYWORD));
+
+        assertThat(relationOutput.get(1).name(), equalTo("id"));
+        assertThat(relationOutput.get(1).dataType(), equalTo(UNSUPPORTED));
+
+        assertThat(relationOutput.get(2).name(), equalTo("$$id$converted_to$keyword"));
+        assertThat(relationOutput.get(2).dataType(), equalTo(KEYWORD));
     }
 }

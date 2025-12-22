@@ -9,8 +9,6 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -42,11 +40,6 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
     @AfterClass
     public static void afterClass() {
         VectorSimilarityFunctionsTests.cleanup();
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        return () -> VectorSimilarityFunctionsTests.allParameters().iterator();
     }
 
     public void testAllZeroValues() {
@@ -113,7 +106,6 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
     float similarity(MemorySegment a, MemorySegment b, int length) {
         try {
             return switch (function) {
-                case COSINE -> (float) getVectorDistance().cosineHandleFloat32().invokeExact(a, b, length);
                 case DOT_PRODUCT -> (float) getVectorDistance().dotProductHandleFloat32().invokeExact(a, b, length);
                 case SQUARE_DISTANCE -> (float) getVectorDistance().squareDistanceHandleFloat32().invokeExact(a, b, length);
             };
@@ -124,26 +116,9 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
     float scalarSimilarity(float[] a, float[] b) {
         return switch (function) {
-            case COSINE -> cosineFloat32Scalar(a, b);
             case DOT_PRODUCT -> dotProductFloat32Scalar(a, b);
             case SQUARE_DISTANCE -> squareDistanceFloat32Scalar(a, b);
         };
-    }
-
-    /** Computes the cosine of the given vectors a and b. */
-    static float cosineFloat32Scalar(float[] a, float[] b) {
-        float dot = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.length; i++) {
-            dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-        double normAA = Math.sqrt(normA);
-        double normBB = Math.sqrt(normB);
-        if (normAA == 0.0f || normBB == 0.0f) {
-            return 0.0f;
-        }
-        return (float) (dot / (normAA * normBB));
     }
 
     /** Computes the dot product of the given vectors a and b. */

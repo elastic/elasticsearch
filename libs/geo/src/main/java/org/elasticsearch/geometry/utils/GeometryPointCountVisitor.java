@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.geo;
+package org.elasticsearch.geometry.utils;
 
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;

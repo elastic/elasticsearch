@@ -1199,6 +1199,25 @@ NYO            | POINT (16.9216055584254 58.7851041303448) | 8108bffffffffff
 TLL            | POINT (24.798964869983 59.4165014697451)  | 8108bffffffffff
 ;
 
+gridGeohexQueryBoundsDropLocation
+required_capability: spatial_grid_types
+
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
+| WHERE TO_STRING(geohex) == "8108bffffffffff"
+| EVAL geohexString = TO_STRING(ST_GEOHEX(location, 1))
+| KEEP abbrev, geohexString
+| SORT abbrev ASC
+;
+
+abbrev:keyword | geohexString:keyword
+ARN            | 8108bffffffffff
+BMA            | 8108bffffffffff
+NRK            | 8108bffffffffff
+NYO            | 8108bffffffffff
+TLL            | 8108bffffffffff
+;
+
 gridGeohexByBounds
 required_capability: spatial_grid_types
 
@@ -1213,6 +1232,48 @@ abbrev:keyword | location:geo_point                        | geohex:geohex
 RTW            | POINT (46.035023249891 51.5606456508842)  | null
 TIP            | POINT (13.1442589810713 32.6691695504993) | 813fbffffffffff
 XMN            | POINT (118.12696884672 24.537192570557)   | null
+;
+
+gridGeohexByBoundsDropLocation
+required_capability: spatial_grid_types
+
+FROM airports
+| WHERE abbrev IN ("RTW", "TIP", "XMN")
+| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
+| KEEP abbrev, geohex
+| SORT abbrev ASC
+;
+
+abbrev:keyword | geohex:geohex
+RTW            | null
+TIP            | 813fbffffffffff
+XMN            | null
+;
+
+gridGeohexByBoundsNoSort
+required_capability: spatial_grid_types
+
+FROM airports
+| WHERE abbrev == "TIP"
+| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
+| KEEP abbrev, location, geohex
+;
+
+abbrev:keyword | location:geo_point                        | geohex:geohex
+TIP            | POINT (13.1442589810713 32.6691695504993) | 813fbffffffffff
+;
+
+gridGeohexByBoundsNoSortDropLocation
+required_capability: spatial_grid_types
+
+FROM airports
+| WHERE abbrev == "TIP"
+| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0.0, 12.0, 60.0, 30.0)"))
+| KEEP abbrev, geohex
+;
+
+abbrev:keyword | geohex:geohex
+TIP            | 813fbffffffffff
 ;
 
 literalGridGeohexByBounds

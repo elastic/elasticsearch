@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -331,11 +330,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.visitPercentage = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.queryVector = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.queryVector = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.queryVector = in.readOptionalWriteable(VectorData::new);
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
         this.queryName = in.readOptionalString();
@@ -584,11 +579,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(queryVector);
-        } else {
-            out.writeFloatArray(queryVector.asFloatVector());
-        }
+        out.writeOptionalWriteable(queryVector);
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
         out.writeOptionalString(queryName);

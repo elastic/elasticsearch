@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,7 +24,7 @@ public class ExtractHistogramComponentSerializationTests extends AbstractExpress
     }
 
     private static Expression randomComponentOrdinal() {
-        ExponentialHistogramBlock.Component result = randomFrom(ExponentialHistogramBlock.Component.values());
+        ExponentialHistogramBlock.Component result = randomFrom(HistogramBlock.Component.values());
         return new Literal(randomSource(), result.ordinal(), DataType.INTEGER);
     }
 

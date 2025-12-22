@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -78,7 +77,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            final String tierPreference = DataTier.TIER_PREFERENCE_SETTING.get(blContext.indexSettings().getSettings());
+            final String tierPreference = SearchExecutionContext.getFirstTierPreference(blContext.indexSettings().getSettings(), "");
             return BlockLoader.constantBytes(new BytesRef(tierPreference));
         }
 

@@ -69,6 +69,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -131,13 +132,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
-            sourceText(),
-            DEFAULT,
-            "any type except counter types or dense_vector"
-        );
+        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
     }
 
     @Override

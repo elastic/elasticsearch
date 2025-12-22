@@ -61,7 +61,8 @@ class AcquiredSearchContexts implements Releasable {
 
     /**
      * All of these methods are synchronized on the outer instance, since they access the shared mutable array, which may be modified by
-     * other threads calling {@link #newSubRangeView(List)}.
+     * other threads calling {@link #newSubRangeView(List)}. However, since this is basically only used by a single thread, there isn't any
+     * actual contention.
      */
     private class GlobalView implements IndexedByShardId<ComputeSearchContext> {
         @Override

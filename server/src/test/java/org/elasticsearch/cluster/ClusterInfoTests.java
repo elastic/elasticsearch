@@ -74,7 +74,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         int numEntries = randomIntBetween(0, 128);
         Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsageBuilder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            shardHeapUsageBuilder.put(randomShardId(), new ShardAndIndexHeapUsage(randomLong(), randomLong()));
+            shardHeapUsageBuilder.put(randomShardId(), new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()));
         }
         return shardHeapUsageBuilder;
     }

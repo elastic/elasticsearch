@@ -1,0 +1,5 @@
+pr: 138517
+summary: Added timezone support to `date_format`
+area: ES|QL
+type: feature
+issues: []

@@ -366,6 +366,6 @@ ROW x = 1
 | ENRICH languages_policy ON y
 ;
 
-x:integer      |does_not_exist:null |y:integer | language_name:keyword
+x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 1              |null                |null      |null
 ;

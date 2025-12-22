@@ -57,12 +57,20 @@ import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class RescoreKnnVectorQueryTests extends ESTestCase {
 
     public static final String FIELD_NAME = "float_vector";
+
+    /*
+     * Original KNN scoring and rescoring can use slightly different calculation methods,
+     * so there may be a very slight difference in the scores after rescoring.
+     */
+    private static final float DELTA = 1e-6f;
 
     public void testRescoreDocs() throws Exception {
         int numDocs = randomIntBetween(10, 100);
@@ -96,7 +104,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
                     IndexSearcher searcher = newSearcher(reader, true, false);
                     TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
-                    assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
+                    assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
 
                     // Get real scores
                     DoubleValuesSource valueSource = new FullPrecisionFloatVectorSimilarityValuesSource(
@@ -118,7 +126,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         if (i >= realScoreDocs.length) {
                             fail("Rescored doc not found in real score docs");
                         }
-                        assertThat("Real score is not the same as rescored score", rescoreDoc.score, equalTo(realScoreDocs[i].score));
+                        assertThat(
+                            "Real score is not the same as rescored score",
+                            (double) rescoreDoc.score,
+                            closeTo(realScoreDocs[i].score, DELTA)
+                        );
                     }
                 }
             }
@@ -156,7 +168,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
                     IndexSearcher searcher = newSearcher(reader, true, false);
                     TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
-                    assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
+                    assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
 
                     searcher = newSearcher(new SingleVectorQueryIndexReader(reader), true, false);
                     rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
@@ -168,14 +180,14 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         innerQuery
                     );
                     TopDocs singleRescored = searcher.search(rescoreKnnVectorQuery, numDocs);
-                    assertThat(singleRescored.scoreDocs.length, equalTo(k));
+                    assertThat(singleRescored.scoreDocs, arrayWithSize(k));
 
                     // Get real scores
                     ScoreDoc[] singleRescoreDocs = singleRescored.scoreDocs;
                     int i = 0;
                     for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
                         assertThat(rescoreDoc.doc, equalTo(singleRescoreDocs[i].doc));
-                        assertThat(rescoreDoc.score, equalTo(singleRescoreDocs[i].score));
+                        assertThat((double) rescoreDoc.score, closeTo(singleRescoreDocs[i].score, DELTA));
                         i++;
                     }
                 }

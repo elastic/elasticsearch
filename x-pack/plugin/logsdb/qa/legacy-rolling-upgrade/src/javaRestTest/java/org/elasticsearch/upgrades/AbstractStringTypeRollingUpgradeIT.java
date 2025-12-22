@@ -8,7 +8,6 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -119,7 +118,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
             assertDataStream(dataStreamName, templateId);
 
             // when/then - run some queries and verify results
-            ensureGreen(dataStreamName);
+            checkIndexHealth(dataStreamName);
             search(dataStreamName);
             phraseSearch(dataStreamName);
             query(dataStreamName);
@@ -128,13 +127,13 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
             bulkIndex(dataStreamName, NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
 
             // when/then
-            ensureGreen(dataStreamName);
+            checkIndexHealth(dataStreamName);
             search(dataStreamName);
             phraseSearch(dataStreamName);
             query(dataStreamName);
         } else if (isUpgradedCluster()) {
             // when/then
-            ensureGreen(dataStreamName);
+            checkIndexHealth(dataStreamName);
             bulkIndex(dataStreamName, NUM_REQUESTS, NUM_DOCS_PER_REQUEST);
             search(dataStreamName);
             phraseSearch(dataStreamName);
@@ -146,10 +145,20 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
             assertOK(client().performRequest(forceMergeRequest));
 
             // then continued
-            ensureGreen(dataStreamName);
+            checkIndexHealth(dataStreamName);
             search(dataStreamName);
             query(dataStreamName);
         }
+    }
+
+    private void checkIndexHealth(String dataStreamName) throws IOException {
+        // first check if the index exists
+        if (indexExists(dataStreamName) == false) {
+            fail(String.format("Index %s doesn't exist!", dataStreamName));
+        }
+
+        // next, check the health of the index
+        ensureGreen(dataStreamName);
     }
 
     private String prepareTemplate(boolean shouldIncludeKeywordMultifield) throws IOException {

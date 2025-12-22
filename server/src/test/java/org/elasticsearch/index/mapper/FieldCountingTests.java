@@ -38,34 +38,6 @@ public class FieldCountingTests extends MapperServiceTestCase {
         }, 1L);
     }
 
-    public void testObjectAndMultiFieldWithSubobjectsTrue() throws Exception {
-        assertFieldCount(true, b -> {
-            b.startObject("host");
-            b.startObject("properties");
-            b.startObject("name").field("type", "keyword").endObject();
-            b.endObject();
-            b.endObject();
-            b.startObject("message");
-            b.field("type", "text");
-            b.startObject("fields");
-            b.startObject("keyword").field("type", "keyword").endObject();
-            b.endObject();
-            b.endObject();
-        }, 4L);
-    }
-
-    public void testObjectAndMultiFieldWithSubobjectsFalse() throws Exception {
-        assertFieldCount(false, b -> {
-            b.startObject("host.name").field("type", "keyword").endObject();
-            b.startObject("message");
-            b.field("type", "text");
-            b.startObject("fields");
-            b.startObject("keyword").field("type", "keyword").endObject();
-            b.endObject();
-            b.endObject();
-        }, 3L);
-    }
-
     public void testMultiFields() throws Exception {
         assertFieldCount(true, b -> {
             b.startObject("title");

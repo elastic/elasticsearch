@@ -1432,7 +1432,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
         }
-        CollectionUtil.timSort(shards);
+        shards.sort(SearchShardIterator::compareTo);
         return shards;
     }
 

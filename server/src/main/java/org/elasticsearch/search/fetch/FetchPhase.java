@@ -51,7 +51,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -130,7 +129,6 @@ public final class FetchPhase {
                     throw new RuntimeException("Failed to send fetch chunks", e);
                 }
             }
-
 
             ProfileResult profileResult = profiler.finish();
             context.fetchResult().shardResult(hits, profileResult);

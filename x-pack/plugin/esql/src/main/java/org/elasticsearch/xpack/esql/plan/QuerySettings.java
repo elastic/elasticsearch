@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plan;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -62,17 +64,31 @@ public class QuerySettings {
         true,
         "TODO",
         (value, ctx) -> {
-            Object res = value.fold(FoldContext.small());
-            if (res instanceof Boolean || res instanceof Map) {
+            Object res = null;
+            if (value instanceof Literal l) {
+                res = l.value();
+            } else if (value instanceof MapExpression me) {
+                try {
+                    res = me.toFoldedMap(FoldContext.small());
+                } catch (IllegalStateException ex) {
+                    return "Approximate configuration must be a constant value [" + me + "]";
+                }
+            }
+            if (res instanceof Boolean || res instanceof Map || res == null) {
                 return null; // all good, no error
             }
             return "Invalid approximate configuration [" + value + "]";
         },
 
         value -> {
-            Object folded = value.fold(FoldContext.small());
+            Object folded = null;
+            if (value instanceof Literal l) {
+                folded = l.value();
+            } else if (value instanceof MapExpression me) {
+                folded = me.toFoldedMap(FoldContext.small());
+            }
             if (folded instanceof Boolean b) {
-                return b ? Map.of() : null;
+                folded = b ? Map.of() : null;
             }
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) folded;
@@ -99,7 +115,7 @@ public class QuerySettings {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + def.type());
             }
 
-            if (setting.value().foldable() == false) {
+            if (def.type() != null && setting.value().foldable() == false) {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be a constant");
             }
 

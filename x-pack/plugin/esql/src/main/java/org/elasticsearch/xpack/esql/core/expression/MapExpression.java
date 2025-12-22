@@ -148,22 +148,19 @@ public class MapExpression extends Expression {
         return "{ " + str + " }";
     }
 
-    @Override
-    public boolean foldable() {
-        for (Map.Entry<Expression, Expression> entry : map.entrySet()) {
-            if (entry.getKey().foldable() == false || entry.getValue().foldable() == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public Map<String, Object> fold(FoldContext ctx) {
+    public Map<String, Object> toFoldedMap(FoldContext ctx) throws IllegalStateException {
         Map<String, Object> foldedMap = new LinkedHashMap<>();
         for (Map.Entry<Expression, Expression> entry : map.entrySet()) {
             Object key = entry.getKey().fold(ctx);
-            Object value = entry.getValue().fold(ctx);
-            foldedMap.put(BytesRefs.toString(key), value);
+            Expression val = entry.getValue();
+            if (val instanceof MapExpression me) {
+                foldedMap.put(BytesRefs.toString(key), me.toFoldedMap(ctx));
+                continue;
+            } else if (val.foldable()) {
+                foldedMap.put(BytesRefs.toString(key), val.fold(ctx));
+                continue;
+            }
+            throw new IllegalStateException("Cannot fold map with non-foldable value [" + val + "]");
         }
         return foldedMap;
     }

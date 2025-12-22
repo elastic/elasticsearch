@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -142,7 +143,7 @@ public class SetParserTests extends AbstractStatementParserTests {
         assertThat(query.settings().size(), is(1));
 
         assertThat(settingName(query, 0), is("my_map"));
-        Object value = settingValue(query, 0);
+        Object value = ((MapExpression) query.settings().get(0).value()).toFoldedMap(FoldContext.small());
         assertThat(value, instanceOf(Map.class));
         Map<String, Object> map = (Map<String, Object>) value;
         assertThat(map.size(), is(2));

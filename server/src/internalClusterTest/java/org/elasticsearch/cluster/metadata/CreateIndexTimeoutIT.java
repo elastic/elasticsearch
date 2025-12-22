@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import io.netty.handler.codec.http.HttpMethod;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappin
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,7 +31,10 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.Collection;
 import java.util.List;
@@ -38,6 +44,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CREA
 import static org.elasticsearch.cluster.metadata.MetadataMappingService.PUT_MAPPING_MAX_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CreateIndexTimeoutIT extends ESIntegTestCase {
 
@@ -85,8 +92,14 @@ public class CreateIndexTimeoutIT extends ESIntegTestCase {
         return () -> safeAwait(barrier);
     }
 
-    public void testReducePriorities() {
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable HTTP
+    }
+
+    public void testReducePriorities() throws Exception {
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var restClient = getRestClient();
         final var indexName = "index-" + randomIdentifier();
 
         try (var ignored = withBlockedMasterService(masterClusterService)) {
@@ -109,6 +122,12 @@ public class CreateIndexTimeoutIT extends ESIntegTestCase {
                     containsString("within 1ms")
                 )
             );
+
+            final var request = new Request("PUT", "/" + indexName);
+            request.addParameter(RestUtils.REST_MASTER_TIMEOUT_PARAM, createIndexRequest.masterNodeTimeout().getStringRep());
+            request.addParameter("ignore", Integer.toString(RestStatus.TOO_MANY_REQUESTS.getStatus()));
+            final var response = restClient.performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.TOO_MANY_REQUESTS.getStatus()));
         }
 
         updateClusterSettings(Settings.builder().put(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey(), randomFrom("-1", "60s", "1h")));
@@ -148,6 +167,16 @@ public class CreateIndexTimeoutIT extends ESIntegTestCase {
                     containsString("within 1ms")
                 )
             );
+
+            final var request = ESRestTestCase.newXContentRequest(
+                HttpMethod.PUT,
+                "/" + indexName + "/_mapping",
+                (b, p) -> b.startObject("properties").startObject("f").field("type", "keyword").endObject().endObject()
+            );
+            request.addParameter(RestUtils.REST_MASTER_TIMEOUT_PARAM, putMappingRequest.masterNodeTimeout().getStringRep());
+            request.addParameter("ignore", Integer.toString(RestStatus.TOO_MANY_REQUESTS.getStatus()));
+            final var response = restClient.performRequest(request);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.TOO_MANY_REQUESTS.getStatus()));
         }
 
         updateClusterSettings(Settings.builder().put(PUT_MAPPING_MAX_TIMEOUT_SETTING.getKey(), randomFrom("-1", "60s", "1h")));

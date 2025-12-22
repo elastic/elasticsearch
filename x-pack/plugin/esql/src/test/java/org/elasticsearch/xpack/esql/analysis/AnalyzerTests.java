@@ -4441,7 +4441,7 @@ public class AnalyzerTests extends ESTestCase {
         EsField fooField = new EsField("foo", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
 
         EsIndex index = new EsIndex(
-            "union_index_combined",
+            "union_index*",
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD)
         );

@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetr
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -146,13 +145,13 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
      * specified in AcrossSeriesAggregate nodes.
      * TODO support group by all (top-level WithinSeriesAggregate without AcrossSeriesAggregate) and WITHOUT grouping
      */
-    private static TimeSeriesAggregate createTimeSeriesAggregate(PromqlCommand promqlCommand, Expression value, LogicalPlan child) {
+    private static TimeSeriesAggregate createTimeSeriesAggregate(PromqlCommand promqlCommand, Expression value, LogicalPlan plan) {
         Alias stepBucket = createStepBucketAlias(promqlCommand);
         List<NamedExpression> aggs = new ArrayList<>();
         List<Expression> groupings = new ArrayList<>();
 
         // value aggregation
-        aggs.add(new Alias(promqlCommand.promqlPlan().source(), promqlCommand.promqlPlan().sourceText(), value));
+        aggs.add(new Alias(promqlCommand.promqlPlan().source(), promqlCommand.promqlPlan().sourceText(), value, promqlCommand.valueId()));
 
         // timestamp/step
         Attribute stepBucketAttribute = stepBucket.toAttribute();
@@ -172,8 +171,8 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
 
             }
         });
-        child = new Eval(stepBucket.source(), child, List.of(stepBucket));
-        return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), child, groupings, aggs, null);
+        plan = new Eval(stepBucket.source(), plan, List.of(stepBucket));
+        return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), plan, groupings, aggs, null);
     }
 
     /**
@@ -182,20 +181,21 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
      */
     private static LogicalPlan convertValueToDouble(PromqlCommand promqlCommand, LogicalPlan plan) {
         List<Attribute> tsOutput = plan.output();
-        Alias convertedValue = new Alias(
-            promqlCommand.source(),
-            promqlCommand.valueColumnName(),
-            new ToDouble(promqlCommand.source(), tsOutput.getFirst().toAttribute()),
-            promqlCommand.valueId()
-        );
-        plan = new Eval(promqlCommand.source(), plan, List.of(convertedValue));
-        List<NamedExpression> projections = new ArrayList<>();
-        projections.add(convertedValue.toAttribute());
-        for (int i = 1; i < tsOutput.size(); i++) {
-            projections.add(tsOutput.get(i));
+
+        List<Alias> evalFields = new ArrayList<>(tsOutput.size());
+        for (int i = 0; i < tsOutput.size(); i++) {
+            Attribute output = tsOutput.get(i);
+            Expression eval;
+            if (i == 0) {
+                // value column - convert to double
+                eval = new ToDouble(promqlCommand.source(), output);
+            } else {
+                // other columns - pass through
+                eval = output;
+            }
+            evalFields.add(new Alias(output.source(), output.name(), eval, output.id()));
         }
-        plan = new Project(promqlCommand.source(), plan, projections);
-        return plan;
+        return new Eval(promqlCommand.source(), plan, evalFields);
     }
 
     /**
@@ -231,6 +231,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         }
 
         if (selector instanceof InstantSelector) {
+            // TODO wire lookback delta from PromqlCommand once we support window sizes independent from the step/tbucket duration
             return new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, promqlCommand.timestamp());
         }
         return selector.series();

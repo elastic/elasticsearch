@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -53,7 +54,34 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
+    public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
+        "approximate",
+        null,
+        false,
+        false,
+        true,
+        "TODO",
+        (value, ctx) -> {
+            Object res = value.fold(FoldContext.small());
+            if (res instanceof Boolean || res instanceof Map) {
+                return null; // all good, no error
+            }
+            return "Invalid approximate configuration [" + value + "]";
+        },
+
+        value -> {
+            Object folded = value.fold(FoldContext.small());
+            if (folded instanceof Boolean b) {
+                return b ? Map.of() : null;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) folded;
+            return map;
+        },
+        null
+    );
+
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE, APPROXIMATE)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
@@ -67,18 +95,20 @@ public class QuerySettings {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] is only available in snapshot builds");
             }
 
-            if (setting.value().dataType() != def.type()) {
+            if (def.type() != null && setting.value().dataType() != def.type()) {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + def.type());
             }
 
-            Literal literal;
-            if (setting.value() instanceof Literal l) {
-                literal = l;
-            } else {
-                throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must have a literal value");
+            if (setting.value().foldable() == false) {
+                throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be a constant");
             }
 
-            String error = def.validator().validate(literal, ctx);
+            String error;
+            try {
+                error = def.validator().validate(setting.value(), ctx);
+            } catch (Exception e) {
+                throw new ParsingException("Error validating setting [" + setting.name() + "]: " + e.getMessage());
+            }
             if (error != null) {
                 throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
             }
@@ -89,7 +119,7 @@ public class QuerySettings {
      * Definition of a query setting.
      *
      * @param name The name to be used when setting it in the query. E.g. {@code SET name=value}
-     * @param type The allowed datatype of the setting.
+     * @param type The allowed datatype of the setting. Used for validation and documentation. Use null to skip datatype validation.
      * @param serverlessOnly
      * @param preview
      * @param snapshotOnly
@@ -111,6 +141,7 @@ public class QuerySettings {
         Parser<T> parser,
         T defaultValue
     ) {
+
         /**
          * Constructor with a default validator that delegates to the parser.
          */
@@ -134,7 +165,7 @@ public class QuerySettings {
             }, parser, defaultValue);
         }
 
-        public T parse(@Nullable Literal value) {
+        public T parse(@Nullable Expression value) {
             if (value == null) {
                 return defaultValue;
             }
@@ -147,7 +178,7 @@ public class QuerySettings {
              * Validates the setting value and returns the error message if there's an error, or null otherwise.
              */
             @Nullable
-            String validate(Literal value, SettingsValidationContext ctx);
+            String validate(Expression value, SettingsValidationContext ctx);
         }
 
         @FunctionalInterface
@@ -155,7 +186,7 @@ public class QuerySettings {
             /**
              * Parses an already validated literal.
              */
-            T parse(Literal value);
+            T parse(Expression value);
         }
     }
 }

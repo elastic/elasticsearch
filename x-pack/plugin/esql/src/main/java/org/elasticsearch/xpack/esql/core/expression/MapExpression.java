@@ -147,4 +147,24 @@ public class MapExpression extends Expression {
         String str = entryExpressions.stream().map(String::valueOf).collect(Collectors.joining(", "));
         return "{ " + str + " }";
     }
+
+    @Override
+    public boolean foldable() {
+        for (Map.Entry<Expression, Expression> entry : map.entrySet()) {
+            if (entry.getKey().foldable() == false || entry.getValue().foldable() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public Map<String, Object> fold(FoldContext ctx) {
+        Map<String, Object> foldedMap = new LinkedHashMap<>();
+        for (Map.Entry<Expression, Expression> entry : map.entrySet()) {
+            Object key = entry.getKey().fold(ctx);
+            Object value = entry.getValue().fold(ctx);
+            foldedMap.put(BytesRefs.toString(key), value);
+        }
+        return foldedMap;
+    }
 }

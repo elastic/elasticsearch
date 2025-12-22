@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -21,10 +23,12 @@ import org.junit.AfterClass;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class QuerySettingsTests extends ESTestCase {
@@ -95,23 +99,73 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    private static <T> void assertValid(QuerySettings.QuerySettingDef<T> settingDef, Literal valueLiteral, Matcher<T> parsedValueMatcher) {
-        assertValid(settingDef, valueLiteral, parsedValueMatcher, SNAPSHOT_CTX_WITH_CPS_ENABLED);
+    public void testValidate_Approximate() {
+        var def = QuerySettings.APPROXIMATE;
+        assertDefault(def, is(nullValue()));
+        {
+            QuerySetting setting = new QuerySetting(
+                Source.EMPTY,
+                new Alias(Source.EMPTY, def.name(), Literal.fromBoolean(Source.EMPTY, true))
+            );
+            EsqlStatement statement = new EsqlStatement(null, List.of(setting));
+            QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_DISABLED);
+            assertThat(statement.setting(def), is(Map.of()));
+        }
+        {
+            QuerySetting setting = new QuerySetting(
+                Source.EMPTY,
+                new Alias(Source.EMPTY, def.name(), Literal.fromBoolean(Source.EMPTY, false))
+            );
+            EsqlStatement statement = new EsqlStatement(null, List.of(setting));
+            QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_DISABLED);
+            assertThat(statement.setting(def), is(nullValue()));
+        }
+
+        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(Map.of()));
+        assertValid(
+            def,
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    Literal.keyword(Source.EMPTY, "foo"),
+                    Literal.keyword(Source.EMPTY, "bar"),
+                    Literal.keyword(Source.EMPTY, "baz"),
+                    Literal.integer(Source.EMPTY, 10)
+                )
+            ),
+            equalTo(Map.of("foo", new BytesRef("bar"), "baz", 10))
+        );
+
+        assertInvalid(
+            def.name(),
+            Literal.integer(Source.EMPTY, 12),
+            "line -1:-1: Error validating setting [approximate]: Invalid approximate configuration [12]"
+        );
+
+        assertInvalid(
+            def.name(),
+            Literal.keyword(Source.EMPTY, "foo"),
+            "line -1:-1: Error validating setting [approximate]: Invalid approximate configuration [foo]"
+        );
+    }
+
+    private static <T> void assertValid(QuerySettings.QuerySettingDef<T> settingDef, Expression value, Matcher<T> parsedValueMatcher) {
+        assertValid(settingDef, value, parsedValueMatcher, SNAPSHOT_CTX_WITH_CPS_ENABLED);
     }
 
     private static <T> void assertValid(
         QuerySettings.QuerySettingDef<T> settingDef,
-        Literal valueLiteral,
+        Expression value,
         Matcher<T> parsedValueMatcher,
         SettingsValidationContext ctx
     ) {
-        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingDef.name(), valueLiteral));
+        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingDef.name(), value));
         EsqlStatement statement = new EsqlStatement(null, List.of(setting));
         QuerySettings.validate(statement, ctx);
 
-        T value = statement.setting(settingDef);
+        T val = statement.setting(settingDef);
 
-        assertThat(value, parsedValueMatcher);
+        assertThat(val, parsedValueMatcher);
     }
 
     private static void assertInvalid(String settingName, Expression valueExpression, String expectedMessage) {

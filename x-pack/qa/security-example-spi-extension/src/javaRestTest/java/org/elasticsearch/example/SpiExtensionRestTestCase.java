@@ -23,9 +23,6 @@ public abstract class SpiExtensionRestTestCase extends ESRestTestCase {
     public static final String REALM_USERNAME = "test_user";
     public static final String REALM_PASSWORD = "secret_password";
 
-    public static final String FILE_USER = "test_user";
-    public static final String FILE_USER_PASSWORD = "x-pack-test-password";
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -40,7 +37,6 @@ public abstract class SpiExtensionRestTestCase extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .user(FILE_USER, FILE_USER_PASSWORD)
         .build();
 
     @Override

@@ -17,6 +17,7 @@ public class DenseVectorCountAggregatorFunction extends CountAggregatorFunction 
     public static AggregatorFunctionSupplier supplier() {
         return new DenseVectorCountAggregatorFunctionSupplier();
     }
+
     public static DenseVectorCountAggregatorFunction create(List<Integer> inputChannels) {
         return new DenseVectorCountAggregatorFunction(inputChannels, new LongState(0));
     }

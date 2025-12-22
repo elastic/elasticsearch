@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -113,7 +114,7 @@ abstract class FetchPhaseDocsIterator {
         QuerySearchResult querySearchResult,
         FetchPhaseResponseChunk.Writer chunkWriter,
         int chunkSize,
-        ArrayDeque<CompletableFuture<Void>> pendingChunks,
+        ArrayDeque<PlainActionFuture<Void>> pendingChunks,
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure,
         TotalHits totalHits,
@@ -244,7 +245,7 @@ abstract class FetchPhaseDocsIterator {
         int chunkSize,
         List<SearchHit> chunkBuffer,
         ShardId shardId,
-        ArrayDeque<CompletableFuture<Void>> pendingChunks,
+        ArrayDeque<PlainActionFuture<Void>> pendingChunks,
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure,
         int totalDocs,
@@ -341,7 +342,7 @@ abstract class FetchPhaseDocsIterator {
                         throw new RuntimeException("Fetch chunk failed", knownFailure);
                     }
 
-                    CompletableFuture<Void> chunkFuture = sendChunk(
+                    PlainActionFuture<Void> chunkFuture = sendChunk(
                         chunkWriter,
                         chunkBuffer,
                         shardId,
@@ -349,14 +350,9 @@ abstract class FetchPhaseDocsIterator {
                         processedCount - chunkBuffer.size(),
                         totalDocs,
                         totalHits,
-                        maxScore
+                        maxScore,
+                        sendFailure
                     );
-
-                    chunkFuture.whenComplete((ok, ex) -> {
-                        if (ex != null) {
-                            sendFailure.compareAndSet(null, ex);
-                        }
-                    });
 
                     pendingChunks.addLast(chunkFuture);
 
@@ -397,10 +393,10 @@ abstract class FetchPhaseDocsIterator {
         }
     }
 
-    private static void awaitOldestOrFail(ArrayDeque<CompletableFuture<Void>> inFlight, AtomicReference<Throwable> sendFailure) {
-        final CompletableFuture<Void> oldest = inFlight.removeFirst();
+    private static void awaitOldestOrFail(ArrayDeque<PlainActionFuture<Void>> inFlight, AtomicReference<Throwable> sendFailure) {
+        final PlainActionFuture<Void> oldest = inFlight.removeFirst();
         try {
-            oldest.get();
+            oldest.actionGet();
         } catch (Exception e) {
             sendFailure.compareAndSet(null, e);
             throw new RuntimeException("Failed to send fetch chunk", e);
@@ -409,8 +405,9 @@ abstract class FetchPhaseDocsIterator {
 
     /**
      * Sends a chunk of hits to the coordinator with sequence information for ordering.
+     * Updates sendFailure reference on any error.
      */
-    private static CompletableFuture<Void> sendChunk(
+    private static PlainActionFuture<Void> sendChunk(
         FetchPhaseResponseChunk.Writer writer,
         List<SearchHit> buffer,
         ShardId shardId,
@@ -418,12 +415,13 @@ abstract class FetchPhaseDocsIterator {
         int fromIndex,
         int totalDocs,
         TotalHits totalHits,
-        float maxScore
+        float maxScore,
+        AtomicReference<Throwable> sendFailure
     ) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
 
         if (buffer.isEmpty()) {
-            future.complete(null);
+            future.onResponse(null);
             return future;
         }
 
@@ -448,21 +446,26 @@ abstract class FetchPhaseDocsIterator {
                 fromIndex,
                 hitsArray.length,
                 totalDocs,
-                sequenceStart  // Include sequence start in chunk metadata
+                sequenceStart
             );
 
-            // Send the chunk - coordinator will take ownership of the hits
-            writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
-                // Coordinator now owns the hits, decRef to release local reference
-                finalChunkHits.decRef();
-                future.complete(null);
-            }, ex -> {
-                // Failed to send - we still own the hits, must clean up
-                finalChunkHits.decRef();
-                future.completeExceptionally(ex);
-            }));
+            writer.writeResponseChunk(chunk, ActionListener.wrap(
+                ack -> {
+                    // Coordinator now owns the hits, decRef to release local reference
+                    finalChunkHits.decRef();
+                    future.onResponse(null);
+                },
+                ex -> {
+                    // Failed to send - we still own the hits, must clean up
+                    finalChunkHits.decRef();
+                    sendFailure.compareAndSet(null, ex);
+                    future.onFailure(ex);
+                }
+            ));
         } catch (Exception e) {
-            future.completeExceptionally(e);
+            sendFailure.compareAndSet(null, e);
+            future.onFailure(e);
+
             // If chunk creation failed after SearchHits was created, clean up
             if (chunkHits != null) {
                 chunkHits.decRef();

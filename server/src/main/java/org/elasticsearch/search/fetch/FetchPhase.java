@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -100,7 +101,7 @@ public final class FetchPhase {
         try {
             // Collect all pending chunk futures
             final int maxInFlightChunks = 1; // TODO make configurable
-            final ArrayDeque<CompletableFuture<Void>> pendingChunks = new ArrayDeque<>();
+            final ArrayDeque<PlainActionFuture<Void>> pendingChunks = new ArrayDeque<>();
             final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
             hits = buildSearchHits(
                 context,
@@ -117,7 +118,10 @@ public final class FetchPhase {
             // Wait for all chunks to be ACKed before setting final result
             if (writer != null && pendingChunks.isEmpty() == false) {
                 try {
-                    CompletableFuture.allOf(pendingChunks.toArray(CompletableFuture[]::new)).get();
+                    // Wait for all pending chunks sequentially
+                    for (PlainActionFuture<Void> future : pendingChunks) {
+                        future.actionGet();
+                    }
                 } catch (Exception e) {
                     if (hits != null) {
                         hits.decRef();
@@ -126,6 +130,7 @@ public final class FetchPhase {
                     throw new RuntimeException("Failed to send fetch chunks", e);
                 }
             }
+
 
             ProfileResult profileResult = profiler.finish();
             context.fetchResult().shardResult(hits, profileResult);
@@ -201,7 +206,7 @@ public final class FetchPhase {
         RankDocShardInfo rankDocs,
         IntConsumer memoryChecker,
         FetchPhaseResponseChunk.Writer writer,
-        ArrayDeque<CompletableFuture<Void>> pendingChunks,
+        ArrayDeque<PlainActionFuture<Void>> pendingChunks,
         int maxInFlightChunks,
         AtomicReference<Throwable> sendFailure
 

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -152,6 +153,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             listener.onResponse(new EsqlResolveFieldsResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of())));
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
+        InMemoryViewService viewService = new InMemoryViewService();
 
         var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), mockQueryLog(), List.of());
         var enrichResolver = mockEnrichResolver();
@@ -172,6 +174,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             TransportVersion.current(),
             queryClusterSettings(),
             enrichResolver,
+            viewService,
             createEsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
@@ -203,6 +206,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             TransportVersion.current(),
             queryClusterSettings(),
             enrichResolver,
+            viewService,
             createEsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,

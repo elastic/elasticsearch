@@ -9,7 +9,6 @@ mapped_pages:
 
 # CEF processor [cef-processor]
 
-
 Extracts fields from Common Event Format (CEF) message document.
 
 $$$cef-options$$$

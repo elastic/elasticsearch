@@ -37,7 +37,7 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, tdigest, histogram, or exponential_histogram"
+                (v, p) -> "any type except counter types, tdigest, histogram, or exponential_histogram"
             )
         );
     }
@@ -48,7 +48,6 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             invalidSignatureSamples,
             equalTo(
                 Set.of(
-                    List.of(DataType.DENSE_VECTOR),
                     List.of(DataType.EXPONENTIAL_HISTOGRAM),
                     List.of(DataType.TDIGEST),
                     List.of(DataType.HISTOGRAM)

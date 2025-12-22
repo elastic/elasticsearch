@@ -24,7 +24,7 @@ import java.util.Objects;
  * Base class representing a PromQL vector selector.
  * A vector selector is defined by a set of label matchers and a point in time evaluation context.
  */
-public abstract class Selector extends UnaryPlan {
+public abstract sealed class Selector extends UnaryPlan permits InstantSelector, RangeSelector, LiteralSelector {
     // implements TelemetryAware
 
     // in Promql this is the __name__ label however for now, this gets mapped to an exact field

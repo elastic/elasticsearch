@@ -86,7 +86,13 @@ public class MetadataMappingService {
             PUT_MAPPING_PRIORITY_SETTING.get(clusterService.getSettings()),
             new PutMappingExecutor(indexSettingProviders)
         );
-        clusterService.getClusterSettings().initializeAndWatch(PUT_MAPPING_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
+
+        if (clusterService.getClusterSettings().isDynamicSetting(PUT_MAPPING_MAX_TIMEOUT_SETTING.getKey())) {
+            // setting only registered in some tests today
+            clusterService.getClusterSettings().initializeAndWatch(PUT_MAPPING_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
+        } else {
+            maxMasterNodeTimeout = PUT_MAPPING_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
+        }
     }
 
     record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)

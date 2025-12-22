@@ -170,7 +170,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
 
         @Override
         public boolean match(Task task) {
-            return PutTransformAction.TransformTaskMatcher.match(task, expandedIds);
+            return task instanceof TransformTaskMatcher matcher && matcher.match(expandedIds);
         }
     }
 

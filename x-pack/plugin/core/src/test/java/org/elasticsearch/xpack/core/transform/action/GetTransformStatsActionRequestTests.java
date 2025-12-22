@@ -47,11 +47,4 @@ public class GetTransformStatsActionRequestTests extends AbstractWireSerializing
         assertThat(task, is(instanceOf(CancellableTask.class)));
         assertThat(task.getDescription(), is(equalTo("get_transform_stats[some-transform]")));
     }
-
-    public void testMatch() {
-        Request request = new Request("some-transform", null, false);
-        assertTrue(request.match(new FakeTransformTask(123, "", "", "data_frame_some-transform", null, null)));
-        assertFalse(request.match(new FakeTransformTask(123, "", "", "some-transform", null, null)));
-        assertFalse(request.match(new Task(123, "", "", "data_frame_some-transform", null, null)));
-    }
 }

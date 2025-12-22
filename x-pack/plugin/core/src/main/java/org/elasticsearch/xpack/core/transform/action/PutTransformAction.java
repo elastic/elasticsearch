@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.utils.TransformStrings;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
@@ -165,20 +164,4 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
     }
-
-    public interface TransformTaskMatcher {
-        static boolean match(Task task, String expectedTransformId) {
-            return task instanceof TransformTaskMatcher
-                && expectedTransformId != null
-                && task.getDescription().equals(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + expectedTransformId);
-        }
-
-        static boolean match(Task task, Collection<String> expectedTransformIds) {
-            return task instanceof TransformTaskMatcher
-                && expectedTransformIds != null
-                && expectedTransformIds.stream()
-                    .anyMatch(transformId -> task.getDescription().equals(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId));
-        }
-    }
-
 }

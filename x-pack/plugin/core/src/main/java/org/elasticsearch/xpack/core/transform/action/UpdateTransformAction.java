@@ -185,7 +185,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public boolean match(Task task) {
-            return PutTransformAction.TransformTaskMatcher.match(task, id);
+            return task instanceof TransformTaskMatcher matcher && matcher.match(id);
         }
     }
 

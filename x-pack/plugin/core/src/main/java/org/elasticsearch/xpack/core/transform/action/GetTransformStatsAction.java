@@ -81,8 +81,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         @Override
         public boolean match(Task task) {
-            // Only get tasks that we have expanded to
-            return PutTransformAction.TransformTaskMatcher.match(task, expandedIds);
+            return task instanceof TransformTaskMatcher matcher && matcher.match(expandedIds);
         }
 
         public String getId() {

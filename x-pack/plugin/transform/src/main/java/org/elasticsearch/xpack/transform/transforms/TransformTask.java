@@ -30,8 +30,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.action.TransformTaskMatcher;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
@@ -51,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -62,7 +63,7 @@ public class TransformTask extends AllocatedPersistentTask
     implements
         TransformScheduler.Listener,
         TransformContext.Listener,
-        PutTransformAction.TransformTaskMatcher {
+        TransformTaskMatcher {
 
     // Default interval the scheduler sends an event if the config does not specify a frequency
     private static final Logger logger = LogManager.getLogger(TransformTask.class);
@@ -79,7 +80,7 @@ public class TransformTask extends AllocatedPersistentTask
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
     @SuppressWarnings("this-escape")
-    TransformTask(
+    public TransformTask(
         long id,
         String type,
         String action,
@@ -676,5 +677,15 @@ public class TransformTask extends AllocatedPersistentTask
             return Collections.emptyList();
         }
         return pTasksMeta.findTasks(TransformTaskParams.NAME, predicate);
+    }
+
+    @Override
+    public boolean match(String transformId) {
+        return Objects.equals(transform.getId(), transformId);
+    }
+
+    @Override
+    public boolean match(Collection<String> transformIds) {
+        return transformIds != null && transformIds.stream().anyMatch(this::match);
     }
 }

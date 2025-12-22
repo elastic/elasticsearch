@@ -98,7 +98,7 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
 
         @Override
         public boolean match(Task task) {
-            return PutTransformAction.TransformTaskMatcher.match(task, id);
+            return task instanceof TransformTaskMatcher matcher && matcher.match(id);
         }
     }
 

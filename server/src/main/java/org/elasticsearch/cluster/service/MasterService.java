@@ -1544,7 +1544,7 @@ public class MasterService extends AbstractLifecycleComponent {
             // requesting infinite timeout, so limit applies
             return maxTimeout;
         }
-        return requestTimeout.compareTo(maxTimeout) < 0 ? requestTimeout : maxTimeout;
+        return TimeValue.min(requestTimeout, maxTimeout);
     }
 
     @FunctionalInterface

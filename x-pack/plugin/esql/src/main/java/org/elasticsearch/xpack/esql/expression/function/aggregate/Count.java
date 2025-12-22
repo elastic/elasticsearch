@@ -38,6 +38,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
@@ -137,7 +138,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        if (field().dataType() == DataType.DENSE_VECTOR) {
+        if (field().dataType() == DENSE_VECTOR) {
             return DenseVectorCountAggregatorFunction.supplier();
         }
         return CountAggregatorFunction.supplier();
@@ -175,7 +176,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
         if (field.foldable()) {
             if (field instanceof Literal l) {
-                if (l.value() != null && (l.value() instanceof List<?>) == false) {
+                if (l.value() != null && ((l.value() instanceof List<?>) == false || l.dataType() == DENSE_VECTOR)) {
                     // TODO: Normalize COUNT(*), COUNT(), COUNT("foobar"), COUNT(1) as COUNT(*).
                     // Does not apply to COUNT([1,2,3])
                     // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD));

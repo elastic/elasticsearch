@@ -131,7 +131,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + getValueCount(groups, groupPosition);
+            int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
                 state.increment(groupId, getValueCount(values, position));
@@ -177,7 +177,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + getValueCount(groups, groupPosition);
+            int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
                 state.increment(groupId, 1);
@@ -224,7 +224,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 continue;
             }
             int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + getValueCount(groups, groupPosition);
+            int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 int groupId = groups.getInt(g);
                 state.increment(groupId, count.getLong(groupPosition + positionOffset));

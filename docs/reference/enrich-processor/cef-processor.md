@@ -26,17 +26,6 @@ $$$cef-options$$$
 | `on_failure`          | no       | -       | Handle failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures).                         |
 | `tag`                 | no       | -       | Identifier for the processor. Useful for debugging and metrics.                                                                                                                                 |
 
-## Timezones [cef-processor-timezones]
-
-The `timezone` option may have two effects on the behavior of the processor:
-- If the string being parsed matches a format representing a local date-time, such as `yyyy-MM-dd HH:mm:ss`, it will be assumed to be in the timezone specified by this option. This is not applicable if the string matches a format representing a zoned date-time, such as `yyyy-MM-dd HH:mm:ss zzz`: in that case, the timezone parsed from the string will be used. It is also not applicable if the string matches an absolute time format, such as `epoch_millis`.
-- The date-time will be converted into the timezone given by this option before it is formatted and written into the target field. This is not applicable if the `output_format` is an absolute time format such as `epoch_millis`.
-
-::::{warning}
-We recommend avoiding the use of short abbreviations for timezone names, since they can be ambiguous. For example, one JDK might interpret `PST` as `America/Tijuana`, i.e. Pacific (Standard) Time, while another JDK might interpret it as `Asia/Manila`, i.e. Philippine Standard Time. If your input data contains such abbreviations, you should convert them into either standard full names or UTC offsets before parsing them, using your own knowledge of what each abbreviation means in your data.
-::::
-
-
 ## Examples [cef-processor-examples]
 
 ### Simple example [cef-processor-simple-example]

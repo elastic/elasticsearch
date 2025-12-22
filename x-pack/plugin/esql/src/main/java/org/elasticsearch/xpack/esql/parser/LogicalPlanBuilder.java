@@ -13,7 +13,6 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
@@ -792,27 +791,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var condition = ctx.joinCondition();
         var joinInfo = typedParsing(this, condition, JoinInfo.class);
 
-        return p -> {
-            boolean hasRemotes = p.anyMatch(node -> {
-                if (node instanceof UnresolvedRelation r) {
-                    return Arrays.stream(Strings.splitStringByCommaToArray(r.indexPattern().indexPattern()))
-                        .anyMatch(RemoteClusterAware::isRemoteIndexName);
-                } else {
-                    return false;
-                }
-            });
-            if (hasRemotes && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
-                throw new ParsingException(source, "remote clusters are not supported with LOOKUP JOIN");
-            }
-            return new LookupJoin(
-                source,
-                p,
-                right,
-                joinInfo.joinFields(),
-                hasRemotes,
-                Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
-            );
-        };
+        return p -> new LookupJoin(
+            source,
+            p,
+            right,
+            joinInfo.joinFields(),
+            Predicates.combineAndWithSource(joinInfo.joinExpressions(), source(condition))
+        );
     }
 
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}

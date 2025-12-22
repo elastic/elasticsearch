@@ -379,12 +379,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139527
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testMultipleSnapshotAndRollback
-  issue: https://github.com/elastic/elasticsearch/issues/139556
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testDeleteBlobs
-  issue: https://github.com/elastic/elasticsearch/issues/139646
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654
@@ -394,18 +388,12 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testReadNonExistingPath
-  issue: https://github.com/elastic/elasticsearch/issues/139665
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/40_unsupported_types/unsupported}
   issue: https://github.com/elastic/elasticsearch/issues/139701
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/40_unsupported_types/unsupported with sort}
   issue: https://github.com/elastic/elasticsearch/issues/139702
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/139732
 - class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139740
@@ -413,16 +401,25 @@ tests:
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139741
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingStandardSource
-  issue: https://github.com/elastic/elasticsearch/issues/139789
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139482
 - class: org.elasticsearch.xpack.esql.qa.single_node.AllSupportedFieldsIT
   issue: https://github.com/elastic/elasticsearch/pull/139744
-- class: org.elasticsearch.index.mapper.SkipperSettingsTests
-  method: testTSDBSkipperSettingDefaults
-  issue: https://github.com/elastic/elasticsearch/issues/139824
 - class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
   issue: https://github.com/elastic/elasticsearch/issues/139826
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:stats_all_first_all_last.All_last_long_by_date}
+  issue: https://github.com/elastic/elasticsearch/issues/139841
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139848
+- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
+  method: testRescoreDocs
+  issue: https://github.com/elastic/elasticsearch/issues/139859
+- class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
+  method: testRescoreSingleAndBulkEquality
+  issue: https://github.com/elastic/elasticsearch/issues/139869
 
 # Examples:
 #

@@ -1554,6 +1554,7 @@ public class EsqlCapabilities {
          * Rate and increase calculations use interpolation at the boundaries between time buckets
          */
         RATE_WITH_INTERPOLATION,
+        RATE_WITH_INTERPOLATION_V2,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -1800,6 +1801,11 @@ public class EsqlCapabilities {
          * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
          */
         FN_MV_INTERSECTION,
+
+        /**
+         * Support for the MV_UNION function which returns the set union of two multivalued fields
+         */
+        FN_MV_UNION,
 
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION

@@ -56,11 +56,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
 
-        String routingParam = request.param("project_routing");
-        if (routingParam != null) {
-            // takes precedence on the parameter in the body
-            sqlRequest.projectRouting(routingParam);
-        }
         if (sqlRequest.projectRouting() != null && crossProjectModeDecider.crossProjectEnabled() == false) {
             throw new InvalidArgumentException("[project_routing] is only allowed when cross-project search is enabled");
         }

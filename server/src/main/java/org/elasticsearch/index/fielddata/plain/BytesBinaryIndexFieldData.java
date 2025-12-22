@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,23 +16,30 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.io.IOException;
-
-public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
+public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBinaryDVLeafFieldData> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
+    protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-    public BytesBinaryIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    public BytesBinaryIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -48,7 +54,9 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        throw new IllegalArgumentException("can't sort on binary field");
+        // Falls back to: FieldComparator.TermValComparator which works with binary doc values.
+        XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+        return new SortField(getFieldName(), source, reverse);
     }
 
     @Override
@@ -66,32 +74,30 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
     }
 
     @Override
-    public BytesBinaryDVLeafFieldData load(LeafReaderContext context) {
-        try {
-            return new BytesBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName));
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot load doc values", e);
-        }
+    public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
+        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory);
     }
 
     @Override
-    public BytesBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
+    public MultiValuedBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
+        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(String name, ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // Ignore breaker
-            return new BytesBinaryIndexFieldData(name, valuesSourceType);
+            return new BytesBinaryIndexFieldData(name, valuesSourceType, toScriptFieldFactory);
         }
     }
 }

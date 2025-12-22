@@ -34,6 +34,6 @@ public class VarianceOverTimeTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new VarianceOverTime(source, args.get(0));
+        return new VarianceOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 }

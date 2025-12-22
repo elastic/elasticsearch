@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.action.AbstractCrossClusterTestCase;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,6 +41,24 @@ public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase 
         assertThat(resolveIndices("index-*"), equalTo(Map.of(LOCAL_CLUSTER, resolvedIndexExpression("index-*", "index-1,index-2"))));
     }
 
+    // TODO test exclusion pattern
+
+    public void testLocalDateMathExpression() {
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
+        var index = "index-" + date.getYear() + "." + date.getMonthValue();
+        createIndex(LOCAL_CLUSTER, index);
+
+        try {
+            assertThat(
+                resolveIndices("<index-{now/M{yyyy.MM}}>"),
+                equalTo(Map.of(LOCAL_CLUSTER, resolvedIndexExpression("<index-{now/M{yyyy.MM}}>", index)))
+            );
+        } catch (AssertionError e) {
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
+            throw e;
+        }
+    }
+
     public void testLocalMultiple() {
         createIndex(LOCAL_CLUSTER, "index-1");
         createIndex(LOCAL_CLUSTER, "index-2");
@@ -47,7 +69,7 @@ public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase 
         );
     }
 
-    public void testLocalAndRemote() {
+    public void testLocalAndRemotePattern() {
         createIndex(LOCAL_CLUSTER, "index-1");
         createIndex(REMOTE_CLUSTER_1, "index-2");
         createIndex(REMOTE_CLUSTER_2, "index-3");
@@ -59,6 +81,26 @@ public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase 
                     Map.entry(LOCAL_CLUSTER, resolvedIndexExpression("index-*", "index-1")),
                     Map.entry(REMOTE_CLUSTER_1, resolvedIndexExpression("index-*", "index-2")),
                     Map.entry(REMOTE_CLUSTER_2, resolvedIndexExpression("index-*", "index-3"))
+                )
+            )
+        );
+
+        assertThat(
+            resolveIndices("index-*,remote-*:index-*"),
+            equalTo(
+                Map.ofEntries(
+                    Map.entry(LOCAL_CLUSTER, resolvedIndexExpression("index-*", "index-1")),
+                    Map.entry(REMOTE_CLUSTER_2, resolvedIndexExpression("index-*", "index-3"))
+                )
+            )
+        );
+
+        assertThat(
+            resolveIndices("index-*,*:index-*,-remote-*:*"),
+            equalTo(
+                Map.ofEntries(
+                    Map.entry(LOCAL_CLUSTER, resolvedIndexExpression("index-*", "index-1")),
+                    Map.entry(REMOTE_CLUSTER_1, resolvedIndexExpression("index-*", "index-2"))
                 )
             )
         );

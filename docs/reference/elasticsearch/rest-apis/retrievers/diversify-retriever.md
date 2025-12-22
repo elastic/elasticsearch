@@ -50,11 +50,19 @@ The ordering of results returned from the inner retriever is preserved.
 
     Query vector. Must have the same number of dimensions as the vector field you are searching against.
     Must be either an array of floats or a hex-encoded byte vector.
+    If you provide a `query_vector`, you cannot also provide a `query_vector_builder`.
+
+`query_vector_builder`
+:   (Optional, query vector builder object)
+
+    Defines a [model](docs-content://solutions/search/vector/knn.md#knn-semantic-search) to build a query vector.
+    If you provide a `query_vector_builder`, you cannot also provide a `query_vector`.
+
 
 `lambda`
 :   (Required for `mmr`, float)
 
-    A value between 0.0 and 1.0 that controls how similarity is calculated during diversification. Higher values weight comparisons between field values more heavily, lower values weight the query vector more heavily.
+    A value between 0.0 and 1.0 that controls how similarity is calculated during diversification. Higher values weight the similarity to the query_vector more heavily, lower values weight the diversity more heavily.
 
 `size`
 :   (Optional, only if `mmr` is used, integer)

@@ -15,7 +15,14 @@ import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.swisshash.SwissHashFactory;
 
-/** A factory for constructing concrete Hash implementations. */
+/**
+ * A factory for constructing concrete Hash implementations.
+ *
+ * <p> The specific implementation returned by this factory is chosen once at
+ * class initialization time and remains fixed for the lifetime of the JVM. All
+ * factory methods will therefore consistently return instances of the same
+ * concrete implementation type.
+ */
 public class HashImplFactory {
 
     public static final FeatureFlag SWISS_TABLES_HASHING = new FeatureFlag("swiss_table_hashing");

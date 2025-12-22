@@ -44,8 +44,8 @@ import java.util.Objects;
  * {@code 0b0aaa_aaaa} for populated entries, where {@code aaa_aaaa} are the top
  * 7 bytes of the hash. To find an entry by key you hash it, grab the top 7 bytes
  * or it, and perform a SIMD read of the control array starting at the expected
- * slot. We use the widest SIMD instruction the CPU supports, meaning 64 or 32
- * bytes. If any of those match we check the actual key. So instead of scanning
+ * slot. We use a fixed group size of 16, so use 128 bit SIMD instructions.
+ * If any of those match we check the actual key. So instead of scanning
  * one slot at a time "small core", we effectively scan a whole bunch at once.
  * This allows us to run a much higher load factor (87.5%) without any performance
  * penalty so the extra byte feels super worth it.

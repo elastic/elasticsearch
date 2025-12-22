@@ -28,6 +28,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -302,6 +303,7 @@ public class TopNOperator implements Operator, Accountable {
     private final List<SortOrder> sortOrders;
 
     private Queue inputQueue;
+    private BoundedSortedVector inputSortedVector;
     private Row spare;
     private int spareValuesPreAllocSize = 0;
     private int spareKeysPreAllocSize = 0;
@@ -349,7 +351,11 @@ public class TopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.inputQueue = Queue.build(breaker, topCount);
+        if (sortedInput) {
+            this.inputSortedVector = BoundedSortedVector.build(breaker, topCount);
+        } else {
+            this.inputQueue = Queue.build(breaker, topCount);
+        }
         this.sortedInput = sortedInput;
     }
 
@@ -406,42 +412,14 @@ public class TopNOperator implements Operator, Accountable {
          * inputQueue or because we hit an allocation failure while building it.
          */
         try {
-            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
-
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                if (spare == null) {
-                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
-                } else {
-                    spare.keys.clear();
-                    spare.values.clear();
-                    spare.clearRefCounters();
-                }
-                rowFiller.writeKey(i, spare);
-
-                // When rows are very long, appending the values one by one can lead to lots of allocations.
-                // To avoid this, pre-allocate at least as much size as in the last seen row.
-                // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
-                spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
-
-                // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
-                if (inputQueue.size() < inputQueue.topCount) {
-                    // Heap not yet full, just add elements
-                    rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
-                    inputQueue.add(spare);
-                    spare = null;
-                } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
-                    // Heap full AND this node fit in it.
-                    Row nextSpare = inputQueue.top();
-                    rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
-                    inputQueue.updateTop(spare);
-                    spare = nextSpare;
-                }
-                // If we have sorted input we can shortcircuit the processing here
-                else {
-                    break;
-                }
+            /* If the input is already sorted, it means we can use merge sort and
+               combining the data we already have and this page can be done linearly.
+               Otherwise we need to use the priority queue to combine them, which would be n * log n
+           */
+            if (sortedInput) {
+                mergeSort(inputSortedVector, page);
+            } else {
+                combineSorting(inputQueue, page);
             }
         } finally {
             page.releaseBlocks();
@@ -449,6 +427,85 @@ public class TopNOperator implements Operator, Accountable {
             rowsReceived += page.getPositionCount();
             receiveNanos += System.nanoTime() - start;
         }
+    }
+
+    private void combineSorting(Queue inputQueue, Page page) {
+        RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+
+        for (int i = 0; i < page.getPositionCount(); i++) {
+            if (spare == null) {
+                spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+            } else {
+                spare.keys.clear();
+                spare.values.clear();
+                spare.clearRefCounters();
+            }
+            rowFiller.writeKey(i, spare);
+
+            // When rows are very long, appending the values one by one can lead to lots of allocations.
+            // To avoid this, pre-allocate at least as much size as in the last seen row.
+            // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
+            spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
+
+            // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
+            if (inputQueue.size() < inputQueue.topCount) {
+                // Heap not yet full, just add elements
+                rowFiller.writeValues(i, spare);
+                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                inputQueue.add(spare);
+                spare = null;
+            } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
+                // Heap full AND this node fit in it.
+                Row nextSpare = inputQueue.top();
+                rowFiller.writeValues(i, spare);
+                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                inputQueue.updateTop(spare);
+                spare = nextSpare;
+            }
+        }
+    }
+
+    private void mergeSort(BoundedSortedVector sortedData, Page page) {
+        var i = 0;
+        var j = 0;
+        var maxSize = sortedData.maxSize;
+        var merged = BoundedSortedVector.build(breaker, maxSize);
+        RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+
+        while (merged.size() < maxSize && (i < sortedData.size() || j < page.getPositionCount())) {
+            if (i >= sortedData.size()) {
+                spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+                rowFiller.writeKey(j, spare);
+                rowFiller.writeValues(j, spare);
+                spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
+                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                merged.add(spare);
+                spare = null;
+                ++j;
+            } else if (j >= page.getPositionCount()) {
+                merged.add(sortedData.get(i));
+                ++i;
+            } else {
+                if (spare == null) {
+                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+                    rowFiller.writeKey(j, spare);
+                    rowFiller.writeValues(j, spare);
+                    spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
+                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+                }
+
+                if (compareRows(spare, sortedData.get(i)) > 0) {
+                    merged.add(spare);
+                    ++j;
+                    spare = null;
+                } else {
+                    merged.add(sortedData.get(i));
+                    ++i;
+                }
+            }
+        }
+        spare = null;
+        this.inputSortedVector = merged;
     }
 
     @Override
@@ -466,20 +523,26 @@ public class TopNOperator implements Operator, Accountable {
             spare.close();
             spare = null;
         }
-        if (inputQueue.size() == 0) {
+        var n = sortedInput ? inputSortedVector.size() : inputQueue.size();
+        if (n == 0) {
             return Collections.emptyIterator();
         }
-        List<Row> list = new ArrayList<>(inputQueue.size());
+        List<Row> list = new ArrayList<>(n);
         List<Page> result = new ArrayList<>();
         ResultBuilder[] builders = null;
         boolean success = false;
         try {
-            while (inputQueue.size() > 0) {
-                list.add(inputQueue.pop());
+            if (sortedInput) {
+                list.addAll(inputSortedVector);
+                inputSortedVector = null;
+            } else {
+                while (inputQueue.size() > 0) {
+                    list.add(inputQueue.pop());
+                }
+                Collections.reverse(list);
+                inputQueue.close();
+                inputQueue = null;
             }
-            Collections.reverse(list);
-            inputQueue.close();
-            inputQueue = null;
 
             int p = 0;
             int size = 0;
@@ -595,9 +658,12 @@ public class TopNOperator implements Operator, Accountable {
             /*
              * The inputQueue is a min heap of all live rows. Closing it will close all
              * the rows it contains and all decrement the breaker for the size of
-             * the heap itself.
+             * the heap itself. It could be empty if the input for the topN is sorted,
+             * in which case we would have used the inputSortedVector (a bounded sorted
+             * array list), that also gets released
              */
             inputQueue,
+            inputSortedVector,
             /*
              * If we're in the process of outputting pages then output will contain all
              * allocated but un-emitted pages.
@@ -623,6 +689,9 @@ public class TopNOperator implements Operator, Accountable {
         if (inputQueue != null) {
             size += inputQueue.ramBytesUsed();
         }
+        if (inputSortedVector != null) {
+            size += inputSortedVector.ramBytesUsed();
+        }
         return size;
     }
 
@@ -643,7 +712,7 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public String toString() {
         return "TopNOperator[count="
-            + inputQueue
+            + (sortedInput ? inputSortedVector : inputQueue)
             + ", elementTypes="
             + elementTypes
             + ", encoders="
@@ -655,6 +724,95 @@ public class TopNOperator implements Operator, Accountable {
             + "]";
     }
 
+    private static class BoundedSortedVector extends ArrayList<Row> implements Accountable, Releasable {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
+        private final CircuitBreaker breaker;
+        private final int maxSize;
+
+        /**
+         * Track memory usage in the breaker then build the {@link BoundedSortedVector}.
+         */
+        static BoundedSortedVector build(CircuitBreaker breaker, int topCount) {
+            breaker.addEstimateBytesAndMaybeBreak(BoundedSortedVector.sizeOf(topCount), "esql engine topn from sorted vector");
+            return new BoundedSortedVector(breaker, topCount);
+        }
+
+        private BoundedSortedVector(CircuitBreaker breaker, int maxSize) {
+            super(maxSize);
+            this.breaker = breaker;
+            this.maxSize = maxSize;
+        }
+
+        public int getMaxSize() {
+            return maxSize;
+        }
+
+        private void checkSize() {
+            if (size() >= maxSize) {
+                throw new IllegalStateException("Cannot add more elements: maximum size of " + maxSize + " reached.");
+            }
+        }
+
+        @Override
+        public boolean add(Row row) {
+            checkSize();
+            return super.add(row);
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends Row> c) {
+            checkSize();
+            return super.addAll(c);
+        }
+
+        @Override
+        public void add(int index, Row element) {
+            checkSize();
+            super.add(index, element);
+        }
+
+        @Override
+        public boolean addAll(int index, Collection<? extends Row> c) {
+            checkSize();
+            return super.addAll(index, c);
+        }
+
+        @Override
+        public String toString() {
+            return size() + "/" + maxSize;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            long total = SHALLOW_SIZE;
+            total += RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) maxSize)
+            );
+            for (Row r : this) {
+                total += r == null ? 0 : r.ramBytesUsed();
+            }
+            return total;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(
+                // Release all entries in the topn
+                Releasables.wrap(this),
+                // Release the array itself
+                () -> breaker.addWithoutBreaking(-BoundedSortedVector.sizeOf(maxSize))
+            );
+        }
+
+        private static long sizeOf(int topCount) {
+            long total = SHALLOW_SIZE;
+            total += RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount)
+            );
+            return total;
+        }
+    }
+
     private static class Queue extends PriorityQueue<Row> implements Accountable, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
         private final CircuitBreaker breaker;
@@ -664,7 +822,7 @@ public class TopNOperator implements Operator, Accountable {
          * Track memory usage in the breaker then build the {@link Queue}.
          */
         static Queue build(CircuitBreaker breaker, int topCount) {
-            breaker.addEstimateBytesAndMaybeBreak(Queue.sizeOf(topCount), "esql engine topn");
+            breaker.addEstimateBytesAndMaybeBreak(Queue.sizeOf(topCount), "esql engine topn from Queue");
             return new Queue(breaker, topCount);
         }
 
@@ -706,7 +864,7 @@ public class TopNOperator implements Operator, Accountable {
             );
         }
 
-        public static long sizeOf(int topCount) {
+        private static long sizeOf(int topCount) {
             long total = SHALLOW_SIZE;
             total += RamUsageEstimator.alignObjectSize(
                 RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)

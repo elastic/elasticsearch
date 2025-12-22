@@ -272,10 +272,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(outputValues, equalTo(expectedValues));
     }
 
-    private void testTopNSortedInput(int topNCount, List<List<Integer>> values, List<Integer> expectedResult) {
-        List<Page> pages = new ArrayList<>(values.size());
+    private void testTopNSortedInput(int topNCount, List<List<Integer>> pagesValues, List<List<Integer>> expectedResult, boolean asc) {
+        testTopNSortedInput(topNCount, pagesValues, expectedResult, asc, true);
+    }
 
-        for (var pageValues : values) {
+    private void testTopNSortedInput(int topNCount, List<List<Integer>> pagesValues, List<List<Integer>> expectedResult, boolean asc, boolean nullsFirst) {
+        List<Page> pages = new ArrayList<>(pagesValues.size());
+
+        for (var pageValues : pagesValues) {
             List<Block> blocks = new ArrayList<>(pageValues.size());
 
             try (
@@ -303,7 +307,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(INT),
                         List.of(DEFAULT_SORTABLE),
                         List.of(
-                            new TopNOperator.SortOrder(0, true, false)
+                            new TopNOperator.SortOrder(0, asc, nullsFirst)
                         ),
                         randomPageSize(),
                         true
@@ -315,20 +319,304 @@ public class TopNOperatorTests extends OperatorTestCase {
             runDriver(driver);
         }
 
-        assertThat(actual, equalTo(List.of(expectedResult)));
+        assertThat(actual, equalTo(expectedResult));
     }
 
-    public void testTopNWithSortedInput() {
+    private void testTopNSortedInputWithTwoColumns(int topNCount, List<List<Tuple<Integer, Integer>>> pagesValues, List<List<Integer>> expectedResult, boolean asc, boolean nullsFirst) {
+        List<Page> pages = new ArrayList<>(pagesValues.size());
+
+        for (var pageValues : pagesValues) {
+            List<Block> blocks = new ArrayList<>(pageValues.size());
+
+            try (
+                Block.Builder firstColumn = INT.newBlockBuilder(8, driverContext().blockFactory());
+                Block.Builder secondColumn = INT.newBlockBuilder(8, driverContext().blockFactory());
+            ) {
+                for (var value : pageValues) {
+                    append(firstColumn, value.v1());
+                    append(secondColumn, value.v2());
+                }
+                blocks.add(firstColumn.build());
+                blocks.add(secondColumn.build());
+            }
+            pages.add(new Page(blocks.toArray(Block[]::new)));
+        }
+        List<List<Object>> actual = new ArrayList<>();
+        DriverContext driverContext = driverContext();
+
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(pages.iterator()),
+                List.of(
+                    new TopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        topNCount,
+                        List.of(INT, INT),
+                        List.of(DEFAULT_SORTABLE, DEFAULT_SORTABLE),
+                        List.of(
+                            new TopNOperator.SortOrder(0, asc, nullsFirst),
+                            new TopNOperator.SortOrder(1, asc, nullsFirst)
+                        ),
+                        randomPageSize(),
+                        true
+                    )
+                ),
+                new PageConsumerOperator(p -> readInto(actual, p))
+            )
+        ) {
+            runDriver(driver);
+        }
+
+        assertThat(actual, equalTo(expectedResult));
+    }
+
+
+    public final void testTopNWithSortedInputToString() {
+        var topN = new TopNOperator.TopNOperatorFactory(
+            4,
+            List.of(LONG),
+            List.of(DEFAULT_UNSORTABLE),
+            List.of(new TopNOperator.SortOrder(0, true, false)),
+            pageSize,
+            true
+        );
+        var expectedDescription = "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
+            + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], sortedInput=true]";
+        try (Operator operator = topN.get(driverContext())) {
+            assertThat(operator.toString(), equalTo(expectedDescription));
+        }
+    }
+
+    public void testTopNWithSortedInputAsc() {
+        testTopNSortedInput(
+            5,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            List.of(Arrays.asList(1, 2, 4, 4, 5)),
+            true
+        );
+
         testTopNSortedInput(
             6,
             Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
-            Arrays.asList(1, 2, 4, 4, 5, 10)
+            List.of(Arrays.asList(1, 2, 4, 4, 5, 10)),
+            true
         );
 
         testTopNSortedInput(
             3,
             Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
-            Arrays.asList(1, 2, 4)
+            List.of(Arrays.asList(1, 2, 4)),
+            true
+        );
+
+        testTopNSortedInput(
+            1,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            List.of(List.of(1)),
+            true
+        );
+
+        testTopNSortedInput(0, Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)), List.of(), true, true);
+    }
+
+    public void testTopNWithSortedInputDesc() {
+        testTopNSortedInput(
+            6,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            List.of(Arrays.asList(100 ,20, 10, 5, 4, 4)),
+            false
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            List.of(Arrays.asList(100, 20, 10)),
+            false
+        );
+
+        testTopNSortedInput(
+            2,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            List.of(Arrays.asList(100, 20)),
+            false
+        );
+
+        testTopNSortedInput(
+            1,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            List.of(List.of(100)),
+            false
+        );
+
+        testTopNSortedInput(
+            0,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            List.of(),
+            false
+        );
+    }
+
+    public void testTopNWithSortedInputAscAndTwoColumns() {
+        testTopNSortedInputWithTwoColumns(
+            3,
+            Arrays.asList(
+                Arrays.asList(new Tuple<>(1, 0), new Tuple<>(2, 0), new Tuple<>(4, 2)),
+                Arrays.asList(new Tuple<>(4, 1), new Tuple<>(10, 2), new Tuple<>(100, 0)),
+                Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
+            ),
+            List.of(
+                Arrays.asList(1, 2, 4),
+                Arrays.asList(0, 0, 1)
+            ),
+            true,
+            true
+        );
+
+        testTopNSortedInputWithTwoColumns(
+            3,
+            Arrays.asList(
+                Arrays.asList(new Tuple<>(null, 0), new Tuple<>(2, 0), new Tuple<>(4, 2)),
+                Arrays.asList(new Tuple<>(4, null), new Tuple<>(10, 2), new Tuple<>(100, 0)),
+                Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
+            ),
+            List.of(
+                Arrays.asList(null, 2, 4),
+                Arrays.asList(0, 0, null)
+            ),
+            true,
+            true
+        );
+
+        testTopNSortedInputWithTwoColumns(
+            3,
+            Arrays.asList(
+                Arrays.asList(new Tuple<>(2, 0), new Tuple<>(4, 2), new Tuple<>(null, 0)),
+                Arrays.asList(new Tuple<>(4, null), new Tuple<>(10, 2), new Tuple<>(100, 0)),
+                Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
+            ),
+            List.of(
+                Arrays.asList(2, 4, 4),
+                Arrays.asList(0, 2, null)
+            ),
+            true,
+            false
+        );
+
+    }
+
+    public void testTopNWithSortedInputAscWithEmptyPages() {
+        testTopNSortedInput(
+            4,
+            Arrays.asList(List.of(), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            List.of(Arrays.asList(4, 5, 10, 20)),
+            true
+        );
+
+        testTopNSortedInput(
+            20,
+            Arrays.asList(List.of(), Arrays.asList(4, 20, 100), List.of()),
+            List.of(Arrays.asList(4, 20, 100)),
+            true
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(List.of(), Arrays.asList(100, 20, 4), List.of(10, 5)),
+            List.of(Arrays.asList(100, 20, 10)),
+            false
+        );
+
+        testTopNSortedInput(
+            20,
+            Arrays.asList(List.of(), Arrays.asList(100, 20, 4), List.of()),
+            List.of(Arrays.asList(100, 20, 4)),
+            false
+        );
+    }
+
+    public void testTopNWithSortedInputAscWithNulls() {
+        testTopNSortedInput(
+            5,
+            Arrays.asList(Arrays.asList(1, 2, 4, null), Arrays.asList(4, 20, 100, null), Arrays.asList(5, 10, null)),
+            List.of(Arrays.asList(1, 2, 4, 4, 5)),
+            true,
+            false
+        );
+
+        testTopNSortedInput(
+            10,
+            Arrays.asList(Arrays.asList(1, 2, 4, null), Arrays.asList(4, 20, 100, null), Arrays.asList(5, 10, null)),
+            List.of(Arrays.asList(1, 2, 4, 4, 5, 10, 20, 100, null, null)),
+            true,
+            false
+        );
+
+        testTopNSortedInput(
+            10,
+            Arrays.asList(Arrays.asList(null, 1, 2, 4), Arrays.asList(null, 4, 20, 100), Arrays.asList(null, 5, 10)),
+            List.of(Arrays.asList(null, null, null, 1, 2, 4, 4, 5, 10, 20)),
+            true,
+            true
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(null, 1, 2, 4), Arrays.asList(null, 4, 20, 100), Arrays.asList(null, 5, 10)),
+            List.of(Arrays.asList(null, null, null)),
+            true,
+            true
+        );
+
+        testTopNSortedInput(
+            5,
+            Arrays.asList(Arrays.asList(null, 1, 2, 4), Arrays.asList(null, 4, 20, 100), Arrays.asList(null, 5, 10)),
+            List.of(Arrays.asList(null, null, null, 1, 2)),
+            true,
+            true
+        );
+
+        testTopNSortedInput(
+            7,
+            Arrays.asList(Arrays.asList(null, 1, 2, 4), Arrays.asList(null, 4, 20, 100), Arrays.asList(null, 5, 10)),
+            List.of(Arrays.asList(null, null, null, 1, 2, 4, 4)),
+            true,
+            true
+        );
+    }
+
+    public void testTopNWithSortedInputDescWithNulls() {
+        testTopNSortedInput(
+            6,
+            Arrays.asList(Arrays.asList(100, 20, 4, null), Arrays.asList(4, 2, 1, null), Arrays.asList(10, 5, null)),
+            List.of(Arrays.asList(100, 20, 10, 5, 4, 4)),
+            false,
+            false
+        );
+
+        testTopNSortedInput(
+            6,
+            Arrays.asList(Arrays.asList(null, 100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(null, 10, 5)),
+            List.of(Arrays.asList(null, null, 100 ,20, 10, 5)),
+            false,
+            true
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(null, 100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(null, 10, 5)),
+            List.of(Arrays.asList(null, null, 100)),
+            false,
+            true
+        );
+
+        testTopNSortedInput(
+            2,
+            Arrays.asList(Arrays.asList(null, 100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(null, 10, 5)),
+            List.of(Arrays.asList(null, null)),
+            false,
+            true
         );
     }
 

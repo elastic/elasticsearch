@@ -227,7 +227,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
     }
 
     /**
-     * Open addressed hash table twith linear probing. Empty {@code id}s are
+     * Open addressed hash table with linear probing. Empty {@code id}s are
      * encoded as {@code -1}. This hash table can't grow, and is instead
      * replaced by a {@link BigCore}.
      *

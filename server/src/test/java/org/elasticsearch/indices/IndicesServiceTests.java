@@ -897,13 +897,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testMapperServiceForValidationReusesExistingDocumentMapper() throws IOException {
         IndicesService indicesService = getIndicesService();
 
-        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
             .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
             .build();
-        IndexService indexService = indicesService.createIndex(indexMetadata, List.of(), randomBoolean());
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
 
-        IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)
-            .mappingVersion(indexMetadata.getMappingVersion() + 1)
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
             .putMapping("""
                 {
                   "_doc":{
@@ -915,14 +915,50 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                   }
                 }""")
             .build();
-        indexService.updateMapping(indexMetadata, newIndexMetadata);
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
 
         assertNotNull(indexService.mapperService());
         DocumentMapper existingDocumentMapper = indexService.mapperService().documentMapper();
         assertNotNull(existingDocumentMapper);
-        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(indexMetadata).documentMapper();
+        // Create the mapper service with the same index metadata that we used to update the mapping to ensure the document mapper is reused
+        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(newIndexMetadata).documentMapper();
         assertNotNull(temporaryDocumentMapper);
         assertSame(existingDocumentMapper, temporaryDocumentMapper);
+    }
+
+    /**
+     * Tests that we only reuse the existing document mapper from the index service if the mapping is unchanged.
+     */
+    public void testMapperServiceForValidationChecksMapping() throws IOException {
+        IndicesService indicesService = getIndicesService();
+
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "@timestamp": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+
+        assertNotNull(indexService.mapperService());
+        DocumentMapper existingDocumentMapper = indexService.mapperService().documentMapper();
+        assertNotNull(existingDocumentMapper);
+        // Create the mapper service with the initial index metadata to ensure the document mapper is NOT reused as the mapping is different
+        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(initialIndexMetadata)
+            .documentMapper();
+        assertNull(temporaryDocumentMapper);
     }
 
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {

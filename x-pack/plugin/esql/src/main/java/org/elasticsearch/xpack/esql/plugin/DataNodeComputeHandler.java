@@ -395,7 +395,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
-                var acquiredContexts = new ArrayList<SearchContext>();
+                var newContexts = new ArrayList<SearchContext>();
                 for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                     SearchContext context = null;
                     IndexShard indexShard = targetShard.v1();
@@ -412,16 +412,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
                         context.preProcess();
-                        acquiredContexts.add(context);
+                        newContexts.add(context);
                     } catch (RuntimeException e) {
                         IOUtils.close(context);
                         if (addShardLevelFailure(indexShard.shardId(), e) == false) {
-                            IOUtils.closeWhileHandlingException(acquiredContexts);
+                            IOUtils.closeWhileHandlingException(context, newContexts);
                             throw e;
                         }
                     }
                 }
-                return searchContexts.newSubRangeView(acquiredContexts);
+                return searchContexts.newSubRangeView(newContexts);
             });
             final AtomicBoolean waitedForRefreshes = new AtomicBoolean();
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> {

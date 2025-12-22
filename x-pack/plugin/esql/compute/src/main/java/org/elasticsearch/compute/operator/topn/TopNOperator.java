@@ -415,7 +415,7 @@ public class TopNOperator implements Operator, Accountable {
             /* If the input is already sorted, it means we can use merge sort and
                combining the data we already have and this page can be done linearly.
                Otherwise we need to use the priority queue to combine them, which would be n * log n
-           */
+            */
             if (sortedInput) {
                 mergeSort(inputSortedVector, page);
             } else {

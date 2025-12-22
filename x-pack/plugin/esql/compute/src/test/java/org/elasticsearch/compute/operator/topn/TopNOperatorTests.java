@@ -276,15 +276,19 @@ public class TopNOperatorTests extends OperatorTestCase {
         testTopNSortedInput(topNCount, pagesValues, expectedResult, asc, true);
     }
 
-    private void testTopNSortedInput(int topNCount, List<List<Integer>> pagesValues, List<List<Integer>> expectedResult, boolean asc, boolean nullsFirst) {
+    private void testTopNSortedInput(
+        int topNCount,
+        List<List<Integer>> pagesValues,
+        List<List<Integer>> expectedResult,
+        boolean asc,
+        boolean nullsFirst
+    ) {
         List<Page> pages = new ArrayList<>(pagesValues.size());
 
         for (var pageValues : pagesValues) {
             List<Block> blocks = new ArrayList<>(pageValues.size());
 
-            try (
-                Block.Builder column = INT.newBlockBuilder(8, driverContext().blockFactory());
-            ) {
+            try (Block.Builder column = INT.newBlockBuilder(8, driverContext().blockFactory());) {
                 for (var value : pageValues) {
                     append(column, value);
                 }
@@ -306,9 +310,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         topNCount,
                         List.of(INT),
                         List.of(DEFAULT_SORTABLE),
-                        List.of(
-                            new TopNOperator.SortOrder(0, asc, nullsFirst)
-                        ),
+                        List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
                         randomPageSize(),
                         true
                     )
@@ -322,7 +324,13 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(actual, equalTo(expectedResult));
     }
 
-    private void testTopNSortedInputWithTwoColumns(int topNCount, List<List<Tuple<Integer, Integer>>> pagesValues, List<List<Integer>> expectedResult, boolean asc, boolean nullsFirst) {
+    private void testTopNSortedInputWithTwoColumns(
+        int topNCount,
+        List<List<Tuple<Integer, Integer>>> pagesValues,
+        List<List<Integer>> expectedResult,
+        boolean asc,
+        boolean nullsFirst
+    ) {
         List<Page> pages = new ArrayList<>(pagesValues.size());
 
         for (var pageValues : pagesValues) {
@@ -355,10 +363,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         topNCount,
                         List.of(INT, INT),
                         List.of(DEFAULT_SORTABLE, DEFAULT_SORTABLE),
-                        List.of(
-                            new TopNOperator.SortOrder(0, asc, nullsFirst),
-                            new TopNOperator.SortOrder(1, asc, nullsFirst)
-                        ),
+                        List.of(new TopNOperator.SortOrder(0, asc, nullsFirst), new TopNOperator.SortOrder(1, asc, nullsFirst)),
                         randomPageSize(),
                         true
                     )
@@ -371,7 +376,6 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         assertThat(actual, equalTo(expectedResult));
     }
-
 
     public final void testTopNWithSortedInputToString() {
         var topN = new TopNOperator.TopNOperatorFactory(
@@ -418,14 +422,20 @@ public class TopNOperatorTests extends OperatorTestCase {
             true
         );
 
-        testTopNSortedInput(0, Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)), List.of(), true, true);
+        testTopNSortedInput(
+            0,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            List.of(),
+            true,
+            true
+        );
     }
 
     public void testTopNWithSortedInputDesc() {
         testTopNSortedInput(
             6,
             Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
-            List.of(Arrays.asList(100 ,20, 10, 5, 4, 4)),
+            List.of(Arrays.asList(100, 20, 10, 5, 4, 4)),
             false
         );
 
@@ -450,12 +460,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             false
         );
 
-        testTopNSortedInput(
-            0,
-            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
-            List.of(),
-            false
-        );
+        testTopNSortedInput(0, Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)), List.of(), false);
     }
 
     public void testTopNWithSortedInputAscAndTwoColumns() {
@@ -466,10 +471,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 Arrays.asList(new Tuple<>(4, 1), new Tuple<>(10, 2), new Tuple<>(100, 0)),
                 Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
             ),
-            List.of(
-                Arrays.asList(1, 2, 4),
-                Arrays.asList(0, 0, 1)
-            ),
+            List.of(Arrays.asList(1, 2, 4), Arrays.asList(0, 0, 1)),
             true,
             true
         );
@@ -481,10 +483,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 Arrays.asList(new Tuple<>(4, null), new Tuple<>(10, 2), new Tuple<>(100, 0)),
                 Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
             ),
-            List.of(
-                Arrays.asList(null, 2, 4),
-                Arrays.asList(0, 0, null)
-            ),
+            List.of(Arrays.asList(null, 2, 4), Arrays.asList(0, 0, null)),
             true,
             true
         );
@@ -496,10 +495,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 Arrays.asList(new Tuple<>(4, null), new Tuple<>(10, 2), new Tuple<>(100, 0)),
                 Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
             ),
-            List.of(
-                Arrays.asList(2, 4, 4),
-                Arrays.asList(0, 2, null)
-            ),
+            List.of(Arrays.asList(2, 4, 4), Arrays.asList(0, 2, null)),
             true,
             false
         );
@@ -514,12 +510,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             true
         );
 
-        testTopNSortedInput(
-            20,
-            Arrays.asList(List.of(), Arrays.asList(4, 20, 100), List.of()),
-            List.of(Arrays.asList(4, 20, 100)),
-            true
-        );
+        testTopNSortedInput(20, Arrays.asList(List.of(), Arrays.asList(4, 20, 100), List.of()), List.of(Arrays.asList(4, 20, 100)), true);
 
         testTopNSortedInput(
             3,
@@ -528,12 +519,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             false
         );
 
-        testTopNSortedInput(
-            20,
-            Arrays.asList(List.of(), Arrays.asList(100, 20, 4), List.of()),
-            List.of(Arrays.asList(100, 20, 4)),
-            false
-        );
+        testTopNSortedInput(20, Arrays.asList(List.of(), Arrays.asList(100, 20, 4), List.of()), List.of(Arrays.asList(100, 20, 4)), false);
     }
 
     public void testTopNWithSortedInputAscWithNulls() {
@@ -598,7 +584,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         testTopNSortedInput(
             6,
             Arrays.asList(Arrays.asList(null, 100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(null, 10, 5)),
-            List.of(Arrays.asList(null, null, 100 ,20, 10, 5)),
+            List.of(Arrays.asList(null, null, 100, 20, 10, 5)),
             false,
             true
         );

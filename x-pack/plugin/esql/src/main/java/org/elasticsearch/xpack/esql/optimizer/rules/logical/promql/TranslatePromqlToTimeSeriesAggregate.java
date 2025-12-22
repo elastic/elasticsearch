@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetr
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -181,21 +182,21 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
      */
     private static LogicalPlan convertValueToDouble(PromqlCommand promqlCommand, LogicalPlan plan) {
         List<Attribute> tsOutput = plan.output();
-
-        List<Alias> evalFields = new ArrayList<>(tsOutput.size());
-        for (int i = 0; i < tsOutput.size(); i++) {
-            Attribute output = tsOutput.get(i);
-            Expression eval;
-            if (i == 0) {
-                // value column - convert to double
-                eval = new ToDouble(promqlCommand.source(), output);
-            } else {
-                // other columns - pass through
-                eval = output;
-            }
-            evalFields.add(new Alias(output.source(), output.name(), eval, output.id()));
+        // convert value to double
+        Alias convertedValue = new Alias(
+            promqlCommand.source(),
+            promqlCommand.valueColumnName(),
+            new ToDouble(promqlCommand.source(), tsOutput.getFirst().toAttribute()),
+            promqlCommand.valueId()
+        );
+        plan = new Eval(promqlCommand.source(), plan, List.of(convertedValue));
+        // project to maintain output order
+        List<NamedExpression> projections = new ArrayList<>(plan.output().size());
+        projections.add(convertedValue.toAttribute());
+        for (int i = 1; i < tsOutput.size(); i++) {
+            projections.add(tsOutput.get(i));
         }
-        return new Eval(promqlCommand.source(), plan, evalFields);
+        return new Project(promqlCommand.source(), plan, projections);
     }
 
     /**

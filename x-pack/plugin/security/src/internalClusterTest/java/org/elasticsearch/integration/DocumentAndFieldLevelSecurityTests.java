@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.search.SearchService.FETCH_PHASE_CHUNKED_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -188,6 +189,15 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testDLSIsAppliedBeforeFLS() {
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put(FETCH_PHASE_CHUNKED_ENABLED.getKey(), false).build())
+                .get()
+                .isAcknowledged()
+        );
+
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
         prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
@@ -211,9 +221,25 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("field1", "value1")),
             0
         );
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(FETCH_PHASE_CHUNKED_ENABLED.getKey()).build())
+                .get()
+                .isAcknowledged()
+        );
     }
 
     public void testQueryCache() {
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put(FETCH_PHASE_CHUNKED_ENABLED.getKey(), false).build())
+                .get()
+                .isAcknowledged()
+        );
         assertAcked(
             indicesAdmin().prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
@@ -285,6 +311,14 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 }
             );
         }
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(FETCH_PHASE_CHUNKED_ENABLED.getKey()).build())
+                .get()
+                .isAcknowledged()
+        );
     }
 
     public void testGetMappingsIsFiltered() {

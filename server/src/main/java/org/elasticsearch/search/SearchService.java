@@ -989,7 +989,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return false;
         }
 
-        // TODO add a check for remote clusters e.g. ccs
+        if (request.scroll() != null) {
+            return false;
+        }
+
         return true;
     }
 

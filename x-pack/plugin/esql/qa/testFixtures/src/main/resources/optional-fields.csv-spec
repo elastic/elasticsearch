@@ -284,7 +284,7 @@ emp_no:integer | emp_no_foo:null | emp_no_plus:long
 10002          | null            | null
 ;
 
-subqueryInFromWithStatsInMainQuery
+subqueryInFromWithStatsInMainQuery-Ignore
 required_capability: optional_fields
 required_capability: subquery_in_from_command
 

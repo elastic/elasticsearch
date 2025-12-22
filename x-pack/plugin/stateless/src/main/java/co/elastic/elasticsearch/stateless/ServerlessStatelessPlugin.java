@@ -53,6 +53,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.memory.ShardsMappingSizeCo
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishIndexingOperationsHeapMemoryRequirements;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishMergeMemoryEstimate;
+import co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasLoadBalancingScaler;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
@@ -1177,6 +1178,7 @@ public class ServerlessStatelessPlugin extends Plugin
             ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL,
             ReplicasUpdaterService.REPLICA_UPDATER_SCALEDOWN_REPETITIONS,
             ReplicasUpdaterService.AUTO_EXPAND_REPLICA_INDICES,
+            ReplicasLoadBalancingScaler.MAX_REPLICA_RELATIVE_SEARCH_LOAD,
             SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             SearchLoadProbe.SHARD_READ_LOAD_THRESHOLD_SETTING,

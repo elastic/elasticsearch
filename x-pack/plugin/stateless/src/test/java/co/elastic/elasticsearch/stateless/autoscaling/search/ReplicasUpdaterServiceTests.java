@@ -1034,7 +1034,8 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
             ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING,
             ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER,
-            ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING
+            ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING,
+            ReplicasLoadBalancingScaler.MAX_REPLICA_RELATIVE_SEARCH_LOAD
         );
         return new ClusterSettings(
             Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), true).build(),

@@ -264,6 +264,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         this.searchMetricsService = searchMetricsService;
         this.clusterService = clusterService;
         this.replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, client);
+        replicasLoadBalancingScaler.init();
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(ENABLE_REPLICAS_FOR_INSTANT_FAILOVER, this::updateEnableReplicasForInstantFailover);
         clusterSettings.initializeAndWatch(REPLICA_UPDATER_INTERVAL, this::setInterval);

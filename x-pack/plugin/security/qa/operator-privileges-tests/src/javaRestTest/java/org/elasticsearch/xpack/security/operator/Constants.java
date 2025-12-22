@@ -611,6 +611,7 @@ public class Constants {
         "indices:data/read/sql/translate",
         "indices:data/read/sql/async/get", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME
         "indices:data/read/tv",
+        "indices:data/read/fetch/chunk",
         "indices:data/read/xpack/application/search_application/search",
         "indices:data/read/xpack/ccr/shard_changes",
         "indices:data/read/xpack/enrich/coordinate_lookups",

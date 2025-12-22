@@ -184,7 +184,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsIndexModeLookup(),
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
-                false,
+                Boolean.getBoolean("tests.esql.csv.timeseries_only"),
                 supportsExponentialHistograms(),
                 supportsTDigestField(),
                 supportsHistogramDataType(),

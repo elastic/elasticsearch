@@ -33,7 +33,7 @@ import java.util.List;
  *
  * Conceptually an instant selector is a range selector with a null range.
  */
-public class InstantSelector extends Selector {
+public final class InstantSelector extends Selector {
 
     public InstantSelector(Source source, Expression series, List<Expression> labels, LabelMatchers labelMatchers, Evaluation evaluation) {
         this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation);

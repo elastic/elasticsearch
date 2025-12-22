@@ -403,9 +403,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/139482
-- class: org.elasticsearch.index.mapper.SkipperSettingsTests
-  method: testTSDBSkipperSettingDefaults
-  issue: https://github.com/elastic/elasticsearch/issues/139824
 - class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
   issue: https://github.com/elastic/elasticsearch/issues/139826
@@ -421,9 +418,6 @@ tests:
 - class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
   method: testRescoreSingleAndBulkEquality
   issue: https://github.com/elastic/elasticsearch/issues/139869
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/139872
 
 # Examples:
 #

@@ -27,6 +27,9 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -99,6 +102,21 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             containsString("Unknown index [no-such-data-stream::data]"),
             () -> run(syncEsqlQueryRequest("FROM no-such-data-stream::data"))
         );
+    }
+
+    public void testResolvesDateMath() {
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
+        var index = "index-" + date.getYear() + "." + date.getMonthValue();
+        assertAcked(client().admin().indices().prepareCreate(index));
+        indexRandom(true, index, 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM <index-{now/M{yyyy.MM}}> METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, index);
+        } catch (AssertionError e) {
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
+            throw e;
+        }
     }
 
     public void testResolvesPattern() {

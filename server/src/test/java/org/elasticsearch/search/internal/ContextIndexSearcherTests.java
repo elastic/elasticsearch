@@ -618,9 +618,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
     }
 
     public void testMaxClause() throws Exception {
+        ThreadPoolExecutor executor = null;
         try (Directory dir = newDirectory()) {
             indexDocs(dir);
-            ThreadPoolExecutor executor = null;
             try (var directoryReader = DirectoryReader.open(dir)) {
                 if (randomBoolean()) {
                     executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
@@ -647,9 +647,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertThat(top.totalHits.value(), equalTo(0L));
                 assertThat(top.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             }
-            if (executor != null) {
-                terminate(executor);
-            }
+        } finally {
+            terminate(executor);
         }
     }
 

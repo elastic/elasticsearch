@@ -12,7 +12,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -173,18 +172,14 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         List<EsIndex> metricIndices = new ArrayList<>();
-        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.isEnabled()) {
-            Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
-            metricIndices.add(
-                EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
-            );
-        }
-        if (EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V4.isEnabled()) {
-            Map<String, EsField> mapping = loadMapping("tdigest_timeseries_index-mappings.json");
-            metricIndices.add(
-                EsIndexGenerator.esIndex("tdigest_timeseries_index", mapping, Map.of("tdigest_timeseries_index", IndexMode.TIME_SERIES))
-            );
-        }
+        Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
+        metricIndices.add(
+            EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
+        );
+        Map<String, EsField> tdigestMapping = loadMapping("tdigest_timeseries_index-mappings.json");
+        metricIndices.add(
+            EsIndexGenerator.esIndex("tdigest_timeseries_index", tdigestMapping, Map.of("tdigest_timeseries_index", IndexMode.TIME_SERIES))
+        );
         metricMapping = loadMapping("k8s-mappings.json");
         metricIndices.add(EsIndexGenerator.esIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(

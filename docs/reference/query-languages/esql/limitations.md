@@ -51,6 +51,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `counter`
    * `gauge`
    * `aggregate_metric_double`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 
 
 ### Unsupported types [_unsupported_types]
@@ -287,7 +288,7 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 
 ## Cross-cluster search limitations [esql-ccs-limitations]
 
-{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
+{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
 ## Known issues [esql-known-issues]
 

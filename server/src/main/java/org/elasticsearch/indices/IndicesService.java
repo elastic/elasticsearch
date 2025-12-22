@@ -2018,4 +2018,8 @@ public class IndicesService extends AbstractLifecycleComponent
     public ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
         return threadPoolMergeExecutorService;
     }
+
+    public SlowLogFieldProvider getSlowLogFieldProvider() {
+        return slowLogFieldProvider;
+    }
 }

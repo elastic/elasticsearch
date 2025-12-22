@@ -1808,6 +1808,11 @@ public class EsqlCapabilities {
         FN_MV_INTERSECTION,
 
         /**
+         * Support for the MV_UNION function which returns the set union of two multivalued fields
+         */
+        FN_MV_UNION,
+
+        /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),

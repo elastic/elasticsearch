@@ -1,6 +1,6 @@
 increase_of_long_no_grouping
 required_capability: increase
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v2
 required_capability: ts_command_v0
 
 TS k8s
@@ -14,7 +14,7 @@ increase_bytes_in:double | time_bucket:datetime
 961.1440972222222        | 2024-05-10T00:01:00.000Z
 930.90625                | 2024-05-10T00:00:00.000Z
 914.237233611577         | 2024-05-10T00:18:00.000Z
-853.0250917404228        | 2024-05-10T00:20:00.000Z
+839.854243117019         | 2024-05-10T00:20:00.000Z
 838.6380935298255        | 2024-05-10T00:09:00.000Z
 795.8137508015253        | 2024-05-10T00:04:00.000Z
 764.6877930046035        | 2024-05-10T00:11:00.000Z
@@ -22,7 +22,7 @@ increase_bytes_in:double | time_bucket:datetime
 
 increase_of_long_grouping
 required_capability: increase
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v2
 required_capability: ts_command_v0
 
 TS k8s
@@ -39,9 +39,9 @@ increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 2260.78709               | prod            | 2024-05-10T00:10:00.000Z
 2150.862794              | staging         | 2024-05-10T00:05:00.000Z
 2049.166973              | staging         | 2024-05-10T00:10:00.000Z
-1949.594834              | prod            | 2024-05-10T00:20:00.000Z
 1806.457654              | staging         | 2024-05-10T00:15:00.000Z
 1716.559991              | qa              | 2024-05-10T00:00:00.000Z
+1672.349062              | prod            | 2024-05-10T00:00:00.000Z
 ;
 
 increase_of_double_no_grouping
@@ -64,7 +64,6 @@ increase_cost:double   | time_bucket:datetime
 47.42165775401069    | 2024-05-10T00:05:00.000Z
 43.7490171990172     | 2024-05-10T00:11:00.000Z
 41.917106313154434   | 2024-05-10T00:13:00.000Z
-
 
 ;
 
@@ -118,7 +117,7 @@ increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 eval_on_increase
 required_capability: increase
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v2
 required_capability: ts_command_v0
 
 TS k8s
@@ -133,7 +132,7 @@ increase_bytes:double | cluster:keyword | time_bucket:datetime     | increase_kb
 6082.001022561896     | prod            | 2024-05-10T00:10:00.000Z | 5.939454123595602
 6974.883531451061     | qa              | 2024-05-10T00:10:00.000Z | 6.811409698682676
 3855.6246268438786    | staging         | 2024-05-10T00:10:00.000Z | 3.765258424652225
-1949.5948341958983    | prod            | 2024-05-10T00:20:00.000Z | 1.903901205269432
+1557.7298894639323    | prod            | 2024-05-10T00:20:00.000Z | 1.5212205951796214
 987.1325706421782     | qa              | 2024-05-10T00:20:00.000Z | 0.9639966510177521
 789.2720220707564     | staging         | 2024-05-10T00:20:00.000Z | 0.770773459053473
 
@@ -155,7 +154,7 @@ sum_bytes:double   | max_bytes:double | min_bytes:double   | avg_bytes:double   
 
 increase_of_expression
 required_capability: increase
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v2
 required_capability: ts_command_v0
 
 TS k8s
@@ -169,7 +168,7 @@ increase_bytes_in:double | time_bucket:datetime
 971.1440972222222        | 2024-05-10T00:01:00.000Z
 940.90625                | 2024-05-10T00:00:00.000Z
 924.237233611577         | 2024-05-10T00:18:00.000Z
-863.0250917404228        | 2024-05-10T00:20:00.000Z
+849.854243117019         | 2024-05-10T00:20:00.000Z
 848.6380935298255        | 2024-05-10T00:09:00.000Z
 805.8137508015253        | 2024-05-10T00:04:00.000Z
 774.6877930046035        | 2024-05-10T00:11:00.000Z
@@ -178,7 +177,7 @@ increase_bytes_in:double | time_bucket:datetime
 
 increase_combined_avg
 required_capability: increase
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v2
 required_capability: ts_command_v0
 
 TS k8s
@@ -193,14 +192,14 @@ avg_increase_bytes:double | avg_increase_cost:double | cluster:keyword | time_bu
 6082.001022561896         | 60.814444388750196       | prod            | 2024-05-10T00:10:00.000Z | 100.00915216265594
 6974.883531451061         | 84.55437658033073        | qa              | 2024-05-10T00:10:00.000Z | 82.4899172998406
 3855.6246268438786        | 46.208665245625674       | staging         | 2024-05-10T00:10:00.000Z | 83.43942865150969
-1949.5948341958983        | 18.415989792984476       | prod            | 2024-05-10T00:20:00.000Z | 105.86424385066674
+1557.7298894639323        | 12.277326528656317       | prod            | 2024-05-10T00:20:00.000Z | 126.87859085836473
 987.1325706421782         | 14.973618104590294       | qa              | 2024-05-10T00:20:00.000Z | 65.9247860969263
 789.2720220707564         | 15.735844017094015       | staging         | 2024-05-10T00:20:00.000Z | 50.15759060736506
 ;
 
 increase_combined_sum
 required_capability: increase
-required_capability: rate_with_interpolation
+required_capability: rate_with_interpolation_v2
 required_capability: ts_command_v0
 
 TS k8s
@@ -215,7 +214,7 @@ sum_increase_bytes:double | sum_increase_cost:double | cluster:keyword | time_bu
 18246.003067685688        | 182.4433331662506        | prod            | 2024-05-10T00:10:00.000Z | 100.00915216265594
 20924.65059435318         | 253.6631297409922        | qa              | 2024-05-10T00:10:00.000Z | 82.4899172998406
 11566.873880531635        | 138.62599573687703       | staging         | 2024-05-10T00:10:00.000Z | 83.43942865150967
-3899.1896683917967        | 36.83197958596895        | prod            | 2024-05-10T00:20:00.000Z | 105.86424385066674
+4673.189668391797         | 36.83197958596895        | prod            | 2024-05-10T00:20:00.000Z | 126.87859085836473
 2961.3977119265346        | 44.92085431377088        | qa              | 2024-05-10T00:20:00.000Z | 65.9247860969263
 2367.816066212269         | 47.207532051282044       | staging         | 2024-05-10T00:20:00.000Z | 50.15759060736506
 

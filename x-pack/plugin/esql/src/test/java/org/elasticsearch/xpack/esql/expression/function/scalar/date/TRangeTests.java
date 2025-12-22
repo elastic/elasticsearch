@@ -23,7 +23,8 @@ import org.hamcrest.Matchers;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
-import java.time.ZonedDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -49,6 +50,8 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         Object argumentValue,
         DataType timestampDataType,
         long timestampValue,
+        ZoneId timezone,
+        Instant now,
         long expectedStartTime,
         long expectedEndTime,
         boolean expectedResult
@@ -86,9 +89,10 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         for (DataType timestampDataType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
             boolean nanos = timestampDataType == DataType.DATE_NANOS;
 
+            // UTC
             for (TestParameter testParameter : testParameters) {
-                long expectedStartTime = getExpectedAbsoluteTime(testParameter.value, testParameter.dataType, nanos);
-                long expectedEndTime = getNow(fixedNow.toEpochMilli(), nanos);
+                long expectedStartTime = getExpectedAbsoluteTime(fixedNow, testParameter.value, testParameter.dataType, nanos);
+                long expectedEndTime = toLong(fixedNow, nanos);
 
                 long timestampInsideRange = timestampInRange(expectedStartTime, expectedEndTime);
                 testCases.add(
@@ -97,6 +101,8 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         testParameter.value,
                         timestampDataType,
                         timestampInsideRange,
+                        ZoneOffset.UTC,
+                        fixedNow,
                         expectedStartTime,
                         expectedEndTime,
                         true
@@ -110,12 +116,29 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         testParameter.value,
                         timestampDataType,
                         timestampOutsideRange,
+                        ZoneOffset.UTC,
+                        fixedNow,
                         expectedStartTime,
                         expectedEndTime,
                         false
                     )
                 );
             }
+
+            // Timezones
+            testCases.add(
+                new SingleParameterCase(
+                    DataType.DATE_PERIOD,
+                    Period.ofDays(1),
+                    timestampDataType,
+                    toLong(Instant.parse("2020-02-03T10:11:12.123456780Z"), nanos),
+                    ZoneOffset.UTC,
+                    Instant.parse("2020-02-03T10:11:12.123456789Z"),
+                    toLong(Instant.parse("2020-02-02T10:11:12.123456789Z"), nanos),
+                    toLong(Instant.parse("2020-02-03T10:11:12.123456789Z"), nanos),
+                    true
+                )
+            );
         }
         return testCases;
     }
@@ -143,7 +166,7 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
                         equalTo(testCase.expectedResult)
                     ).withConfiguration(
                         TEST_SOURCE,
-                        randomConfigurationBuilder().query(TestCaseSupplier.TEST_SOURCE.text()).now(fixedNow).build()
+                        randomConfigurationBuilder().query(TestCaseSupplier.TEST_SOURCE.text()).now(testCase.now()).build()
                     )
                 )
             );
@@ -153,8 +176,8 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
     private static List<TwoParameterCase> twoParameterAbsoluteTimeTestCases() {
         List<TestParameter[]> testParameters = List.of(
             new TestParameter[] {
-                new TestParameter(DataType.LONG, ZonedDateTime.parse("2024-01-01T00:00:00Z").toInstant().toEpochMilli()),
-                new TestParameter(DataType.LONG, ZonedDateTime.parse("2024-01-01T12:00:00Z").toInstant().toEpochMilli()) },
+                new TestParameter(DataType.LONG, Instant.parse("2024-01-01T00:00:00Z").toEpochMilli()),
+                new TestParameter(DataType.LONG, Instant.parse("2024-01-01T12:00:00Z").toEpochMilli()) },
             new TestParameter[] {
                 new TestParameter(DataType.DATETIME, Instant.parse("2024-01-01T00:00:00Z")),
                 new TestParameter(DataType.DATETIME, Instant.parse("2024-01-01T12:00:00Z")), },
@@ -168,8 +191,8 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
             boolean nanos = timestampDataType == DataType.DATE_NANOS;
 
             for (TestParameter[] testParameter : testParameters) {
-                long expectedStartTime = getExpectedAbsoluteTime(testParameter[0].value, testParameter[0].dataType, nanos);
-                long expectedEndTime = getExpectedAbsoluteTime(testParameter[1].value, testParameter[1].dataType, nanos);
+                long expectedStartTime = getExpectedAbsoluteTime(fixedNow, testParameter[0].value, testParameter[0].dataType, nanos);
+                long expectedEndTime = getExpectedAbsoluteTime(fixedNow, testParameter[1].value, testParameter[1].dataType, nanos);
 
                 long timestampInsideRange = timestampInRange(expectedStartTime, expectedEndTime);
                 testCases.add(
@@ -238,17 +261,17 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         return (min + max) / 2;
     }
 
-    private static long getExpectedAbsoluteTime(Object argument, DataType dataType, boolean nanos) {
+    private static long getExpectedAbsoluteTime(Instant now, Object argument, DataType dataType, boolean nanos) {
         switch (dataType) {
             case TIME_DURATION -> {
                 return nanos
-                    ? DateUtils.toNanoSeconds(fixedNow.minus((Duration) argument).toEpochMilli())
-                    : fixedNow.minus((Duration) argument).toEpochMilli();
+                    ? DateUtils.toNanoSeconds(now.minus((Duration) argument).toEpochMilli())
+                    : now.minus((Duration) argument).toEpochMilli();
             }
             case DATE_PERIOD -> {
                 return nanos
-                    ? DateUtils.toNanoSeconds(fixedNow.minus((Period) argument).toEpochMilli())
-                    : fixedNow.minus((Period) argument).toEpochMilli();
+                    ? DateUtils.toNanoSeconds(now.minus((Period) argument).toEpochMilli())
+                    : now.minus((Period) argument).toEpochMilli();
             }
             case LONG -> {
                 long expectedStartTime = (Long) argument;
@@ -261,8 +284,8 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
         }
     }
 
-    private static long getNow(long now, boolean nanos) {
-        return nanos == false ? now : DateUtils.toNanoSeconds(now);
+    private static long toLong(Instant now, boolean nanos) {
+        return nanos == false ? now.toEpochMilli() : DateUtils.toLong(now);
     }
 
     @Override

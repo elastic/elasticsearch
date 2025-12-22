@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -222,8 +223,8 @@ public class TRange extends EsqlConfigurationFunction
                 rangeStart = timeWithOffset(foldFirst, rangeEnd);
             } else {
                 Object foldSecond = second.fold(foldContext);
-                rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER);
-                rangeEnd = parseToInstant(foldSecond, END_TIME_PARAMETER);
+                rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER, first.dataType() == DataType.DATE_NANOS);
+                rangeEnd = parseToInstant(foldSecond, END_TIME_PARAMETER, second.dataType() == DataType.DATE_NANOS);
             }
         } catch (InvalidArgumentException e) {
             throw new InvalidArgumentException(e, "invalid time range for [{}]: {}", sourceText(), e.getMessage());
@@ -239,29 +240,25 @@ public class TRange extends EsqlConfigurationFunction
 
         boolean convertToNanos = timestamp.dataType() == DataType.DATE_NANOS;
         return new long[] {
-            convertToNanos ? DateUtils.toNanoSeconds(rangeStart.toEpochMilli()) : rangeStart.toEpochMilli(),
-            convertToNanos ? DateUtils.toNanoSeconds(rangeEnd.toEpochMilli()) : rangeEnd.toEpochMilli() };
+            convertToNanos ? DateUtils.toLong(rangeStart) : rangeStart.toEpochMilli(),
+            convertToNanos ? DateUtils.toLong(rangeEnd) : rangeEnd.toEpochMilli() };
     }
 
     private Instant timeWithOffset(Object offset, Instant base) {
         if (offset instanceof TemporalAmount amount) {
-            // TODO: Add timezone here
-            return base.minus(amount);
+            var zonedDateTime = ZonedDateTime.ofInstant(base, configuration().zoneId());
+            return zonedDateTime.minus(amount).toInstant();
         }
         throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
     }
 
-    private Instant parseToInstant(Object value, String paramName) {
+    private Instant parseToInstant(Object value, String paramName, boolean nanos) {
         if (value instanceof Literal literal) {
             value = literal.fold(FoldContext.small());
         }
 
-        if (value instanceof Instant instantValue) {
-            return instantValue;
-        }
-
         if (value instanceof Long longValue) {
-            return Instant.ofEpochMilli(longValue);
+            return nanos ? DateUtils.toInstant(longValue) : Instant.ofEpochMilli(longValue);
         }
 
         throw new InvalidArgumentException(

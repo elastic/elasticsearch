@@ -69,14 +69,14 @@ Here is a cef processor config
 }
 ```
 % NOTCONSOLE
-When the above processor executes the following message
+When the above processor executes against the following message
 
 ```
 CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com src=1.2.3.4 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart
 ```
 % NOTCONSOLE
 
-it produces the result
+it produces this result
 
 ```json
 {

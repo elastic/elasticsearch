@@ -265,15 +265,15 @@ x:integer | foo:null
 1         | null
 ;
 
-subquery
-required_capability: subquery_in_from_command
+# TODO. FROMx: this fails in parsing with just FROM even if -Ignore'd(!), in bwc tests only(!)
+subqueryNoMainIndex-Ignore
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;
-FROM
-(FROM employees
- | EVAL emp_no_plus = emp_no_foo::LONG + 1
- | WHERE emp_no < 10003)
+FROMx
+    (FROM employees
+     | EVAL emp_no_plus = emp_no_foo::LONG + 1
+     | WHERE emp_no < 10003)
 | KEEP emp_no*
 | SORT emp_no, emp_no_plus
 ;
@@ -284,16 +284,15 @@ emp_no:integer | emp_no_foo:null | emp_no_plus:long
 ;
 
 subqueryInFromWithStatsInMainQuery
-required_capability: subquery_in_from_command
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, sample_data_str,
-           (FROM sample_data_ts_nanos
-            | WHERE client_ip == "172.21.3.15" OR foo::IP == "1.1.1.1") ,
-           (FROM sample_data_ts_long
-            | EVAL @timestamp = @timestamp::date_nanos, bar = baz::KEYWORD
-            | WHERE client_ip == "172.21.0.5")
+    (FROM sample_data_ts_nanos
+     | WHERE client_ip == "172.21.3.15" OR foo::IP == "1.1.1.1"),
+    (FROM sample_data_ts_long
+     | EVAL @timestamp = @timestamp::date_nanos, bar = baz::KEYWORD
+     | WHERE client_ip == "172.21.0.5")
 | EVAL client_ip = client_ip::ip
 | STATS cnt = count(*) BY client_ip, foo, bar, baz
 | SORT client_ip
@@ -307,7 +306,6 @@ cnt:long       |client_ip:ip   |foo:null       |bar:keyword    |baz:null
 ;
 
 forkBranchesWithDifferentSchemas
-required_capability: fork_v9
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;
@@ -319,18 +317,18 @@ FROM employees
         | STATS x = MIN(year::LONG), y = MAX(month::LONG) WHERE year::LONG > 1000 + does_not_exist5::DOUBLE
         | EVAL xyz = "abc")
 | KEEP emp_no, x, y, xyz, _fork
+| SORT _fork, emp_no
 ;
 
 emp_no:integer |x:long         |y:long         |xyz:keyword    |_fork:keyword
-10001          |null           |null           |def            |fork2
 10001          |null           |null           |null           |fork1
 10002          |null           |null           |null           |fork1
 10003          |null           |null           |null           |fork1
+10001          |null           |null           |def            |fork2
 null           |1985           |null           |abc            |fork3
 ;
 
 inlineStats
-required_capability: inline_stats
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;
@@ -338,12 +336,12 @@ ROW x = 1
 | INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
 ;
 
+# `c` should be just 0 : https://github.com/elastic/elasticsearch/issues/139887
 x:integer      |does_not_exist:null|c:long         |s:double       |d:null
 1              |null               |null           |null           |null
 ;
 
 lookupJoin
-required_capability: join_lookup_v12
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;
@@ -357,7 +355,6 @@ x:integer      |does_not_exist:null |language_code:integer |language_name:keywor
 ;
 
 enrich
-required_capability: enrich_load
 required_capability: optional_fields
 
 SET unmapped_fields="nullify"\;

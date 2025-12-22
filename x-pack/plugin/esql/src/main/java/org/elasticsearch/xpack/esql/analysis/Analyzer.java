@@ -597,7 +597,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, childrenOutput);
 
                 List<NamedExpression> newAggregates = new ArrayList<>(aggregates.size());
-                // If no groupings are not resolved, skip the resolution of the references to groupings in the aggregates, resolve the
+                // If no groupings are resolved, skip the resolution of the references to groupings in the aggregates, resolve the
                 // aggregations that do not reference to groupings, so that the fields/attributes referenced by the aggregations can be
                 // resolved, and verifier doesn't report field/reference/column not found errors for them.
                 int aggsIndexLimit = resolvedGroupings.isEmpty() ? aggregates.size() - groupings.size() : aggregates.size();

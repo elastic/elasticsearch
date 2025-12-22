@@ -10,9 +10,9 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.List;
 
@@ -49,7 +49,7 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public double dotProduct(float[] queryVector) {
-        return VectorUtil.dotProduct(decodedDocVector, queryVector);
+        return ESVectorUtil.dotProduct(decodedDocVector, queryVector);
     }
 
     @Override
@@ -101,7 +101,7 @@ public class BinaryDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(float[] queryVector) {
-        return Math.sqrt(VectorUtil.squareDistance(queryVector, decodedDocVector));
+        return Math.sqrt(ESVectorUtil.squareDistance(queryVector, decodedDocVector));
     }
 
     @Override

@@ -262,17 +262,6 @@ public class MetadataMappingService {
 
     }
 
-    private TimeValue maybeLimitMasterNodeTimeout(TimeValue masterNodeTimeout) {
-        logger.info("--> maybeLimitMasterNodeTimeout({}) vs {}", masterNodeTimeout, maxMasterNodeTimeout);
-        if (maxMasterNodeTimeout.millis() < 0 || 0 <= maxMasterNodeTimeout.compareTo(masterNodeTimeout)) {
-            logger.info("--> maybeLimitMasterNodeTimeout({}) vs {}: no limit needed", masterNodeTimeout, maxMasterNodeTimeout);
-            return masterNodeTimeout;
-        } else {
-            logger.info("--> maybeLimitMasterNodeTimeout({}) vs {}: limit needed", masterNodeTimeout, maxMasterNodeTimeout);
-            return maxMasterNodeTimeout;
-        }
-    }
-
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         try {
             // TODO: instead of considering the whole request as a no-op, we could filter out indices that don't need an update and only

@@ -1,5 +1,8 @@
 ---
 navigation_title: "CEF"
+applies_to:
+  stack: ga 9.3
+  serverless: ga
 mapped_pages:
 - https://www.elastic.co/guide/en/elasticsearch/reference/current/cef-processor.html
 ---

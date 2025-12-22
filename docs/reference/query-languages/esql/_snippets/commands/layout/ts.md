@@ -72,7 +72,7 @@ TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 ::::
 
 You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-directly in the `STATS` command ({applies_to}`stack: ga 9.2`), or combine them with regular
+directly in the `STATS` command ({applies_to}`stack: preview 9.3`), or combine them with regular
 [aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md),
 such as `SUM()`, as outer aggregation functions. For example:
 
@@ -110,7 +110,7 @@ TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
 
 **Examples**
 
-Using a time series aggregation function directly ({applies_to}`stack: ga 9.2`):
+Using a time series aggregation function directly ({applies_to}`stack: preview 9.3`):
 
 ```esql
 TS metrics

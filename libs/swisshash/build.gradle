@@ -12,7 +12,6 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  implementation 'com.carrotsearch:hppc:0.8.1'
   implementation project(':libs:x-content')
   implementation project(':server')
 

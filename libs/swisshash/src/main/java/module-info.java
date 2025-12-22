@@ -9,11 +9,10 @@
 
 module org.elasticsearch.swisshash {
     requires org.elasticsearch.base;
+    requires org.elasticsearch.logging;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
-    requires hppc;
     requires org.apache.lucene.core;
-    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.swisshash;
 }

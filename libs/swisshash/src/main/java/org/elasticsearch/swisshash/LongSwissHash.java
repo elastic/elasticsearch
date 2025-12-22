@@ -12,8 +12,6 @@ package org.elasticsearch.swisshash;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.VectorSpecies;
 
-import com.carrotsearch.hppc.BitMixer;
-
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.LongHashTable;

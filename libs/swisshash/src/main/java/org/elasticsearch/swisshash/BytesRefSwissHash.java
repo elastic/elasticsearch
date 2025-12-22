@@ -12,8 +12,6 @@ package org.elasticsearch.swisshash;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.VectorSpecies;
 
-import com.carrotsearch.hppc.BitMixer;
-
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;

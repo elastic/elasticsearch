@@ -17,36 +17,93 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.stateless.autoscaling.DesiredClusterTopology;
+import co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplicationRanker.IndexRankingProperties;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.ENABLE_REPLICAS_LOAD_BALANCING;
 
 /**
  * Scaler that recommends the number of replicas for each index based on the per index search load.
+ *
+ * The formula we use to determine the number of replicas based on search load is:
+ *    min(ceil(L*N/(S*X)), N)
+ *  where N = desired search nodes, L = index relative search load, S = index number of shards,
+ *  X = the maximum relative search load we'd like a single replica to handle, parameter used to avoid hot-spotting
+ *
+ *  This class also ensures that the number of replicas for each index conforms with the current cluster topology,
+ *  by indicating an immediate reduction in number of replicas is needed and should be executed regardless of heuristics that live outside
+ *  this class. The topology check should be run first before any further calculations, and can be requested as standalone (to avoid the
+ *  more computationally expensive relative search load recommendations).
+ *
+ *  The topology check computes the current alive search nodes using:
+ *      current_alive_search_nodes = current_search_nodes - shutting_down_search_nodes (excluding nodes that are shutting down for restart)
+ *
+ *  current_alive_search_nodes will temporarily contain newly added nodes to the cluster, even if existing nodes haven't yet been marked for
+ *  shutdown (this is why they are only used when looking to reduce the number of replicas, this must not be used when considering
+ *  increasing replicas)
+ *
+ *  Once we have the number of alive search nodes will check the maximum number of replicas allowed for each index using:
+ *     max_allowed_replicas =
+ *        max(
+ *             min(current_replicas, current_alive_search_nodes),
+ *             desired_search_nodes
+ *        )
+ *
+ *  If the current number of replicas exceeds max_allowed_replicas, we indicate an immediate scale down to that number of replicas.
  */
 public class ReplicasLoadBalancingScaler {
+    private static final Logger LOGGER = LogManager.getLogger(ReplicasLoadBalancingScaler.class);
+
+    // the maximum relative search load we'd like a single replica to handle, used to avoid hot-spotting
+    public static final Setting<Double> MAX_REPLICA_RELATIVE_SEARCH_LOAD = Setting.doubleSetting(
+        "serverless.autoscaling.replicas_load_balancing.max_replica_relative_search_load",
+        0.5,
+        0.01,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
 
     public static final ReplicasLoadBalancingResult EMPTY_RESULT = new ReplicasLoadBalancingResult(Map.of(), Map.of());
     private final Client client;
+    private final ClusterService clusterService;
     private volatile boolean enableReplicasForLoadBalancing;
+    private volatile double maxReplicaRelativeSearchLoad;
 
     public ReplicasLoadBalancingScaler(ClusterService clusterService, Client client) {
         this.client = client;
+        this.clusterService = clusterService;
+    }
+
+    public void init() {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(ENABLE_REPLICAS_LOAD_BALANCING, this::updateEnableReplicasForLoadBalancing);
+        clusterSettings.initializeAndWatch(MAX_REPLICA_RELATIVE_SEARCH_LOAD, this::updateMaxReplicaRelativeSearchLoad);
     }
 
     /**
@@ -56,10 +113,38 @@ public class ReplicasLoadBalancingScaler {
     public void getRecommendedReplicas(
         ClusterState state,
         ReplicaRankingContext rankingContext,
+        DesiredClusterTopology desiredClusterTopology,
+        boolean onlyTopologyCheck,
         ActionListener<ReplicasLoadBalancingResult> listener
     ) {
         if (enableReplicasForLoadBalancing == false) {
             listener.onResponse(EMPTY_RESULT);
+            return;
+        }
+
+        List<DiscoveryNode> clusterSearchNodes = state.nodes()
+            .stream()
+            .filter(node -> node.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()))
+            .toList();
+        int currentSearchNodes = clusterSearchNodes.size();
+        NodesShutdownMetadata shutdownMetadata = state.metadata().nodeShutdowns();
+        Set<String> shutDownNodeIds = shutdownMetadata.getAllNodeIds();
+        int numberOfShuttingDownSearchNodes = (int) clusterSearchNodes.stream()
+            .map(DiscoveryNode::getId)
+            .filter(shutDownNodeIds::contains)
+            // filter out node restarts as they don't reduce search nodes capacity
+            .filter(nodeId -> shutdownMetadata.contains(nodeId, SingleNodeShutdownMetadata.Type.RESTART) == false)
+            .count();
+
+        Map<String, Integer> immediateReplicaScaleDown = limitReplicasToCurrentTopology(
+            rankingContext,
+            desiredClusterTopology,
+            currentSearchNodes,
+            numberOfShuttingDownSearchNodes
+        );
+
+        if (onlyTopologyCheck) {
+            listener.onResponse(new ReplicasLoadBalancingResult(immediateReplicaScaleDown, Map.of()));
             return;
         }
 
@@ -73,9 +158,67 @@ public class ReplicasLoadBalancingScaler {
             .clear()
             .indicesOptions(statsIndicesOptions)
             .search(true);
-        client.execute(IndicesStatsAction.INSTANCE, statsRequest, listener.delegateFailureAndWrap((delegate, statsResponse) -> {
-            listener.onResponse(calculateDesiredReplicas(getIndicesRelativeSearchLoads(rankingContext, statsResponse::getIndex)));
-        }));
+
+        client.execute(IndicesStatsAction.INSTANCE, statsRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                try {
+                    listener.onResponse(
+                        calculateDesiredReplicas(
+                            rankingContext,
+                            getIndicesRelativeSearchLoads(rankingContext, indicesStatsResponse::getIndex),
+                            immediateReplicaScaleDown,
+                            desiredClusterTopology,
+                            numberOfShuttingDownSearchNodes
+                        )
+                    );
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // if stats API or processing fails we do always want to return the topology check result
+                listener.onResponse(new ReplicasLoadBalancingResult(immediateReplicaScaleDown, Map.of()));
+            }
+        });
+    }
+
+    /**
+     * Limits the number of replicas for indices to conform with the current cluster topology.
+     * This method ensures that indices do not have more replicas than can be supported by the current
+     * alive search nodes, taking into account nodes that are shutting down.
+     * It returns a map of indices that need immediate replica reduction to stay within topology bounds.
+     */
+    // visible for testing
+    Map<String, Integer> limitReplicasToCurrentTopology(
+        ReplicaRankingContext rankingContext,
+        DesiredClusterTopology desiredClusterTopology,
+        int currentSearchNodesInCluster,
+        int shuttingDownSearchNodes
+    ) {
+        if (enableReplicasForLoadBalancing == false) {
+            return Map.of();
+        }
+        Map<String, Integer> immediateReplicaScaleDown = new HashMap<>();
+        int currentAliveSearchNodes = Math.max(1, currentSearchNodesInCluster - shuttingDownSearchNodes);
+        int desiredSearchNodes = desiredClusterTopology.getSearch().getReplicas();
+        for (IndexRankingProperties indexProperties : rankingContext.properties()) {
+            String index = indexProperties.indexProperties().name();
+            int currentReplicas = indexProperties.indexProperties().replicas();
+
+            int maxReplicasAllowed = Math.max(Math.min(currentReplicas, currentAliveSearchNodes), desiredSearchNodes);
+            if (currentReplicas > maxReplicasAllowed) {
+                immediateReplicaScaleDown.put(index, maxReplicasAllowed);
+                LOGGER.debug(
+                    "immediately reducing the number of replicas index [{}] to [{}] replicas to conform with current topology",
+                    index,
+                    maxReplicasAllowed
+                );
+            }
+        }
+        return immediateReplicaScaleDown;
     }
 
     /**
@@ -137,11 +280,57 @@ public class ReplicasLoadBalancingScaler {
         return totalSearchLoad;
     }
 
-    static ReplicasLoadBalancingResult calculateDesiredReplicas(Map<String, Double> indicesRelativeSearchLoads) {
-        return EMPTY_RESULT;
+    // visible for testing
+    ReplicasLoadBalancingResult calculateDesiredReplicas(
+        ReplicaRankingContext rankingContext,
+        Map<String, Double> indicesRelativeSearchLoads,
+        Map<String, Integer> immediateReplicaScaleDown,
+        DesiredClusterTopology desiredClusterTopology,
+        int shuttingDownSearchNodes
+    ) {
+        int desiredSearchNodes = desiredClusterTopology.getSearch().getReplicas();
+
+        Map<String, Integer> desiredReplicasPerIndex = new HashMap<>();
+
+        for (IndexRankingProperties indexProperties : rankingContext.properties()) {
+            String index = indexProperties.indexProperties().name();
+            if (immediateReplicaScaleDown.containsKey(index)) {
+                // if the index is marked for immediate scale down that takes precedence to respect the current topology
+                // so no further calculations are needed here
+                continue;
+            }
+            Double relativeLoad = indicesRelativeSearchLoads.get(index);
+            if (relativeLoad == null) {
+                continue;
+            }
+
+            int numberOfShards = indexProperties.indexProperties().shards();
+
+            int desiredReplicas = (int) Math.min(
+                Math.ceil(relativeLoad * desiredSearchNodes / (numberOfShards * maxReplicaRelativeSearchLoad)),
+                desiredSearchNodes
+            );
+
+            int currentReplicas = indexProperties.indexProperties().replicas();
+            // if shutdowns are in progress, prevent scale-ups but allow scale-downs
+            if (shuttingDownSearchNodes > 0 && desiredReplicas > currentReplicas) {
+                LOGGER.debug("increasing the number of replicas for index [{}] prevented due to in-progress shutdowns", index);
+                desiredReplicas = currentReplicas;
+            }
+
+            if (desiredReplicas != currentReplicas) {
+                desiredReplicasPerIndex.put(index, desiredReplicas);
+            }
+        }
+
+        return new ReplicasLoadBalancingResult(immediateReplicaScaleDown, desiredReplicasPerIndex);
     }
 
-    private void updateEnableReplicasForLoadBalancing(boolean newValue) {
+    public void updateEnableReplicasForLoadBalancing(boolean newValue) {
         this.enableReplicasForLoadBalancing = newValue;
+    }
+
+    private void updateMaxReplicaRelativeSearchLoad(Double newValue) {
+        this.maxReplicaRelativeSearchLoad = newValue;
     }
 }

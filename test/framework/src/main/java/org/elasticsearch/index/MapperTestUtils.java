@@ -96,6 +96,7 @@ public class MapperTestUtils {
             ScriptCompiler.NONE,
             bitsetFilterCache::getBitSetProducer,
             MapperMetrics.NOOP,
+            null,
             null
         );
     }

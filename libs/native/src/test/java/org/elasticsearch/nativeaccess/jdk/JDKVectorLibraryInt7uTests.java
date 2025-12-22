@@ -9,8 +9,6 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
@@ -40,12 +38,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     @AfterClass
     public static void afterClass() {
         VectorSimilarityFunctionsTests.cleanup();
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        // not doing cosine at all yet
-        return () -> VectorSimilarityFunctionsTests.allParameters().filter(o -> o[0] != SimilarityFunction.COSINE).iterator();
     }
 
     public void testInt7BinaryVectors() {
@@ -232,7 +224,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     int similarity(MemorySegment a, MemorySegment b, int length) {
         try {
             return switch (function) {
-                case COSINE -> throw new AssumptionViolatedException("Not implemented");
                 case DOT_PRODUCT -> (int) getVectorDistance().dotProductHandle7u().invokeExact(a, b, length);
                 case SQUARE_DISTANCE -> (int) getVectorDistance().squareDistanceHandle7u().invokeExact(a, b, length);
             };
@@ -244,7 +235,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
         try {
             switch (function) {
-                case COSINE -> throw new AssumptionViolatedException("Not implemented");
                 case DOT_PRODUCT -> getVectorDistance().dotProductHandle7uBulk().invokeExact(a, b, dims, count, result);
                 case SQUARE_DISTANCE -> getVectorDistance().squareDistanceHandle7uBulk().invokeExact(a, b, dims, count, result);
             }
@@ -264,7 +254,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     ) {
         try {
             switch (function) {
-                case COSINE -> throw new AssumptionViolatedException("Not implemented");
                 case DOT_PRODUCT -> getVectorDistance().dotProductHandle7uBulkWithOffsets()
                     .invokeExact(a, b, dims, pitch, offsets, count, result);
                 case SQUARE_DISTANCE -> getVectorDistance().squareDistanceHandle7uBulkWithOffsets()
@@ -277,7 +266,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     int scalarSimilarity(byte[] a, byte[] b) {
         return switch (function) {
-            case COSINE -> throw new AssumptionViolatedException("Not implemented");
             case DOT_PRODUCT -> dotProductScalar(a, b);
             case SQUARE_DISTANCE -> squareDistanceScalar(a, b);
         };
@@ -285,7 +273,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulk(byte[] query, byte[][] data, float[] scores) {
         switch (function) {
-            case COSINE -> throw new AssumptionViolatedException("Not implemented");
             case DOT_PRODUCT -> dotProductBulkScalar(query, data, scores);
             case SQUARE_DISTANCE -> throw new AssumptionViolatedException("Not implemented");
         }
@@ -293,7 +280,6 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulkWithOffsets(byte[] query, byte[][] data, int[] offsets, float[] scores) {
         switch (function) {
-            case COSINE -> throw new AssumptionViolatedException("Not implemented");
             case DOT_PRODUCT -> dotProductBulkWithOffsetsScalar(query, data, offsets, scores);
             case SQUARE_DISTANCE -> throw new AssumptionViolatedException("Not implemented");
         }

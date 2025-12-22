@@ -42,7 +42,7 @@ import java.util.List;
  *   avg_over_time(cpu_usage[1h])
  *     → TimeSeriesAggregate(groupBy: _tsid, agg: AvgOverTime(value))
  */
-public class WithinSeriesAggregate extends PromqlFunctionCall {
+public final class WithinSeriesAggregate extends PromqlFunctionCall {
 
     public WithinSeriesAggregate(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
         super(source, child, functionName, parameters);

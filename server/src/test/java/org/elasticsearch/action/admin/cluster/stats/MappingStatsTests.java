@@ -219,7 +219,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                   "stored" : 2
                 }
               }
-            }""", Strings.toString(mappingStats, true, true));
+            }""", mappingStatsString);
     }
 
     public void testToXContentWithSomeSharedMappings() {

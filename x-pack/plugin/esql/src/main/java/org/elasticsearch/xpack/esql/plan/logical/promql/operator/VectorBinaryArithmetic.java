@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic;
+package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -16,10 +16,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 
-public class VectorBinaryArithmetic extends VectorBinaryOperator {
+public final class VectorBinaryArithmetic extends VectorBinaryOperator {
 
     public enum ArithmeticOp implements BinaryOp {
         ADD,

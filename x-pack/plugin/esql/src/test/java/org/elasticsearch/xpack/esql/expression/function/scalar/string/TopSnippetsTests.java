@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
+import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -79,7 +80,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
             List<String> scoredChunks = scorer.scoreChunks(chunks, query, DEFAULT_NUM_SNIPPETS, false)
                 .stream()
-                .map(MemoryIndexChunkScorer.ScoredChunk::content)
+                .map(ScoredChunk::content)
                 .toList();
 
             Object expectedResult;
@@ -173,7 +174,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             query,
             effectiveNumSnippets,
             false
-        ).stream().map(MemoryIndexChunkScorer.ScoredChunk::content).limit(effectiveNumSnippets).toList();
+        ).stream().map(ScoredChunk::content).limit(effectiveNumSnippets).toList();
 
         List<String> result = process(PARAGRAPH_INPUT, query, effectiveNumSnippets, effectiveNumWords);
         assertThat(result.size(), equalTo(expectedNumChunksReturned));

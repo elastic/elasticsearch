@@ -258,11 +258,21 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                         );
                         ESVectorUtil.packAsBinary(quantizedVector, expectedVector);
                         assertArrayEquals(expectedVector, qvectorValues.vectorValue(docIndexIterator.index()));
-                        assertEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
+                        assertQuantizationResultEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
                     }
                 }
             }
         }
+    }
+
+    static void assertQuantizationResultEquals(
+        OptimizedScalarQuantizer.QuantizationResult expected,
+        OptimizedScalarQuantizer.QuantizationResult obj
+    ) {
+        assertEquals(expected.lowerInterval(), obj.lowerInterval(), 0.000001f);
+        assertEquals(expected.upperInterval(), obj.upperInterval(), 0.000001f);
+        assertEquals(expected.additionalCorrection(), obj.additionalCorrection(), 0.00001f);
+        assertEquals(expected.quantizedComponentSum(), obj.quantizedComponentSum());
     }
 
     public void testSimpleOffHeapSize() throws IOException {

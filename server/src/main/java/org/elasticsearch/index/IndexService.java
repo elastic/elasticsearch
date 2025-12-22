@@ -241,7 +241,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,
-                null
+                null,
+                () -> client.projectResolver().hasProject(clusterService.state())
+                    ? client.projectResolver().getProjectMetadata(clusterService.state())
+                    : null
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
             boolean sourceOnly = indexSettings.getSettings().getAsBoolean("index.source_only", false);

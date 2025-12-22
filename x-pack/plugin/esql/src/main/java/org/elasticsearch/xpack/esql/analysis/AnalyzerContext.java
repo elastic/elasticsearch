@@ -25,6 +25,7 @@ public class AnalyzerContext {
     private final EnrichResolution enrichResolution;
     private final InferenceResolution inferenceResolution;
     private final TransportVersion minimumVersion;
+    private Boolean hasRemoteIndices;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -74,6 +75,14 @@ public class AnalyzerContext {
 
     public TransportVersion minimumVersion() {
         return minimumVersion;
+    }
+
+    public boolean includesRemoteIndices() {
+        assert indexResolution != null;
+        if (hasRemoteIndices == null) {
+            hasRemoteIndices = indexResolution.values().stream().anyMatch(IndexResolution::includesRemoteIndices);
+        }
+        return hasRemoteIndices;
     }
 
     public AnalyzerContext(Configuration configuration, EsqlFunctionRegistry functionRegistry, EsqlSession.PreAnalysisResult result) {

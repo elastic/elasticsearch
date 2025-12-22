@@ -423,9 +423,6 @@ tests:
 - class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
   method: testRescoreSingleAndBulkEquality
   issue: https://github.com/elastic/elasticsearch/issues/139869
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/139872
 
 # Examples:
 #

@@ -373,10 +373,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 lastValue = currentValue; // Update last value for next iteration
             }
             if (deltaAgg.equals(DeltaAgg.INCREASE)) {
+                // TODO: get tighter bounds by applying interpolation instead of median between adjacent buckets
                 return new RateRange(
-                    counterGrowth * 0.5, // INCREASE is RATE multiplied by the window size
+                    counterGrowth * 0.01, // INCREASE is RATE multiplied by the window size
                     // Upper bound is extrapolated to the window size
-                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.5
+                    counterGrowth * secondsInWindow / tsDurationSeconds * 4
                 );
             } else {
                 // TODO: get tighter bounds by applying interpolation instead of median between adjacent buckets

@@ -33,13 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.*;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -266,7 +262,13 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
             | STATS rate(network.total_bytes_out) BY region, TBUCKET(1hour)
             """); });
 
-        assertThat(error.getMessage(), equalTo("Only grouping functions are supported (e.g. tbucket). Found [region]."));
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Only grouping functions are supported (e.g. tbucket) when the time series aggregation function "
+                    + "[rate(network.total_bytes_out)] is not wrapped with another aggregation function. Found [region]."
+            )
+        );
     }
 
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -321,15 +322,20 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             return new Equals(source, field, Literal.keyword(source, exactMatch));
         }
 
+        Expression condition;
         // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
         List<AutomatonUtils.PatternFragment> fragments = AutomatonUtils.extractFragments(matcher.value());
         if (fragments != null && fragments.isEmpty() == false) {
-            return translateDisjointPatterns(source, field, fragments);
+            condition = translateDisjointPatterns(source, field, fragments);
+        } else {
+            // Fallback to RLIKE with the full automaton pattern
+            // Note: We need to ensure the pattern is properly anchored for PromQL semantics
+            condition = new RLike(source, field, new RLikePattern(matcher.toString()));
         }
-
-        // Fallback to RLIKE with the full automaton pattern
-        // Note: We need to ensure the pattern is properly anchored for PromQL semantics
-        return new RLike(source, field, new RLikePattern(matcher.toString()));
+        if (matcher.isNegation()) {
+            condition = new Not(source, condition);
+        }
+        return condition;
     }
 
     /**

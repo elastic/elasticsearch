@@ -448,6 +448,155 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         );
     }
 
+    public void testReturnsAuthorizedEndpoints_FiltersUnsupportedElementType() {
+        var id1 = "id1";
+        var id2 = "id2";
+        var id3 = "id3";
+        var invalidTextEmbedding1 = "invalid_text_embedding1";
+        var invalidTextEmbedding2 = "invalid_text_embedding2";
+        var invalidTextEmbedding3 = "invalid_text_embedding3";
+        var invalidTextEmbedding4 = "invalid_text_embedding4";
+
+        var name = "name1";
+
+        var dimensions = 123;
+        var similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                // Valid
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id1,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                        similarityMeasure.toString(),
+                        dimensions,
+                        // Valid element type as it should be converted to lower case
+                        "fLoaT",
+                        null
+                    )
+                ),
+                // Valid with element type all caps
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id2,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                        similarityMeasure.toString(),
+                        dimensions,
+                        // Valid element type as it should be converted to lower case
+                        "FLOAT",
+                        null
+                    )
+                ),
+                // Valid with element type all lower case
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id3,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                        similarityMeasure.toString(),
+                        dimensions,
+                        "float",
+                        null
+                    )
+                ),
+                // Unsupported element type byte
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    invalidTextEmbedding1,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                        similarityMeasure.toString(),
+                        dimensions,
+                        DenseVectorFieldMapper.ElementType.BYTE.toString(),
+                        null
+                    )
+                ),
+                // Unsupported element type
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    invalidTextEmbedding2,
+                    name,
+                    createTaskTypeObject(EIS_EMBED_PATH, TaskType.TEXT_EMBEDDING.toString()),
+                    "ga",
+                    null,
+                    "",
+                    "",
+                    new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                        similarityMeasure.toString(),
+                        dimensions,
+                        "invalid-element-type",
+                        null
+                    )
+                )
+            )
+        );
+
+        var url = "url";
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
+        assertThat(auth.getEndpointIds(), is(Set.of(id1, id2, id3)));
+        assertThat(auth.getTaskTypes(), is(Set.of(TaskType.TEXT_EMBEDDING)));
+        assertTrue(auth.isAuthorized());
+
+        var textEmbeddingsModel1 = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+            id1,
+            TaskType.TEXT_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
+        );
+
+        var textEmbeddingsModel2 = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+            id2,
+            TaskType.TEXT_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
+        );
+
+        var textEmbeddingsModel3 = new ElasticInferenceServiceDenseTextEmbeddingsModel(
+            id3,
+            TaskType.TEXT_EMBEDDING,
+            ElasticInferenceService.NAME,
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            EmptyTaskSettings.INSTANCE,
+            EmptySecretSettings.INSTANCE,
+            new ElasticInferenceServiceComponents(url),
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
+        );
+
+        assertThat(
+            auth.getEndpoints(
+                Set.of(id1, id2, id3, invalidTextEmbedding1, invalidTextEmbedding2, invalidTextEmbedding3, invalidTextEmbedding4)
+            ),
+            containsInAnyOrder(textEmbeddingsModel1, textEmbeddingsModel2, textEmbeddingsModel3)
+        );
+    }
+
     public void testCreatesAllSupportedTaskTypesAndReturnsCorrectModels() {
         var idChat = "id_chat";
         var idSparse = "id_sparse";

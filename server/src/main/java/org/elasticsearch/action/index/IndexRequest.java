@@ -14,7 +14,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -75,7 +74,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
 
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
     private static final TransportVersion INDEX_REQUEST_INCLUDE_TSID = TransportVersion.fromName("index_request_include_tsid");
     private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
     static final TransportVersion INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS = TransportVersion.fromName(
@@ -197,34 +195,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
         dynamicTemplates = in.readMap(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            in.readBoolean(); // obsolete, prior to tracking normalisedBytesParsed
+        this.listExecutedPipelines = in.readBoolean();
+        if (listExecutedPipelines) {
+            List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
+            this.executedPipelines = possiblyImmutableExecutedPipelines == null
+                ? null
+                : new ArrayList<>(possiblyImmutableExecutedPipelines);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.listExecutedPipelines = in.readBoolean();
-            if (listExecutedPipelines) {
-                List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
-                this.executedPipelines = possiblyImmutableExecutedPipelines == null
-                    ? null
-                    : new ArrayList<>(possiblyImmutableExecutedPipelines);
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            requireDataStream = in.readBoolean();
-        } else {
-            requireDataStream = false;
-        }
-
-        if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                in.readZLong(); // obsolete normalisedBytesParsed
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                in.readBoolean(); // obsolete originatesFromUpdateByScript
-                in.readBoolean(); // obsolete originatesFromUpdateByDoc
-            }
-        }
+        requireDataStream = in.readBoolean();
 
         includeSourceOnError = in.readBoolean();
 
@@ -791,30 +769,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(requireAlias);
         out.writeMap(dynamicTemplates, StreamOutput::writeString);
-        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(false); // obsolete, prior to tracking normalisedBytesParsed
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(listExecutedPipelines);
-            if (listExecutedPipelines) {
-                out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
-            }
+        out.writeBoolean(listExecutedPipelines);
+        if (listExecutedPipelines) {
+            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(requireDataStream);
-        }
+        out.writeBoolean(requireDataStream);
 
-        if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeZLong(-1);  // obsolete normalisedBytesParsed
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeBoolean(false); // obsolete originatesFromUpdateByScript
-                out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
-            }
-        }
         out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);

@@ -319,10 +319,9 @@ null           | null              | 4        | 172.21.3.15
 ;
 
 subqueryWithCountStarAndDateTrunc
-required_capability: fork_v9
 required_capability: subquery_in_from_command
 
-FROM employees, (FROM sample_data
+FROM employees, (FROM sample_data metadata _index
                                 | STATS cnt = count(*) by ts=date_trunc(1 hour, @timestamp)
                                 | SORT cnt DESC
                                 )

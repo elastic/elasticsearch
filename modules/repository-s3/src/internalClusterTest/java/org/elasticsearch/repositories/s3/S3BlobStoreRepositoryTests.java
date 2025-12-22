@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -72,7 +72,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -648,13 +647,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        public List<Setting<?>> getSettings() {
-            final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
-            settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
-            return settings;
-        }
-
-        @Override
         protected S3Repository createRepository(
             ProjectId projectId,
             RepositoryMetadata metadata,
@@ -708,7 +700,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     protected class S3BlobStoreHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
 
         S3BlobStoreHttpHandler(final String bucket) {
-            super(bucket);
+            super(bucket, S3ConsistencyModel.AWS_DEFAULT);
         }
 
         @Override
@@ -777,7 +769,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         private S3HttpHandler.S3Request parseRequest(HttpExchange exchange) {
-            return new S3HttpHandler("bucket").parseRequest(exchange);
+            return new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()).parseRequest(exchange);
         }
 
         @Override

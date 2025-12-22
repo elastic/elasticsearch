@@ -10,7 +10,6 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -236,9 +235,6 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                     TransportVersion.minimumCompatible(),
                     TransportVersion.current()
                 );
-            }
-            if (request.source() != null && request.source().subSearches().size() >= 2) {
-                version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_9_X, TransportVersion.current());
             }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
             channelVersion = TransportVersion.min(channelVersion, version);

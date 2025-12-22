@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -119,6 +118,7 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_TOTAL_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_DOC_ID_BYTES_LENGTH;
+import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_CLIENT_AUTH_FOR_REFRESH;
 import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -235,10 +235,6 @@ public class TokenServiceTests extends ESTestCase {
             // tokens docs on a separate index)
             pre72OldNode = addAnother7071DataNode(this.clusterService);
         }
-        if (randomBoolean()) {
-            // before refresh tokens used GET, i.e. TokenService#VERSION_GET_TOKEN_DOC_FOR_REFRESH
-            pre8500040OldNode = addAnotherPre8500DataNode(this.clusterService);
-        }
     }
 
     private static DiscoveryNode addAnother7071DataNode(ClusterService clusterService) {
@@ -251,14 +247,6 @@ public class TokenServiceTests extends ESTestCase {
             version = Version.V_7_1_0;
             transportVersion = TransportVersion.fromId(7_01_00_99);
         }
-        return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
-    }
-
-    private static DiscoveryNode addAnotherPre8500DataNode(ClusterService clusterService) {
-        Version version;
-        TransportVersion transportVersion;
-        version = Version.V_8_9_0;
-        transportVersion = TransportVersions.V_8_9_X;
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
 
@@ -551,7 +539,20 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
+        if (authentication.getEffectiveSubject().getTransportVersion().supports(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+            return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
+        } else {
+            return new RefreshTokenStatus(
+                invalidated,
+                authentication.getEffectiveSubject().getUser().principal(),
+                authentication.getAuthenticatingSubject().getRealm().getName(),
+                refreshed,
+                refreshInstant,
+                supersedingTokens,
+                iv,
+                salt
+            );
+        }
     }
 
     private void storeTokenHeader(ThreadContext requestContext, String tokenString) {
@@ -1012,7 +1013,7 @@ public class TokenServiceTests extends ESTestCase {
             authentication,
             tokenFuture
         );
-        if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+        if (version.supports(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             // previous versions serialized the access token encrypted and the cipher text was different each time (due to different IVs)
             assertThat(
                 tokenService.prependVersionAndEncodeAccessToken(version, newTokenBytes.v1()),
@@ -1106,7 +1107,7 @@ public class TokenServiceTests extends ESTestCase {
                         XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false)
                     );
                     accessTokenMap.put("invalidated", isInvalidated);
-                    if (userToken.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+                    if (userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
                         accessTokenMap.put(
                             "token",
                             Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes))
@@ -1143,11 +1144,11 @@ public class TokenServiceTests extends ESTestCase {
 
     // public for tests
     public static String tokenDocIdFromAccessTokenBytes(byte[] accessTokenBytes, TransportVersion tokenVersion) {
-        if (tokenVersion.onOrAfter(TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (tokenVersion.supports(TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             MessageDigest userTokenIdDigest = sha256();
             userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
             return Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-        } else if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+        } else if (tokenVersion.supports(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             return TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
         } else {
             return Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes);
@@ -1164,10 +1165,10 @@ public class TokenServiceTests extends ESTestCase {
         UserToken userToken = buildUserToken(tokenService, accessTokenBytes, authentication, null, Map.of());
         final String storedAccessToken;
         final String storedRefreshToken;
-        if (userToken.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             storedAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
             storedRefreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(refreshTokenBytes));
-        } else if (userToken.getTransportVersion().onOrAfter(TokenService.VERSION_HASHED_TOKENS)) {
+        } else if (userToken.getTransportVersion().supports(TokenService.VERSION_HASHED_TOKENS)) {
             storedAccessToken = null;
             storedRefreshToken = TokenService.hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
         } else {
@@ -1200,7 +1201,7 @@ public class TokenServiceTests extends ESTestCase {
             source = XContentTestUtils.convertToXContent(sourceAsMap, XContentType.JSON);
         }
         final BytesReference docSource = source;
-        if (userToken.getTransportVersion().onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
+        if (userToken.getTransportVersion().supports(VERSION_GET_TOKEN_DOC_FOR_REFRESH)) {
             doAnswer(invocationOnMock -> {
                 GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
                 @SuppressWarnings("unchecked")

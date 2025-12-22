@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
 
@@ -185,7 +186,7 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
         private final AtomicReference<CountDownLatch> stallLatchRef = new AtomicReference<>(null);
 
         S3StallingHttpHandler(final String bucket) {
-            super(bucket);
+            super(bucket, S3ConsistencyModel.randomConsistencyModel());
         }
 
         @Override

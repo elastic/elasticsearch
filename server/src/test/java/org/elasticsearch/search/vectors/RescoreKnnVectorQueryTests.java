@@ -29,7 +29,6 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FullPrecisionFloatVectorSimilarityValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -39,12 +38,13 @@ import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
-import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
-import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -77,7 +77,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
                 .build()
         );
-        innerQueries.add(new MatchAllDocsQuery());
+        innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
@@ -104,7 +104,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         FIELD_NAME,
                         VectorSimilarityFunction.COSINE
                     );
-                    FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), valueSource);
+                    FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(Queries.ALL_DOCS_INSTANCE, valueSource);
                     TopDocs realScoreTopDocs = searcher.search(functionScoreQuery, numDocs);
 
                     int i = 0;
@@ -139,7 +139,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
                 .build()
         );
-        innerQueries.add(new MatchAllDocsQuery());
+        innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
@@ -194,7 +194,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(d)) {
                 float[] queryVector = randomVector(numDims);
 
-                checkProfiling(k, numDocs, queryVector, reader, new MatchAllDocsQuery());
+                checkProfiling(k, numDocs, queryVector, reader, Queries.ALL_DOCS_INSTANCE);
                 checkProfiling(k, numDocs, queryVector, reader, new MockQueryProfilerProvider(randomIntBetween(1, 100)));
             }
         }
@@ -257,7 +257,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         @Override
         public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override
@@ -291,15 +291,24 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             ),
             new ES93BinaryQuantizedVectorsFormat(
                 randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
-                randomBoolean()
+                false
             ),
             new ES93HnswBinaryQuantizedVectorsFormat(
                 randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
                 randomBoolean()
             ),
-            new ES813Int8FlatVectorFormat(),
-            new ES813Int8FlatVectorFormat(),
-            new ES814HnswScalarQuantizedVectorsFormat()
+            new ES93ScalarQuantizedVectorsFormat(
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16)
+            ),
+            new ES93HnswScalarQuantizedVectorsFormat(
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
+                null,
+                7,
+                false,
+                randomBoolean()
+            )
         );
         iwc.setCodec(new Elasticsearch92Lucene103Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {
             @Override

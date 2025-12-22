@@ -1,0 +1,200 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.cluster.metadata;
+
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CREATE_INDEX_MAX_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.metadata.MetadataMappingService.PUT_MAPPING_MAX_TIMEOUT_SETTING;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+
+public class CreateIndexTimeoutIT extends ESIntegTestCase {
+
+    public static class TestPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return CollectionUtils.appendToCopyNoNullElements(
+                super.getSettings(),
+                CREATE_INDEX_MAX_TIMEOUT_SETTING,
+                PUT_MAPPING_MAX_TIMEOUT_SETTING
+            );
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), TestPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(otherSettings)
+            .put(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey(), "1ms")
+            .put(PUT_MAPPING_MAX_TIMEOUT_SETTING.getKey(), "1ms")
+            .build();
+    }
+
+    private Releasable withBlockedMasterService(ClusterService masterClusterService) {
+        final var barrier = new CyclicBarrier(2);
+        masterClusterService.submitUnbatchedStateUpdateTask("blocking task", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                safeAwait(barrier);
+                safeAwait(barrier);
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+        safeAwait(barrier);
+        return () -> safeAwait(barrier);
+    }
+
+    public void testReducePriorities() {
+        final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var indexName = "index-" + randomIdentifier();
+
+        try (var ignored = withBlockedMasterService(masterClusterService)) {
+            final var createIndexRequest = new CreateIndexRequest(indexName);
+            setArbitraryMasterNodeTimeout(createIndexRequest);
+            assertThat(
+                asInstanceOf(
+                    ProcessClusterEventTimeoutException.class,
+                    ExceptionsHelper.unwrapCause(
+                        safeAwaitFailure(
+                            CreateIndexResponse.class,
+                            l -> client().execute(TransportCreateIndexAction.TYPE, createIndexRequest, l)
+                        )
+                    )
+                ).getMessage(),
+                allOf(
+                    containsString("failed to process cluster event"),
+                    containsString("create-index"),
+                    containsString(indexName),
+                    containsString("within 1ms")
+                )
+            );
+        }
+
+        updateClusterSettings(Settings.builder().put(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey(), randomFrom("-1", "60s", "1h")));
+
+        final ActionFuture<CreateIndexResponse> createIndexResponseFuture;
+        try (var ignored = withBlockedMasterService(masterClusterService)) {
+            final var createIndexRequest = new CreateIndexRequest(indexName);
+            setArbitraryMasterNodeTimeout(createIndexRequest);
+            createIndexResponseFuture = client().execute(TransportCreateIndexAction.TYPE, createIndexRequest);
+            awaitPendingTask(masterClusterService, "create-index [" + indexName + "]");
+        }
+        safeGet(createIndexResponseFuture);
+
+        try (var ignored = withBlockedMasterService(masterClusterService)) {
+            final var putMappingRequest = new PutMappingRequest().setConcreteIndex(
+                masterClusterService.state().metadata().getProject(ProjectId.DEFAULT).index(indexName).getIndex()
+            ).source("f", "type=keyword");
+            setArbitraryMasterNodeTimeout(putMappingRequest);
+            assertThat(
+                asInstanceOf(
+                    ProcessClusterEventTimeoutException.class,
+                    ExceptionsHelper.unwrapCause(
+                        safeAwaitFailure(
+                            AcknowledgedResponse.class,
+                            l -> client().execute(
+                                randomFrom(TransportPutMappingAction.TYPE, TransportAutoPutMappingAction.TYPE),
+                                putMappingRequest,
+                                l
+                            )
+                        )
+                    )
+                ).getMessage(),
+                allOf(
+                    containsString("failed to process cluster event"),
+                    containsString("put-mapping"),
+                    containsString(indexName),
+                    containsString("within 1ms")
+                )
+            );
+        }
+
+        updateClusterSettings(Settings.builder().put(PUT_MAPPING_MAX_TIMEOUT_SETTING.getKey(), randomFrom("-1", "60s", "1h")));
+
+        final ActionFuture<AcknowledgedResponse> putMappingResponseFuture;
+        try (var ignored = withBlockedMasterService(masterClusterService)) {
+            final var putMappingRequest = new PutMappingRequest().setConcreteIndex(
+                masterClusterService.state().metadata().getProject(ProjectId.DEFAULT).index(indexName).getIndex()
+            ).source("f", "type=keyword");
+            setArbitraryMasterNodeTimeout(putMappingRequest);
+            putMappingResponseFuture = client().execute(
+                randomFrom(TransportPutMappingAction.TYPE, TransportAutoPutMappingAction.TYPE),
+                putMappingRequest
+            );
+            awaitPendingTask(masterClusterService, "put-mapping [" + indexName + "/");
+        }
+        safeGet(putMappingResponseFuture);
+
+        updateClusterSettings(
+            Settings.builder().putNull(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey()).putNull(PUT_MAPPING_MAX_TIMEOUT_SETTING.getKey())
+        );
+    }
+
+    private static void awaitPendingTask(ClusterService masterClusterService, String taskSourcePrefix) {
+        assertTrue(
+            waitUntil(
+                () -> masterClusterService.getMasterService()
+                    .pendingTasks()
+                    .stream()
+                    .anyMatch(pct -> pct.getSource().toString().startsWith(taskSourcePrefix))
+            )
+        );
+    }
+
+    private static void setArbitraryMasterNodeTimeout(MasterNodeRequest<?> masterNodeRequest) {
+        if (randomBoolean()) {
+            masterNodeRequest.masterNodeTimeout(
+                // doesn't matter what timeout we set, we'll always have a 1ms timeout
+                randomFrom(
+                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                    TimeValue.MINUS_ONE,
+                    TimeValue.ZERO,
+                    TimeValue.THIRTY_SECONDS,
+                    TimeValue.MAX_VALUE
+                )
+            );
+        }
+    }
+
+}

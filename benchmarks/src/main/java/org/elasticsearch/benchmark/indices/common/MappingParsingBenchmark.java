@@ -135,7 +135,7 @@ public class MappingParsingBenchmark {
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
             BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
             MapperService mapperService = new MapperService(
-                () -> TransportVersion.current(),
+                TransportVersion::current,
                 indexSettings,
                 IndexAnalyzers.of(Map.of()),
                 XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))
@@ -154,6 +154,7 @@ public class MappingParsingBenchmark {
                 },
                 bitsetFilterCache::getBitSetProducer,
                 MapperMetrics.NOOP,
+                null,
                 null
             );
 

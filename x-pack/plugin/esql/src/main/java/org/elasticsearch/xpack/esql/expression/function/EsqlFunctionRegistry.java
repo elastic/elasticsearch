@@ -172,6 +172,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPerc
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
@@ -530,6 +531,7 @@ public class EsqlFunctionRegistry {
                 def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum"),
                 def(MvSort.class, MvSort::new, "mv_sort"),
                 def(MvSlice.class, MvSlice::new, "mv_slice"),
+                def(MvUnion.class, MvUnion::new, "mv_union"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
@@ -1315,7 +1317,13 @@ public class EsqlFunctionRegistry {
     ) {
         FunctionBuilder builder = (source, children, cfg) -> {
             checkIsOptionalTriFunction(function, children.size());
-            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() >= 2 ? children.get(1) : null,
+                children.size() == 3 ? children.get(2) : null,
+                cfg
+            );
         };
         return def(function, builder, names);
     }

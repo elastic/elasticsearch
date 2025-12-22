@@ -378,9 +378,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
      * {@code clusterFormationClusterStateView} record too.
      */
     private void updateClusterFormationClusterStateView() {
-        ClusterState currentClusterState = coordinationState.get().getLastAcceptedState();
         clusterFormationClusterStateView = new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
-            currentClusterState,
+            coordinationState.get().getLastAcceptedState(),
             getCurrentTerm()
         );
     }
@@ -1280,15 +1279,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             // clusterFormationClusterStateView is unsynchronised to unblock the health reporting from depending on the mutex
             // However, since we are inside the mutex now, we expect it have been synchronised
             ClusterFormationFailureHelper.ClusterFormationClusterStateView synchronisedClusterFormationClusterStateView =
-                new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
-                    lastAcceptedClusterState.nodes().getLocalNode(),
-                    lastAcceptedClusterState.nodes().getMasterNodes(),
-                    lastAcceptedClusterState.version(),
-                    lastAcceptedClusterState.term(),
-                    lastAcceptedClusterState.getLastAcceptedConfiguration(),
-                    lastAcceptedClusterState.getLastCommittedConfiguration(),
-                    getCurrentTerm()
-                );
+                new ClusterFormationFailureHelper.ClusterFormationClusterStateView(lastAcceptedClusterState, getCurrentTerm());
             assert clusterFormationClusterStateView.equals(synchronisedClusterFormationClusterStateView)
                 : "clusterFormationClusterStateView is unsynchronised despite being beneath a mutex";
 

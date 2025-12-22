@@ -33,9 +33,7 @@ public class FieldCountingTests extends MapperServiceTestCase {
     }
 
     public void testNestedFieldPathWithSubobjectsFalse() throws Exception {
-        assertFieldCount(false, b -> {
-            b.startObject("host.os.name").field("type", "keyword").endObject();
-        }, 1L);
+        assertFieldCount(false, b -> { b.startObject("host.os.name").field("type", "keyword").endObject(); }, 1L);
     }
 
     public void testMultiFields() throws Exception {
@@ -51,14 +49,12 @@ public class FieldCountingTests extends MapperServiceTestCase {
     }
 
     public void testRuntimeFields() throws Exception {
-        final MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("timestamp").field("type", "date").endObject();
-        }));
+        final MapperService mapperService = createMapperService(
+            mapping(b -> { b.startObject("timestamp").field("type", "date").endObject(); })
+        );
         assertThat(mapperService.mappingLookup().getTotalFieldsCount(), equalTo(1L));
 
-        merge(mapperService, runtimeMapping(b -> {
-            b.startObject("day_of_week").field("type", "keyword").endObject();
-        }));
+        merge(mapperService, runtimeMapping(b -> { b.startObject("day_of_week").field("type", "keyword").endObject(); }));
         assertThat(mapperService.mappingLookup().getTotalFieldsCount(), equalTo(2L));
     }
 
@@ -96,8 +92,11 @@ public class FieldCountingTests extends MapperServiceTestCase {
         }, 2L);
     }
 
-    private void assertFieldCount(final boolean subobjects, final CheckedConsumer<XContentBuilder, IOException> mapping, final long expectedCount)
-        throws Exception {
+    private void assertFieldCount(
+        final boolean subobjects,
+        final CheckedConsumer<XContentBuilder, IOException> mapping,
+        final long expectedCount
+    ) throws Exception {
         final MapperService mapperService = createMapperService(subobjects ? mapping(mapping) : mappingNoSubobjects(mapping));
         assertThat(mapperService.mappingLookup().getTotalFieldsCount(), equalTo(expectedCount));
     }

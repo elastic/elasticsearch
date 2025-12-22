@@ -76,7 +76,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -91,7 +90,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
+import static org.elasticsearch.cluster.service.MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
+import static org.elasticsearch.cluster.service.MasterService.priorityNonemptyTimeMetricName;
 import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -1871,21 +1872,20 @@ public class MasterServiceTests extends ESTestCase {
 
             meterRegistry.getRecorder().resetCalls();
             meterRegistry.getRecorder().collect();
+            final var expectedStarvationDurationMillis =
+                // starved task has been in the queue for the starvation logging threshold (5m) plus one extra task's duration
+                MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis() + taskDurationMillis;
             assertThat(
                 meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.pending_tasks.nonempty.time"),
-                measures(301000L)
+                measures(expectedStarvationDurationMillis)
             );
             for (var priority : Priority.values()) {
                 assertThat(
                     priority.toString(),
-                    meterRegistry.getRecorder()
-                        .getMeasurements(
-                            InstrumentType.LONG_GAUGE,
-                            "es.cluster.pending_tasks.priority_" + priority.toString().toLowerCase(Locale.ROOT) + ".nonempty.time"
-                        ),
+                    meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, priorityNonemptyTimeMetricName(priority)),
                     measures(switch (priority) {
                         case IMMEDIATE, URGENT -> 0L; // we're running tasks at HIGH priority so higher-priority queues must be empty
-                        case HIGH, NORMAL, LOW, LANGUID -> 301000L;
+                        case HIGH, NORMAL, LOW, LANGUID -> expectedStarvationDurationMillis;
                     })
                 );
             }
@@ -1926,11 +1926,7 @@ public class MasterServiceTests extends ESTestCase {
             for (var priority : Priority.values()) {
                 assertThat(
                     priority.toString(),
-                    meterRegistry.getRecorder()
-                        .getMeasurements(
-                            InstrumentType.LONG_GAUGE,
-                            "es.cluster.pending_tasks.priority_" + priority.toString().toLowerCase(Locale.ROOT) + ".nonempty.time"
-                        ),
+                    meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, priorityNonemptyTimeMetricName(priority)),
                     measures(0L)
                 );
             }

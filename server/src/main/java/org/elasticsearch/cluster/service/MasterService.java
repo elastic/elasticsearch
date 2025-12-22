@@ -67,6 +67,7 @@ import java.util.Deque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -204,11 +205,15 @@ public class MasterService extends AbstractLifecycleComponent {
 
         for (var priority : Priority.values()) {
             registerLongGaugeMillisecondsMetric(
-                "es.cluster.pending_tasks.priority_" + Strings.toLowercaseAscii(priority.toString()) + ".nonempty.time",
+                priorityNonemptyTimeMetricName(priority),
                 "Time in milliseconds since the master's pending task queue was empty for priorities no lower than " + priority,
                 () -> starvationWatcher.getPriorityNonemptyAge(priority)
             );
         }
+    }
+
+    static String priorityNonemptyTimeMetricName(Priority priority) {
+        return "es.cluster.pending_tasks.priority_" + priority.toString().toLowerCase(Locale.ROOT) + ".nonempty.time";
     }
 
     private void registerLongGaugeMillisecondsMetric(String name, String description, LongSupplier valueSupplier) {

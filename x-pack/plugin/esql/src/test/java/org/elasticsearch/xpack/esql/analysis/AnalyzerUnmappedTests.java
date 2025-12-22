@@ -53,6 +53,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeSta
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -491,6 +492,16 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var relation = as(innerEval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
+    }
+
+    public void testCastingNoAliasing() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM test
+            | EVAL does_not_exist_field::LONG
+            """));
+
+        var limit = as(plan, Limit.class);
+        assertThat(Expressions.names(limit.output()), hasItems("does_not_exist_field", "does_not_exist_field::LONG"));
     }
 
     /*
@@ -1217,7 +1228,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var relation = as(eval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("languages"));
-
     }
 
     /*
@@ -1575,6 +1585,128 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var rightRel = as(rightSubEval.child(), EsRelation.class);
         assertThat(rightRel.indexPattern(), is("languages"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[emp_no{f}#11,ASC,LAST], Order[emp_no_plus{r}#6,ASC,LAST]]]
+     *   \_EsqlProject[[emp_no{f}#11, emp_no_foo{r}#22, emp_no_plus{r}#6]]
+     *     \_Filter[emp_no{f}#11 < 10003[INTEGER]]
+     *       \_Eval[[TOLONG(emp_no_foo{r}#22) + 1[INTEGER] AS emp_no_plus#6]]
+     *         \_Eval[[null[NULL] AS emp_no_foo#22]]
+     *           \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testSubqueryMix() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM
+                (FROM employees
+                 | EVAL emp_no_plus = emp_no_foo::LONG + 1
+                 | WHERE emp_no < 10003)
+            | KEEP emp_no*
+            | SORT emp_no, emp_no_plus
+            """));
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        var orderBy = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.OrderBy.class);
+        assertThat(orderBy.order(), hasSize(2));
+        assertThat(Expressions.name(orderBy.order().get(0).child()), is("emp_no"));
+        assertThat(Expressions.name(orderBy.order().get(1).child()), is("emp_no_plus"));
+
+        var project = as(orderBy.child(), EsqlProject.class);
+        assertThat(project.projections(), hasSize(3));
+        assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "emp_no_foo", "emp_no_plus")));
+
+        var filter = as(project.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("emp_no < 10003"));
+
+        var evalPlus = as(filter.child(), Eval.class);
+        assertThat(evalPlus.fields(), hasSize(1));
+        var aliasPlus = as(evalPlus.fields().getFirst(), Alias.class);
+        assertThat(aliasPlus.name(), is("emp_no_plus"));
+        assertThat(Expressions.name(aliasPlus.child()), is("emp_no_foo::LONG + 1"));
+
+        var evalFoo = as(evalPlus.child(), Eval.class);
+        assertThat(evalFoo.fields(), hasSize(1));
+        var aliasFoo = as(evalFoo.fields().getFirst(), Alias.class);
+        assertThat(aliasFoo.name(), is("emp_no_foo"));
+        assertThat(as(aliasFoo.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var relation = as(evalFoo.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("employees"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[emp_no{f}#11,ASC,LAST], Order[emp_no_plus{r}#6,ASC,LAST]]]
+     *   \_EsqlProject[[_meta_field{f}#17, emp_no{f}#11, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, languages{f}#14,
+     *          long_noidx{f}#21, salary{f}#16, emp_no_foo{r}#22, emp_no_plus{r}#6]]
+     *     \_Filter[emp_no{f}#11 < 10003[INTEGER]]
+     *       \_Eval[[TOLONG(emp_no_foo{r}#22) + 1[INTEGER] AS emp_no_plus#6]]
+     *         \_Eval[[null[NULL] AS emp_no_foo#22]]
+     *           \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testSubqueryMixWithDropPattern() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM
+                (FROM employees
+                 | EVAL emp_no_plus = emp_no_foo::LONG + 1
+                 | WHERE emp_no < 10003)
+            | DROP *_name
+            | SORT emp_no, emp_no_plus
+            """));
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        var orderBy = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.OrderBy.class);
+        assertThat(orderBy.order(), hasSize(2));
+        assertThat(Expressions.name(orderBy.order().get(0).child()), is("emp_no"));
+        assertThat(Expressions.name(orderBy.order().get(1).child()), is("emp_no_plus"));
+
+        var project = as(orderBy.child(), EsqlProject.class);
+        assertThat(project.projections(), hasSize(11));
+        assertThat(
+            Expressions.names(project.projections()),
+            is(
+                List.of(
+                    "_meta_field",
+                    "emp_no",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "long_noidx",
+                    "salary",
+                    "emp_no_foo",
+                    "emp_no_plus"
+                )
+            )
+        );
+
+        var filter = as(project.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("emp_no < 10003"));
+
+        var evalPlus = as(filter.child(), Eval.class);
+        assertThat(evalPlus.fields(), hasSize(1));
+        var aliasPlus = as(evalPlus.fields().getFirst(), Alias.class);
+        assertThat(aliasPlus.name(), is("emp_no_plus"));
+        assertThat(Expressions.name(aliasPlus.child()), is("emp_no_foo::LONG + 1"));
+
+        var evalFoo = as(evalPlus.child(), Eval.class);
+        assertThat(evalFoo.fields(), hasSize(1));
+        var aliasFoo = as(evalFoo.fields().getFirst(), Alias.class);
+        assertThat(aliasFoo.name(), is("emp_no_foo"));
+        assertThat(as(aliasFoo.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var relation = as(evalFoo.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("employees"));
     }
 
     /*
@@ -2348,6 +2480,51 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         // Underlying relation
         var relation = as(eval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_EsqlProject[[x{r}#4, does_not_exist_field1{r}#12, y{r}#8, does_not_exist_field2{r}#15]]
+     *   \_Eval[[TOINTEGER(does_not_exist_field1{r}#12) + x{r}#4 AS y#8]]
+     *     \_Eval[[null[NULL] AS does_not_exist_field1#12]]
+     *       \_Eval[[null[NULL] AS does_not_exist_field2#15]]
+     *         \_Row[[1[INTEGER] AS x#4]]
+     */
+    public void testRow() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            ROW x = 1
+            | EVAL y = does_not_exist_field1::INTEGER + x
+            | KEEP *, does_not_exist_field2
+            """));
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+        var project = as(limit.child(), Project.class);
+        assertThat(project.projections(), hasSize(4));
+        assertThat(Expressions.names(project.projections()), is(List.of("x", "does_not_exist_field1", "y", "does_not_exist_field2")));
+
+        var evalY = as(project.child(), Eval.class);
+        assertThat(evalY.fields(), hasSize(1));
+        var aliasY = as(evalY.fields().getFirst(), Alias.class);
+        assertThat(aliasY.name(), is("y"));
+        assertThat(Expressions.name(aliasY.child()), is("does_not_exist_field1::INTEGER + x"));
+
+        var evalDne1 = as(evalY.child(), Eval.class);
+        assertThat(evalDne1.fields(), hasSize(1));
+        var aliasDne1 = as(evalDne1.fields().getFirst(), Alias.class);
+        assertThat(aliasDne1.name(), is("does_not_exist_field1"));
+        assertThat(as(aliasDne1.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var evalDne2 = as(evalDne1.child(), Eval.class);
+        assertThat(evalDne2.fields(), hasSize(1));
+        var aliasDne2 = as(evalDne2.fields().getFirst(), Alias.class);
+        assertThat(aliasDne2.name(), is("does_not_exist_field2"));
+        assertThat(as(aliasDne2.child(), Literal.class).dataType(), is(DataType.NULL));
+
+        var row = as(evalDne2.child(), org.elasticsearch.xpack.esql.plan.logical.Row.class);
+        assertThat(row.fields(), hasSize(1));
+        assertThat(Expressions.name(row.fields().getFirst()), is("x"));
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -132,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -2215,7 +2217,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             return switch (context.unmappedResolution()) {
                 case UnmappedResolution.FAIL -> plan;
-                case UnmappedResolution.NULLIFY -> hasUnresolvedFork(plan) ? plan : nullify(plan);
+                case UnmappedResolution.NULLIFY -> nullify(plan);
                 case UnmappedResolution.LOAD -> throw new IllegalArgumentException("unmapped fields resolution not yet supported");
             };
         }
@@ -2223,22 +2225,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan nullify(LogicalPlan plan) {
             List<UnresolvedAttribute> nullifiedUnresolved = new ArrayList<>();
             List<UnresolvedAttribute> unresolved = new ArrayList<>();
-            plan = plan.transformDown(p -> switch (p) {
+            Holder<Boolean> unresolvable = new Holder<>(false);
+            var resolved = plan.transformDown(p -> unresolvable.get() ? p : switch (p) {
                 case Aggregate agg -> {
                     unresolved.clear(); // an UA past a STATS remains unknown
                     collectUnresolved(agg, unresolved);
                     removeGroupingAliases(agg, unresolved);
                     yield p; // unchanged
                 }
-                case EsRelation relation -> evalUnresolved(relation, unresolved, nullifiedUnresolved);
-                // each subquery aliases its own unresolved attributes "internally" (before UnionAll)
-                case Fork fork -> evalUnresolved(fork, unresolved, nullifiedUnresolved);
-                case Project project -> { // TODO: redo handling of "KEEP *", "KEEP foo* | EVAL foo_does_not_exist + 1" etc.
-                    // if an attribute gets dropped by Project (DROP, KEEP), report it as unknown
+                case Project project -> { // TODO: redo handling of `KEEP *`, `KEEP foo* | EVAL foo_does_not_exist + 1`, `RENAME ` etc.
+                    if (hasUnresolvedNamedExpression(project)) {
+                        unresolvable.set(true); // `UnresolvedNamedExpression`s need to be turned into attributes first
+                        yield p; // give up
+                    }
+                    // if an attribute gets dropped by Project (DROP, KEEP), report it as unknown followingly
                     unresolved.removeIf(u -> project.outputSet().contains(u) == false);
                     collectUnresolved(project, unresolved);
                     yield p; // unchanged
                 }
+
+                case Row row -> evalUnresolved(row, unresolved, nullifiedUnresolved);
+                case EsRelation relation -> evalUnresolved(relation, unresolved, nullifiedUnresolved);
+                // each subquery aliases its own unresolved attributes "internally" (before UnionAll)
+                case Fork fork -> {
+                    if (fork.output().isEmpty()) {
+                        unresolvable.set(true); // if the Fork is not yet resolved, wait until it gets so.
+                        yield p; // give up
+                    }
+                    yield evalUnresolved(fork, unresolved, nullifiedUnresolved);
+                }
+
                 default -> {
                     collectUnresolved(p, unresolved);
                     yield p; // unchanged
@@ -2247,7 +2263,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // These UAs hadn't been resolved, so they're marked as unresolvable with a custom message. This needs to be removed for
             // ResolveRefs to attempt again to wire them to the newly added aliases.
-            return plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
+            return unresolvable.get() ? plan : resolved.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
                 if (nullifiedUnresolved.contains(ua)) {
                     nullifiedUnresolved.remove(ua);
                     // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
@@ -2309,13 +2325,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        /**
-         * @return true, if the plan contains a (top) unresolved Fork; i.e., has no output. The top one is chosen, as the plan is resolved
-         * bottom up.
-         */
-        private static boolean hasUnresolvedFork(LogicalPlan plan) {
-            List<Fork> forks = plan.collect(Fork.class);
-            return forks.isEmpty() == false && forks.getFirst().output().isEmpty();
+        private static boolean hasUnresolvedNamedExpression(Project project) {
+            for (var e : project.projections()) {
+                if (e instanceof UnresolvedNamedExpression) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

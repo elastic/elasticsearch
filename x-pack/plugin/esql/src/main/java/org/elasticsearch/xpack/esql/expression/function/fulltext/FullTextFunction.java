@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -174,8 +175,10 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
+    public Query asQuery(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return queryBuilder != null
+            ? new TranslationAwareExpressionQuery(source(), queryBuilder)
+            : translate(ctx, pushdownPredicates, handler);
     }
 
     @Override
@@ -183,10 +186,10 @@ public abstract class FullTextFunction extends Function
         return queryBuilder;
     }
 
-    protected abstract Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
+    protected abstract Query translate(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return FullTextFunction::checkFullTextQueryFunctions;
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -127,14 +128,14 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(ExpressionContext ctx) {
         var s = source();
         var field = field();
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
             return new Div(
                 s,
-                new Sum(s, field, filter(), window(), summationMode).surrogate(),
-                new Count(s, field, filter(), window()).surrogate()
+                new Sum(s, field, filter(), window(), summationMode).surrogate(ctx),
+                new Count(s, field, filter(), window()).surrogate(ctx)
             );
         }
         if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {

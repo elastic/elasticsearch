@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -170,7 +171,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(ExpressionContext ctx) {
         if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
             return new Max(
                 source(),

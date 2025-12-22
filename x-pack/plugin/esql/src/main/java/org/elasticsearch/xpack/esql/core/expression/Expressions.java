@@ -91,7 +91,7 @@ public final class Expressions {
         return true;
     }
 
-    public static List<Object> fold(FoldContext ctx, List<? extends Expression> exps) {
+    public static List<Object> fold(ExpressionContext ctx, List<? extends Expression> exps) {
         List<Object> folded = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
             folded.add(exp.fold(ctx));

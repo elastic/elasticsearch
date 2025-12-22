@@ -372,7 +372,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            final String policyName = BytesRefs.toString(plan.policyName().fold(FoldContext.small() /* TODO remove me */));
+            final String policyName = BytesRefs.toString(plan.policyName().fold(context));
             final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
@@ -1457,15 +1457,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             // Allow resolving snapshot-only functions, but do not include them in the documentation
             final EsqlFunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
-            return plan.transformExpressionsOnly(
-                UnresolvedFunction.class,
-                uf -> resolveFunction(uf, context.configuration(), snapshotRegistry)
-            );
+            return plan.transformExpressionsOnly(UnresolvedFunction.class, uf -> resolveFunction(uf, snapshotRegistry));
         }
 
         public static org.elasticsearch.xpack.esql.core.expression.function.Function resolveFunction(
             UnresolvedFunction uf,
-            Configuration configuration,
             EsqlFunctionRegistry functionRegistry
         ) {
             org.elasticsearch.xpack.esql.core.expression.function.Function f = null;
@@ -1477,7 +1473,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     f = uf.missing(functionName, functionRegistry.listFunctions());
                 } else {
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    f = uf.buildResolved(configuration, def);
+                    f = uf.buildResolved(def);
                 }
             }
             return f;
@@ -1933,17 +1929,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
      * (See {@link UnionTypesCleanup} below).
      */
-    private static class ResolveUnionTypes extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ResolveUnionTypes extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes));
+            return plan.transformUp(
+                LogicalPlan.class,
+                p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes, context.configuration())
+            );
         }
 
-        private LogicalPlan doRule(LogicalPlan plan, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
+        private LogicalPlan doRule(LogicalPlan plan, List<Attribute.IdIgnoringWrapper> unionFieldAttributes, Configuration configuration) {
             Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
@@ -1959,7 +1958,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
-                    return resolveConvertFunction(convert, unionFieldAttributes);
+                    return resolveConvertFunction(convert, unionFieldAttributes, configuration);
                 }
                 return e;
             });
@@ -1993,7 +1992,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
+        private Expression resolveConvertFunction(
+            ConvertFunction convert,
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
+            Configuration configuration
+        ) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
@@ -2010,7 +2013,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
-                        typeResolutions(fa, convert, type, imf, typeResolutions);
+                        typeResolutions(fa, convert, type, imf, typeResolutions, configuration);
                     }
                 });
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
@@ -2055,7 +2058,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
-                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes))
+                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, configuration))
                     );
                 }
             return convertExpression;
@@ -2116,7 +2119,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
         }
 
-        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+        private static Expression typeSpecificConvert(
+            ConvertFunction convert,
+            Source source,
+            DataType type,
+            InvalidMappedField mtf,
+            Configuration configuration
+        ) {
             EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable(), mtf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
@@ -2138,7 +2147,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
              * and SurrogateExpressions are expected to be resolved on the coordinating node. At least,
              * TO_IP is expected to be resolved there.
              */
-            return SubstituteSurrogateExpressions.rule(e);
+            return SubstituteSurrogateExpressions.rule(e, configuration);
         }
     }
 
@@ -2199,10 +2208,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Cast the union typed fields in EsRelation to date_nanos if they are mixed date and date_nanos types.
      */
-    private static class DateMillisToNanosInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+    private static class DateMillisToNanosInEsRelation extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             return plan.transformUp(EsRelation.class, relation -> {
                 if (relation.indexMode() == IndexMode.LOOKUP) {
                     return relation;
@@ -2211,7 +2220,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isDate)) {
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f);
-                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions, context.configuration()));
                         var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
                         return new FieldAttribute(
                             f.source(),
@@ -2235,10 +2244,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ConvertFunction convert,
         DataType type,
         InvalidMappedField imf,
-        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
+        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions,
+        Configuration configuration
     ) {
         ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fieldAttribute.name(), type);
-        var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fieldAttribute.source(), type, imf);
+        var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fieldAttribute.source(), type, imf, configuration);
         typeResolutions.put(key, concreteConvert);
     }
 
@@ -2247,27 +2257,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * are aggregate metric double + any combination of numerics, implicitly cast them to the same type: aggregate metric
      * double for count, and double for min, max, and sum. Avg gets replaced with its surrogate (Div(Sum, Count))
      */
-    private static class ImplicitCastAggregateMetricDoubles extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ImplicitCastAggregateMetricDoubles extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         private boolean isTimeSeries = false;
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
-            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p, context));
         }
 
-        private LogicalPlan doRule(Aggregate plan) {
+        private LogicalPlan doRule(Aggregate plan, AnalyzerContext context) {
             Map<String, FieldAttribute> unionFields = new HashMap<>();
             Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
                 Expression child;
                 if (aggFunc.field() instanceof ToAggregateMetricDouble toAMD) {
-                    child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields);
+                    child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields, context.configuration());
                 } else {
-                    child = tryToTransformFunction(aggFunc, aggFunc.field(), aborted, unionFields);
+                    child = tryToTransformFunction(aggFunc, aggFunc.field(), aborted, unionFields, context.configuration());
                 }
                 return child;
             });
@@ -2281,7 +2291,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AggregateFunction aggFunc,
             Expression field,
             Holder<Boolean> aborted,
-            Map<String, FieldAttribute> unionFields
+            Map<String, FieldAttribute> unionFields,
+            Configuration configuration
         ) {
             if (field instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 if (imf.types().contains(AGGREGATE_METRIC_DOUBLE) == false
@@ -2306,7 +2317,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     );
                 }
 
-                Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, imf);
+                Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, imf, configuration);
                 var newField = unionFields.computeIfAbsent(
                     Attribute.rawTemporaryName(fa.name(), aggFunc.functionName(), aggFunc.sourceText()),
                     newName -> new FieldAttribute(
@@ -2334,7 +2345,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return aggFunc;
         }
 
-        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, InvalidMappedField mtf) {
+        private Map<String, Expression> typeConverters(
+            AggregateFunction aggFunc,
+            FieldAttribute fa,
+            InvalidMappedField mtf,
+            Configuration configuration
+        ) {
             var metric = getMetric(aggFunc, isTimeSeries);
             Map<String, Expression> typeConverter = new HashMap<>();
             for (DataType type : mtf.types()) {
@@ -2349,7 +2365,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 } else {
                     convert = new ToDouble(fa.source(), fa);
                 }
-                Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, mtf);
+                Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, mtf, configuration);
                 typeConverter.put(type.typeName(), expression);
             }
             return typeConverter;

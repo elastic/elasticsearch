@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
@@ -39,8 +38,8 @@ public class ToLower extends ChangeCase {
     public ToLower(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
         String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression,
         or a multi-valued column or expression {applies_to}`stack: ga 9.1.0`.
-        """) Expression field, Configuration configuration) {
-        super(source, field, configuration, Case.LOWER);
+        """) Expression field) {
+        super(source, field, Case.LOWER);
     }
 
     private ToLower(StreamInput in) throws IOException {
@@ -48,8 +47,7 @@ public class ToLower extends ChangeCase {
             in.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
                 ? Source.readFrom((PlanStreamInput) in)
                 : Source.EMPTY,
-            in.readNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
+            in.readNamedWriteable(Expression.class)
         );
     }
 
@@ -67,11 +65,11 @@ public class ToLower extends ChangeCase {
     }
 
     public ToLower replaceChild(Expression child) {
-        return new ToLower(source(), child, configuration());
+        return new ToLower(source(), child);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToLower::new, field(), configuration());
+        return NodeInfo.create(this, ToLower::new, field());
     }
 }

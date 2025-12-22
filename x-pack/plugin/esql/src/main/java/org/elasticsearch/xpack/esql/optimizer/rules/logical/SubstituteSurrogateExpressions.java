@@ -22,15 +22,8 @@ public final class SubstituteSurrogateExpressions extends OptimizerRules.Optimiz
 
     @Override
     protected Expression rule(Expression e, LogicalOptimizerContext ctx) {
-        return rule(e);
-    }
-
-    /**
-     * Perform the actual substitution.
-     */
-    public static Expression rule(Expression e) {
         if (e instanceof SurrogateExpression s) {
-            Expression surrogate = s.surrogate();
+            Expression surrogate = s.surrogate(ctx);
             if (surrogate != null) {
                 return surrogate;
             }

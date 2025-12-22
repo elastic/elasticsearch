@@ -24,7 +24,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -282,7 +282,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         var leftGeom = makeGeometryFromLiteral(ctx, left());
         var rightGeom = makeGeometryFromLiteral(ctx, right());
         return (crsType() == SpatialCrsType.GEO) ? GEO.distance(leftGeom, rightGeom) : CARTESIAN.distance(leftGeom, rightGeom);
@@ -291,9 +291,9 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (right().foldable()) {
-            return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(toEvaluator.foldCtx(), right()), leftDocValues);
+            return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(toEvaluator, right()), leftDocValues);
         } else if (left().foldable()) {
-            return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(toEvaluator.foldCtx(), left()), rightDocValues);
+            return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(toEvaluator, left()), rightDocValues);
         } else {
             EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
             EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.capabilities;
 
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -51,5 +52,5 @@ public interface PostAnalysisPlanVerificationAware {
      *
      * @return a consumer that will receive a tree to check and an accumulator of failures found during inspection.
      */
-    BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification();
+    BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx);
 }

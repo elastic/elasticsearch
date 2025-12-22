@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
@@ -160,12 +161,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private final PlannerSettings plannerSettings;
 
     public EsPhysicalOperationProviders(
+        Configuration configuration,
         FoldContext foldContext,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings
     ) {
-        super(foldContext, analysisRegistry);
+        super(configuration, foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
     }
@@ -225,7 +227,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     return shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference, e.config());
                 }
             }
-            return new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion);
+            return new TypeConvertingBlockLoader(blockLoader, (EsqlScalarFunction) conversion, configuration);
         }
         return blockLoader;
     }
@@ -301,7 +303,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
-        int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
+        int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
         if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
@@ -418,7 +420,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
             tagTypes,
-            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
+            limit == null ? NO_LIMIT : (Integer) limit.fold(context)
         );
     }
 
@@ -431,7 +433,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context
     ) {
         return new TimeSeriesAggregationOperator.Factory(
-            ts.timeBucketRounding(context.foldCtx()),
+            ts.timeBucketRounding(context),
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,
@@ -601,9 +603,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final BlockLoader delegate;
         private final TypeConverter typeConverter;
 
-        protected TypeConvertingBlockLoader(BlockLoader delegate, EsqlScalarFunction convertFunction) {
+        protected TypeConvertingBlockLoader(BlockLoader delegate, EsqlScalarFunction convertFunction, Configuration configuration) {
             this.delegate = delegate;
-            this.typeConverter = TypeConverter.fromScalarFunction(convertFunction);
+            this.typeConverter = TypeConverter.fromScalarFunction(convertFunction, configuration);
         }
 
         @Override

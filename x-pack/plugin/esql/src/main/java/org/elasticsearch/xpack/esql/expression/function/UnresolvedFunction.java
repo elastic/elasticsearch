@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
@@ -95,8 +94,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     /**
      * Build a function to replace this one after resolving the function.
      */
-    public Function buildResolved(Configuration configuration, FunctionDefinition def) {
-        return resolution.buildResolved(this, configuration, def);
+    public Function buildResolved(FunctionDefinition def) {
+        return resolution.buildResolved(this, def);
     }
 
     /**

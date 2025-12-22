@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -382,7 +383,7 @@ public class Top extends AggregateFunction
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(ExpressionContext ctx) {
         var s = source();
         // If the `outputField` is specified but its value is the same as `field` then we do not need to handle `outputField` separately.
         if (outputField() != null && field().semanticEquals(outputField())) {

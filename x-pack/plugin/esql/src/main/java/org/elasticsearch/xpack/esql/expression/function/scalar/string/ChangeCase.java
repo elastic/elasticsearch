@@ -15,8 +15,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
-import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
 import java.util.List;
 import java.util.Locale;
@@ -24,7 +24,7 @@ import java.util.Locale;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public abstract class ChangeCase extends EsqlConfigurationFunction {
+public abstract class ChangeCase extends EsqlScalarFunction implements ConfigurationFunction {
 
     public enum Case {
         UPPER {
@@ -58,8 +58,8 @@ public abstract class ChangeCase extends EsqlConfigurationFunction {
     private final Expression field;
     private final Case caseType;
 
-    protected ChangeCase(Source source, Expression field, Configuration configuration, Case caseType) {
-        super(source, List.of(field), configuration);
+    protected ChangeCase(Source source, Expression field, Case caseType) {
+        super(source, List.of(field));
         this.field = field;
         this.caseType = caseType;
     }
@@ -107,6 +107,6 @@ public abstract class ChangeCase extends EsqlConfigurationFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        return new ChangeCaseEvaluator.Factory(source(), fieldEvaluator, configuration().locale(), caseType);
+        return new ChangeCaseEvaluator.Factory(source(), fieldEvaluator, toEvaluator.configuration().locale(), caseType);
     }
 }

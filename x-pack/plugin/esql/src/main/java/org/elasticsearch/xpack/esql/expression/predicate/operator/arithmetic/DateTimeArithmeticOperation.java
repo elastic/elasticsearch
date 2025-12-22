@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -129,7 +129,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
     abstract Duration fold(Duration left, Duration right);
 
     @Override
-    public final Object fold(FoldContext ctx) {
+    public final Object fold(ExpressionContext ctx) {
         DataType leftDataType = left().dataType();
         DataType rightDataType = right().dataType();
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
@@ -182,7 +182,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
             return millisEvaluator.apply(
                 source(),
                 toEvaluator.apply(datetimeArgument),
-                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx())
+                (TemporalAmount) temporalAmountArgument.fold(toEvaluator)
             );
         } else if (dataType() == DATE_NANOS) {
             // One of the arguments has to be a date_nanos and the other a temporal amount.
@@ -199,7 +199,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
             return nanosEvaluator.apply(
                 source(),
                 toEvaluator.apply(dateNanosArgument),
-                (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx())
+                (TemporalAmount) temporalAmountArgument.fold(toEvaluator)
             );
         } else {
             return super.toEvaluator(toEvaluator);

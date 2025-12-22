@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -68,7 +68,7 @@ public abstract class Foldables {
         }
     }
 
-    public static Object valueOf(FoldContext ctx, Expression e) {
+    public static Object valueOf(ExpressionContext ctx, Expression e) {
         if (e.foldable()) {
             return e.fold(ctx);
         }

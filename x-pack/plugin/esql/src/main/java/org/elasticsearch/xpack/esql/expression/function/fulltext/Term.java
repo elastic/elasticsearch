@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -104,9 +105,9 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return (plan, failures) -> {
-            super.postAnalysisPlanVerification().accept(plan, failures);
+            super.postAnalysisPlanVerification(ctx).accept(plan, failures);
             fieldVerifier(plan, this, field, failures);
         };
     }
@@ -135,7 +136,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     }
 
     @Override
-    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    protected Query translate(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         // Uses a term query that contributes to scoring
         return new TermQuery(source(), ((FieldAttribute) field()).name(), Foldables.queryAsObject(query(), sourceText()), false, true);
     }

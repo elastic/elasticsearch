@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Objects;
 
-public class LogicalOptimizerContext {
+public class LogicalOptimizerContext implements ExpressionContext {
     private final Configuration configuration;
     private final FoldContext foldCtx;
     private final TransportVersion minimumVersion;

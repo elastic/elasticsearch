@@ -29,9 +29,8 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -53,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
-public class DateParse extends EsqlConfigurationFunction implements TwoOptionalArguments {
+public class DateParse extends EsqlScalarFunction implements TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateParse",
@@ -102,10 +101,9 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
             description = "(Optional) Additional options for date parsing, specifying time zone and locale "
                 + "as <<esql-function-named-params,function named parameters>>.",
             optional = true
-        ) Expression third,
-        Configuration configuration
+        ) Expression third
     ) {
-        super(source, fields(first, second, third), configuration);
+        super(source, fields(first, second, third));
         this.first = first;
         this.second = second;
         this.third = third;
@@ -157,8 +155,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            ((PlanStreamInput) in).configuration()
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
@@ -262,7 +259,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         Locale locale = localeAsString == null ? Locale.ROOT : LocaleUtils.parse(localeAsString);
 
         String timezoneAsString = (String) parsedOptions.get(TIME_ZONE_PARAM_NAME);
-        ZoneId timezone = configuration().zoneId();
+        ZoneId timezone = toEvaluator.configuration().zoneId();
         try {
             if (timezoneAsString != null) {
                 timezone = ZoneId.of(timezoneAsString);
@@ -286,7 +283,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
 
         if (format.foldable()) {
             try {
-                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), locale);
+                DateFormatter formatter = toFormatter(format.fold(toEvaluator), locale);
                 return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter, timezone, locale);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
@@ -306,8 +303,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
             source(),
             newChildren.get(0),
             newChildren.size() > 1 ? newChildren.get(1) : null,
-            newChildren.size() > 2 ? newChildren.get(2) : null,
-            configuration()
+            newChildren.size() > 2 ? newChildren.get(2) : null
         );
     }
 
@@ -318,6 +314,6 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         Expression options = options();
         Expression first = format != null ? format : field;
         Expression second = format != null ? field : null;
-        return NodeInfo.create(this, DateParse::new, first, second, options, configuration());
+        return NodeInfo.create(this, DateParse::new, first, second, options);
     }
 }

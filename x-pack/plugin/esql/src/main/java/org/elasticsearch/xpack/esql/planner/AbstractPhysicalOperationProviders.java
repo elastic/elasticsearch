@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -51,10 +52,12 @@ import static java.util.Collections.emptyList;
 
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
+    protected final Configuration configuration;
     private final FoldContext foldContext;
     private final AnalysisRegistry analysisRegistry;
 
-    AbstractPhysicalOperationProviders(FoldContext foldContext, AnalysisRegistry analysisRegistry) {
+    AbstractPhysicalOperationProviders(Configuration configuration, FoldContext foldContext, AnalysisRegistry analysisRegistry) {
+        this.configuration = configuration;
         this.foldContext = foldContext;
         this.analysisRegistry = analysisRegistry;
     }
@@ -325,6 +328,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
                         EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
+                            configuration,
                             foldContext,
                             aggregateFunction.filter(),
                             layout,

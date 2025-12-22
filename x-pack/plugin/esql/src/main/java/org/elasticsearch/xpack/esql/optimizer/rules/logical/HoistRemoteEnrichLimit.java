@@ -65,7 +65,7 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
             // Mark original limits as local
             LogicalPlan transformLimits = en.transformDown(Limit.class, l -> seenLimits.contains(l) ? l.withLocal(true) : l);
             // Shouldn't actually throw because we checked seenLimits is not empty
-            Limit lowestLimit = seenLimits.stream().min(Comparator.comparing(l -> (int) l.limit().fold(ctx.foldCtx()))).orElseThrow();
+            Limit lowestLimit = seenLimits.stream().min(Comparator.comparing(l -> (int) l.limit().fold(ctx))).orElseThrow();
             // Insert new lowest limit on top of the Enrich, and mark it as duplicated since we don't want it to be pushed down
             return new Limit(lowestLimit.source(), lowestLimit.limit(), transformLimits, true, false);
         }

@@ -11,7 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -31,7 +31,7 @@ public class LocalPropagateEmptyRelation extends PropagateEmptyRelation {
      */
     @Override
     protected void aggOutput(
-        FoldContext foldCtx,
+        ExpressionContext ctx,
         NamedExpression agg,
         AggregateFunction aggFunc,
         BlockFactory blockFactory,
@@ -43,7 +43,7 @@ public class LocalPropagateEmptyRelation extends PropagateEmptyRelation {
             // boolean right now is used for the internal #seen so always return true
             var value = dataType == DataType.BOOLEAN ? true
                 // look for count(literal) with literal != null
-                : aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null) ? 0L
+                : aggFunc instanceof Count count && (count.foldable() == false || count.fold(ctx) != null) ? 0L
                 // otherwise nullify
                 : null;
             var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(dataType), 1);

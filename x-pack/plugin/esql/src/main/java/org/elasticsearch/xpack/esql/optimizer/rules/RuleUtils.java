@@ -97,7 +97,7 @@ public final class RuleUtils {
                 shouldCollect = c.foldable();
             }
             if (shouldCollect) {
-                collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
+                collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx, c));
             }
         });
 

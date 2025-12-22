@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -103,7 +103,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         return EvaluatorMapper.super.fold(source(), ctx);
     }
 
@@ -164,7 +164,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         if (right().foldable() == false) {
             return new SplitVariableEvaluator.Factory(source(), str, toEvaluator.apply(right()), context -> new BytesRef());
         }
-        BytesRef delim = (BytesRef) right().fold(toEvaluator.foldCtx());
+        BytesRef delim = (BytesRef) right().fold(toEvaluator);
         checkDelimiter(delim);
         return new SplitSingleByteEvaluator.Factory(source(), str, delim.bytes[delim.offset], context -> new BytesRef());
     }

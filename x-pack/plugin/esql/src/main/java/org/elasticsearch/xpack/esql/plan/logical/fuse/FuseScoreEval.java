@@ -198,21 +198,23 @@ public class FuseScoreEval extends UnaryPlan
     private void validateLinearOptions(Failures failures) {
         options.keyFoldedMap().forEach((key, value) -> {
             if (key.equals(LinearConfig.NORMALIZER)) {
-                if ((value instanceof Literal) == false) {
+                if (value instanceof Literal li) {
+                    if (li.dataType() != DataType.KEYWORD) {
+                        failures.add(new Failure(this, "expected " + key + " to be a string, got [" + li.sourceText() + "]"));
+                        return;
+                    }
+
+                    String stringValue = BytesRefs.toString(li.value()).toUpperCase(Locale.ROOT);
+                    if (Arrays.stream(LinearConfig.Normalizer.values()).noneMatch(s -> s.name().equals(stringValue))) {
+                        failures.add(new Failure(this, "[" + li.sourceText() + "] is not a valid normalizer"));
+                    } else if (LinearConfig.Normalizer.valueOf(stringValue) == LinearConfig.Normalizer.L2_NORM
+                        && EsqlCapabilities.Cap.FUSE_L2_NORM.isEnabled() == false) {
+                            failures.add(new Failure(this, "[" + li.sourceText() + "] is not a valid normalizer"));
+                        }
+                } else {
                     failures.add(new Failure(this, "expected " + key + " to be a literal, got [" + value.sourceText() + "]"));
                     return;
                 }
-                if (value.dataType() != DataType.KEYWORD) {
-                    failures.add(new Failure(this, "expected " + key + " to be a string, got [" + value.sourceText() + "]"));
-                    return;
-                }
-                String stringValue = BytesRefs.toString(value.fold(FoldContext.small())).toUpperCase(Locale.ROOT);
-                if (Arrays.stream(LinearConfig.Normalizer.values()).noneMatch(s -> s.name().equals(stringValue))) {
-                    failures.add(new Failure(this, "[" + value.sourceText() + "] is not a valid normalizer"));
-                } else if (LinearConfig.Normalizer.valueOf(stringValue) == LinearConfig.Normalizer.L2_NORM
-                    && EsqlCapabilities.Cap.FUSE_L2_NORM.isEnabled() == false) {
-                        failures.add(new Failure(this, "[" + value.sourceText() + "] is not a valid normalizer"));
-                    }
             } else if (key.equals(FuseConfig.WEIGHTS)) {
                 validateWeights(value, failures);
             } else {
@@ -230,17 +232,17 @@ public class FuseScoreEval extends UnaryPlan
     }
 
     private void validatePositiveNumber(Failures failures, Expression value, String name) {
-        if ((value instanceof Literal) == false) {
+        if (value instanceof Literal li) {
+            if (li.dataType().isNumeric() == false) {
+                failures.add(new Failure(this, "expected " + name + " to be numeric, got [" + li.sourceText() + "]"));
+                return;
+            }
+            Number numericValue = (Number) li.value();
+            if (numericValue != null && numericValue.doubleValue() <= 0) {
+                failures.add(new Failure(this, "expected " + name + " to be positive, got [" + li.sourceText() + "]"));
+            }
+        } else {
             failures.add(new Failure(this, "expected " + name + " to be a literal, got [" + value.sourceText() + "]"));
-        }
-
-        if (value.dataType().isNumeric() == false) {
-            failures.add(new Failure(this, "expected " + name + " to be numeric, got [" + value.sourceText() + "]"));
-            return;
-        }
-        Number numericValue = (Number) value.fold(FoldContext.small());
-        if (numericValue != null && numericValue.doubleValue() <= 0) {
-            failures.add(new Failure(this, "expected " + name + " to be positive, got [" + value.sourceText() + "]"));
         }
     }
 

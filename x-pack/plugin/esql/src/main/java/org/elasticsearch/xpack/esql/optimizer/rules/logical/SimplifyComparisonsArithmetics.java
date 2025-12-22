@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -47,16 +47,16 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         // optimize only once the expression has a literal on the right side of the binary comparison
         if (bc.right() instanceof Literal) {
             if (bc.left() instanceof ArithmeticOperation) {
-                return simplifyBinaryComparison(ctx.foldCtx(), bc);
+                return simplifyBinaryComparison(ctx, bc);
             }
             if (bc.left() instanceof Neg) {
-                return foldNegation(ctx.foldCtx(), bc);
+                return foldNegation(ctx, bc);
             }
         }
         return bc;
     }
 
-    private Expression simplifyBinaryComparison(FoldContext foldContext, BinaryComparison comparison) {
+    private Expression simplifyBinaryComparison(ExpressionContext ctx, BinaryComparison comparison) {
         ArithmeticOperation operation = (ArithmeticOperation) comparison.left();
         // Use symbol comp: SQL operations aren't available in this package (as dependencies)
         String opSymbol = operation.symbol();
@@ -66,9 +66,9 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         }
         OperationSimplifier simplification = null;
         if (isMulOrDiv(opSymbol)) {
-            simplification = new MulDivSimplifier(foldContext, comparison);
+            simplification = new MulDivSimplifier(ctx, comparison);
         } else if (opSymbol.equals(ADD.symbol()) || opSymbol.equals(SUB.symbol())) {
-            simplification = new AddSubSimplifier(foldContext, comparison);
+            simplification = new AddSubSimplifier(ctx, comparison);
         }
 
         return (simplification == null || simplification.isUnsafe(typesCompatible)) ? comparison : simplification.apply();
@@ -78,13 +78,13 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         return opSymbol.equals(MUL.symbol()) || opSymbol.equals(DIV.symbol());
     }
 
-    private static Expression foldNegation(FoldContext ctx, BinaryComparison bc) {
+    private static Expression foldNegation(ExpressionContext ctx, BinaryComparison bc) {
         Literal bcLiteral = (Literal) bc.right();
         Expression literalNeg = tryFolding(ctx, new Neg(bcLiteral.source(), bcLiteral));
         return literalNeg == null ? bc : bc.reverse().replaceChildren(asList(((Neg) bc.left()).field(), literalNeg));
     }
 
-    private static Expression tryFolding(FoldContext ctx, Expression expression) {
+    private static Expression tryFolding(ExpressionContext ctx, Expression expression) {
         if (expression.foldable()) {
             try {
                 expression = new Literal(expression.source(), expression.fold(ctx), expression.dataType());
@@ -97,7 +97,7 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
     }
 
     private abstract static class OperationSimplifier {
-        final FoldContext foldContext;
+        final ExpressionContext ctx;
         final BinaryComparison comparison;
         final Literal bcLiteral;
         final ArithmeticOperation operation;
@@ -105,8 +105,8 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         final Expression opRight;
         final Literal opLiteral;
 
-        OperationSimplifier(FoldContext foldContext, BinaryComparison comparison) {
-            this.foldContext = foldContext;
+        OperationSimplifier(ExpressionContext ctx, BinaryComparison comparison) {
+            this.ctx = ctx;
             this.comparison = comparison;
             operation = (ArithmeticOperation) comparison.left();
             bcLiteral = (Literal) comparison.right();
@@ -155,7 +155,7 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
 
             Expression bcRightExpression = ((BinaryComparisonInversible) operation).binaryComparisonInverse()
                 .create(bcl.source(), bcl, opRight);
-            bcRightExpression = tryFolding(foldContext, bcRightExpression);
+            bcRightExpression = tryFolding(ctx, bcRightExpression);
             return bcRightExpression != null
                 ? postProcess((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
                 : comparison;
@@ -173,8 +173,8 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
 
     private static class AddSubSimplifier extends OperationSimplifier {
 
-        AddSubSimplifier(FoldContext foldContext, BinaryComparison comparison) {
-            super(foldContext, comparison);
+        AddSubSimplifier(ExpressionContext ctx, BinaryComparison comparison) {
+            super(ctx, comparison);
         }
 
         @Override
@@ -186,7 +186,7 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
 
             if (operation.symbol().equals(SUB.symbol()) && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
                 // if next simplification step would fail on overflow anyways, skip the optimisation already
-                return tryFolding(foldContext, new Sub(EMPTY, opLeft, bcLiteral)) == null;
+                return tryFolding(ctx, new Sub(EMPTY, opLeft, bcLiteral)) == null;
             }
 
             return false;
@@ -198,8 +198,8 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         private final boolean isDiv; // and not MUL.
         private final int opRightSign; // sign of the right operand in: (left) (op) (right) (comp) (literal)
 
-        MulDivSimplifier(FoldContext foldContext, BinaryComparison comparison) {
-            super(foldContext, comparison);
+        MulDivSimplifier(ExpressionContext ctx, BinaryComparison comparison) {
+            super(ctx, comparison);
             isDiv = operation.symbol().equals(DIV.symbol());
             opRightSign = sign(opRight);
         }

@@ -74,7 +74,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                 if (otherEq.right().foldable() && DataType.isDateTime(otherEq.left().dataType()) == false) {
                     for (BinaryComparison eq : equals) {
                         if (otherEq.left().semanticEquals(eq.left())) {
-                            Integer comp = BinaryComparison.compare(eq.right().fold(ctx.foldCtx()), otherEq.right().fold(ctx.foldCtx()));
+                            Integer comp = BinaryComparison.compare(eq.right().fold(ctx), otherEq.right().fold(ctx));
                             if (comp != null) {
                                 // var cannot be equal to two different values at the same time
                                 if (comp != 0) {
@@ -110,7 +110,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
 
         // check
         for (BinaryComparison eq : equals) {
-            Object eqValue = eq.right().fold(ctx.foldCtx());
+            Object eqValue = eq.right().fold(ctx);
 
             for (Iterator<Range> iterator = ranges.iterator(); iterator.hasNext();) {
                 Range range = iterator.next();
@@ -118,7 +118,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                 if (range.value().semanticEquals(eq.left())) {
                     // if equals is outside the interval, evaluate the whole expression to FALSE
                     if (range.lower().foldable()) {
-                        Integer compare = BinaryComparison.compare(range.lower().fold(ctx.foldCtx()), eqValue);
+                        Integer compare = BinaryComparison.compare(range.lower().fold(ctx), eqValue);
                         if (compare != null && (
                         // eq outside the lower boundary
                         compare > 0 ||
@@ -128,7 +128,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                         }
                     }
                     if (range.upper().foldable()) {
-                        Integer compare = BinaryComparison.compare(range.upper().fold(ctx.foldCtx()), eqValue);
+                        Integer compare = BinaryComparison.compare(range.upper().fold(ctx), eqValue);
                         if (compare != null && (
                         // eq outside the upper boundary
                         compare < 0 ||
@@ -148,7 +148,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
             for (Iterator<NotEquals> iter = notEquals.iterator(); iter.hasNext();) {
                 NotEquals neq = iter.next();
                 if (eq.left().semanticEquals(neq.left())) {
-                    Integer comp = BinaryComparison.compare(eqValue, neq.right().fold(ctx.foldCtx()));
+                    Integer comp = BinaryComparison.compare(eqValue, neq.right().fold(ctx));
                     if (comp != null) {
                         if (comp == 0) { // clashing and conflicting: a = 1 AND a != 1
                             return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
@@ -164,7 +164,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
             for (Iterator<BinaryComparison> iter = inequalities.iterator(); iter.hasNext();) {
                 BinaryComparison bc = iter.next();
                 if (eq.left().semanticEquals(bc.left())) {
-                    Integer compare = BinaryComparison.compare(eqValue, bc.right().fold(ctx.foldCtx()));
+                    Integer compare = BinaryComparison.compare(eqValue, bc.right().fold(ctx));
                     if (compare != null) {
                         if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
                             if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
@@ -232,13 +232,13 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
         // evaluate the impact of each Equal over the different types of Expressions
         for (Iterator<Equals> iterEq = equals.iterator(); iterEq.hasNext();) {
             Equals eq = iterEq.next();
-            Object eqValue = eq.right().fold(ctx.foldCtx());
+            Object eqValue = eq.right().fold(ctx);
             boolean removeEquals = false;
 
             // Equals OR NotEquals
             for (NotEquals neq : notEquals) {
                 if (eq.left().semanticEquals(neq.left())) { // a = 2 OR a != ? -> ...
-                    Integer comp = BinaryComparison.compare(eqValue, neq.right().fold(ctx.foldCtx()));
+                    Integer comp = BinaryComparison.compare(eqValue, neq.right().fold(ctx));
                     if (comp != null) {
                         if (comp == 0) { // a = 2 OR a != 2 -> TRUE
                             return TRUE;
@@ -264,12 +264,8 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
             for (int i = 0; i < ranges.size(); i++) { // might modify list, so use index loop
                 Range range = ranges.get(i);
                 if (eq.left().semanticEquals(range.value())) {
-                    Integer lowerComp = range.lower().foldable()
-                        ? BinaryComparison.compare(eqValue, range.lower().fold(ctx.foldCtx()))
-                        : null;
-                    Integer upperComp = range.upper().foldable()
-                        ? BinaryComparison.compare(eqValue, range.upper().fold(ctx.foldCtx()))
-                        : null;
+                    Integer lowerComp = range.lower().foldable() ? BinaryComparison.compare(eqValue, range.lower().fold(ctx)) : null;
+                    Integer upperComp = range.upper().foldable() ? BinaryComparison.compare(eqValue, range.upper().fold(ctx)) : null;
 
                     if (lowerComp != null && lowerComp == 0) {
                         if (range.includeLower() == false) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
@@ -323,7 +319,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
             for (int i = 0; i < inequalities.size(); i++) {
                 BinaryComparison bc = inequalities.get(i);
                 if (eq.left().semanticEquals(bc.left())) {
-                    Integer comp = BinaryComparison.compare(eqValue, bc.right().fold(ctx.foldCtx()));
+                    Integer comp = BinaryComparison.compare(eqValue, bc.right().fold(ctx));
                     if (comp != null) {
                         if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
                             if (comp < 0) { // a = 1 OR a > 2 -> nop

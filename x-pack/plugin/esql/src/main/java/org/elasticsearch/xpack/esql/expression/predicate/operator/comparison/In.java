@@ -20,8 +20,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -230,7 +230,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         if (Expressions.isGuaranteedNull(value) || list.stream().allMatch(Expressions::isGuaranteedNull)) {
             return null;
         }
@@ -476,11 +476,11 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return translate(pushdownPredicates, handler);
+    public Query asQuery(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return translate(ctx, pushdownPredicates, handler);
     }
 
-    private Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    private Query translate(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         logger.trace("Attempting to generate lucene query for IN expression");
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value());
 
@@ -493,7 +493,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                     // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                     // TODO:
                     // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
-                    Query query = handler.asQuery(pushdownPredicates, new Equals(source(), value(), rhs));
+                    Query query = handler.asQuery(ctx, pushdownPredicates, new Equals(source(), value(), rhs));
 
                     if (query instanceof TermQuery) {
                         terms.add(((TermQuery) query).value());

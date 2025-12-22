@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -44,7 +44,7 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
         if (plan.child() instanceof LocalRelation local && local.hasEmptySupplier()) {
             // only care about non-grouped aggs might return something (count)
             if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
-                List<Block> emptyBlocks = aggsFromEmpty(ctx.foldCtx(), agg.aggregates());
+                List<Block> emptyBlocks = aggsFromEmpty(ctx, agg.aggregates());
                 p = replacePlanByRelation(
                     plan,
                     LocalSupplier.of(emptyBlocks.isEmpty() ? new Page(0) : new Page(emptyBlocks.toArray(Block[]::new)))
@@ -56,14 +56,14 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
         return p;
     }
 
-    private List<Block> aggsFromEmpty(FoldContext foldCtx, List<? extends NamedExpression> aggs) {
+    private List<Block> aggsFromEmpty(ExpressionContext ctx, List<? extends NamedExpression> aggs) {
         List<Block> blocks = new ArrayList<>();
         var blockFactory = PlannerUtils.NON_BREAKING_BLOCK_FACTORY;
         int i = 0;
         for (var agg : aggs) {
             // there needs to be an alias
             if (Alias.unwrap(agg) instanceof AggregateFunction aggFunc) {
-                aggOutput(foldCtx, agg, aggFunc, blockFactory, blocks);
+                aggOutput(ctx, agg, aggFunc, blockFactory, blocks);
             } else {
                 throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
             }
@@ -75,14 +75,14 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
      * The folded aggregation output - this variant is for the coordinator/final.
      */
     protected void aggOutput(
-        FoldContext foldCtx,
+        ExpressionContext ctx,
         NamedExpression agg,
         AggregateFunction aggFunc,
         BlockFactory blockFactory,
         List<Block> blocks
     ) {
         // look for count(literal) with literal != null
-        Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null) ? 0L : null;
+        Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold(ctx) != null) ? 0L : null;
         var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(aggFunc.dataType()), 1);
         wrapper.accept(value);
         blocks.add(wrapper.builder().build());

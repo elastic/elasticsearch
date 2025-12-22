@@ -125,7 +125,7 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         return value;
     }
 
@@ -190,7 +190,7 @@ public class Literal extends LeafExpression implements Accountable {
      * Utility method for creating a literal out of a foldable expression.
      * Throws an exception if the expression is not foldable.
      */
-    public static Literal of(FoldContext ctx, Expression foldable) {
+    public static Literal of(ExpressionContext ctx, Expression foldable) {
         if (foldable.foldable() == false) {
             throw new QlIllegalArgumentException("Foldable expression required for Literal creation; received unfoldable " + foldable);
         }

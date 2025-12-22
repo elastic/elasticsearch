@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -161,7 +162,7 @@ public class ToIntegerSurrogate extends EsqlScalarFunction implements SurrogateE
     }
 
     @Override
-    public Expression surrogate() {
+    public Expression surrogate(ExpressionContext ctx) {
         if (base != null) {
             // two parameter TO_INTEGER(string, base)
 

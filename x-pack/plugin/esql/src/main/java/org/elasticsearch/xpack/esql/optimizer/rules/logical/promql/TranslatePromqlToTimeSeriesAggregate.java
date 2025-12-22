@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
-import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -244,14 +243,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             // use default lookback for instant queries
             timeBucketSize = Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
         }
-        Bucket b = new Bucket(
-            promqlCommand.source(),
-            promqlCommand.timestamp(),
-            timeBucketSize,
-            null,
-            null,
-            ConfigurationAware.CONFIGURATION_MARKER
-        );
+        Bucket b = new Bucket(promqlCommand.source(), promqlCommand.timestamp(), timeBucketSize, null, null);
         return new Alias(b.source(), "step", b, promqlCommand.stepId());
     }
 

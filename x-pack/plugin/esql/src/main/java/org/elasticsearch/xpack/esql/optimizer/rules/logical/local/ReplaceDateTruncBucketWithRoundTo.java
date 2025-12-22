@@ -13,8 +13,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -53,42 +53,50 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
-        return context.searchStats() != null ? plan.transformUp(Eval.class, eval -> substitute(eval, context.searchStats())) : plan;
+        return context.searchStats() != null ? plan.transformUp(Eval.class, eval -> substitute(eval, context)) : plan;
     }
 
-    private LogicalPlan substitute(Eval eval, SearchStats searchStats) {
+    private LogicalPlan substitute(Eval eval, LocalLogicalOptimizerContext context) {
         // check the filter in children plans
-        return eval.transformExpressionsOnly(Function.class, f -> substitute(f, eval, searchStats));
+        return eval.transformExpressionsOnly(Function.class, f -> substitute(f, eval, context));
     }
 
     /**
      * Perform the actual substitution with {@code SearchStats} and predicates in the query.
      */
-    private Expression substitute(Expression e, Eval eval, SearchStats searchStats) {
+    private Expression substitute(Expression e, Eval eval, LocalLogicalOptimizerContext context) {
         Expression roundTo = null;
         if (e instanceof DateTrunc dateTrunc) {
             roundTo = maybeSubstituteWithRoundTo(
+                context,
                 dateTrunc.source(),
                 dateTrunc.field(),
                 dateTrunc.interval(),
-                searchStats,
+                context.searchStats(),
                 eval,
-                (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, dateTrunc.zoneId(), minValue, maxValue)
+                (interval, minValue, maxValue) -> DateTrunc.createRounding(
+                    interval,
+                    dateTrunc.zoneId(context.configuration()),
+                    minValue,
+                    maxValue
+                )
             );
         } else if (e instanceof Bucket bucket) {
             roundTo = maybeSubstituteWithRoundTo(
+                context,
                 bucket.source(),
                 bucket.field(),
                 bucket.buckets(),
-                searchStats,
+                context.searchStats(),
                 eval,
-                (interval, minValue, maxValue) -> bucket.getDateRounding(FoldContext.small(), minValue, maxValue)
+                (interval, minValue, maxValue) -> bucket.getDateRounding(context, minValue, maxValue)
             );
         }
         return roundTo != null ? roundTo : e;
     }
 
     private RoundTo maybeSubstituteWithRoundTo(
+        ExpressionContext ctx,
         Source source,
         Expression field,
         Expression foldableTimeExpression,
@@ -117,7 +125,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
             }
             // If min/max is available create rounding with them
             if (min != null && max != null && foldableTimeExpression.foldable() && min <= max) {
-                Object foldedInterval = foldableTimeExpression.fold(FoldContext.small() /* TODO remove me */);
+                Object foldedInterval = foldableTimeExpression.fold(ctx);
                 Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, min, max);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
                 if (roundingPoints == null) {

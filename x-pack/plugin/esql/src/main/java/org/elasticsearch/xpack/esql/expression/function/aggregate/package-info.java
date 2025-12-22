@@ -70,7 +70,7 @@
  *             </li>
  *             <li>
  *                 Implement {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression}, and its required
- *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression#surrogate()} method.
+ *                 {@link org.elasticsearch.xpack.esql.expression.SurrogateExpression#surrogate} method.
  *                 <p>
  *                     It’s used to be able to fold the aggregation when it receives only literals,
  *                     or when the aggregation can be simplified.

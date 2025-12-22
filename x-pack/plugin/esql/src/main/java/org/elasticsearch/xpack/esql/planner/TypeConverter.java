@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 class TypeConverter {
     private final String evaluatorName;
@@ -28,7 +29,7 @@ class TypeConverter {
         this.convertEvaluator = convertEvaluator;
     }
 
-    public static TypeConverter fromScalarFunction(EsqlScalarFunction convertFunction) {
+    public static TypeConverter fromScalarFunction(EsqlScalarFunction convertFunction, Configuration configuration) {
         DriverContext driverContext1 = new DriverContext(
             BigArrays.NON_RECYCLING_INSTANCE,
             new org.elasticsearch.compute.data.BlockFactory(
@@ -54,6 +55,11 @@ class TypeConverter {
                     @Override
                     public void close() {}
                 };
+            }
+
+            @Override
+            public Configuration configuration() {
+                return configuration;
             }
 
             @Override

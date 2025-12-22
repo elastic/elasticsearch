@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -67,7 +67,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
         Pushable pushable = evaluatePushable(
             ctx.plannerSettings(),
-            ctx.foldCtx(),
+            ctx,
             topNExec,
             LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags())
         );
@@ -104,7 +104,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             return new EsQueryExec.GeoDistanceSort(fieldAttribute.exactAttribute(), order.direction(), point.getLat(), point.getLon());
         }
 
-        private static PushableGeoDistance from(FoldContext ctx, StDistance distance, Order order) {
+        private static PushableGeoDistance from(ExpressionContext ctx, StDistance distance, Order order) {
             if (distance.left() instanceof Attribute attr && distance.right().foldable()) {
                 return from(ctx, attr, distance.right(), order);
             } else if (distance.right() instanceof Attribute attr && distance.left().foldable()) {
@@ -113,7 +113,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             return null;
         }
 
-        private static PushableGeoDistance from(FoldContext ctx, Attribute attr, Expression foldable, Order order) {
+        private static PushableGeoDistance from(ExpressionContext ctx, Attribute attr, Expression foldable, Order order) {
             if (attr instanceof FieldAttribute fieldAttribute) {
                 Geometry geometry = SpatialRelatesUtils.makeGeometryFromLiteral(ctx, foldable);
                 if (geometry instanceof Point point) {
@@ -133,7 +133,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     private static Pushable evaluatePushable(
         PlannerSettings plannerSettings,
-        FoldContext ctx,
+        ExpressionContext ctx,
         TopNExec topNExec,
         LucenePushdownPredicates lucenePushdownPredicates
     ) {

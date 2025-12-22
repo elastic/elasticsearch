@@ -79,7 +79,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                 if (eq.right().foldable()) {
                     ins.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
                     if (eq.left().dataType() == DataType.IP) {
-                        Object value = eq.right().fold(ctx.foldCtx());
+                        Object value = eq.right().fold(ctx);
                         // ImplicitCasting and ConstantFolding(includes explicit casting) are applied before CombineDisjunctions.
                         // They fold the input IP string to an internal IP format. These happen to Equals and IN, but not for CIDRMatch,
                         // as CIDRMatch takes strings as input, ImplicitCasting does not apply to it, and the first input to CIDRMatch is a
@@ -102,7 +102,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                 if (in.value().dataType() == DataType.IP) {
                     List<Expression> values = new ArrayList<>(in.list().size());
                     for (Expression i : in.list()) {
-                        Object value = i.fold(ctx.foldCtx());
+                        Object value = i.fold(ctx);
                         // Same as Equals.
                         if (value instanceof BytesRef bytesRef) {
                             value = ipToString(bytesRef);

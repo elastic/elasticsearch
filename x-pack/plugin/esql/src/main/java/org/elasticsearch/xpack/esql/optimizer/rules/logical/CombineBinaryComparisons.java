@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -35,15 +36,15 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
     @Override
     public Expression rule(BinaryLogic e, LogicalOptimizerContext ctx) {
         if (e instanceof And and) {
-            return combine(ctx.foldCtx(), and);
+            return combine(ctx, and);
         } else if (e instanceof Or or) {
-            return combine(ctx.foldCtx(), or);
+            return combine(ctx, or);
         }
         return e;
     }
 
     // combine conjunction
-    private static Expression combine(FoldContext ctx, And and) {
+    private static Expression combine(ExpressionContext ctx, And and) {
         List<BinaryComparison> bcs = new ArrayList<>();
         List<Expression> exps = new ArrayList<>();
         boolean changed = false;
@@ -80,7 +81,7 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
     }
 
     // combine disjunction
-    private static Expression combine(FoldContext ctx, Or or) {
+    private static Expression combine(ExpressionContext ctx, Or or) {
         List<BinaryComparison> bcs = new ArrayList<>();
         List<Expression> exps = new ArrayList<>();
         boolean changed = false;
@@ -102,7 +103,12 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
      * Find commonalities between the given comparison in the given list.
      * The method can be applied both for conjunctive (AND) or disjunctive purposes (OR).
      */
-    private static boolean findExistingComparison(FoldContext ctx, BinaryComparison main, List<BinaryComparison> bcs, boolean conjunctive) {
+    private static boolean findExistingComparison(
+        ExpressionContext ctx,
+        BinaryComparison main,
+        List<BinaryComparison> bcs,
+        boolean conjunctive
+    ) {
         Object value = main.right().fold(ctx);
         // NB: the loop modifies the list (hence why the int is used)
         for (int i = 0; i < bcs.size(); i++) {

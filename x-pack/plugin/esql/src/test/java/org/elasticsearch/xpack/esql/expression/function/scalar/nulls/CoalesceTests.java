@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBui
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.ZonedDateTime;
@@ -258,6 +259,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     };
                 }
                 return EvalMapper.toEvaluator(FoldContext.small(), expression, layout);
+            }
+
+            @Override
+            public Configuration configuration() {
+                return configuration;
             }
 
             @Override

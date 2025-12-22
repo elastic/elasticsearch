@@ -66,7 +66,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 }
             }
         }
-        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, List.of());
+        return rewrite(ctx, pushdownPredicates, filterExec, queryExec, pushable, nonPushable, List.of());
     }
 
     private static PhysicalPlan planFilterExec(
@@ -92,7 +92,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         }
         // Replace field references with their actual field attributes
         pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(pushdownPredicates, filterExec, queryExec, pushable, nonPushable, evalExec.fields());
+        return rewrite(ctx, pushdownPredicates, filterExec, queryExec, pushable, nonPushable, evalExec.fields());
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -106,6 +106,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     private static PhysicalPlan rewrite(
+        LocalPhysicalOptimizerContext ctx,
         LucenePushdownPredicates pushdownPredicates,
         FilterExec filterExec,
         EsQueryExec queryExec,
@@ -116,7 +117,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);
         if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(ctx, pushdownPredicates, Predicates.combineAnd(newPushable));
             QueryBuilder planQuery = queryDSL.toQueryBuilder();
             Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));

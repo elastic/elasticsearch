@@ -8,20 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 /**
- * Marker interface indicating that a function needs a Configuration object as its last parameter.
- * <p>
- *     Extend {@link org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction} instead if possible.
- *     It automatically takes care of:
- * </p>
- * <ul>
- *     <li>The Configuration field</li>
- *     <li>HashCode</li>
- *     <li>Equals</li>
- * </ul>
- * <p>
- *     If overridden directly, take a look at {@link org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction}
- *     and add or update the required methods.
- * </p>
+ * Marker interface indicating that a function needs access to the Configuration.
  */
 public interface ConfigurationFunction {
 

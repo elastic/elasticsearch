@@ -172,11 +172,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         @Override
         public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
-            return factoryCreator.apply(
-                s.source(),
-                toEvaluator.apply(s.left()),
-                asLuceneComponent2D(toEvaluator.foldCtx(), s.crsType(), s.right())
-            );
+            return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLuceneComponent2D(toEvaluator, s.crsType(), s.right()));
         }
     }
 
@@ -196,7 +192,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         @Override
         public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
-            return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLong(toEvaluator.foldCtx(), s.right()));
+            return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLong(toEvaluator, s.right()));
         }
     }
 

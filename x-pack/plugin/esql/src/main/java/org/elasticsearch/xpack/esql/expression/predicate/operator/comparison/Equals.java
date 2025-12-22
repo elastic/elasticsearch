@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -156,7 +157,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     }
 
     @Override
-    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         if (right() instanceof Literal lit) {
             if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
                 String value = ((BytesRef) lit.value()).utf8ToString();
@@ -166,7 +167,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 }
             }
         }
-        return super.asQuery(pushdownPredicates, handler);
+        return super.asQuery(ctx, pushdownPredicates, handler);
     }
 
     @Override

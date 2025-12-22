@@ -13,6 +13,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.concurrent.Executor;
@@ -34,17 +35,17 @@ public class PreMapper {
     /**
      * Invokes any premapping steps that need to be applied to the logical plan, before this is being mapped to a physical one.
      */
-    public void preMapper(Versioned<LogicalPlan> plan, ActionListener<LogicalPlan> listener) {
-        queryRewrite(plan.inner(), listener.delegateFailureAndWrap((l, p) -> {
+    public void preMapper(Versioned<LogicalPlan> plan, Configuration configuration, ActionListener<LogicalPlan> listener) {
+        queryRewrite(plan.inner(), configuration, listener.delegateFailureAndWrap((l, p) -> {
             p.setOptimized();
             l.onResponse(p);
         }));
     }
 
-    private void queryRewrite(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
+    private void queryRewrite(LogicalPlan plan, Configuration configuration, ActionListener<LogicalPlan> listener) {
         // see https://github.com/elastic/elasticsearch/issues/133312
         // ThreadedActionListener might be removed if above issue is resolved
-        SubscribableListener.<LogicalPlan>newForked(l -> QueryBuilderResolver.resolveQueryBuilders(plan, services, l))
+        SubscribableListener.<LogicalPlan>newForked(l -> QueryBuilderResolver.resolveQueryBuilders(plan, configuration, services, l))
             .addListener(listener, searchExecutor, null);
     }
 }

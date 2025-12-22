@@ -24,7 +24,7 @@ import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -146,7 +146,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         try {
             if (DataType.isGeoGrid(left().dataType())) {
                 return foldGeoGrid(ctx, right(), left(), left().dataType());
@@ -163,7 +163,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
         }
     }
 
-    private Object foldGeoGrid(FoldContext ctx, Expression spatialExp, Expression gridExp, DataType gridType) throws IOException {
+    private Object foldGeoGrid(ExpressionContext ctx, Expression spatialExp, Expression gridExp, DataType gridType) throws IOException {
         long gridId = (Long) valueOf(ctx, gridExp);
         return GEO.compareGeometryAndGrid(makeGeometryFromLiteral(ctx, spatialExp), gridId, gridType);
     }

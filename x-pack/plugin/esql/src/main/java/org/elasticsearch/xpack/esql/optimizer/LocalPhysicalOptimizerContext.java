@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -19,4 +20,4 @@ public record LocalPhysicalOptimizerContext(
     Configuration configuration,
     FoldContext foldCtx,
     SearchStats searchStats
-) {}
+) implements ExpressionContext {}

@@ -23,7 +23,7 @@ import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -53,10 +53,10 @@ public class InferenceFunctionEvaluator {
      * Creates a new inference function evaluator with a custom operator provider.
      * This constructor is primarily used for testing to inject mock operator providers.
      *
-     * @param foldContext               the fold context containing circuit breakers and evaluation settings
+     * @param ctx               the expression context containing circuit breakers and evaluation settings
      * @param inferenceOperatorProvider custom provider for creating inference operators
      */
-    InferenceFunctionEvaluator(FoldContext foldContext, InferenceOperatorProvider inferenceOperatorProvider) {
+    InferenceFunctionEvaluator(ExpressionContext ctx, InferenceOperatorProvider inferenceOperatorProvider) {
         this.inferenceOperatorProvider = inferenceOperatorProvider;
     }
 
@@ -194,29 +194,29 @@ public class InferenceFunctionEvaluator {
         /**
          * Creates a new inference function evaluator.
          *
-         * @param foldContext      the fold context
+         * @param ctx              the expression context
          * @param inferenceService the inference service
          * @return a new instance of {@link InferenceFunctionEvaluator}
          */
-        public InferenceFunctionEvaluator create(FoldContext foldContext, InferenceService inferenceService) {
-            return new InferenceFunctionEvaluator(foldContext, createInferenceOperatorProvider(foldContext, inferenceService));
+        public InferenceFunctionEvaluator create(ExpressionContext ctx, InferenceService inferenceService) {
+            return new InferenceFunctionEvaluator(ctx, createInferenceOperatorProvider(ctx, inferenceService));
         }
 
         /**
          * Creates an {@link InferenceOperatorProvider} that can produce operators for all supported inference functions.
          */
-        private InferenceOperatorProvider createInferenceOperatorProvider(FoldContext foldContext, InferenceService inferenceService) {
+        private InferenceOperatorProvider createInferenceOperatorProvider(ExpressionContext ctx, InferenceService inferenceService) {
             return (inferenceFunction, driverContext) -> {
                 Operator.OperatorFactory operatorFactory = switch (inferenceFunction) {
                     case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
                         inferenceService,
-                        inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
+                        inferenceId(inferenceFunction, ctx),
+                        expressionEvaluatorFactory(textEmbedding.inputText(), ctx)
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
-                        inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(completion.prompt(), foldContext)
+                        inferenceId(inferenceFunction, ctx),
+                        expressionEvaluatorFactory(completion.prompt(), ctx)
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };
@@ -231,8 +231,8 @@ public class InferenceFunctionEvaluator {
          * @param f the inference function containing the inference ID
          * @return the inference endpoint ID as a string
          */
-        private String inferenceId(InferenceFunction<?> f, FoldContext foldContext) {
-            return BytesRefs.toString(f.inferenceId().fold(foldContext));
+        private String inferenceId(InferenceFunction<?> f, ExpressionContext ctx) {
+            return BytesRefs.toString(f.inferenceId().fold(ctx));
         }
 
         /**
@@ -244,9 +244,9 @@ public class InferenceFunctionEvaluator {
          * @param e the foldable expression to create an evaluator factory for
          * @return an expression evaluator factory for the given expression
          */
-        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, FoldContext foldContext) {
+        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, ExpressionContext ctx) {
             assert e.foldable() : "Input expression must be foldable";
-            return EvalMapper.toEvaluator(foldContext, Literal.of(foldContext, e), null);
+            return EvalMapper.toEvaluator(ctx, Literal.of(ctx, e), null);
         }
     }
 }

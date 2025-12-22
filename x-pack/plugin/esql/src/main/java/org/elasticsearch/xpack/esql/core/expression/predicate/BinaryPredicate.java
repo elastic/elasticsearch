@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -30,7 +30,7 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
 
     @SuppressWarnings("unchecked")
     @Override
-    public R fold(FoldContext ctx) {
+    public R fold(ExpressionContext ctx) {
         return function().apply((T) left().fold(ctx), (U) right().fold(ctx));
     }
 

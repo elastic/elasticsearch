@@ -27,7 +27,7 @@ import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -216,7 +216,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         try {
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(ctx, right());
@@ -239,7 +239,7 @@ public class SpatialContains extends SpatialRelatesFunction {
      * This also makes other optimizations, like lucene-pushdown, simpler to develop.
      */
     @Override
-    public SpatialRelatesFunction surrogate() {
+    public SpatialRelatesFunction surrogate(ExpressionContext ctx) {
         if (left().foldable() && right().foldable() == false) {
             return new SpatialWithin(source(), right(), left(), rightDocValues, leftDocValues);
         }

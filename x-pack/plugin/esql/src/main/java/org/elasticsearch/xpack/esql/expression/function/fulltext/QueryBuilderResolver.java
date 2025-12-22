@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
@@ -31,14 +32,19 @@ import java.util.Set;
 /**
  * Some {@link RewriteableAware} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
- * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
+ * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, Configuration, TransportActionServices, ActionListener)} will rewrite the plan by
  * replacing {@link RewriteableAware} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
 public final class QueryBuilderResolver {
 
     private QueryBuilderResolver() {}
 
-    public static void resolveQueryBuilders(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
+    public static void resolveQueryBuilders(
+        LogicalPlan plan,
+        Configuration configuration,
+        TransportActionServices services,
+        ActionListener<LogicalPlan> listener
+    ) {
         var hasRewriteableAwareFunctions = plan.anyMatch(p -> {
             Holder<Boolean> hasRewriteable = new Holder<>(false);
             p.forEachExpression(expr -> {
@@ -50,7 +56,7 @@ public final class QueryBuilderResolver {
         });
         if (hasRewriteableAwareFunctions) {
             Rewriteable.rewriteAndFetch(
-                new FunctionsRewriteable(plan),
+                new FunctionsRewriteable(plan, configuration),
                 queryRewriteContext(services, indexNames(plan)),
                 listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
             );
@@ -89,7 +95,7 @@ public final class QueryBuilderResolver {
         return indexNames;
     }
 
-    private record FunctionsRewriteable(LogicalPlan plan) implements Rewriteable<FunctionsRewriteable> {
+    private record FunctionsRewriteable(LogicalPlan plan, Configuration configuration) implements Rewriteable<FunctionsRewriteable> {
         @Override
         public FunctionsRewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
@@ -99,7 +105,8 @@ public final class QueryBuilderResolver {
                 if (expr instanceof RewriteableAware rewriteableAware) {
                     QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
                     builder = builder == null
-                        ? rewriteableAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
+                        ? rewriteableAware.asQuery(configuration, LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER)
+                            .toQueryBuilder()
                         : builder;
                     try {
                         builder = builder.rewrite(ctx);
@@ -115,7 +122,7 @@ public final class QueryBuilderResolver {
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();
             }
-            return updated.get() ? new FunctionsRewriteable(newPlan) : this;
+            return updated.get() ? new FunctionsRewriteable(newPlan, configuration) : this;
         }
     }
 }

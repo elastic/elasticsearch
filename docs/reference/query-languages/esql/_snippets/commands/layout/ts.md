@@ -71,26 +71,27 @@ TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 ```
 ::::
 
-Use regular (non-time-series)
+You can use [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+directly in the `STATS` command, or combine them with regular
 [aggregation functions](/reference/query-languages/esql/functions-operators/aggregation-functions.md),
-such as `SUM()`, as outer aggregation functions. Using a time series aggregation
-in combination with an inner function causes an error. For example, the
+such as `SUM()`, as outer aggregation functions. For example:
+
+```esql
+TS metrics | STATS RATE(search_requests) BY host
+```
+
+You can also combine time series aggregation functions with regular aggregation functions:
+
+```esql
+TS metrics | STATS SUM(RATE(search_requests)) BY host
+```
+
+However, using a time series aggregation function in combination with an inner time series function causes an error. For example, the
 following query is invalid:
 
 ```esql
 TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
 ```
-
-::::{note}
-A [time series](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-aggregation function must be wrapped inside a
-[regular](/reference/query-languages/esql/functions-operators/aggregation-functions.md)
-aggregation function. For instance, the following query is invalid:
-
-```esql
-TS metrics | STATS RATE(search_requests)
-```
-::::
 
 **Best practices**
 
@@ -108,6 +109,16 @@ TS metrics | STATS RATE(search_requests)
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
 
 **Examples**
+
+Using a time series aggregation function directly:
+
+```esql
+TS metrics
+| WHERE TRANGE(1 day)
+| STATS RATE(search_requests) BY TBUCKET(1 hour)
+```
+
+Combining a time series aggregation function with a regular aggregation function:
 
 ```esql
 TS metrics

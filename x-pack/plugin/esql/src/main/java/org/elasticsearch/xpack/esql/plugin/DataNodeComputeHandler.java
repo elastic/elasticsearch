@@ -416,7 +416,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     } catch (RuntimeException e) {
                         IOUtils.close(context);
                         if (addShardLevelFailure(indexShard.shardId(), e) == false) {
-                            IOUtils.closeWhileHandlingException(context, newContexts);
+                            IOUtils.closeWhileHandlingException(newContexts);
                             throw e;
                         }
                     }

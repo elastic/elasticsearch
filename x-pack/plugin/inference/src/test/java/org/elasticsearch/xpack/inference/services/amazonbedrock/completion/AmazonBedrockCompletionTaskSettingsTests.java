@@ -175,7 +175,7 @@ public class AmazonBedrockCompletionTaskSettingsTests extends AbstractBWCWireSer
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
         var settings = AmazonBedrockCompletionTaskSettings.fromMap(getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512));
-        var overrideSettings = AmazonBedrockCompletionTaskSettings.of(settings, AmazonBedrockCompletionTaskSettings.EMPTY_SETTINGS);
+        var overrideSettings = AmazonBedrockCompletionTaskSettings.of(settings, AmazonBedrockCompletionRequestTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overrideSettings, is(settings));
     }
 

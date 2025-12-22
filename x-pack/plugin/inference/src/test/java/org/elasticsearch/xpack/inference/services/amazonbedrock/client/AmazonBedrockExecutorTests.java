@@ -15,7 +15,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
@@ -45,7 +44,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
-import static org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy.CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION;
 import static org.elasticsearch.xpack.inference.common.TruncatorTests.createTruncator;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -184,9 +182,8 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
         var listener = new PlainActionFuture<InferenceServiceResults>();
 
         var executor = new AmazonBedrockChatCompletionExecutor(request, responseHandler, logger, () -> false, listener, clientCache);
-        executor.run();
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(new TimeValue(30000)));
-        assertThat(CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION, is(exception));
+        var exception = expectThrows(AssertionError.class, executor::run);
+        assertThat(exception.getMessage(), is("The chat_completion task type only supports streaming"));
     }
 
     public static ConverseResponse getTestConverseResult(String resultText) {

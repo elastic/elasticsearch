@@ -122,11 +122,8 @@ public final class AmazonBedrockConverseUtils {
             var previousMessage = messages.getLast();
 
             // Detect message types to determine merging strategy
-            var previousToolResult = findToolResult(previousMessage.content());
-            var currentToolResult = findToolResult(message.content());
-
-            var previousToolResultExists = previousToolResult != null;
-            var currentToolResultExists = currentToolResult != null;
+            var previousToolResultExists = hasToolResult(previousMessage.content());
+            var currentToolResultExists = hasToolResult(message.content());
 
             // If exactly one message is a tool result (XOR), insert assistant transition
             if (previousToolResultExists != currentToolResultExists) {
@@ -152,18 +149,18 @@ public final class AmazonBedrockConverseUtils {
         return messages;
     }
 
-    private static ToolResultBlock findToolResult(List<ContentBlock> blocks) {
+    private static boolean hasToolResult(List<ContentBlock> blocks) {
         if (blocks == null) {
-            return null;
+            return false;
         }
 
         for (ContentBlock block : blocks) {
             if (block != null && block.toolResult() != null) {
-                return block.toolResult();
+                return true;
             }
         }
 
-        return null;
+        return false;
     }
 
     private static List<SystemContentBlock> getSystemContentBlock(UnifiedCompletionRequest.Content content) {
@@ -174,14 +171,14 @@ public final class AmazonBedrockConverseUtils {
             );
             case UnifiedCompletionRequest.ContentObjects objectsContent -> objectsContent.contentObjects()
                 .stream()
-                .filter(obj -> obj.type().equals(TEXT_CONTENT_TYPE) && obj.text().isEmpty() == false)
+                .filter(obj -> obj.text().isEmpty() == false && obj.type().equals(TEXT_CONTENT_TYPE))
                 .map(obj -> SystemContentBlock.builder().text(obj.text()).build())
                 .toList();
         };
     }
 
     private static Message convertToolResultMessage(UnifiedCompletionRequest.Message requestMessage) {
-        // Bedrock allows empty tool result string content
+        // Bedrock allows empty tool result string content but not empty tool result object content
         var convertedToolResultContentBlock = switch (requestMessage.content()) {
             case UnifiedCompletionRequest.ContentString stringContent -> List.of(
                 ToolResultContentBlock.builder().text(stringContent.content()).build()
@@ -274,13 +271,14 @@ public final class AmazonBedrockConverseUtils {
         return switch (value) {
             case null -> Document.fromNull();
             case String stringValue -> Document.fromString(stringValue);
+            case Boolean booleanValue -> Document.fromBoolean(booleanValue);
             case Integer numberValue -> Document.fromNumber(numberValue);
-            case List<?> values -> Document.fromList(values.stream().map(v -> {
-                if (v instanceof String) {
-                    return Document.fromString((String) v);
-                }
-                return Document.fromNull();
-            }).collect(Collectors.toList()));
+            case Long numberValue -> Document.fromNumber(numberValue);
+            case Double numberValue -> Document.fromNumber(numberValue);
+            case Float numberValue -> Document.fromNumber(numberValue);
+            case List<?> values -> Document.fromList(
+                values.stream().map(AmazonBedrockConverseUtils::toDocument).collect(Collectors.toList())
+            );
             case Map<?, ?> mapValue -> {
                 final Map<String, Document> converted = new HashMap<>();
                 for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
@@ -316,14 +314,14 @@ public final class AmazonBedrockConverseUtils {
     }
 
     public static Optional<InferenceConfiguration> inferenceConfig(AmazonBedrockChatCompletionRequestEntity request) {
-        if (request.temperature() != null || request.topP() != null || request.maxCompletionTokens() != null) {
+        if (request.temperature() != null || request.topP() != null || request.maxCompletionTokens() != null || request.stop() != null) {
             var builder = InferenceConfiguration.builder();
             if (request.temperature() != null) {
-                builder.temperature(request.temperature().floatValue());
+                builder.temperature(request.temperature());
             }
 
             if (request.topP() != null) {
-                builder.topP(request.topP().floatValue());
+                builder.topP(request.topP());
             }
 
             if (request.maxCompletionTokens() != null) {

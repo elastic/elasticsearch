@@ -32,8 +32,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 
 public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "amazon_bedrock_chat_completion_task_settings";
-
-    public static final AmazonBedrockCompletionRequestTaskSettings EMPTY_SETTINGS = new AmazonBedrockCompletionRequestTaskSettings(
+    private static final AmazonBedrockCompletionTaskSettings EMPTY_SETTINGS = new AmazonBedrockCompletionTaskSettings(
         null,
         null,
         null,
@@ -41,6 +40,10 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
     );
 
     public static AmazonBedrockCompletionTaskSettings fromMap(Map<String, Object> settings) {
+        if (settings.isEmpty()) {
+            return EMPTY_SETTINGS;
+        }
+
         ValidationException validationException = new ValidationException();
 
         Double temperature = extractOptionalDoubleInRange(
@@ -89,6 +92,13 @@ public class AmazonBedrockCompletionTaskSettings implements TaskSettings {
         var topP = requestSettings.topP() == null ? originalSettings.topP() : requestSettings.topP();
         var topK = requestSettings.topK() == null ? originalSettings.topK() : requestSettings.topK();
         var maxNewTokens = requestSettings.maxNewTokens() == null ? originalSettings.maxNewTokens() : requestSettings.maxNewTokens();
+
+        if (Objects.equals(temperature, originalSettings.temperature())
+            && Objects.equals(topP, originalSettings.topP())
+            && Objects.equals(topK, originalSettings.topK())
+            && Objects.equals(maxNewTokens, originalSettings.maxNewTokens)) {
+            return originalSettings;
+        }
 
         return new AmazonBedrockCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
     }

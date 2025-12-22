@@ -74,7 +74,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> executeStreamChatCompletionRequest(
         AmazonBedrockBaseClient awsBedrockClient
     ) {
-        var toolChoice = convertToolChoice(requestEntity.tools(), requestEntity.toolChoice());
+        var toolChoice = buildToolChoice(requestEntity.tools(), requestEntity.toolChoice());
 
         var toolsEnabled = toolChoice != null;
 
@@ -86,7 +86,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
 
         if (toolsEnabled) {
             converseStreamRequest.toolConfig(
-                ToolConfiguration.builder().tools(convertTools(requestEntity.tools())).toolChoice(toolChoice.build()).build()
+                ToolConfiguration.builder().tools(convertTools(requestEntity.tools())).toolChoice(toolChoice).build()
             );
         }
 
@@ -94,7 +94,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build(), amazonBedrockModel);
     }
 
-    private static ToolChoice.Builder convertToolChoice(
+    private static ToolChoice buildToolChoice(
         @Nullable List<UnifiedCompletionRequest.Tool> tools,
         @Nullable UnifiedCompletionRequest.ToolChoice toolChoice
     ) {
@@ -102,7 +102,13 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
             return null;
         }
 
-        return determineToolChoice(toolChoice);
+        var toolChoiceBuilder = determineToolChoice(toolChoice);
+
+        if (toolChoiceBuilder == null) {
+            return null;
+        }
+
+        return toolChoiceBuilder.build();
     }
 
     // default for testing

@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonB
 
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy.CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION;
-
 public class AmazonBedrockChatCompletionExecutor extends AmazonBedrockExecutor {
     private final AmazonBedrockChatCompletionRequest chatCompletionRequest;
 
@@ -35,11 +33,7 @@ public class AmazonBedrockChatCompletionExecutor extends AmazonBedrockExecutor {
 
     @Override
     protected void executeClientRequest(AmazonBedrockBaseClient awsBedrockClient) {
-        // Chat completions only supports streaming
-        if (chatCompletionRequest.isStreaming() == false) {
-            inferenceResultsListener.onFailure(CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION);
-            return;
-        }
+        assert chatCompletionRequest.isStreaming() : "The chat_completion task type only supports streaming";
 
         var publisher = chatCompletionRequest.executeStreamChatCompletionRequest(awsBedrockClient);
         inferenceResultsListener.onResponse(new StreamingUnifiedChatCompletionResults(publisher));

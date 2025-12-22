@@ -18,6 +18,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.TokenUsage;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockStart;
 
 import org.elasticsearch.ElasticsearchException;
@@ -36,7 +37,6 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
@@ -47,6 +47,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static software.amazon.awssdk.services.bedrockruntime.model.StopReason.TOOL_USE;
 
 public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCase {
     private AmazonBedrockChatCompletionStreamingProcessor processor;
@@ -110,6 +111,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         }));
     }
 
+    @SuppressWarnings("unchecked")
     public void testForwardsDownstream() {
         var expectedMessageStartRole = "assistant";
         ExecutorService executorService = mock();
@@ -138,29 +140,37 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         processor.onNext(contentBlockStartOutput);
         processor.onNext(contentBlockDeltaOutput);
 
-        verifyMessageStart(downstream, expectedMessageStartRole);
-        verifyContentBlockStart(downstream);
-        verifyContentBlockDelta(downstream);
+        ArgumentCaptor<StreamingUnifiedChatCompletionResults.Results> argument = ArgumentCaptor.forClass(
+            StreamingUnifiedChatCompletionResults.Results.class
+        );
 
-        verify(executorService, times(1)).execute(any());
+        verify(downstream, times(3)).onNext(argument.capture());
+        assertThat(argument.getAllValues().size(), is(3));
+        assertThat(argument.getAllValues().get(0).chunks().size(), is(1));
+        assertThat(
+            argument.getAllValues().get(0).chunks().getFirst().choices().getFirst().delta().role(),
+            equalTo(expectedMessageStartRole)
+        );
+
+        assertThat(argument.getAllValues().get(1).chunks().size(), is(1));
+        assertThat(argument.getAllValues().get(2).chunks().size(), is(1));
+
+        verify(executorService, times(3)).execute(any());
         verify(upstream, times(0)).request(anyLong());
 
+        Mockito.clearInvocations(downstream);
+
+        // This event type is ignored, so it won't call onNext for the downstream
         processor.onNext(contentBlockStopOutput);
         processor.onNext(messageStopOutput);
         processor.onNext(metadata);
-        verifyContentBlockStop(downstream);
-        verifyMessageStop(downstream);
-        verifyMetadata(downstream);
-    }
 
-    @SuppressWarnings("unchecked")
-    private void verifyMessageStart(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream, String expectedText) {
-        verify(downstream, times(1)).onNext(assertArg(results -> {
-            assertThat(results, notNullValue());
-            assertThat(results.chunks().size(), equalTo(1));
-            assertThat(results.chunks().getFirst().choices().getFirst().delta().role(), equalTo(expectedText));
-        }));
-        Mockito.clearInvocations(downstream);
+        // Only 2 calls because content block stop is ignored
+        verify(downstream, times(2)).onNext(any());
+        assertThat(argument.getAllValues().size(), is(3));
+        assertThat(argument.getAllValues().get(0).chunks().size(), is(1));
+        assertThat(argument.getAllValues().get(1).chunks().size(), is(1));
+        assertThat(argument.getAllValues().get(2).chunks().size(), is(1));
     }
 
     private ConverseStreamOutput messageStartOutput(String role) {
@@ -220,7 +230,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.MESSAGE_STOP);
         doAnswer(ans -> {
             ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
-            MessageStopEvent event = MessageStopEvent.builder().build();
+            MessageStopEvent event = MessageStopEvent.builder().stopReason(TOOL_USE).build();
             visitor.visitMessageStop(event);
             return null;
         }).when(output).accept(any());
@@ -232,40 +242,13 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.METADATA);
         doAnswer(ans -> {
             ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
-            ConverseStreamMetadataEvent event = ConverseStreamMetadataEvent.builder().build();
+            ConverseStreamMetadataEvent event = ConverseStreamMetadataEvent.builder()
+                .usage(TokenUsage.builder().inputTokens(1).outputTokens(1).totalTokens(2).build())
+                .build();
             visitor.visitMetadata(event);
             return null;
         }).when(output).accept(any());
         return output;
-    }
-
-    private void verifyContentBlockStart(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
-        verifyDownstream(downstream);
-    }
-
-    private void verifyContentBlockDelta(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
-        verifyDownstream(downstream);
-    }
-
-    private void verifyContentBlockStop(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
-        verifyDownstream(downstream);
-    }
-
-    private void verifyMessageStop(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
-        verifyDownstream(downstream);
-    }
-
-    private void verifyMetadata(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
-        verifyDownstream(downstream);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void verifyDownstream(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
-        verify(downstream, times(1)).onNext(assertArg(results -> {
-            assertThat(results, notNullValue());
-            assertThat(results.chunks().size(), equalTo(1));
-        }));
-        Mockito.clearInvocations(downstream);
     }
 
     public void verifyCompleteBeforeRequest() {

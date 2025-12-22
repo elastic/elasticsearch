@@ -27,7 +27,9 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<ConverseStreamOutput, T> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingProcessor.class);
 
-    final AtomicReference<Throwable> error = new AtomicReference<>(null);
+    private final AtomicReference<Throwable> error = new AtomicReference<>(null);
+    private final AtomicBoolean onErrorCalled = new AtomicBoolean(false);
+    private final ThreadPool threadPool;
     /**
      * The purpose of demand is solely to guard against the situation where the bedrock sdk can complete the future before the publisher
      * and subscriber aren't connected together via {@link #subscribe(Flow.Subscriber)} and {@link AmazonBedrockInferenceClient}
@@ -38,8 +40,7 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     final AtomicLong demand = new AtomicLong(0);
     final AtomicBoolean isDone = new AtomicBoolean(false);
     final AtomicBoolean onCompleteCalled = new AtomicBoolean(false);
-    final AtomicBoolean onErrorCalled = new AtomicBoolean(false);
-    final ThreadPool threadPool;
+
     volatile Flow.Subscription upstream;
 
     volatile Flow.Subscriber<? super T> downstream;

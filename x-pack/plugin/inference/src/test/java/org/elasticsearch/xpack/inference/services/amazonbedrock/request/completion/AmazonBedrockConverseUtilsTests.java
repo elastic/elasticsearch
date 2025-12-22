@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConversationRole;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
@@ -18,7 +19,9 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.DEFAULT_USER_MESSAGE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.HI_TEXT;
@@ -584,5 +587,99 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
         assertThat(secondMessage.content().get(0).text(), is(ASSISTANT_RESPONSE));
         assertThat(secondMessage.content().get(1).toolUse().name(), is(FUNCTION_NAME));
         assertThat(secondMessage.content().get(1).toolUse().toolUseId(), is(TOOL_CALL_ID));
+    }
+
+    public void testToDocument_Null() {
+        var doc = AmazonBedrockConverseUtils.toDocument(null);
+        assertThat(doc, is(Document.fromNull()));
+    }
+
+    public void testToDocument_String() {
+        var hello = "hello";
+        var doc = AmazonBedrockConverseUtils.toDocument(hello);
+        assertThat(doc, is(Document.fromString(hello)));
+    }
+
+    public void testToDocument_Integer() {
+        var number = 42;
+        var doc = AmazonBedrockConverseUtils.toDocument(number);
+        assertThat(doc, is(Document.fromNumber(number)));
+    }
+
+    public void testToDocument_Long() {
+        var number = 42L;
+        var doc = AmazonBedrockConverseUtils.toDocument(number);
+        assertThat(doc, is(Document.fromNumber(number)));
+    }
+
+    public void testToDocument_Double() {
+        var number = 42.0d;
+        var doc = AmazonBedrockConverseUtils.toDocument(number);
+        assertThat(doc, is(Document.fromNumber(number)));
+    }
+
+    public void testToDocument_Float() {
+        var number = 42.0f;
+        var doc = AmazonBedrockConverseUtils.toDocument(number);
+        assertThat(doc, is(Document.fromNumber(number)));
+    }
+
+    public void testToDocument_List() {
+        var a = "a";
+        var b = "b";
+        var nestedList = List.of(b);
+        var list = List.of(a, 1, nestedList);
+
+        var expected = Document.fromList(
+            List.of(Document.fromString(a), Document.fromNumber(1), Document.fromList(List.of(Document.fromString(b))))
+        );
+
+        var doc = AmazonBedrockConverseUtils.toDocument(list);
+        assertThat(doc, is(expected));
+    }
+
+    public void testToDocument_Map() {
+        var keyK = "k";
+        var valV = "v";
+        var keyN = "n";
+
+        Map<String, Object> map = new HashMap<>();
+        map.put(keyK, valV);
+        map.put(keyN, 2);
+
+        var expectedMap = Map.of(keyK, Document.fromString(valV), keyN, Document.fromNumber(2));
+
+        var expected = Document.fromMap(expectedMap);
+
+        var doc = AmazonBedrockConverseUtils.toDocument(map);
+        assertThat(doc, is(expected));
+    }
+
+    public void testToDocument_NestedStructures() {
+        var innerKey = "a";
+        var x = "x";
+        var innerMapKey = "inner";
+        var sKey = "s";
+        var sVal = "str";
+
+        Map<String, Object> innerMap = new HashMap<>();
+        innerMap.put(innerKey, List.of(x, 5));
+
+        Map<String, Object> map = new HashMap<>();
+        map.put(innerMapKey, innerMap);
+        map.put(sKey, sVal);
+
+        var expectedInnerList = Document.fromList(List.of(Document.fromString(x), Document.fromNumber(5)));
+        var expectedInnerMap = Document.fromMap(Map.of(innerKey, expectedInnerList));
+        var expected = Document.fromMap(Map.of(innerMapKey, expectedInnerMap, sKey, Document.fromString(sVal)));
+
+        var doc = AmazonBedrockConverseUtils.toDocument(map);
+        assertThat(doc, is(expected));
+    }
+
+    public void testToDocument_UnsupportedTypeReturnsEmptyMapDocument() {
+        var unsupported = new Object();
+        var doc = AmazonBedrockConverseUtils.toDocument(unsupported);
+        assertThat(doc, is(Document.mapBuilder().build()));
     }
 }

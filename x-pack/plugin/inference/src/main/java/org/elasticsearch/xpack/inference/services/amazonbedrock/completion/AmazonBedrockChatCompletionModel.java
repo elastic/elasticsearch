@@ -31,6 +31,12 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
 
         var requestTaskSettings = AmazonBedrockCompletionRequestTaskSettings.fromMap(taskSettings);
         var taskSettingsToUse = AmazonBedrockCompletionTaskSettings.of(completionModel.getTaskSettings(), requestTaskSettings);
+
+        // If the task settings didn't change, then return the same model
+        if (taskSettingsToUse.equals(completionModel.getTaskSettings())) {
+            return completionModel;
+        }
+
         return new AmazonBedrockChatCompletionModel(completionModel, taskSettingsToUse);
     }
 
@@ -42,9 +48,10 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
      * @return A new AmazonBedrockChatCompletionModel with the overridden model ID.
      */
     public static AmazonBedrockChatCompletionModel of(AmazonBedrockChatCompletionModel model, UnifiedCompletionRequest request) {
-        if (request.model() == null) {
+        if (request.model() == null || request.model().equals(model.getServiceSettings().modelId())) {
             return model;
         }
+
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
             originalModelServiceSettings.region(),
@@ -52,6 +59,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
             originalModelServiceSettings.provider(),
             originalModelServiceSettings.rateLimitSettings()
         );
+
         return new AmazonBedrockChatCompletionModel(
             model.getInferenceEntityId(),
             model.getTaskType(),

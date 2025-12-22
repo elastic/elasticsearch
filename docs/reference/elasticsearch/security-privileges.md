@@ -126,7 +126,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   All operations on ingest pipelines.
 
 `manage_reindex` {applies_to}`TODO fill this in DO NOT MERGE`
-:   All operations on reindex tasks, including listing, getting status, cancelling, and rethrottling
+:   All operations on reindex tasks, including listing, getting status, cancelling, and rethrottling.
 
 `manage_rollup` {applies_to}`serverless: unavailable`
 :   All rollup operations, including creating, starting, stopping and deleting rollup jobs.
@@ -194,7 +194,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   All read-only rollup operations, such as viewing the list of historical and currently running rollup jobs and their capabilities.
 
 `monitor_reindex` {applies_to}`TODO fill this in DO NOT MERGE`
-:   All read-only operations on reindex tasks, including listing and getting status
+:   All read-only operations on reindex tasks, including listing and getting status.
 
 `monitor_snapshot` {applies_to}`serverless: unavailable`
 :   Privileges to list and view details on existing repositories and snapshots.

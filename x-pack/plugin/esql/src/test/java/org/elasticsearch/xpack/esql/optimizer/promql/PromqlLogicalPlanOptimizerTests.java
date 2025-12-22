@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -61,7 +62,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
@@ -161,40 +161,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(bucketSpan.fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
 
         var tbucketId = bucketAlias.toAttribute().id();
+        assertThat(Expressions.attribute(tsAggregate.groupings().get(1)).id(), equalTo(tbucketId));
+        assertThat(Expressions.attribute(aggregate.groupings().get(0)).id(), equalTo(tbucketId));
+        assertThat(Expressions.attribute(project.projections().get(1)).id(), equalTo(tbucketId));
 
-        // Verify TBUCKET is used as timeBucket in TimeSeriesAggregate
-        // FIXME: looks like we're creating multiple time buckets (one in Eval, one in TSAggregate)
-
-        // var timeBucket = tsAggregate.timeBucket();
-        // assertNotNull(timeBucket);
-        // assertThat(Expressions.attribute(timeBucket).id(), equalTo(tbucketId));
-
-        // assertThat(Expressions.attribute(tsAggregate.groupings().get(0)).id(), equalTo(tbucketId));
-
-        // assertThat(Expressions.attribute(aggregate.groupings().get(1)).id(), equalTo(tbucketId));
-
-        // var orderAttr = Expressions.attribute(topN.order().get(0).child());
-        // assertThat(orderAttr.id(), equalTo(tbucketId));
-
-        // assertThat(Expressions.attribute(project.projections().get(2)).id(), equalTo(tbucketId));
-
-        // Filter should contain: ISNOTNULL(network.bytes_in) AND IN(host-0, host-1, host-2, pod)
+        // Filter should contain: IN(host-0, host-1, host-2, pod)
         var filter = as(evalBucket.child(), Filter.class);
-        var condition = filter.condition();
-        assertThat(condition, instanceOf(And.class));
-        var and = (And) condition;
-
-        // Verify AND contains IsNotNull
-        boolean hasIsNotNull = and.anyMatch(IsNotNull.class::isInstance);
-        assertThat(hasIsNotNull, equalTo(true));
-
-        // Verify AND contains In
-        boolean hasIn = and.anyMatch(In.class::isInstance);
-        assertThat(hasIn, equalTo(true));
-
-        var inConditions = condition.collect(In.class::isInstance);
-        assertThat(inConditions, hasSize(1));
-        var in = (In) inConditions.get(0);
+        var in = as(filter.condition(), In.class);
         assertThat(in.list(), hasSize(3));
 
         as(filter.child(), EsRelation.class);

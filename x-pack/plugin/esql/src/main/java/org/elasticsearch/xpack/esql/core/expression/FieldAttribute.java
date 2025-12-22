@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -94,15 +94,7 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {
-        /*
-         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
-         * because we're in esql-core here and the real PlanStreamInput is in
-         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
-         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
-         * and NameId. This should become a hard cast when we move everything out
-         * of esql-core.
-         */
-        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        Source source = Source.readFrom((PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
         String name = ((PlanStreamInput) in).readCachedString();
@@ -114,7 +106,7 @@ public class FieldAttribute extends TypedAttribute {
             in.readOptionalString();
         }
         Nullability nullability = in.readEnum(Nullability.class);
-        NameId nameId = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        NameId nameId = NameId.readFrom((PlanStreamInput) in);
         boolean synthetic = in.readBoolean();
         return new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic);
     }

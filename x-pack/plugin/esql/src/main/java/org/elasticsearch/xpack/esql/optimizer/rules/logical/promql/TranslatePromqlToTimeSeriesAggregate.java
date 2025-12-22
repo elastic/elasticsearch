@@ -152,7 +152,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         List<Expression> groupings = new ArrayList<>();
 
         // value aggregation
-        aggs.add(new Alias(promqlCommand.promqlPlan().source(), promqlCommand.promqlPlan().sourceText(), value, promqlCommand.valueId()));
+        aggs.add(new Alias(promqlCommand.promqlPlan().source(), promqlCommand.promqlPlan().sourceText(), value));
 
         // timestamp/step
         Attribute stepBucketAttribute = stepBucket.toAttribute();

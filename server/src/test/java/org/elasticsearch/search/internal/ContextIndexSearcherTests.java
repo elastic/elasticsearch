@@ -646,9 +646,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 var top = searcher.search(query, 10);
                 assertThat(top.totalHits.value(), equalTo(0L));
                 assertThat(top.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
             }
-        } finally {
-            terminate(executor);
         }
     }
 

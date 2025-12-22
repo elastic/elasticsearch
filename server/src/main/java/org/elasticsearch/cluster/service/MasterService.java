@@ -1305,7 +1305,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     localNonemptySinceMillis = nonemptySinceMillis;
                 }
             }
-            return Math.max(0L, threadPool.relativeTimeInMillis() - localNonemptySinceMillis);
+            return threadPool.relativeTimeInMillis() - localNonemptySinceMillis;
         }
 
         long getPriorityNonemptyAge(Priority priority) {
@@ -1317,7 +1317,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     localNonemptySinceMillis = lastClearTimeMillis.get(priority).get();
                 }
             }
-            return Math.max(0L, threadPool.relativeTimeInMillis() - localNonemptySinceMillis);
+            return threadPool.relativeTimeInMillis() - localNonemptySinceMillis;
         }
     }
 

@@ -46,7 +46,7 @@ public class StNPointsTests extends AbstractScalarFunctionTestCase {
 
     private static int valueOf(BytesRef wkb) {
         var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        return geometry.isEmpty() ? 0 : geometry.visit(pointCounter);
+        return geometry.visit(pointCounter);
     }
 
     @Override

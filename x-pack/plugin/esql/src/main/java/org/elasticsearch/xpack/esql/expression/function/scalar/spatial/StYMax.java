@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -16,13 +15,13 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -32,9 +31,11 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+import static java.lang.Double.NEGATIVE_INFINITY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
  * Determines the maximum value of the y-coordinate from a geometry.
@@ -43,6 +44,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
  */
 public class StYMax extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StYMax", StYMax::new);
+    private static final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder = new SpatialEnvelopeResults<>();
 
     @FunctionInfo(
         returnType = "double",
@@ -113,73 +115,29 @@ public class StYMax extends SpatialUnaryDocValuesFunction {
         return NodeInfo.create(this, StYMax::new, spatialField());
     }
 
-    private static void fromWellKnownBinary(
-        DoubleBlock.Builder results,
-        @Position int p,
-        BytesRefBlock wkbBlock,
-        SpatialEnvelopeVisitor.PointVisitor pointVisitor
-    ) {
-        int firstValueIndex = wkbBlock.getFirstValueIndex(p);
-        int valueCount = wkbBlock.getValueCount(p);
-        if (valueCount == 0) {
-            results.appendNull();
-            return;
-        }
-        BytesRef scratch = new BytesRef();
-        var visitor = new SpatialEnvelopeVisitor(pointVisitor);
-        for (int i = 0; i < valueCount; i++) {
-            BytesRef wkb = wkbBlock.getBytesRef(firstValueIndex + i, scratch);
-            var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-            geometry.visit(visitor);
-        }
-        if (pointVisitor.isValid()) {
-            results.appendDouble(visitor.getResult().getMaxY());
-            return;
-        }
-        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    static void buildEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle) {
+        results.appendDouble(rectangle.getMaxY());
     }
 
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinary(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        fromWellKnownBinary(results, p, wkbBlock, new SpatialEnvelopeVisitor.CartesianPointVisitor());
+        var counter = new SpatialEnvelopeVisitor.CartesianPointVisitor();
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StYMax::buildEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinaryGeo(DoubleBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
-        fromWellKnownBinary(results, p, wkbBlock, new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP));
-    }
-
-    private static void fromDocValues(
-        DoubleBlock.Builder results,
-        @Position int p,
-        LongBlock encodedBlock,
-        SpatialCoordinateTypes spatialCoordinateType
-    ) {
-        int firstValueIndex = encodedBlock.getFirstValueIndex(p);
-        int valueCount = encodedBlock.getValueCount(p);
-        if (valueCount == 0) {
-            results.appendNull();
-            return;
-        }
-        double maxY = Double.NEGATIVE_INFINITY;
-        for (int i = 0; i < valueCount; i++) {
-            long encoded = encodedBlock.getLong(firstValueIndex + i);
-            maxY = Math.max(maxY, spatialCoordinateType.decodeY(encoded));
-        }
-        if (Double.isFinite(maxY)) {
-            results.appendDouble(maxY);
-            return;
-        }
-        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+        var counter = new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP);
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, counter, StYMax::buildEnvelopeResults);
     }
 
     @Evaluator(extraName = "FromDocValues", warnExceptions = { IllegalArgumentException.class })
     static void fromDocValues(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
-        fromDocValues(results, p, encodedBlock, SpatialCoordinateTypes.CARTESIAN);
+        resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, NEGATIVE_INFINITY, (v, e) -> Math.max(v, CARTESIAN.decodeY(e)));
     }
 
     @Evaluator(extraName = "FromDocValuesGeo", warnExceptions = { IllegalArgumentException.class })
     static void fromDocValuesGeo(DoubleBlock.Builder results, @Position int p, LongBlock encodedBlock) {
-        fromDocValues(results, p, encodedBlock, SpatialCoordinateTypes.GEO);
+        resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, NEGATIVE_INFINITY, (v, e) -> Math.max(v, GEO.decodeY(e)));
     }
 }

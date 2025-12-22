@@ -29,6 +29,7 @@ public abstract class SpatialUnaryDocValuesFunction extends SpatialDocValuesFunc
     }
 
     protected SpatialUnaryDocValuesFunction(StreamInput in) throws IOException {
+        // Note that the spatialDocValues flag is not serialized because it is not planned, nor used on the coordinator, only on data nodes
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), false);
     }
 
@@ -41,6 +42,7 @@ public abstract class SpatialUnaryDocValuesFunction extends SpatialDocValuesFunc
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(spatialField());
+        // Note that the spatialDocValues flag is not deserialized because it is only planned and used on data nodes, not the coordinator
     }
 
     @Override

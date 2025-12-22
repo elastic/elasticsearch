@@ -107,7 +107,7 @@ public class StXMin extends SpatialUnaryDocValuesFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StXMin(source(), newChildren.getFirst());
+        return new StXMin(source(), newChildren.getFirst(), spatialDocValues);
     }
 
     @Override

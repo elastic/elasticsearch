@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
@@ -82,6 +81,11 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     }
 
     @Override
+    public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
+        return new StEnvelope(source(), spatialField(), useDocValues);
+    }
+
+    @Override
     public String getWriteableName() {
         return ENTRY.name;
     }
@@ -102,25 +106,16 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (spatialDocValues) {
-            if (spatialField().dataType() == GEO_POINT) {
-                return new StEnvelopeFromDocValuesGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-            }
-            if (spatialField().dataType() == CARTESIAN_POINT) {
-                return new StEnvelopeFromDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-            }
-            // Planner mistake: should not have enabled doc values on shapes
-            throw new UnsupportedOperationException("StEnvelope does not support doc values on shapes");
-        } else {
-            if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
-                return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-            }
-            return new StEnvelopeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+            return switch (spatialField().dataType()) {
+                case GEO_POINT -> new StEnvelopeFromDocValuesGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                case CARTESIAN_POINT -> new StEnvelopeFromDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+                default -> throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
+            };
         }
-    }
-
-    @Override
-    public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
-        return new StEnvelope(source(), spatialField(), useDocValues);
+        if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
+            return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        }
+        return new StEnvelopeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override

@@ -107,7 +107,7 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StXMax(source(), newChildren.getFirst());
+        return new StXMax(source(), newChildren.getFirst(), spatialDocValues);
     }
 
     @Override

@@ -107,7 +107,7 @@ public class StYMin extends SpatialUnaryDocValuesFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StYMin(source(), newChildren.getFirst());
+        return new StYMin(source(), newChildren.getFirst(), spatialDocValues);
     }
 
     @Override

@@ -1606,6 +1606,11 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
+         * Support for the DATE_RANGE field type.
+         */
+        DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
+
+        /**
          * Network direction function.
          */
         NETWORK_DIRECTION(Build.current().isSnapshot()),

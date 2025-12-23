@@ -109,15 +109,14 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         @Override
         public BytesRef binaryValue() {
             int docValuesCount = values.size();
-            int streamSize = docValuesByteCount + docValuesCount * (Integer.BYTES + 1);
 
+            if (docValuesCount == 1) {
+                return values.iterator().next();
+            }
+
+            int streamSize = docValuesByteCount + docValuesCount * VINT_MAX_BYTES;
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                if (docValuesCount == 1) {
-                    BytesRef value = values.iterator().next();
-                    out.writeBytes(value.bytes, value.offset, value.length);
-                } else {
-                    writeLenAndValues(out);
-                }
+                writeLenAndValues(out);
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);

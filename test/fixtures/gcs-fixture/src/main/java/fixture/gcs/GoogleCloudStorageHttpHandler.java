@@ -176,12 +176,16 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final var batchReader = MultipartContent.Reader.readStream(boundary, requestBody.streamInput());
                 final var responseStream = new ByteArrayOutputStream();
                 final var batchWriter = new MultipartContent.Writer(boundary, responseStream);
+                // allow some batches to proceed without partial failures
+                final var allowBatchItemFailures = ESTestCase.randomBoolean();
                 while (batchReader.hasNext()) {
                     final var batchItem = batchReader.next();
                     final var contentId = batchItem.headers().get("content-id");
                     // batch supports only deletions
                     final var objectName = parseBatchItemDeleteObject(bucket, batchItem.content());
-                    final var deleteStatus = deleteObjectOrRandomlyFail(objectName);
+                    final var deleteStatus = allowBatchItemFailures
+                        ? deleteObjectOrRandomlyFail(objectName)
+                        : deleteObject(objectName);
                     final var partHeaders = new LinkedHashMap<String, String>() {
                         {
                             put("content-type", "application/http");

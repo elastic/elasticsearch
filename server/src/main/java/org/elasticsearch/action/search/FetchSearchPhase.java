@@ -223,7 +223,6 @@ class FetchSearchPhase extends SearchPhase {
         final ShardSearchContextId contextId = shardPhaseResult.queryResult() != null
             ? shardPhaseResult.queryResult().getContextId()
             : shardPhaseResult.rankFeatureResult().getContextId();
-
         var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
             @Override
             public void innerOnResponse(FetchSearchResult result) {
@@ -250,16 +249,16 @@ class FetchSearchPhase extends SearchPhase {
             }
         };
 
-        // Get connection to the target node
         final Transport.Connection connection;
+        final TransportVersion dataNodeVersion;
         try {
             connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+            dataNodeVersion = connection.getTransportVersion();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
 
-        // Create the fetch request
         final ShardFetchSearchRequest shardFetchRequest = new ShardFetchSearchRequest(
             context.getOriginalIndices(shardPhaseResult.getShardIndex()),
             contextId,
@@ -271,37 +270,26 @@ class FetchSearchPhase extends SearchPhase {
             aggregatedDfs
         );
 
-        boolean dataNodeSupports = false;
-        boolean isCCSQuery = false;
-        boolean remoteDataNodeRequest = false;
-        boolean isScrollOrReindex = false;
+        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
+        boolean isCCSQuery = shardTarget.getClusterAlias() != null;
+        boolean isScrollOrReindex = context.getRequest().scroll() != null
+            || (shardFetchRequest.getShardSearchRequest() != null
+            && shardFetchRequest.getShardSearchRequest().scroll() != null);
 
-        if (connection != null) {
-            // Check if this is a local request (coordinator == data node)
-            remoteDataNodeRequest = connection.getNode()
-                .getId()
-                .equals(context.getSearchTransport().transportService().getLocalNode().getId()) == false;
-
-            TransportVersion dataNodeVersion = connection.getTransportVersion();
-            dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
-            isCCSQuery = shardTarget.getClusterAlias() != null;
-            isScrollOrReindex = context.getRequest().scroll() != null || shardFetchRequest.getShardSearchRequest().scroll() != null;
-
-            if (logger.isTraceEnabled()) {
-                logger.info(
-                    "FetchSearchPhase decision for shard {}: chunkEnabled={}, remoteDataNodeRequest={}, "
-                        + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
-                        + "targetNode={}, isCCSQuery={}",
-                    shardIndex,
-                    fetchPhaseChunked,
-                    remoteDataNodeRequest,
-                    dataNodeSupports,
-                    dataNodeVersion.id(),
-                    CHUNKED_FETCH_PHASE.id(),
-                    connection.getNode(),
-                    isCCSQuery
-                );
-            }
+        if (logger.isTraceEnabled()) {
+            logger.info(
+                "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
+                    + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
+                    + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
+                shardIndex,
+                fetchPhaseChunked,
+                dataNodeSupports,
+                dataNodeVersion.id(),
+                CHUNKED_FETCH_PHASE.id(),
+                connection.getNode(),
+                isCCSQuery,
+                isScrollOrReindex
+            );
         }
 
         if (fetchPhaseChunked && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {

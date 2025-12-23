@@ -10,12 +10,15 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -57,7 +60,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             logger,
             new NamedWriteableRegistry(List.of()),
             mock(SearchTransportService.class),
-            (clusterAlias, nodeId) -> null,
+            (clusterAlias, nodeId) -> createMockConnection(nodeId),
             null,
             null,
             Runnable::run,
@@ -75,6 +78,82 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);
+    }
+
+    private static Transport.Connection createMockConnection(String nodeId) {
+        return new Transport.Connection() {
+            @Override
+            public void incRef() {
+                // Mock implementation - no-op for tests
+            }
+
+            @Override
+            public boolean tryIncRef() {
+                return true;  // Always succeed for mock
+            }
+
+            @Override
+            public boolean decRef() {
+                return false;  // Never actually release for mock
+            }
+
+            @Override
+            public boolean hasReferences() {
+                return true;  // Always has references for mock
+            }
+
+            @Override
+            public DiscoveryNode getNode() {
+                return new DiscoveryNode(
+                    nodeId,                                          // nodeName
+                    nodeId,                                          // nodeId
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9300),  // address
+                    Collections.emptyMap(),                          // attributes
+                    Collections.emptySet(),                          // roles
+                    null                                             // versionInfo (null = use current)
+                );
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.current();
+            }
+
+            @Override
+            public void sendRequest(
+                long requestId,
+                String action,
+                org.elasticsearch.transport.TransportRequest request,
+                org.elasticsearch.transport.TransportRequestOptions options
+            ) {
+                // Mock implementation - not needed for these tests
+            }
+
+            @Override
+            public void addCloseListener(ActionListener<Void> listener) {
+                // Mock implementation - not needed for tests
+            }
+
+            @Override
+            public void addRemovedListener(ActionListener<Void> listener) {
+                // Mock implementation - not needed for tests
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;  // Never closed for mock
+            }
+
+            @Override
+            public void close() {
+                // Mock implementation - no-op for tests
+            }
+
+            @Override
+            public void onRemoved() {
+                // Mock implementation - no-op for tests
+            }
+        };
     }
 
     public void assertNoFailure() {

@@ -127,13 +127,13 @@ public class QuerySettingsTests extends ESTestCase {
             new MapExpression(
                 Source.EMPTY,
                 List.of(
-                    Literal.keyword(Source.EMPTY, "foo"),
-                    Literal.keyword(Source.EMPTY, "bar"),
-                    Literal.keyword(Source.EMPTY, "baz"),
-                    Literal.integer(Source.EMPTY, 10)
+                    Literal.keyword(Source.EMPTY, "num_rows"),
+                    Literal.integer(Source.EMPTY, 10),
+                    Literal.keyword(Source.EMPTY, "confidence_level"),
+                    Literal.fromDouble(Source.EMPTY, 10.0d)
                 )
             ),
-            equalTo(Map.of("foo", new BytesRef("bar"), "baz", 10))
+            equalTo(Map.of("num_rows", 10, "confidence_level", 10.0d))
         );
 
         assertInvalid(
@@ -146,6 +146,18 @@ public class QuerySettingsTests extends ESTestCase {
             def.name(),
             Literal.keyword(Source.EMPTY, "foo"),
             "line -1:-1: Error validating setting [approximate]: Invalid approximate configuration [foo]"
+        );
+
+        assertInvalid(
+            def.name(),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    Literal.keyword(Source.EMPTY, "foo"),
+                    Literal.integer(Source.EMPTY, 10)
+                )
+            ),
+            "line -1:-1: Error validating setting [approximate]: Approximate configuration contains unknown key [foo]"
         );
     }
 

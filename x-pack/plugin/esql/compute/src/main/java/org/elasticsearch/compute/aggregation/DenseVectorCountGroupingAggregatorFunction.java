@@ -12,7 +12,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
-
 /**
  * Specialized CountGroupingAggregatorFunction for dense_vectors. dense_vectors are represented as multivalued fields,
  * so we should only count 1 value for each dense_vector row instead of counting the number of values

@@ -345,11 +345,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                     binaryOperator.children().forEach(child -> {
                         if (child instanceof RangeSelector) {
                             failures.add(
-                                fail(
-                                    child,
-                                    "binary expression must contain only scalar and instant vector types",
-                                    child.sourceText()
-                                )
+                                fail(child, "binary expression must contain only scalar and instant vector types", child.sourceText())
                             );
                         }
                     });

@@ -89,7 +89,11 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         for (Expression grouping : aggregate.groupings()) {
             if (Functions.isGrouping(Alias.unwrap(grouping)) == false) {
                 throw new IllegalArgumentException(
-                    "Cannot mix time-series aggregate and grouping attributes. Found [" + grouping.sourceText() + "]."
+                    "Only grouping functions are supported (e.g. tbucket) when the time series aggregation function ["
+                        + lastTSAggFunction.sourceText()
+                        + "] is not wrapped with another aggregation function. Found ["
+                        + grouping.sourceText()
+                        + "]."
                 );
             }
             groupings.add(grouping);

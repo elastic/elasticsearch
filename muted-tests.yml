@@ -388,26 +388,12 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/40_unsupported_types/unsupported}
-  issue: https://github.com/elastic/elasticsearch/issues/139701
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/40_unsupported_types/unsupported with sort}
-  issue: https://github.com/elastic/elasticsearch/issues/139702
 - class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139740
 - class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139741
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/139482
-- class: org.elasticsearch.xpack.esql.qa.single_node.AllSupportedFieldsIT
-  issue: https://github.com/elastic/elasticsearch/pull/139744
-- class: org.elasticsearch.index.mapper.SkipperSettingsTests
-  method: testTSDBSkipperSettingDefaults
-  issue: https://github.com/elastic/elasticsearch/issues/139824
 - class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
   issue: https://github.com/elastic/elasticsearch/issues/139826
@@ -423,9 +409,12 @@ tests:
 - class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
   method: testRescoreSingleAndBulkEquality
   issue: https://github.com/elastic/elasticsearch/issues/139869
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/139872
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnQueryRescore
+  issue: https://github.com/elastic/elasticsearch/issues/139912
+- class: org.elasticsearch.cluster.service.MasterServiceTests
+  method: testStarvationLogging
+  issue: https://github.com/elastic/elasticsearch/issues/139941
 
 # Examples:
 #

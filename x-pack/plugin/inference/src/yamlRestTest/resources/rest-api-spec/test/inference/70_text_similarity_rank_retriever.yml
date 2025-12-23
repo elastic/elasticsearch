@@ -462,10 +462,9 @@ setup:
       cluster_features: "text_similarity_reranker_minscore_fix"
       reason: test min score functionality
 
-  # Create a dedicated index for deterministic score testing.
-  # The mock reranker parses string values in 'inference_text_field' as numbers
-  # to determine the reranked score. This ensures scores are positive and
-  # avoids unexpected filtering when min_score is 0.
+  # Created a dedicated index for deterministic score testing.
+  # The mock reranker parses string values in 'inference_text_field' as numbers to determine the reranked score.
+  # This ensures scores are positive and avoids unexpected filtering when min_score is 0.
   - do:
       indices.create:
         index: test-index-deterministic

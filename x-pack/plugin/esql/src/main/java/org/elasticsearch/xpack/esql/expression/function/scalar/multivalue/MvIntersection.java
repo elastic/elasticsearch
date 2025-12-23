@@ -286,33 +286,38 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
     ) {
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
+
+        // If either block has no values, there will be no intersection
         if (firstValueCount == 0 || secondValueCount == 0) {
-            // if either block has no values, there will be no intersection
             builder.appendNull();
             return;
         }
 
+        // Extract values from first field (LinkedHashSet to preserve order)
+        Set<T> firstSet = new LinkedHashSet<>();
         int firstValueIndex = field1.getFirstValueIndex(position);
-        int secondValueIndex = field2.getFirstValueIndex(position);
-
-        Set<T> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
-            values.add(getValueFunction.apply(firstValueIndex + i, field1));
+            firstSet.add(getValueFunction.apply(firstValueIndex + i, field1));
         }
 
-        Set<T> secondValues = new HashSet<>();
+        // Extract values from second field (HashSet - order doesn't matter for lookup)
+        Set<T> secondSet = new HashSet<>();
+        int secondValueIndex = field2.getFirstValueIndex(position);
         for (int i = 0; i < secondValueCount; i++) {
-            secondValues.add(getValueFunction.apply(secondValueIndex + i, field2));
+            secondSet.add(getValueFunction.apply(secondValueIndex + i, field2));
         }
 
-        values.retainAll(secondValues);
-        if (values.isEmpty()) {
+        // Compute intersection using helper
+        Set<T> result = MvSetOperationHelper.intersection(firstSet, secondSet);
+
+        if (result.isEmpty()) {
             builder.appendNull();
             return;
         }
 
+        // Build result
         builder.beginPositionEntry();
-        for (T value : values) {
+        for (T value : result) {
             addValueFunction.accept(value);
         }
         builder.endPositionEntry();

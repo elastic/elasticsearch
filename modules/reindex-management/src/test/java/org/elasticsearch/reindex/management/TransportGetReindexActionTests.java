@@ -75,7 +75,6 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
         GetTaskRequest capturedRequest = requestCaptor.getValue();
         assertEquals(taskId, capturedRequest.getTaskId());
-        assertEquals(timeout, capturedRequest.getTimeout());
         assertFalse(capturedRequest.getWaitForCompletion());
     }
 
@@ -163,7 +162,6 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
         GetTaskRequest capturedRequestIncomplete = requestCaptor.getAllValues().getFirst();
         assertEquals(taskId, capturedRequestIncomplete.getTaskId());
-        assertEquals(timeout, capturedRequestIncomplete.getTimeout());
         assertFalse(capturedRequestIncomplete.getWaitForCompletion());
 
         GetTaskRequest capturedRequestCompleted = requestCaptor.getAllValues().getLast();
@@ -196,7 +194,6 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
         GetTaskRequest capturedRequest = requestCaptor.getValue();
         assertEquals(taskId, capturedRequest.getTaskId());
-        assertEquals(timeout, capturedRequest.getTimeout());
         assertFalse(capturedRequest.getWaitForCompletion());
     }
 
@@ -224,7 +221,6 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
         GetTaskRequest capturedRequest = requestCaptor.getValue();
         assertEquals(taskId, capturedRequest.getTaskId());
-        assertEquals(timeout, capturedRequest.getTimeout());
         assertFalse(capturedRequest.getWaitForCompletion());
     }
 
@@ -255,7 +251,6 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
         GetTaskRequest capturedRequestIncomplete = requestCaptor.getAllValues().getFirst();
         assertEquals(taskId, capturedRequestIncomplete.getTaskId());
-        assertEquals(timeout, capturedRequestIncomplete.getTimeout());
         assertFalse(capturedRequestIncomplete.getWaitForCompletion());
 
         GetTaskRequest capturedRequestCompleted = requestCaptor.getAllValues().getLast();

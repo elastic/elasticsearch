@@ -51,7 +51,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
         // with wait_for_completion=true to wait for the reindex task to complete.
         // Note that the underlying transport get task action is multi-project aware, so it will only return project specific tasks
         TaskId taskId = request.getTaskId();
-        GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(false).setTimeout(request.getTimeout());
+        GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(false);
 
         // Look for reindex task on the node inferred from the task id for running reindex task,
         // or from the ".tasks" system index for completed tasks

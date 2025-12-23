@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
 
@@ -59,6 +59,12 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
     public static final String VECTOR_FIELD = "vector";
     public static final String VECTOR_SCORE_SCRIPT = "vector_scoring";
     public static final String QUERY_VECTOR_PARAM = "query_vector";
+
+    /*
+     * Original KNN scoring and rescoring can use slightly different calculation methods,
+     * so there may be a very slight difference in the scores after rescoring.
+     */
+    private static final float DELTA = 1e-6f;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -228,7 +234,11 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 if (i >= exactHits.length) {
                     fail("Knn doc not found in exact search");
                 }
-                assertThat("Real score is not the same as rescored score", knnHit.getScore(), equalTo(exactHits[i].getScore()));
+                assertThat(
+                    "Real score is not the same as rescored score",
+                    (double) knnHit.getScore(),
+                    closeTo(exactHits[i].getScore(), DELTA)
+                );
             }
         });
     }

@@ -73,12 +73,12 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -206,7 +206,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
         UsageService usageService,
-        IndicesService indicesService
+        SlowLogFieldProvider fieldProvider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -243,7 +243,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             clusterService.getClusterSettings(),
             new SearchActionLogProducer(),
             new LoggerActionWriter(SEARCH_ACTIONLOG_NAME),
-            indicesService.getSlowLogFieldProvider()
+            fieldProvider
         );
     }
 

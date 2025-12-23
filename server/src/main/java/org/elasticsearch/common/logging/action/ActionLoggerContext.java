@@ -64,7 +64,7 @@ public abstract class ActionLoggerContext {
     }
 
     public String getErrorType() {
-        return error == null ? "" : error.getClass().getSimpleName();
+        return error == null ? "" : error.getClass().getName();
     }
 
     public String getTaskId() {

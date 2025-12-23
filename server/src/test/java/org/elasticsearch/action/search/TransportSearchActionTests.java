@@ -63,7 +63,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceTests.TestSlowLogFieldProvider;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -1811,9 +1810,6 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
 
-            IndicesService indicesService = mock(IndicesService.class);
-            when(indicesService.getSlowLogFieldProvider()).thenReturn(new TestSlowLogFieldProvider());
-
             TransportSearchAction action = new TransportSearchAction(
                 threadPool,
                 new NoneCircuitBreakerService(),
@@ -1831,7 +1827,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService(),
-                indicesService
+                new TestSlowLogFieldProvider()
             );
 
             CountDownLatch latch = new CountDownLatch(1);

@@ -30,8 +30,8 @@ public interface ActionLoggerProducer<Context extends ActionLoggerContext> {
         fields.put("success", Boolean.toString(context.isSuccess()));
         fields.put("type", context.getType());
         if (context.isSuccess() == false) {
-            fields.put("error_type", context.getErrorType());
-            fields.put("error_message", context.getErrorMessage());
+            fields.put("error.type", context.getErrorType());
+            fields.put("error.message", context.getErrorMessage());
         }
         return new ESLogMessage().withFields(fields);
     }

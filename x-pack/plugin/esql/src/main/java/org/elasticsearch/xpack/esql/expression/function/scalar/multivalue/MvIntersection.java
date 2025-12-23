@@ -287,8 +287,8 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
 
-        // If either block has no values, there will be no intersection
         if (firstValueCount == 0 || secondValueCount == 0) {
+            // If either block has no values, there will be no intersection
             builder.appendNull();
             return;
         }
@@ -315,7 +315,6 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
             return;
         }
 
-        // Build result
         builder.beginPositionEntry();
         for (T value : result) {
             addValueFunction.accept(value);

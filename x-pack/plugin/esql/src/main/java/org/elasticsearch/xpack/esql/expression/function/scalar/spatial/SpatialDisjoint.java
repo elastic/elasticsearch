@@ -83,7 +83,8 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
             Returns whether the two geometries or geometry columns are disjoint.
             This is the inverse of the <<esql-st_intersects,ST_INTERSECTS>> function.
             In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅""",
-        examples = @Example(file = "spatial_shapes", tag = "st_disjoint-airport_city_boundaries")
+        examples = @Example(file = "spatial_shapes", tag = "st_disjoint-airport_city_boundaries"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )
     public SpatialDisjoint(
         Source source,

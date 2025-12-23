@@ -25,20 +25,14 @@ import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader.ShardSize;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngineTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
@@ -84,6 +78,12 @@ import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -394,7 +394,7 @@ public class GenerationalDocValuesIT extends AbstractServerlessStatelessPluginIn
         private final Map<IndexInput, NameAndLocation> inputs = new HashMap<>();
 
         private synchronized IndexInput trackIfIsGenerationalFile(IndexInput input, String name, BlobLocation blobLocation) {
-            if (StatelessCommitService.isGenerationalFile(name) == false) {
+            if (StatelessCompoundCommit.isGenerationalFile(name) == false) {
                 return input;
             }
             var nameAndLocation = new NameAndLocation(name, blobLocation);

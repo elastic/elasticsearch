@@ -68,6 +68,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -38,6 +38,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -193,7 +194,7 @@ public class StatelessMergePreWarmingIT extends AbstractServerlessStatelessPlugi
                 long length
             ) throws IOException {
                 assert (blobName.equals(bccToUpload)
-                    && Thread.currentThread().getName().contains(ServerlessStatelessPlugin.PREWARM_THREAD_POOL)) == false
+                    && Thread.currentThread().getName().contains(StatelessPlugin.PREWARM_THREAD_POOL)) == false
                     : "Unexpected read from the pre-warmed thread";
                 return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
             }

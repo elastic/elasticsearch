@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -42,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -179,7 +178,7 @@ public class RemedialAllocationSettingService implements ClusterStateListener {
             .settings(
                 Settings.builder()
                     .put(original.getSettings())
-                    .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), ServerlessStatelessPlugin.NAME)
+                    .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), StatelessPlugin.NAME)
             )
             .build();
     }

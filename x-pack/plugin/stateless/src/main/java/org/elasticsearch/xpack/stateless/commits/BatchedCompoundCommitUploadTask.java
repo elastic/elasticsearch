@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -31,6 +30,10 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -77,7 +80,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BatchedComp
             TimeValue.timeValueSeconds(5),
             TimeValue.timeValueMillis(Long.MAX_VALUE),
             listener,
-            threadPool.executor(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL)
+            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
         );
         assert virtualBcc.isFrozen();
 

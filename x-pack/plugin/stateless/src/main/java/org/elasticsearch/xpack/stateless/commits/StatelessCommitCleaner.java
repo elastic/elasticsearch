@@ -36,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 
 import java.util.ArrayList;
 import java.util.Collections;

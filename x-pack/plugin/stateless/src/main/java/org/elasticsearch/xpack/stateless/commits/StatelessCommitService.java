@@ -19,17 +19,11 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
-import co.elastic.elasticsearch.stateless.utils.WaitForVersion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,6 +81,25 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.AbstractBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
+import org.elasticsearch.xpack.stateless.commits.IndexEngineLocalReaderListener;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsRefs;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsTracker;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
+import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.utils.WaitForVersion;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1256,7 +1269,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final Set<String> includedGenerationalFiles = recoveredCommit.commitFiles()
                 .keySet()
                 .stream()
-                .filter(StatelessCommitService::isGenerationalFile)
+                .filter(StatelessCompoundCommit::isGenerationalFile)
                 .collect(Collectors.toSet());
 
             var recoveryBCCBlob = new BlobReference(
@@ -1545,7 +1558,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // delete the file and rely on the fact that in POSIX deleted files are kept around until the last process releases the
             // file handle, hence the generational files deletion tracking is not enough.
             for (Map.Entry<String, BlobLocation> entry : statelessCompoundCommit.commitFiles().entrySet()) {
-                if (isGenerationalFile(entry.getKey()) && reference.getAdditionalFiles().contains(entry.getKey()) == false) {
+                if (StatelessCompoundCommit.isGenerationalFile(entry.getKey())
+                    && reference.getAdditionalFiles().contains(entry.getKey()) == false) {
                     CommitAndBlobLocation commitAndBlobLocation = blobLocations.get(entry.getKey());
                     if (commitAndBlobLocation != null) {
                         referencedBCCs.add(commitAndBlobLocation.blobReference.getPrimaryTermAndGeneration());
@@ -1656,7 +1670,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .flatMap(pendingCompoundCommit -> pendingCompoundCommit.getStatelessCompoundCommit().internalFiles().stream())
                 .collect(Collectors.toSet());
             final Set<String> trackedGenerationalFiles = additionalFiles.stream()
-                .filter(StatelessCommitService::isGenerationalFile)
+                .filter(StatelessCompoundCommit::isGenerationalFile)
                 .collect(Collectors.toUnmodifiableSet());
 
             // Generational files lifecycle is tracked independently, meaning that these are kept around until the generational file
@@ -1665,7 +1679,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // to read a generational file to copy it into the new blob, the VBCC holds a Lucene commit reference that guarantees that
             // the file won't be deleted until the upload finishes.
             var referencedBCCs = commitFiles.stream().filter(fileName -> internalFiles.contains(fileName) == false).peek(fileName -> {
-                assert isGenerationalFile(fileName) == false;
+                assert StatelessCompoundCommit.isGenerationalFile(fileName) == false;
             }).map(fileName -> {
                 final var commitAndBlobLocation = blobLocations.get(fileName);
                 if (commitAndBlobLocation == null) {
@@ -1710,7 +1724,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         logger.trace("registering [{}]->[{}}]", fileName, blobReference.primaryTermAndGeneration);
                         return new CommitAndBlobLocation(blobReference, blobLocation);
                     } else {
-                        assert isGenerationalFile(fileName)
+                        assert StatelessCompoundCommit.isGenerationalFile(fileName)
                             && existing.blobLocation.compoundFileGeneration() < blobLocation.compoundFileGeneration()
                             : fileName + ':' + existing + ':' + blobLocation;
                         logger.trace(
@@ -2686,7 +2700,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private void onGenerationalFileDeletion(String filename) {
-            assert isGenerationalFile(filename) : filename + " is not a generational file";
+            assert StatelessCompoundCommit.isGenerationalFile(filename) : filename + " is not a generational file";
             logger.trace(() -> format("%s deleted generational file [%s]", shardId, filename));
             var blobLocation = blobLocations.get(filename);
             if (blobLocation != null) { // can be null if the generation file was never commited
@@ -2998,7 +3012,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     blobLocations.compute(fileName, (file, commitAndBlobLocation) -> {
                         var existing = commitAndBlobLocation.blobReference();
                         if (released != existing) {
-                            assert isGenerationalFile(file) : file;
+                            assert StatelessCompoundCommit.isGenerationalFile(file) : file;
                             assert released.primaryTermAndGeneration.generation() > existing.primaryTermAndGeneration.generation()
                                 : fileName + ':' + released + " vs " + existing;
                             logger.trace(
@@ -3100,10 +3114,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void unregisterCommitNotificationSuccessListener(ShardId shardId) {
         var removed = commitNotificationSuccessListeners.remove(shardId);
         assert removed != null;
-    }
-
-    public static boolean isGenerationalFile(String file) {
-        return file.startsWith("_") && (file.endsWith(".tmp") == false) && IndexFileNames.parseGeneration(file) > 0L;
     }
 
     /**

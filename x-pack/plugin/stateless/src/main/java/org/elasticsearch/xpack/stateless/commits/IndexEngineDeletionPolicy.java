@@ -26,6 +26,8 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SafeCommitInfo;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsRefs;
+import org.elasticsearch.xpack.stateless.commits.SoftDeleteIndexCommit;
 
 import java.io.IOException;
 import java.util.ArrayList;

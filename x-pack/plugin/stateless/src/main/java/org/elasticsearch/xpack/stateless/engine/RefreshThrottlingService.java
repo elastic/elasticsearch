@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,12 +27,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.io.IOException;
 
 public class RefreshThrottlingService extends AbstractLifecycleComponent {
 
-    public static final String MEMORY_NODE_ATTR = ServerlessStatelessPlugin.NAME + ".memory";
+    public static final String MEMORY_NODE_ATTR = StatelessPlugin.NAME + ".memory";
     public static final TimeValue BUDGET_INTERVAL = TimeValue.timeValueHours(1);
     public static final TimeValue THROTTLING_INTERVAL = TimeValue.timeValueSeconds(5);
     public static final ByteSizeValue NODE_BUDGET_HARDWARE_FACTOR = ByteSizeValue.ofGb(4);

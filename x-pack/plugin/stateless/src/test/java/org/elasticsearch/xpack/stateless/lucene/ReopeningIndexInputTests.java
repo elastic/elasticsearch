@@ -19,8 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.store.FilterIndexInput;
@@ -56,6 +54,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -72,10 +72,10 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
-import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
+import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -395,7 +395,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
     }
 
     private static TestThreadPool getThreadPool(String name) {
-        return new TestThreadPool(name, ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+        return new TestThreadPool(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
     private void randomRead(IndexInput input, byte[] bytes) throws IOException {

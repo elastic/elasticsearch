@@ -20,13 +20,8 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.ShardLocalReadersTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
@@ -84,6 +79,13 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -101,16 +103,14 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 
 /**
  * {@link Engine} implementation for index shards
  */
 public class IndexEngine extends InternalEngine {
 
-    public static final String TRANSLOG_RECOVERY_START_FILE = "translog_recovery_start_file";
     public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
-    public static final String TRANSLOG_CARRY_OVER = "translog_carry_over";
     public static final String DOC_STATS = "doc_stats";
     public static final String SHARD_FIELD_STATS = "shard_field_stats";
     public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
@@ -495,8 +495,9 @@ public class IndexEngine extends InternalEngine {
     }
 
     /**
-     * Marks the engine as hollow by making sure a last commit is flushed that has a {@link #TRANSLOG_RECOVERY_START_FILE} user data equal
-     * to {@link co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit#HOLLOW_TRANSLOG_RECOVERY_START_FILE}.
+     * Marks the engine as hollow by making sure a last commit is flushed that has a
+     * {@link StatelessCompoundCommit#TRANSLOG_RECOVERY_START_FILE} user data equal
+     * to {@link StatelessCompoundCommit#HOLLOW_TRANSLOG_RECOVERY_START_FILE}.
      * This function should be called only when there is no concurrent ingestion, e.g., when holding/blocking all shard's primary permits.
      *
      * Note that even if concurrent flush(es) are ongoing, this function will force a hollow commit.
@@ -536,7 +537,7 @@ public class IndexEngine extends InternalEngine {
     }
 
     public static boolean isLastCommitHollow(SegmentInfos segmentInfos) {
-        String translogRecoveryStartFile = segmentInfos.getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE);
+        String translogRecoveryStartFile = segmentInfos.getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
         return translogRecoveryStartFile != null ? Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE : false;
     }
 
@@ -559,7 +560,10 @@ public class IndexEngine extends InternalEngine {
                 () -> "flushing hollow commit with max seq no " + hollowMaxSeqNo + " and generation " + (getCurrentGeneration() + 1)
             );
             commitExtraUserData = Maps.newMapWithExpectedSize(4 + accumulatorUserData.size());
-            commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(HOLLOW_TRANSLOG_RECOVERY_START_FILE));
+            commitExtraUserData.put(
+                StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE,
+                Long.toString(HOLLOW_TRANSLOG_RECOVERY_START_FILE)
+            );
             commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogStartFileForNextCommit));
             // Calculating the stats for hollow commits holds up the IndexWriter commit path, but it should not matter much because anyway
             // ingestion is blocked at a higher level (e.g., by blocking the primary permits), and the calculations should be fast.
@@ -569,18 +573,22 @@ public class IndexEngine extends InternalEngine {
             // carry over previous translog information during translog recovery.
             boolean pendingTranslogRecovery = this.pendingTranslogRecovery();
             if (pendingTranslogRecovery) {
-                var existingTranslogRecoveryStartFile = lastCommittedSegmentInfos.getUserData().get(TRANSLOG_RECOVERY_START_FILE);
+                var existingTranslogRecoveryStartFile = lastCommittedSegmentInfos.getUserData()
+                    .get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
                 if (existingTranslogRecoveryStartFile != null) {
                     commitExtraUserData = Maps.newMapWithExpectedSize(2 + accumulatorUserData.size());
-                    commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, existingTranslogRecoveryStartFile);
+                    commitExtraUserData.put(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE, existingTranslogRecoveryStartFile);
                 } else {
                     commitExtraUserData = Maps.newMapWithExpectedSize(1 + accumulatorUserData.size());
                 }
 
-                commitExtraUserData.put(TRANSLOG_CARRY_OVER, "true");
+                commitExtraUserData.put(StatelessCommitRef.TRANSLOG_CARRY_OVER, "true");
             } else {
                 commitExtraUserData = Maps.newMapWithExpectedSize(1 + accumulatorUserData.size());
-                commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(translogStartFileForNextCommit));
+                commitExtraUserData.put(
+                    StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE,
+                    Long.toString(translogStartFileForNextCommit)
+                );
             }
         }
 

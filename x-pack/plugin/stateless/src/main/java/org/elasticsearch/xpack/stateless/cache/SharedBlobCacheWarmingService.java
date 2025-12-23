@@ -17,20 +17,12 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.LazyRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
-import co.elastic.elasticsearch.stateless.commits.BlobFile;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
-import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -68,6 +60,15 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.Lucene90CompoundEntriesReader;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.utils.IndexingShardRecoveryComparator;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -232,15 +233,15 @@ public class SharedBlobCacheWarmingService {
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
-        this.fetchExecutor = threadPool.executor(ServerlessStatelessPlugin.PREWARM_THREAD_POOL);
-        this.uploadPrewarmFetchExecutor = threadPool.executor(ServerlessStatelessPlugin.UPLOAD_PREWARM_THREAD_POOL);
+        this.fetchExecutor = threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL);
+        this.uploadPrewarmFetchExecutor = threadPool.executor(StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL);
 
         // the PREWARM_THREAD_POOL does the actual work but we want to limit the number of prewarming tasks in flight at once so that each
         // one completes sooner, so we use a ThrottledTaskRunner. The throttle limit is a little more than the threadpool size just to avoid
         // having the PREWARM_THREAD_POOL stall while the next task is being queued up
         this.throttledTaskRunner = new ThrottledTaskRunner(
             "prewarming-cache",
-            1 + threadPool.info(ServerlessStatelessPlugin.PREWARM_THREAD_POOL).getMax(),
+            1 + threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax(),
             threadPool.generic() // TODO should be DIRECT, forks to the fetch pool pretty much straight away, but see ES-8448
         );
         // We fork cfe prewarming to the generic pool to avoid blocking stateless_fill_vbcc_cache threads,
@@ -459,9 +460,9 @@ public class SharedBlobCacheWarmingService {
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
         assert ThreadPool.assertCurrentThreadPool(
-            ServerlessStatelessPlugin.PREWARM_THREAD_POOL,
-            ServerlessStatelessPlugin.UPLOAD_PREWARM_THREAD_POOL,
-            ServerlessStatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessPlugin.PREWARM_THREAD_POOL,
+            StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL,
+            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
@@ -673,7 +674,7 @@ public class SharedBlobCacheWarmingService {
         private static boolean shouldFullyWarmUp(String fileName, @Nullable LuceneFilesExtensions fileExtension) {
             return fileExtension == null // segments_N are fully warmed up in cache
                 || fileExtension.isMetadata() // metadata files
-                || StatelessCommitService.isGenerationalFile(fileName); // generational files
+                || StatelessCompoundCommit.isGenerationalFile(fileName); // generational files
         }
     }
 
@@ -836,7 +837,7 @@ public class SharedBlobCacheWarmingService {
                                     directory.getCacheBlobReaderForWarming(cacheKey.fileName(), blobLocation),
                                     () -> writeBuffer.get().clear(),
                                     totalBytesCopied::addAndGet,
-                                    ServerlessStatelessPlugin.PREWARM_THREAD_POOL
+                                    StatelessPlugin.PREWARM_THREAD_POOL
                                 )
                             ),
                             fetchExecutor,
@@ -941,8 +942,8 @@ public class SharedBlobCacheWarmingService {
                             cacheBlobReader,
                             () -> writeBuffer.get().clear(),
                             totalBytesCopied::addAndGet,
-                            ServerlessStatelessPlugin.PREWARM_THREAD_POOL,
-                            ServerlessStatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                            StatelessPlugin.PREWARM_THREAD_POOL,
+                            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                         ),
                         fetchExecutor,
                         l.map(ignored -> null)

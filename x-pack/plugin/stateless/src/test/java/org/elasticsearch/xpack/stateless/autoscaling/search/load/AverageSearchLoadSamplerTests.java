@@ -17,20 +17,18 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search.load;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SEARCH_EWMA_ALPHA;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.DEFAULT_SHARD_READ_EWMA_ALPHA;
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.SEARCH_EXECUTOR;
@@ -38,6 +36,7 @@ import static co.elastic.elasticsearch.stateless.autoscaling.search.load.Average
 import static co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler.ensureRange;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.closeTo;
@@ -54,7 +53,7 @@ public class AverageSearchLoadSamplerTests extends ESTestCase {
     );
 
     private static TestThreadPool getThreadPool(String name) {
-        return new TestThreadPool(name, ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+        return new TestThreadPool(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
     public void testAverageSearchLoadInitialValue() throws Exception {

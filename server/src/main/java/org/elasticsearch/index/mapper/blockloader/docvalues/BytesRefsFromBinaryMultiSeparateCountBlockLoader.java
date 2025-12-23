@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.core.Nullable;
@@ -37,15 +38,19 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
         BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-        return createReader(values, counts);
-    }
-
-    public static AllReader createReader(@Nullable BinaryDocValues docValues, @Nullable NumericDocValues numericDocValues) {
-        if (docValues == null) {
+        if (values == null) {
             return new ConstantNullsReader();
         }
-        return new BytesRefsFromBinarySeparateCount(docValues, numericDocValues);
+
+        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+        assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+        if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
+            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(values);
+        }
+
+        NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+        return new BytesRefsFromBinarySeparateCount(values, counts);
     }
 
     static class BytesRefsFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {

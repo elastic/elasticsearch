@@ -156,7 +156,7 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                         new TestCaseSupplier.TypedData(new BytesRef("2026-02-29"), DataType.KEYWORD, "second")
 
                     ),
-                    "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0]]",
+                    startsWith("DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId="),
                     DataType.DATETIME,
                     is(nullValue())
                 ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")

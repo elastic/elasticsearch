@@ -67,6 +67,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     true // we can enable optimizations as the inputs are vectors
                 ),
                 driverContext,
+                // TODO disables chunking output pages because time series has deduplication requirements
+                // https://github.com/elastic/elasticsearch/issues/138705
                 Integer.MAX_VALUE
             );
         }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison;
+package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -16,12 +16,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 
 import java.util.Objects;
 
-public class VectorBinaryComparison extends VectorBinaryOperator {
+public final class VectorBinaryComparison extends VectorBinaryOperator {
 
     public enum ComparisonOp implements BinaryOp {
         EQ,

@@ -290,8 +290,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     private String readObjectName(String requestLine) {
         var m = BUCKET_OBJECT_PATTERN.matcher(requestLine);
         if (m.find()) {
-            final var _bucket = m.group(bucket);
-            if (bucket.equals(m.group("bucket")) == false) {
+            final var _bucket = m.group("bucket");
+            if (bucket.equals(_bucket) == false) {
                 throw failAndThrow("bucket name does not match, expected: " + bucket + ", got: " + _bucket);
             }
             return URLDecoder.decode(m.group("object"), UTF_8);

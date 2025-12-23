@@ -4505,7 +4505,10 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField, "foo", fooField), // Updated mapping keys
-            Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD)
+            Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
         Analyzer analyzer = analyzer(resolution);
@@ -4546,7 +4549,10 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex index = new EsIndex(
             "union_index*",
             Map.of("id", idField),
-            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
         Analyzer analyzer = analyzer(resolution);

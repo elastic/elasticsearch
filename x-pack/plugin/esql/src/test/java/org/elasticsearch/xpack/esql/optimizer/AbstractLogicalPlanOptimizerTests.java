@@ -229,7 +229,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         var unionIndex = new EsIndex(
             "union_index*",
             Map.of("id", idField, "foo", fooField),
-            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
         );
         unionIndexAnalyzer = new Analyzer(
             testAnalyzerContext(
@@ -340,7 +343,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan planUnionIndex(String query) {
-        return logicalOptimizer.optimize(unionIndexAnalyzer.analyze(parser.createStatement(query)));
+        return logicalOptimizer.optimize(unionIndexAnalyzer.analyze(parser.parseQuery(query)));
     }
 
     protected LogicalPlan planSample(String query) {

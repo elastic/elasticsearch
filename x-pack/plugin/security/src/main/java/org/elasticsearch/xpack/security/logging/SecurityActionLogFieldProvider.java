@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.slowlog;
+package org.elasticsearch.xpack.security.logging;
 
 import org.elasticsearch.index.ActionLogFieldProvider;
 import org.elasticsearch.index.ActionLogFields;

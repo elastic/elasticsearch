@@ -622,11 +622,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static long dateTimeToLong(String dateTime) {
-        try {
-            return DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
-        } catch (DateTimeException e) {
-            throw new IllegalArgumentException(e.getMessage(), e);
-        }
+        return dateTimeToLong(dateTime, DEFAULT_DATE_TIME_FORMATTER);
     }
 
     public static long dateTimeToLong(String dateTime, DateFormatter formatter) {
@@ -638,11 +634,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static long dateNanosToLong(String dateNano) {
-        try {
-            return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
-        } catch (DateTimeException e) {
-            throw new IllegalArgumentException(e.getMessage(), e);
-        }
+        return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
     }
 
     public static long dateNanosToLong(String dateNano, DateFormatter formatter) {

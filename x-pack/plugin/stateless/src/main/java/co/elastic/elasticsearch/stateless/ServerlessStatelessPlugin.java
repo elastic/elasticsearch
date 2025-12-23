@@ -1239,7 +1239,9 @@ public class ServerlessStatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.OFFLINE_WARMING_ENABLED_SETTING,
             RestReshardSplitAction.RESHARD_ALLOWED,
             MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,
-            MetadataMappingService.PUT_MAPPING_PRIORITY_SETTING
+            MetadataCreateIndexService.CREATE_INDEX_MAX_TIMEOUT_SETTING,
+            MetadataMappingService.PUT_MAPPING_PRIORITY_SETTING,
+            MetadataMappingService.PUT_MAPPING_MAX_TIMEOUT_SETTING
         );
     }
 

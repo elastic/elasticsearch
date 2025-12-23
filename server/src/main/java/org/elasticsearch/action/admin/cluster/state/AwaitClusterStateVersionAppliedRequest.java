@@ -22,7 +22,7 @@ public class AwaitClusterStateVersionAppliedRequest extends BaseNodesRequest {
     /// Creates a new instance of the request.
     /// @param clusterStateVersion a version that will be awaited on the provided set of nodes
     /// @param nodeTimeout a timeout for the cluster state observer awaiting application of the cluster state version on every node.
-    ///                  Use [TimeValue.MINUS_ONE] as a "no timeout" value.
+    ///                  Use [TimeValue#MINUS_ONE] as a "no timeout" value.
     /// @param nodesIds nodes identified by node id to use when checking if a cluster state version is applied
     public AwaitClusterStateVersionAppliedRequest(long clusterStateVersion, TimeValue nodeTimeout, String... nodesIds) {
         super(nodesIds);

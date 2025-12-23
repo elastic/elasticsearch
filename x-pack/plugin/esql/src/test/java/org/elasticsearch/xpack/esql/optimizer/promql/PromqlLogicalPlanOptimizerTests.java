@@ -486,17 +486,19 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var filter = plan.collect(Filter.class).getFirst();
         var not = filter.condition().collect(Not.class).getFirst();
         var in = as(not.field(), In.class);
+        assertThat(as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(in.list(), hasSize(1));
         assertThat(as(as(in.list().getFirst(), Literal.class).value(), BytesRef.class).utf8ToString(), equalTo("foo"));
     }
 
     public void testLabelSelectorRegexNegation() {
-        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f++\"})");
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
 
         var filter = plan.collect(Filter.class).getFirst();
         var not = filter.condition().collect(Not.class).getFirst();
         var rLike = as(not.field(), RLike.class);
-        assertThat(rLike.pattern().pattern(), equalTo("f++"));
+        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(rLike.pattern().pattern(), equalTo("f.o"));
     }
 
     public void testLabelSelectors() {

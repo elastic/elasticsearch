@@ -2909,7 +2909,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     /**
-     * TCP transport equests look like:
+     * TCP transport requests look like:
      * <code>|header|thread-context|action-name|message-body|</code>
      * <p>
      * A handshake request body includes the build version as a string, so its length depends on

@@ -138,6 +138,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     public static final int BBQ_MIN_DIMS = 64;
 
+    private static final int DEFAULT_BBQ_IVF_QUANTIZE_BITS = 1;
+
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
      */
@@ -1736,8 +1738,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
+                Object quantizeBitsNode = indexOptionsMap.remove("quantize_bits");
+                int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
+                if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4) == false) {
+                    throw new IllegalArgumentException(
+                        "quantize_bits must be 1, 2 or 4, got: " + quantizeBits + " for field [" + fieldName + "]"
+                    );
+                }
+
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector, indexVersion);
+                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector, indexVersion, quantizeBits);
             }
 
             @Override
@@ -2388,19 +2398,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
         final IndexVersion indexVersionCreated;
+        final int quantizeBits;
 
         BBQIVFIndexOptions(
             int clusterSize,
             double defaultVisitPercentage,
             boolean onDiskRescore,
             RescoreVector rescoreVector,
-            IndexVersion indexVersionCreated
+            IndexVersion indexVersionCreated,
+            int quantizeBits
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
             this.onDiskRescore = onDiskRescore;
             this.indexVersionCreated = indexVersionCreated;
+            this.quantizeBits = quantizeBits;
         }
 
         @Override
@@ -2416,7 +2429,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (Build.current().isSnapshot()) {
                 return new ESNextDiskBBQVectorsFormat(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(quantizeBits >> 1),
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,

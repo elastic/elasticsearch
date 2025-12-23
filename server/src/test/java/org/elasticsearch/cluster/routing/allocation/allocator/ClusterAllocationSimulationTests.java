@@ -48,6 +48,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -226,7 +227,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             settings,
             clusterSettings,
             threadPool,
-            new TaskManager(settings, threadPool, Set.of())
+            new TaskManager(settings, threadPool, Set.of()),
+            MeterRegistry.NOOP
         ) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {

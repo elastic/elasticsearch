@@ -14,6 +14,7 @@ mapped_pages:
 :::{include} ../_snippets/lists/spatial-functions.md
 :::
 
+## Geospatial predicates
 
 :::{include} ../_snippets/functions/layout/st_distance.md
 :::
@@ -29,6 +30,8 @@ mapped_pages:
 
 :::{include} ../_snippets/functions/layout/st_within.md
 :::
+
+## Geometry functions
 
 :::{include} ../_snippets/functions/layout/st_x.md
 :::
@@ -50,6 +53,8 @@ mapped_pages:
 
 :::{include} ../_snippets/functions/layout/st_ymin.md
 :::
+
+## Grid encoding functions
 
 :::{include} ../_snippets/functions/layout/st_geotile.md
 :::

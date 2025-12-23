@@ -99,11 +99,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -1324,10 +1326,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
-                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(
-                            fieldName,
-                            MultiValuedBinaryDocValuesField.Ordering.INSERTION
-                        );
+                        Collection<BytesRef> valueCollection = keepDuplicatesInBinaryDocValues()
+                            ? new ArrayList<>()
+                            : new LinkedHashSet<>();
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, valueCollection);
                         context.doc().addWithKey(fieldName, field);
                     }
                     field.add(bytesRef);
@@ -1377,7 +1379,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             var field = (MultiValuedBinaryDocValuesField.SeparateCount) context.doc().getByKey(fieldType().name());
             var countField = (NumericDocValuesField) context.doc().getByKey(fieldType().name() + COUNT_FIELD_SUFFIX);
             if (field == null) {
-                field = MultiValuedBinaryDocValuesField.SeparateCount.naturalOrder(fieldType().name());
+                field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldType().name(), new TreeSet<>());
                 context.doc().addWithKey(fieldType().name(), field);
                 countField = NumericDocValuesField.indexedField(field.countFieldName(), -1); // dummy value
                 context.doc().addWithKey(countField.name(), countField);
@@ -1404,6 +1406,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private boolean storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck() {
         return indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
+    }
+
+    /**
+     * To be as true as possible to the provided source, we should NOT be deduplicating any values. As a result, in new indices, we will
+     * keep duplicates.
+     *
+     * This mirrors how text and match only text fields support synthetic source.
+     */
+    private boolean keepDuplicatesInBinaryDocValues() {
+        return indexCreatedVersion.onOrAfter(IndexVersions.KEYWORD_FIELDS_KEEP_DUPLICATES_IN_BINARY_DOC_VALUES);
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
@@ -1489,7 +1501,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         return super.syntheticSourceSupport();
     }
 
-    public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+    /**
+     * Returns the layers for loading synthetic source values for this keyword field.
+     * These can be used by parent fields to combine layers from multiple sources.
+     */
+    public List<CompositeSyntheticFieldLoader.Layer> syntheticFieldLoaderLayers() {
         assert fieldType.stored() || docValuesParameters.enabled();
 
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
@@ -1545,7 +1561,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         }
 
-        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
+        return layers;
     }
 
+    public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, syntheticFieldLoaderLayers());
+    }
 }

@@ -54,6 +54,7 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .systemProperty("es.insecure_network_trace_enabled", "true")
         .setting("logger.org.apache.http.headers", "TRACE")
+        .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .build();
 
     @ClassRule

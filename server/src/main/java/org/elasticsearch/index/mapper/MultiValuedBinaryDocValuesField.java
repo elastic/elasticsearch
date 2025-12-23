@@ -14,45 +14,47 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
-import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.TreeSet;
+import java.io.UncheckedIOException;
+import java.util.Collection;
 
 /**
  * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
  * binary doc values for fields with multiple values per document.
  */
-public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
-    public enum Ordering {
-        INSERTION,
-        NATURAL
-    }
 
-    protected final Set<BytesRef> uniqueValues;
+public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+
+    // vints are unlike normal ints in that they may require 5 bytes instead of 4
+    // see BytesStreamOutput.writeVInt()
+    private static final int VINT_MAX_BYTES = 5;
+
+    protected final Collection<BytesRef> values;
     protected int docValuesByteCount = 0;
 
-    MultiValuedBinaryDocValuesField(String name, Ordering ordering) {
+    /**
+     * @param name name of the field
+     * @param valuesCollection an empty collection that will be used for holding values for a particular field
+     */
+    MultiValuedBinaryDocValuesField(String name, Collection<BytesRef> valuesCollection) {
         super(name);
-
-        uniqueValues = switch (ordering) {
-            case INSERTION -> new LinkedHashSet<>();
-            case NATURAL -> new TreeSet<>();
-        };
+        assert valuesCollection.isEmpty();  // the collection must be empty to begin with
+        this.values = valuesCollection;
     }
 
     public void add(BytesRef value) {
-        if (uniqueValues.add(value)) {
+        if (values.add(value)) {
             // might as well track these on the go as opposed to having to loop through all entries later
             docValuesByteCount += value.length;
         }
     }
 
     public int count() {
-        return uniqueValues.size();
+        return values.size();
     }
 
     protected void writeLenAndValues(BytesStreamOutput out) throws IOException {
-        for (BytesRef value : uniqueValues) {
+        for (BytesRef value : values) {
             int valueLength = value.length;
             out.writeVInt(valueLength);
             out.writeBytes(value.bytes, value.offset, valueLength);
@@ -63,26 +65,30 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     public abstract BytesRef binaryValue();
 
     public static class IntegratedCount extends MultiValuedBinaryDocValuesField {
-        IntegratedCount(String name, Ordering ordering) {
-            super(name, ordering);
+        IntegratedCount(String name, Collection<BytesRef> valuesCollection) {
+            super(name, valuesCollection);
         }
 
         /**
-         * Encodes the collection of BytesRef into a single BytesRef, using the form:
-         * [doc value count][length of value 1][value 1][length of value 2][value 2]...
+         * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}. This array takes
+         * the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
          */
         @Override
         public BytesRef binaryValue() {
-            int docValuesCount = uniqueValues.size();
+            int docValuesCount = values.size();
             // the + 1 is for the total doc values count, which is prefixed at the start of the array
-            int streamSize = docValuesByteCount + (docValuesCount + 1) * (Integer.BYTES + 1);
+            int streamSize = docValuesByteCount + (docValuesCount + 1) * VINT_MAX_BYTES;
 
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
                 out.writeVInt(docValuesCount);
-                writeLenAndValues(out);
+                for (BytesRef value : values) {
+                    int valueLength = value.length;
+                    out.writeVInt(valueLength);
+                    out.writeBytes(value.bytes, value.offset, valueLength);
+                }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
-                throw new ElasticsearchException("Failed to get binary value", e);
+                throw new UncheckedIOException("Failed to get binary value", e);
             }
         }
     }
@@ -90,12 +96,8 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     public static class SeparateCount extends MultiValuedBinaryDocValuesField {
         public static final String COUNT_FIELD_SUFFIX = ".counts";
 
-        private SeparateCount(String name, Ordering ordering) {
-            super(name, ordering);
-        }
-
-        public static SeparateCount naturalOrder(String name) {
-            return new SeparateCount(name, Ordering.NATURAL);
+        public SeparateCount(String name, Collection<BytesRef> valuesCollection) {
+            super(name, valuesCollection);
         }
 
         /**
@@ -106,12 +108,12 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          */
         @Override
         public BytesRef binaryValue() {
-            int docValuesCount = uniqueValues.size();
+            int docValuesCount = values.size();
             int streamSize = docValuesByteCount + docValuesCount * (Integer.BYTES + 1);
 
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
                 if (docValuesCount == 1) {
-                    BytesRef value = uniqueValues.iterator().next();
+                    BytesRef value = values.iterator().next();
                     out.writeBytes(value.bytes, value.offset, value.length);
                 } else {
                     writeLenAndValues(out);
@@ -126,5 +128,4 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             return name() + COUNT_FIELD_SUFFIX;
         }
     }
-
 }

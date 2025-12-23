@@ -101,18 +101,12 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
             }
         }
 
-        long finalTotalCount = totalCount;
-        return Map.of(
-            "min",
-            valueAsMap.get("min"),
-            "max",
-            valueAsMap.get("max"),
-            "sum",
-            valueAsMap.get("sum"),
-            "value_count",
-            finalTotalCount,
-            "encoded_digest",
-            streamOutput.bytes().toBytesRef()
-        );
+        Map<String, Object> toReturn = new HashMap<>();
+        toReturn.put("encoded_digest", streamOutput.bytes().toBytesRef());
+        toReturn.put("min", valueAsMap.get("min"));
+        toReturn.put("max", valueAsMap.get("max"));
+        toReturn.put("sum", valueAsMap.get("sum"));
+        toReturn.put("value_count", totalCount);
+        return toReturn;
     }
 }

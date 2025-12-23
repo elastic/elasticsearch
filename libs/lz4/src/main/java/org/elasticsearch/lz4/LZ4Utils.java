@@ -19,6 +19,8 @@
 
 package org.elasticsearch.lz4;
 
+import net.jpountz.lz4.LZ4Exception;
+
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -26,6 +28,8 @@ import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG;
 import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG_64K;
 import static org.elasticsearch.lz4.LZ4Constants.HASH_LOG_HC;
 import static org.elasticsearch.lz4.LZ4Constants.MIN_MATCH;
+import static org.elasticsearch.lz4.LZ4Constants.ML_MASK;
+import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
 
 /**
  * This file is forked from https://github.com/lz4/lz4-java. In particular, it forks the following file
@@ -64,6 +68,60 @@ enum LZ4Utils {
         return available < required;
     }
 
+    static {
+        // `writeLen` is used for runLen and matchLen; ensure that both masks have the same value, otherwise
+        // the logic of `lengthOfEncodedInteger` below is incorrect
+        assert RUN_MASK == ML_MASK;
+    }
+
+    /**
+     * The LZ4 format uses two integers per sequence, encoded in a special format: 4 bits in a shared "token" byte, and
+     * then possibly multiple additional bytes. This method returns the number of bytes used to encode a particular
+     * value, excluding the 4 shared bits. This is the exact length of the encoding {@link LZ4SafeUtils#writeLen} and
+     * equivalent methods implement.
+     */
+    static int lengthOfEncodedInteger(int value) {
+        if (value >= RUN_MASK) {
+            return (value - RUN_MASK) / 0xff + 1;
+        } else {
+            return 0;
+        }
+    }
+
+    /**
+     * Get the length of an encoded LZ4 sequence. An LZ4 sequence consists of a <i>run</i>, containing bytes that are
+     * copied from the compressed input as-is, and a <i>match</i> which is a reference to previously decompressed bytes.
+     * <p>
+     * Encoding:
+     *
+     * <ul>
+     *   <li>1 byte: Token containing 4 bits of the run length and match length each</li>
+     *   <li>Possibly more bytes to encode the run length</li>
+     *   <li>The run bytes</li>
+     *   <li>2 bytes: Match offset</li>
+     *   <li>Possibly more bytes to encode the match length</li>
+     * </ul>
+     */
+    static int sequenceLength(int runLen, int matchLen) {
+        long len = 1 + (long) lengthOfEncodedInteger(runLen) + (long) runLen + 2 + (long) lengthOfEncodedInteger(matchLen);
+        if (len > Integer.MAX_VALUE) {
+            throw new LZ4Exception("Sequence length too large");
+        }
+        return (int) len;
+    }
+
+    static int hash(int i) {
+        return (i * -1640531535) >>> ((MIN_MATCH * 8) - HASH_LOG);
+    }
+
+    static int hash64k(int i) {
+        return (i * -1640531535) >>> ((MIN_MATCH * 8) - HASH_LOG_64K);
+    }
+
+    static int hashHC(int i) {
+        return (i * -1640531535) >>> ((MIN_MATCH * 8) - HASH_LOG_HC);
+    }
+
     /**
      * Zero out a buffer.
      *
@@ -86,18 +144,6 @@ enum LZ4Utils {
         for (int i = start; i < end; i++) {
             bb.put(i, (byte) 0);
         }
-    }
-
-    static int hash(int i) {
-        return (i * -1640531535) >>> ((MIN_MATCH * 8) - HASH_LOG);
-    }
-
-    static int hash64k(int i) {
-        return (i * -1640531535) >>> ((MIN_MATCH * 8) - HASH_LOG_64K);
-    }
-
-    static int hashHC(int i) {
-        return (i * -1640531535) >>> ((MIN_MATCH * 8) - HASH_LOG_HC);
     }
 
     static class Match {

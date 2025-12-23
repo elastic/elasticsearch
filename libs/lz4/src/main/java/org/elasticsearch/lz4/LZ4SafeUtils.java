@@ -30,6 +30,8 @@ import static org.elasticsearch.lz4.LZ4Constants.LAST_LITERALS;
 import static org.elasticsearch.lz4.LZ4Constants.ML_BITS;
 import static org.elasticsearch.lz4.LZ4Constants.ML_MASK;
 import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
+import static org.elasticsearch.lz4.LZ4Utils.lengthOfEncodedInteger;
+import static org.elasticsearch.lz4.LZ4Utils.notEnoughSpace;
 
 /**
  * This file is a vendored version of {@code net.jpountz.lz4.LZ4SafeUtils} from
@@ -193,7 +195,7 @@ enum LZ4SafeUtils {
     static int lastLiterals(byte[] src, int sOff, int srcLen, byte[] dest, int dOff, int destEnd) {
         final int runLen = srcLen;
 
-        if (dOff + runLen + 1 + (runLen + 255 - RUN_MASK) / 255 > destEnd) {
+        if (notEnoughSpace(destEnd - dOff, 1 + lengthOfEncodedInteger(runLen) + runLen)) {
             throw new LZ4Exception();
         }
 

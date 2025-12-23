@@ -29,9 +29,22 @@ public abstract sealed class DiskBBQBulkWriter {
         this.out = out;
     }
 
+    /**
+     * Bulk write vectors to disk, optionally also block encoding tail vectors (batches smaller than {@code bulkSize}).
+     * @param qvv quantized vector values
+     * @param docsWriter docs writer
+     * @param encodeAll whether to block encode tail vectors
+     * @throws IOException if writing fails
+     */
     public abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter, boolean encodeAll)
         throws IOException;
 
+    /**
+     * Bulk write vectors to disk. Tail vectors are not block encoded.
+     * @param qvv quantized vector values
+     * @param docsWriter docs writer
+     * @throws IOException if writing fails
+     */
     public abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException;
 
     /**

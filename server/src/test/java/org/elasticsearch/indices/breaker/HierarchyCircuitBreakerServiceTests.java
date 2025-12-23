@@ -225,7 +225,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             CircuitBreakingException.class,
             () -> requestCircuitBreaker.addEstimateBytesAndMaybeBreak(ByteSizeValue.of(50, ByteSizeUnit.MB).getBytes(), "should break")
         );
-        assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
+        assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [parent] would be"));
         assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
         assertThat(exception.getMessage(), containsString("usages ["));
         assertThat(exception.getMessage(), containsString("fielddata=54001664/51.5mb"));
@@ -282,7 +282,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             containsString(
-                "real usage: [181/181b], new bytes reserved: ["
+                "real usage: [181/181b], new bytes reserved for [request]: ["
                     + (reservationInBytes * 2)
                     + "/"
                     + ByteSizeValue.ofBytes(reservationInBytes * 2)
@@ -707,7 +707,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             () -> fieldDataCircuitBreaker.addEstimateBytesAndMaybeBreak(mb(40), "should break")
         );
 
-        assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
+        assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [parent] would be"));
         assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
         assertThat(
             "Expected [" + expectedDurability + "] due to [" + exception.getMessage() + "]",
@@ -748,7 +748,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             multiBucketConsumer.accept(0);
         }
         CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(1024));
-        assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));
+        assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [parent] would be"));
         assertThat(exception.getMessage(), containsString("which is larger than the limit of [100/100b]"));
 
         assertCircuitBreakerLimitWarning();
@@ -917,7 +917,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             ),
             equalTo(
                 "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
-                    + "real usage: [2/2b], new bytes reserved: [1/1b], usages []; for more information, see "
+                    + "real usage: [2/2b], new bytes reserved for [test]: [1/1b], usages []; for more information, see "
                     + ReferenceDocs.CIRCUIT_BREAKER_ERRORS
             )
         );
@@ -934,8 +934,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     Map.of("child1", new TestChildCircuitBreaker(-7L))
                 ),
                 equalTo(
-                    "[parent] Data too large, data for [test] would be [-3], which is larger than the limit of [-6], "
-                        + "real usage: [-2], new bytes reserved: [-1/-1b], usages [child1=-7]; for more information, see "
+                    "[parent] Data too large, data for [parent] would be [-3], which is larger than the limit of [-6], "
+                        + "real usage: [-2], new bytes reserved for [test]: [-1/-1b], usages [child1=-7]; for more information, see "
                         + ReferenceDocs.CIRCUIT_BREAKER_ERRORS
                 )
             );

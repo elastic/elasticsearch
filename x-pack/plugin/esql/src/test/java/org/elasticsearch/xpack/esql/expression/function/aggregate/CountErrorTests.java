@@ -48,7 +48,6 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             invalidSignatureSamples,
             equalTo(
                 Set.of(
-                    List.of(DataType.DATE_RANGE),
                     List.of(DataType.EXPONENTIAL_HISTOGRAM),
                     List.of(DataType.TDIGEST),
                     List.of(DataType.HISTOGRAM)

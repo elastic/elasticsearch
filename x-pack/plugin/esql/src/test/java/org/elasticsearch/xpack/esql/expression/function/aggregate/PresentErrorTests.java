@@ -43,6 +43,6 @@ public class PresentErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
-        assertThat(invalidSignatureSamples, equalTo(Set.of(List.of(DataType.DATE_RANGE))));
+        assertThat(invalidSignatureSamples, equalTo(Set.of()));
     }
 }

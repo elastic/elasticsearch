@@ -360,6 +360,43 @@ CPH            |  Copenhagen   | 12.453      | 12.6398     | 55.6318     | 55.73
 ;
 
 ###############################################
+# Tests for GEO_SHAPE type with ST_NPOINTS
+#
+
+polygonNPoints
+required_capability: st_npoints
+
+// tag::st_npoints[]
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL points = ST_NPOINTS(city_boundary)
+| KEEP abbrev, airport, points
+// end::st_npoints[]
+;
+
+// tag::st_npoints-result[]
+abbrev:keyword | airport:text | points:integer
+CPH            | Copenhagen   | 15
+// end::st_npoints-result[]
+;
+
+polygonNPointsStats
+required_capability: st_npoints
+
+// tag::st_npoints_stats[]
+FROM airport_city_boundaries
+| EVAL points = ST_NPOINTS(city_boundary)
+| STATS count=COUNT(), min=MIN(points), max=MAX(points), avg=AVG(points), sum=SUM(points)
+// end::st_npoints_stats[]
+;
+
+// tag::st_npoints_stats-result[]
+count:long | min:integer | max:integer | avg:double        | sum:long
+770        | 5           | 50          | 18.47854356306892 | 14210
+// end::st_npoints_stats-result[]
+;
+
+###############################################
 # Tests for CARTESIAN_SHAPE type
 #
 
@@ -589,4 +626,64 @@ wkt:keyword                |pt:cartesian_shape
 "POINTX(4297.11 -1475.53)" |null
 "POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
 "POINT(111)"               |null
+;
+
+###############################################
+# Tests for CARTESIAN_SHAPE type with ST_ENVELOPE, ST_XMIN, etc.
+#
+
+cartesianPolygonEnvelope
+required_capability: st_envelope
+
+FROM countries_bbox_web
+| WHERE id == "ZAF"
+| EVAL envelope = ST_ENVELOPE(shape)
+| KEEP id, name, envelope
+;
+
+id:keyword | name:keyword | envelope:cartesian_shape
+ZAF        | South Africa | BBOX(1834915.5679635953, 4218142.412200545, -2527908.4975596936, -5937134.146607068)
+;
+
+cartesianPolygonEnvelopeXYMinMax
+required_capability: st_envelope
+
+FROM countries_bbox_web
+| WHERE id == "ZAF"
+| EVAL envelope = ST_ENVELOPE(shape)
+| EVAL xmin = ST_XMIN(envelope), xmax = ST_XMAX(envelope), ymin = ST_YMIN(envelope), ymax = ST_YMAX(envelope)
+| KEEP id, name, xmin, xmax, ymin, ymax
+;
+
+id:keyword | name:keyword | xmin:double        | xmax:double       | ymin:double        | ymax:double
+ZAF        | South Africa | 1834915.5679635953 | 4218142.412200545 | -5937134.146607068 | -2527908.4975596936
+;
+
+###############################################
+# Tests for CARTESIAN_SHAPE type with ST_NPOINTS
+#
+
+cartesianPolygonNPoints
+required_capability: st_npoints
+
+FROM countries_bbox_web
+| WHERE id == "ZAF"
+| EVAL points = ST_NPOINTS(shape)
+| KEEP id, name, points
+;
+
+id:keyword | name:keyword | points:integer
+ZAF        | South Africa | 4
+;
+
+cartesianPolygonNPointsStats
+required_capability: st_npoints
+
+FROM countries_bbox_web
+| EVAL points = ST_NPOINTS(shape)
+| STATS count=COUNT(), min=MIN(points), max=MAX(points), avg=AVG(points), sum=SUM(points)
+;
+
+count:long | min:integer | max:integer | avg:double | sum:long
+248        | 4           | 4           | 4.0        | 992
 ;

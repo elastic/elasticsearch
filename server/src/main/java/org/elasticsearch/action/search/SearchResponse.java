@@ -858,8 +858,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     public static class Cluster implements ToXContentFragment, Writeable {
 
-        public static final TransportVersion SEARCH_RESPONSE_ORIGIN_CLUSTER_LABEL_TV =
-            TransportVersion.fromName("search_response_origin_cluster_label");
+        public static final TransportVersion SEARCH_RESPONSE_ORIGIN_CLUSTER_LABEL_TV = TransportVersion.fromName(
+            "search_response_origin_cluster_label"
+        );
 
         public static final ParseField INDICES_FIELD = new ParseField("indices");
         public static final ParseField STATUS_FIELD = new ParseField("status");

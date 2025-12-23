@@ -49,10 +49,9 @@ public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
             bench.init();
             try {
                 float expected = switch (function) {
-                    case COSINE -> cosineFloat32Scalar(bench.floatsA, bench.floatsB);
                     case DOT_PRODUCT -> dotProductFloat32Scalar(bench.floatsA, bench.floatsB);
                     case EUCLIDEAN -> squareDistanceFloat32Scalar(bench.floatsA, bench.floatsB);
-                    case MAXIMUM_INNER_PRODUCT -> throw new AssumptionViolatedException("Not tested");
+                    default -> throw new AssumptionViolatedException("Not tested");
                 };
                 assertEquals(expected, bench.lucene(), delta);
                 assertEquals(expected, bench.luceneWithCopy(), delta);
@@ -79,20 +78,6 @@ public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
         }
-    }
-
-    /** Computes the cosine of the given vectors a and b. */
-    static float cosineFloat32Scalar(float[] a, float[] b) {
-        float dot = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.length; i++) {
-            dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-        double normAA = Math.sqrt(normA);
-        double normBB = Math.sqrt(normB);
-        if (normAA == 0.0f || normBB == 0.0f) return 0.0f;
-        return (float) (dot / (normAA * normBB));
     }
 
     /** Computes the dot product of the given vectors a and b. */

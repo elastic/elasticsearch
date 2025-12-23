@@ -342,9 +342,6 @@ tests:
   - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
     method: test {yaml=reference/search/retriever/line_906}
     issue: https://github.com/elastic/elasticsearch/issues/131041
-  - class: org.elasticsearch.packaging.test.DockerTests
-    method: test151MachineDependentHeapWithSizeOverride
-    issue: https://github.com/elastic/elasticsearch/issues/123437
   - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
     method: test {yaml=reference/search/retriever/line_983}
     issue: https://github.com/elastic/elasticsearch/issues/132854

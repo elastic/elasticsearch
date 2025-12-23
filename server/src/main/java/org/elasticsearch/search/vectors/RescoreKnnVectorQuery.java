@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -340,18 +342,45 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             List<ScoreDoc> queue,
             DocIdSetIterator filterIterator
         ) throws IOException {
-            int doc;
-            KnnVectorValues.DocIndexIterator knnVectorIterator = knnVectorValues.iterator();
-            var conjunction = ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
-            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                assert doc == knnVectorIterator.docID();
-                float[] vector = knnVectorValues.vectorValue(knnVectorIterator.index());
+            LinkedHashMap<Integer, Integer> ords = getIntersectOrdinals(knnVectorValues, filterIterator);
+
+            final int vectorByteSize = knnVectorValues.getVectorByteLength();
+            if (knnVectorValues instanceof HasIndexSlice sliceable) {
+                var input = sliceable.getSlice();
+                for (int ord : ords.values()) {
+                    long offset = (long) ord * vectorByteSize;
+                    input.prefetch(offset, vectorByteSize);
+                }
+            }
+
+            for (var entry : ords.entrySet()) {
+                final int doc = entry.getKey();
+                final int ord = entry.getValue();
+                float[] vector = knnVectorValues.vectorValue(ord);
                 float score = function.compare(floatTarget, vector);
                 if (Float.isNaN(score)) {
                     continue;
                 }
                 queue.add(new ScoreDoc(doc + docBase, score));
             }
+        }
+
+        /**
+         * Returns a map of doc to vector ord, in increasing order, created from
+         * the intersection of the vector values and given filterIterator.
+         */
+        private LinkedHashMap<Integer, Integer> getIntersectOrdinals(FloatVectorValues values, DocIdSetIterator filterIterator)
+            throws IOException {
+            int doc;
+            LinkedHashMap<Integer, Integer> ords = new LinkedHashMap<>();
+            KnnVectorValues.DocIndexIterator knnVectorIterator = values.iterator();
+            var conjunction = ConjunctionUtils.intersectIterators(List.of(knnVectorIterator, filterIterator));
+            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                assert doc == knnVectorIterator.docID();
+                int ord = knnVectorIterator.index();
+                ords.put(doc, ord);
+            }
+            return ords;
         }
     }
 }

@@ -92,7 +92,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             """) Expression query,
         @MapParam(
             name = "options",
-            description = "(Optional) TopSnippets additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)",
+            description = "(Optional) TopSnippets additional options as "
+                + "[function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)",
             optional = true,
             params = {
                 @MapParam.MapParamEntry(

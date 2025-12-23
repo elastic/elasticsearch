@@ -322,9 +322,6 @@ tests:
     method: test {p0=/11_nodes/Test cat nodes output}
     issue: https://github.com/elastic/elasticsearch/issues/125906
   - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-    method: test {p0=/10_info/Info}
-    issue: https://github.com/elastic/elasticsearch/issues/125904
-  - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
     method: test {p0=/11_nodes/Additional disk information}
     issue: https://github.com/elastic/elasticsearch/issues/125905
   - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT

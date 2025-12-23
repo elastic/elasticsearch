@@ -304,9 +304,6 @@ tests:
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testUpdateMappingConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/137758
-- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
-  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
-  issue: https://github.com/elastic/elasticsearch/issues/137823
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911

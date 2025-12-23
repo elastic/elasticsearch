@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -125,7 +126,10 @@ public class RequestExecutorService implements RequestExecutor {
     private final AtomicInteger rateLimitDivisor = new AtomicInteger(1);
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
-    private final CountDownLatch terminationLatch = new CountDownLatch(1);
+    // Two latches because we have two threads of execution, one thread blocking on a queue for items to be sent immediately, and
+    // another threads that is scheduled on an interval that checks items that can be rate limited
+    private final CountDownLatch immediateRequestQueueTerminationLatch = new CountDownLatch(1);
+    private final CountDownLatch rateLimitedTerminationLatch = new CountDownLatch(1);
     private final RequestSender requestSender;
     private final RequestExecutorServiceSettings settings;
     private final Clock clock;
@@ -184,11 +188,25 @@ public class RequestExecutorService implements RequestExecutor {
     }
 
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        return terminationLatch.await(timeout, unit);
+        var totalWait = Duration.ofMillis(unit.toMillis(timeout));
+
+        var firstAwaitStart = Instant.now();
+        var firstLatchResult = immediateRequestQueueTerminationLatch.await(timeout, unit);
+        var firstAwaitEnd = Instant.now();
+
+        var remainingWaitTime = totalWait.minus(Duration.between(firstAwaitStart, firstAwaitEnd));
+
+        // If the first latch await returns false, we've run out of time
+        // If the remaining wait time is negative or zero, we've run out of time
+        if (firstLatchResult == false || remainingWaitTime.isNegative() || remainingWaitTime.isZero()) {
+            return false;
+        }
+
+        return rateLimitedTerminationLatch.await(remainingWaitTime.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     public boolean isTerminated() {
-        return terminationLatch.getCount() == 0;
+        return immediateRequestQueueTerminationLatch.getCount() == 0 && rateLimitedTerminationLatch.getCount() == 0;
     }
 
     public int queueSize() {
@@ -213,6 +231,7 @@ public class RequestExecutorService implements RequestExecutor {
         } catch (Exception e) {
             logger.warn("Failed to start request executor", e);
             cleanup(CleanupStrategy.RATE_LIMITED_REQUEST_QUEUES_ONLY);
+            cleanup(CleanupStrategy.REQUEST_QUEUE_ONLY);
         }
     }
 
@@ -350,12 +369,16 @@ public class RequestExecutorService implements RequestExecutor {
             shutdown();
 
             switch (cleanupStrategy) {
-                case RATE_LIMITED_REQUEST_QUEUES_ONLY -> notifyRateLimitedRequestsOfShutdown();
-                case REQUEST_QUEUE_ONLY -> rejectRequestsInRequestQueue();
+                case RATE_LIMITED_REQUEST_QUEUES_ONLY -> {
+                    notifyRateLimitedRequestsOfShutdown();
+                    rateLimitedTerminationLatch.countDown();
+                }
+                case REQUEST_QUEUE_ONLY -> {
+                    rejectRequestsInRequestQueue();
+                    immediateRequestQueueTerminationLatch.countDown();
+                }
                 default -> logger.error(Strings.format("Unknown clean up strategy for request executor: [%s]", cleanupStrategy.toString()));
             }
-
-            terminationLatch.countDown();
         } catch (Exception e) {
             logger.warn("Encountered an error while cleaning up", e);
         }

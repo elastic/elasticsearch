@@ -103,6 +103,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.shutdown();
         service.start();
         latch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
         assertTrue(service.isTerminated());
     }
@@ -114,6 +115,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.shutdown();
         service.start();
         latch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
         assertTrue(service.isTerminated());
         var exception = expectThrows(AssertionError.class, service::start);
@@ -235,12 +238,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isTerminated());
     }
 
-    public void testShutdown_AllowsMultipleCalls() {
+    public void testShutdown_AllowsMultipleCalls() throws InterruptedException {
         var service = createRequestExecutorServiceWithMocks();
 
         service.shutdown();
         service.shutdown();
         service.start();
+
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
         assertTrue(service.isTerminated());
         assertTrue(service.isShutdown());

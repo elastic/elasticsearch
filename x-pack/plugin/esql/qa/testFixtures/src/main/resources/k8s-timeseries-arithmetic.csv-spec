@@ -89,7 +89,7 @@ div:double | step:datetime            | cluster:keyword
 division_metric_metric_grouping_filtering_promql
 required_capability: promql_pre_tech_preview_v9
 PROMQL index=k8s step=1h div=(
-  max by (cluster) (network.total_bytes_in{cluster!="prod"} / network.total_bytes_in{cluster=~"prod|qa"})
+  max by (cluster) (network.total_bytes_in{cluster!="prod"} / network.total_bytes_in{cluster!="staging"})
 ) | SORT cluster;
 
 div:double | step:datetime            | cluster:keyword

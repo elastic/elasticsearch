@@ -51,7 +51,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize
+        int aggregationBatchSize
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -63,10 +63,11 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 () -> BlockHash.build(
                     groups,
                     driverContext.blockFactory(),
-                    maxPageSize,
+                    aggregationBatchSize,
                     true // we can enable optimizations as the inputs are vectors
                 ),
-                driverContext
+                driverContext,
+                Integer.MAX_VALUE
             );
         }
 
@@ -89,9 +90,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         DateFieldMapper.Resolution timeResolution,
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
-        DriverContext driverContext
+        DriverContext driverContext,
+        int maxPageSize
     ) {
-        super(aggregators, blockHash, driverContext);
+        super(aggregators, blockHash, driverContext, maxPageSize);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
     }

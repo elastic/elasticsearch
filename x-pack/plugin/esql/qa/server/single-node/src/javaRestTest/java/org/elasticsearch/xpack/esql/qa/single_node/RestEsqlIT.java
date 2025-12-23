@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -728,31 +729,51 @@ public class RestEsqlIT extends RestEsqlTestCase {
         for (Map<String, Object> p : profiles) {
             fixTypesOnProfile(p);
             assertMap(p, commonProfile());
-            @SuppressWarnings("unchecked")
-            Map<String, Object> sleeps = (Map<String, Object>) p.get("sleeps");
-            String operators = p.get("operators").toString();
-            MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
-                .entry("sleep_millis", greaterThan(0L))
-                .entry("thread_name", containsString("[esql_worker]")) // NB: this doesn't run in the test thread
-                .entry("wake_millis", greaterThan(0L));
+            Map<?, ?> sleeps = (Map<?, ?>) p.get("sleeps");
             String description = p.get("description").toString();
             switch (description) {
-                case "data" -> assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
-                case "node_reduce", "final" -> {
+                case "data" -> {
+                    // We force a page size of 10 so there are likely to be sleeps with the outbound buffer full
+                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0))).extraOk());
+                    assertSleeps(sleeps, sleepMatcher("exchange full"));
+                }
+                case "node_reduce" -> {
+                    // There will always be sleeps on the reduce drivers because they won't have results ready
+                    // There *might* be exchange_full sleeps as well
+                    Map<?, ?> counts = (Map<?, ?>) sleeps.get("counts");
+                    assertThat(counts, either(hasKey((Object) "exchange empty")).or(hasKey("exchange empty OR exchange full")));
+                    assertSleeps(
+                        sleeps,
+                        sleepMatcher(
+                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                        )
+                    );
+                }
+                case "final" -> {
+                    // There will always be sleeps on the reduce drivers because they won't have results ready
                     assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
-                    for (Map<String, Object> s : first) {
-                        assertMap(s, sleepMatcher);
-                    }
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
-                    for (Map<String, Object> s : last) {
-                        assertMap(s, sleepMatcher);
-                    }
+                    assertSleeps(sleeps, sleepMatcher("exchange empty"));
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }
+        }
+    }
+
+    private MapMatcher sleepMatcher(Object reason) {
+        return matchesMap().entry("reason", reason)
+            .entry("sleep_millis", greaterThan(0L))
+            .entry("thread_name", containsString("[esql_worker]"))
+            .entry("wake_millis", greaterThan(0L));
+    }
+
+    private void assertSleeps(Map<?, ?> sleeps, MapMatcher sleepMatcher) {
+        List<?> first = (List<?>) sleeps.get("first");
+        for (Object s : first) {
+            assertMap((Map<?, ?>) s, sleepMatcher);
+        }
+        List<?> last = (List<?>) sleeps.get("last");
+        for (Object s : last) {
+            assertMap((Map<?, ?>) s, sleepMatcher);
         }
     }
 

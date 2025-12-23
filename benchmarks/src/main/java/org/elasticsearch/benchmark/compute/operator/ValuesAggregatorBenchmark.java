@@ -124,7 +124,8 @@ public class ValuesAggregatorBenchmark {
         return new HashAggregationOperator(
             List.of(supplier(dataType).groupingAggregatorFactory(mode, List.of(1))),
             () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
-            driverContext
+            driverContext,
+            1024
         ) {
             @Override
             public Page getOutput() {

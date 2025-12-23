@@ -51,7 +51,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             mode,
             List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels(mode))),
-            randomPageSize()
+            Integer.MAX_VALUE
         );
     }
 

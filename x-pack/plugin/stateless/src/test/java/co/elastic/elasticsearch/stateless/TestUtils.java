@@ -17,13 +17,12 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 
 public class TestUtils {
 

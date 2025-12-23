@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.TestStatelessCommitService;
@@ -32,6 +31,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 
 import java.util.Collection;
 

@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.concurrent.atomic.AtomicReference;
 

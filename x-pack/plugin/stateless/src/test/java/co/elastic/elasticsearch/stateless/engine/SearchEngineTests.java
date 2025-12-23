@@ -17,10 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequestTests;
 import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.CheckIndex;
@@ -39,6 +36,11 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequestTests;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
+import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.mockito.Mockito;
 
 import java.io.IOException;

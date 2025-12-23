@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
@@ -94,6 +93,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

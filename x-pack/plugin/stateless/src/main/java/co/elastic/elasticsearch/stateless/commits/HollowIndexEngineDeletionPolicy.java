@@ -22,6 +22,8 @@ import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
 import org.elasticsearch.index.engine.SafeCommitInfo;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsRefs;
+import org.elasticsearch.xpack.stateless.commits.SoftDeleteIndexCommit;
 
 import java.io.IOException;
 import java.util.List;

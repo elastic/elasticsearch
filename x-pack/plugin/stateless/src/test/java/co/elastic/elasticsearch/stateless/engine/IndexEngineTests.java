@@ -19,8 +19,6 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.ShardLocalCommitsTracker;
-import co.elastic.elasticsearch.stateless.commits.ShardLocalReadersTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -52,6 +50,10 @@ import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsTracker;
+import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.After;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -70,12 +72,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.LongStream;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.EngineTestCase.newUid;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -274,7 +276,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             try (Engine.IndexCommitRef indexCommitRef = engine.acquireLastIndexCommit(false)) {
                 assertEquals(
                     maxUploadedFile + 1,
-                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE))
+                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE))
                 );
                 assertFalse(indexCommitRef.getIndexCommit().getUserData().containsKey(IndexEngine.TRANSLOG_RELEASE_END_FILE));
             }
@@ -302,7 +304,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             try (Engine.IndexCommitRef indexCommitRef = engine.acquireLastIndexCommit(false)) {
                 assertEquals(
                     HOLLOW_TRANSLOG_RECOVERY_START_FILE,
-                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE))
+                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE))
                 );
                 assertEquals(
                     maxUploadedFile + 1,
@@ -478,7 +480,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertEquals(123L, Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get("accumulator_field")));
                 assertEquals(
                     457L,
-                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE))
+                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE))
                 );
             }
         }

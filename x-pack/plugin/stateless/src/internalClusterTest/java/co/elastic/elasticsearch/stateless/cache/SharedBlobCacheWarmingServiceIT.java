@@ -19,17 +19,13 @@ package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginIntegTestCase;
 import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
@@ -80,6 +76,12 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -634,7 +636,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractServerlessStateless
         final var flushCountdown = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                assert ThreadPool.assertCurrentThreadPool(ServerlessStatelessPlugin.PREWARM_THREAD_POOL);
+                assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.PREWARM_THREAD_POOL);
                 if (flushed.compareAndExchange(false, true) == false) {
                     // Spawn a new thread to avoid using flush with the prewarm thread pool which could trigger a false assertion
                     // See https://github.com/elastic/elasticsearch-serverless/issues/2518

@@ -17,10 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
-import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.recovery.RegisterCommitResponse;
 
 import org.apache.lucene.index.IndexCommit;
@@ -36,6 +33,9 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
+import org.elasticsearch.xpack.stateless.commits.IndexEngineLocalReaderListener;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.After;
 import org.junit.Before;
 

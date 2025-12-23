@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 /**
  * Used to determine whether a batched compound commit has been uploaded to the object store.

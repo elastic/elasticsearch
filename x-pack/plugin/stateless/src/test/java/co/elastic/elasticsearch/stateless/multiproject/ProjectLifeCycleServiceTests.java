@@ -17,9 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.multiproject;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
-import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
@@ -45,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
@@ -69,7 +68,7 @@ public class ProjectLifeCycleServiceTests extends ESTestCase {
                 .put(BUCKET_SETTING.getKey(), repoPath)
                 .build();
             var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            var threadPool = new TestThreadPool("test", ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+            var threadPool = new TestThreadPool("test", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
             closeable.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             var clusterService = closeable.add(
                 ClusterServiceUtils.createClusterService(

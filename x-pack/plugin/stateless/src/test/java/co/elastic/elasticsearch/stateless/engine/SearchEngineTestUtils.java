@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+
 public final class SearchEngineTestUtils {
 
     private SearchEngineTestUtils() {}

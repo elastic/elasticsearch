@@ -19,7 +19,9 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 /**
  * Extends {@link ObjectStoreUploadTracker} to allow updating the last uploaded term and generation.
@@ -59,13 +61,13 @@ public interface MutableObjectStoreUploadTracker extends ObjectStoreUploadTracke
     };
 
     /**
-     * Updates the latest uploaded {@link co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit} information.
+     * Updates the latest uploaded {@link BatchedCompoundCommit} information.
      * The implementation should ignore the argument if the latest information is already more recent.
      */
     void updateLatestUploadedBcc(PrimaryTermAndGeneration latestUploadedBccTermAndGen);
 
     /**
-     * Updates the latest {@link co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit} information, and the preferred indexing
+     * Updates the latest {@link StatelessCompoundCommit} information, and the preferred indexing
      * node that can be reached out to read it in case it is not uploaded yet to the object store.
      * The implementation should ignore the arguments if the latest information is already more recent.
      */

@@ -17,9 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
 
 import org.apache.lucene.store.AlreadyClosedException;
@@ -35,6 +32,9 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -42,10 +42,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
 
 /**
  * Used by {@link BlobCacheIndexInput} to read data from the cache using a given {@link StatelessSharedBlobCacheService.CacheFile} instance.
@@ -179,8 +179,8 @@ public class CacheFileReader {
                         cacheBlobReader,
                         () -> writeBuffer.get().clear(),
                         bytesCopied -> {},
-                        ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL,
-                        ServerlessStatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                        StatelessPlugin.SHARD_READ_THREAD_POOL,
+                        StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                     ),
                     resourceDescription
                 );

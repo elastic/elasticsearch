@@ -17,9 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -39,6 +37,8 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 import java.util.Collection;
 import java.util.Locale;

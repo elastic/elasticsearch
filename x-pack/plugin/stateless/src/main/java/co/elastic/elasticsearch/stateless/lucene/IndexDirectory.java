@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
-
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
@@ -38,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -60,11 +59,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.isGenerationalFile;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSlice;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.store.Store.CORRUPTED_MARKER_NAME_PREFIX;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
 public class IndexDirectory extends ByteSizeDirectory {
 

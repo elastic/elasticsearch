@@ -109,7 +109,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -242,7 +242,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
     }
 
     private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+        if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
             /*
              * There's a sutle difference between how the chunking settings are parsed for the request context vs the persistent context.
              * For persistent context, to support backwards compatibility, if the chunking settings are not present, removeFromMap will

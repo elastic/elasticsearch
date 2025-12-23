@@ -30,7 +30,7 @@ public class DimensionFieldValueFetcher extends FieldValueFetcher {
     }
 
     @Override
-    AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer<?> fieldProducer() {
         return this.dimensionFieldProducer;
     }
 

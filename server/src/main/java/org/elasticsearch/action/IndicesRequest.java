@@ -118,6 +118,20 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return true;
         }
+
+        /**
+         * Determines whether the request type allows cross-project processing. Cross-project processing entails cross-project search
+         * index resolution and error handling. Note: this method only determines in the request _supports_ cross-project.
+         * Whether cross-project processing is actually performed is determined by {@link IndicesOptions}.
+         */
+        default boolean allowsCrossProject() {
+            return true;
+        }
+
+        /**
+         * Marks request local. Local requests should be processed on the same cluster, even if they have cluster-alias prefix.
+         */
+        void markOriginOnly();
     }
 
     /**

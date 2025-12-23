@@ -140,7 +140,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(parser.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

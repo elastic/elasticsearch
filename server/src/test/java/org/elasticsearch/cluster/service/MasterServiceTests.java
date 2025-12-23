@@ -88,6 +88,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
+import static org.elasticsearch.cluster.service.MasterService.maybeLimitMasterNodeTimeout;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -1760,7 +1761,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(value = "org.elasticsearch.cluster.service.MasterService:WARN", reason = "testing WARN logging")
+    @TestLogging(value = "org.elasticsearch.cluster.service.MasterService:INFO", reason = "testing INFO & WARN logging")
     public void testStarvationLogging() throws Exception {
         final long warnThresholdMillis = MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING.get(Settings.EMPTY).millis();
         relativeTimeInMillis = randomLongBetween(0, Long.MAX_VALUE - warnThresholdMillis * 3);
@@ -1776,12 +1777,14 @@ public class MasterServiceTests extends ESTestCase {
             };
 
             final ClusterStateUpdateTask starvationCausingTask = new ClusterStateUpdateTask(Priority.HIGH) {
+                int iteration;
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     safeAwait(cyclicBarrier);
                     relativeTimeInMillis += taskDurationMillis;
                     if (keepRunning.get()) {
-                        masterService.submitUnbatchedStateUpdateTask("starvation-causing task", this);
+                        masterService.submitUnbatchedStateUpdateTask("starvation-causing task " + (iteration++), this);
                     }
                     safeAwait(cyclicBarrier);
                     return currentState;
@@ -1810,21 +1813,36 @@ public class MasterServiceTests extends ESTestCase {
             });
 
             // check that a warning is logged after 5m
-            final MockLog.EventuallySeenEventExpectation expectation1 = new MockLog.EventuallySeenEventExpectation(
-                "starvation warning",
+            final MockLog.EventuallySeenEventExpectation warnExpectation1 = new MockLog.EventuallySeenEventExpectation(
+                "5m starvation warning",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "pending task queue has been nonempty for [5m/300000ms] which is longer than the warn threshold of [300000ms];"
-                    + " there are currently [2] pending tasks, the oldest of which has age [*"
+                """
+                    pending task queue has been nonempty for [5m/300000ms] which is longer than the warn threshold of [300000ms]; \
+                    there are currently [2] pending tasks, the oldest of which has age [*"""
             );
-            mockLog.addExpectation(expectation1);
+            mockLog.addExpectation(warnExpectation1);
+
+            final MockLog.EventuallySeenEventExpectation infoExpectation1 = new MockLog.EventuallySeenEventExpectation(
+                "5m recent tasks info",
+                MasterService.class.getCanonicalName(),
+                Level.INFO,
+                """
+                    recent cluster state updates while pending task queue has been nonempty (max 200, starting with the most recent): \
+                    [HIGH]: unbatched[starvation-causing task 299], \
+                    [HIGH]: unbatched[starvation-causing task 298], \
+                    [HIGH]: unbatched[starvation-causing task 297], \
+                    *, ... (200 in total, 29 omitted)"""
+            );
+            mockLog.addExpectation(infoExpectation1);
 
             while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis) {
                 awaitNextTask.run();
                 mockLog.assertAllExpectationsMatched();
             }
 
-            expectation1.setExpectSeen();
+            warnExpectation1.setExpectSeen();
+            infoExpectation1.setExpectSeen();
             awaitNextTask.run();
             // the master service thread is somewhere between completing the previous task and starting the next one, which is when the
             // logging happens, so we must wait for another task to run too to ensure that the message was logged
@@ -1832,21 +1850,21 @@ public class MasterServiceTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
 
             // check that another warning is logged after 10m
-            final MockLog.EventuallySeenEventExpectation expectation2 = new MockLog.EventuallySeenEventExpectation(
+            final MockLog.EventuallySeenEventExpectation warnExpectation2 = new MockLog.EventuallySeenEventExpectation(
                 "starvation warning",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
                 "pending task queue has been nonempty for [10m/600000ms] which is longer than the warn threshold of [300000ms];"
                     + " there are currently [2] pending tasks, the oldest of which has age [*"
             );
-            mockLog.addExpectation(expectation2);
+            mockLog.addExpectation(warnExpectation2);
 
             while (relativeTimeInMillis - startTimeMillis < warnThresholdMillis * 2) {
                 awaitNextTask.run();
                 mockLog.assertAllExpectationsMatched();
             }
 
-            expectation2.setExpectSeen();
+            warnExpectation2.setExpectSeen();
             awaitNextTask.run();
             // the master service thread is somewhere between completing the previous task and starting the next one, which is when the
             // logging happens, so we must wait for another task to run too to ensure that the message was logged
@@ -2722,5 +2740,40 @@ public class MasterServiceTests extends ESTestCase {
         public void onFailure(Exception e) {
             throw new AssertionError("should not be called", e);
         }
+    }
+
+    public void testMaybeLimitMasterNodeTimeout() {
+
+        // returns the request timeout if the max is unspecified
+        for (final var requestTimeout : List.of(
+            randomTimeValue(),
+            TimeValue.MINUS_ONE,
+            TimeValue.ZERO,
+            TimeValue.timeValueMillis(1),
+            TimeValue.THIRTY_SECONDS,
+            TimeValue.ONE_MINUTE,
+            TimeValue.ONE_HOUR,
+            TimeValue.MAX_VALUE
+        )) {
+            assertSame(requestTimeout, maybeLimitMasterNodeTimeout(requestTimeout, TimeValue.MINUS_ONE));
+            // undocumented, but zero also means an infinite timeout against which we must protect
+            assertSame(requestTimeout, maybeLimitMasterNodeTimeout(requestTimeout, TimeValue.ZERO));
+        }
+
+        // returns the limit if the requested timeout is unlimited or larger than the limit
+        for (final var requestTimeout : List.of(
+            TimeValue.MINUS_ONE,
+            TimeValue.ZERO /* undocumented, but zero here means an infinite timeout against which we must protect */,
+            TimeValue.ONE_MINUTE,
+            TimeValue.ONE_HOUR,
+            TimeValue.MAX_VALUE
+        )) {
+            assertSame(TimeValue.ONE_MINUTE, maybeLimitMasterNodeTimeout(requestTimeout, TimeValue.ONE_MINUTE));
+            assertSame(TimeValue.ONE_MINUTE, maybeLimitMasterNodeTimeout(requestTimeout, TimeValue.ONE_MINUTE));
+        }
+
+        // returns the smaller one when both specified
+        assertSame(TimeValue.ONE_MINUTE, maybeLimitMasterNodeTimeout(TimeValue.ONE_HOUR, TimeValue.ONE_MINUTE));
+        assertSame(TimeValue.THIRTY_SECONDS, maybeLimitMasterNodeTimeout(TimeValue.THIRTY_SECONDS, TimeValue.ONE_MINUTE));
     }
 }

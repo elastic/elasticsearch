@@ -106,24 +106,19 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         assertEquals(
             new TestHttpResponse(RestStatus.OK, """
                 --$boundary
-                Content-Length: 168
-                Content-Type: application/http
-                content-id: 1
-                content-transfer-encoding: binary
+                content-type: application/http
+                content-id: response-1
 
-                HTTP/1.1 204 NO_CONTENT
+                HTTP/1.1 204 No Content
 
 
-
-
-                --$boundary--
-                """.replace("\n", "\r\n").replace("$boundary", boundary)),
+                --$boundary--""".replace("\n", "\r\n").replace("$boundary", boundary)),
             handleRequest(
                 handler,
                 "POST",
                 "/batch/storage/v1",
                 createBatchDeleteRequest(bucket, boundary, blobName),
-                Headers.of("Content-Type", "mixed/multipart")
+                Headers.of("Content-Type", "multipart/mixed; boundary=" + boundary)
             )
         );
         assertEquals(
@@ -133,7 +128,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
                 "POST",
                 "/batch/storage/v1",
                 createBatchDeleteRequest(bucket, boundary, blobName),
-                Headers.of("Content-Type", "mixed/multipart")
+                Headers.of("Content-Type", "multipart/mixed; boundary=" + boundary)
             ).restStatus()
         );
 
@@ -847,7 +842,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             content-transfer-encoding: binary
 
             %s
-            """.replace("$boundary", boundary);
+            """.replace("\n", "\r\n").replace("$boundary", boundary);
         StringBuilder builder = new StringBuilder();
         AtomicInteger contentId = new AtomicInteger();
         Arrays.stream(paths).forEach(p -> {

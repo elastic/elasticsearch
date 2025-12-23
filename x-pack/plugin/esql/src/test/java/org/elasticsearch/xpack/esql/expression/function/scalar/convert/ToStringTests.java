@@ -169,6 +169,20 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             agg -> new BytesRef(EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString(agg)),
             List.of()
         );
+        TestCaseSupplier.forUnaryExponentialHistogram(
+            suppliers,
+            "ToStringFromExponentialHistogramEvaluator[histogram=" + read + "]",
+            DataType.KEYWORD,
+            eh -> new BytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryHistogram(
+            suppliers,
+            "ToStringFromHistogramEvaluator[histogram=" + read + "]",
+            DataType.KEYWORD,
+            h -> new BytesRef(EsqlDataTypeConverter.histogramToString(h)),
+            List.of()
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

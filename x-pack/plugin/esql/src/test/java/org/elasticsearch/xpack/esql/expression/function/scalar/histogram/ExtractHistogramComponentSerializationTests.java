@@ -8,24 +8,15 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.junit.Before;
 
 import java.io.IOException;
 
 public class ExtractHistogramComponentSerializationTests extends AbstractExpressionSerializationTests<ExtractHistogramComponent> {
-
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when esql_exponential_histogram feature flag is enabled",
-            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
-        );
-    }
 
     @Override
     protected ExtractHistogramComponent createTestInstance() {
@@ -33,7 +24,7 @@ public class ExtractHistogramComponentSerializationTests extends AbstractExpress
     }
 
     private static Expression randomComponentOrdinal() {
-        ExponentialHistogramBlock.Component result = randomFrom(ExponentialHistogramBlock.Component.values());
+        ExponentialHistogramBlock.Component result = randomFrom(HistogramBlock.Component.values());
         return new Literal(randomSource(), result.ordinal(), DataType.INTEGER);
     }
 

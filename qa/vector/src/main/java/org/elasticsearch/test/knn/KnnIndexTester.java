@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
@@ -34,12 +33,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
-import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
-import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -146,18 +146,31 @@ public class KnnIndexTester {
         } else {
             if (quantizeBits == 1) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES818BinaryQuantizedVectorsFormat();
+                    format = new ES93BinaryQuantizedVectorsFormat();
                 } else {
-                    format = new ES818HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
+                    format = new ES93HnswBinaryQuantizedVectorsFormat(
+                        args.hnswM(),
+                        args.hnswEfConstruction(),
+                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        false
+                    );
                 }
             } else if (quantizeBits < 32) {
                 if (args.indexType() == IndexType.FLAT) {
-                    format = new ES813Int8FlatVectorFormat(null, quantizeBits, true);
+                    format = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, null, quantizeBits, true);
                 } else {
-                    format = new ES814HnswScalarQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), null, quantizeBits, true);
+                    format = new ES93HnswScalarQuantizedVectorsFormat(
+                        args.hnswM(),
+                        args.hnswEfConstruction(),
+                        DenseVectorFieldMapper.ElementType.FLOAT,
+                        null,
+                        quantizeBits,
+                        true,
+                        false
+                    );
                 }
             } else {
-                format = new Lucene99HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), 1, null);
+                format = new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), DenseVectorFieldMapper.ElementType.FLOAT);
             }
         }
         return new Lucene103Codec() {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -65,11 +64,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
         vocab = in.readStringCollectionAsList();
         modelId = in.readString();
         merges = in.readStringCollectionAsList();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            scores = in.readCollectionAsList(StreamInput::readDouble);
-        } else {
-            scores = List.of();
-        }
+        scores = in.readCollectionAsList(StreamInput::readDouble);
     }
 
     public List<String> get() {
@@ -89,9 +84,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
         out.writeStringCollection(vocab);
         out.writeString(modelId);
         out.writeStringCollection(merges);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeCollection(scores, StreamOutput::writeDouble);
-        }
+        out.writeCollection(scores, StreamOutput::writeDouble);
     }
 
     @Override

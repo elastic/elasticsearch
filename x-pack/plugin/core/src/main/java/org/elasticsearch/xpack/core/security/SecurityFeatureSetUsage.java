@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -65,9 +64,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         operatorPrivilegesUsage = in.readGenericMap();
         domainsUsage = in.readGenericMap();
         userProfileUsage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            remoteClusterServerUsage = in.readGenericMap();
-        }
+        remoteClusterServerUsage = in.readGenericMap();
     }
 
     public SecurityFeatureSetUsage(
@@ -125,9 +122,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(operatorPrivilegesUsage);
         out.writeGenericMap(domainsUsage);
         out.writeGenericMap(userProfileUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeGenericMap(remoteClusterServerUsage);
-        }
+        out.writeGenericMap(remoteClusterServerUsage);
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.CsvSpecReader;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Tests using PROMQL are not supported for now",
-            testCase.requiredCapabilities.contains(PROMQL_PRE_TECH_PREVIEW_V7.capabilityName())
+            testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName())
         );
 
         assumeFalse(

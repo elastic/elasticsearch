@@ -195,7 +195,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     static List<UnparsedModel> getEisEndpoints(ModelRegistry modelRegistry) {
         var listener = new PlainActionFuture<List<UnparsedModel>>();
-        modelRegistry.getAllModels(false, listener);
+        modelRegistry.getAllModels(true, listener);
 
         var endpoints = listener.actionGet(TimeValue.THIRTY_SECONDS);
         return endpoints.stream().filter(m -> m.service().equals(ElasticInferenceService.NAME)).toList();

@@ -163,12 +163,11 @@ The final document will have fields with empty values when the corresponding CEF
 
 ### Exception scenarios [cef-processor-exception-scenarios]
 
-If the CEF message is invalid according to the spec then an IllegalArgumentException is thrown by the processor.
+If the CEF message is invalid according to the spec then an exception is thrown by the processor.
 Various scenarios include:
-- CEF header does not start with "CEF:"
-- Escaped pipe in extensions (moo=this\|has an escaped pipe)
-- Equals symbol in message (moo=this =has = equals\= )
-- Malformed escape sequences (moo='Foo-Bar/2018.1.7; =Email:user@example.com;)
-- Tab character is not a separator in extensions (msg=Tab is not a separator\tsrc=127.0.0.1)
-- When CEF header is truncated (CEF:0|Elastic|Mgmt|activityID=1111111111111111111)
-- If there are invalid timestamps or mac address or ip address.
+- CEF header does not start with `"CEF:"`
+- Escaped pipe in extensions `(moo=this\|has an escaped pipe)`
+- Equals symbol in message `(moo=this =has = equals\= )`
+- Malformed escape sequences `(moo='Foo-Bar/2018.1.7; =Email:user@example.com;)`
+- When CEF header is truncated `(CEF:0|Elastic|Mgmt|activityID=1111111111111111111)`
+- If there are invalid timestamps, mac addresses, or ip addresses

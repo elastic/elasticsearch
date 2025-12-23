@@ -21,8 +21,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -41,6 +39,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
@@ -99,13 +98,11 @@ public class LookupExecutionMapperTests extends ESTestCase {
     private ThreadPool threadPool;
 
     /**
-     * Testable concrete implementation of AbstractLookupService that captures LookupQueryPlan
+     * Testable concrete implementation of LookupFromIndexService that captures LookupQueryPlan
      * instead of starting a driver, allowing tests to inspect the operators.
      */
-    private static class TestLookupService extends AbstractLookupService<
-        TestLookupService.TestRequest,
-        TestLookupService.TestTransportRequest> {
-        private AbstractLookupService.LookupQueryPlan capturedPlan;
+    private static class TestLookupService extends LookupFromIndexService {
+        private LookupFromIndexService.LookupQueryPlan capturedPlan;
 
         TestLookupService(
             ClusterService clusterService,
@@ -115,11 +112,9 @@ public class LookupExecutionMapperTests extends ESTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             BigArrays bigArrays,
             BlockFactory blockFactory,
-            boolean mergePages,
             ProjectResolver projectResolver
         ) {
             super(
-                "test-lookup-action",
                 clusterService,
                 indicesService,
                 lookupShardContextFactory,
@@ -127,22 +122,13 @@ public class LookupExecutionMapperTests extends ESTestCase {
                 indexNameExpressionResolver,
                 bigArrays,
                 blockFactory,
-                mergePages,
-                (in, bf) -> {
-                    throw new UnsupportedOperationException("Not used in tests");
-                },
                 projectResolver
             );
         }
 
         @Override
-        protected TestTransportRequest transportRequest(TestRequest request, ShardId shardId) {
-            return new TestTransportRequest(request, shardId);
-        }
-
-        @Override
         protected LookupEnrichQueryGenerator queryList(
-            TestTransportRequest request,
+            TransportRequest request,
             SearchExecutionContext context,
             AliasFilter aliasFilter,
             Warnings warnings
@@ -151,31 +137,8 @@ public class LookupExecutionMapperTests extends ESTestCase {
         }
 
         @Override
-        protected AbstractLookupService.LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
-            return new AbstractLookupService.LookupResponse(blockFactory) {
-                @Override
-                public void writeTo(StreamOutput out) {
-                    throw new UnsupportedOperationException("Not used in tests");
-                }
-
-                @Override
-                protected List<Page> takePages() {
-                    return pages;
-                }
-
-                @Override
-                protected void innerRelease() {}
-            };
-        }
-
-        @Override
-        protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) {
-            throw new UnsupportedOperationException("Not used in tests");
-        }
-
-        @Override
         protected void startDriver(
-            TestTransportRequest request,
+            TransportRequest request,
             CancellableTask task,
             ActionListener<List<Page>> listener,
             LookupQueryPlan lookupQueryPlan
@@ -187,25 +150,8 @@ public class LookupExecutionMapperTests extends ESTestCase {
             listener.onResponse(List.of());
         }
 
-        AbstractLookupService.LookupQueryPlan getCapturedPlan() {
+        LookupFromIndexService.LookupQueryPlan getCapturedPlan() {
             return capturedPlan;
-        }
-
-        static class TestRequest extends AbstractLookupService.Request {
-            TestRequest(Page inputPage, List<NamedExpression> extractFields, Source source) {
-                super("test-session", "test-index", "test-index", DataType.KEYWORD, inputPage, extractFields, source);
-            }
-        }
-
-        static class TestTransportRequest extends AbstractLookupService.TransportRequest {
-            TestTransportRequest(TestRequest request, ShardId shardId) {
-                super(request.sessionId, shardId, request.indexPattern, request.inputPage, null, request.extractFields, request.source);
-            }
-
-            @Override
-            protected String extraDescription() {
-                return "";
-            }
         }
     }
 
@@ -280,7 +226,7 @@ public class LookupExecutionMapperTests extends ESTestCase {
         List<NamedExpression> extractFields = Collections.emptyList();
         boolean isEnrich = false;
 
-        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
@@ -295,56 +241,6 @@ public class LookupExecutionMapperTests extends ESTestCase {
         );
     }
 
-    public void testEnrichDictionaryOptimization() throws Exception {
-        // Create a BytesRefBlock with ordinals for dictionary optimization
-        Page inputPage = createOrdinalBytesRefPage(new String[] { "a", "b" }, new int[] { 0, 1, 0 });
-
-        List<NamedExpression> extractFields = List.of(
-            createFieldAttribute("field1", DataType.KEYWORD),
-            createFieldAttribute("field2", DataType.INTEGER)
-        );
-        boolean isEnrich = true;
-
-        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
-        MatcherAssert.assertThat(queryPlan, notNullValue());
-
-        // Verify complete plan structure
-        // Expected: EnrichQuerySourceOperator -> ValuesSourceReaderOperator -> MergePositionsOperator -> OutputOperator
-        verifyCompletePlan(
-            queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, MergePositionsOperator.class, OutputOperator.class),
-            extractFields,
-            isEnrich,
-            null,
-            new MergePositionsDetails(3, BlockOptimization.DICTIONARY, 2)
-        );
-    }
-
-    public void testEnrichRangeBlockOptimization() throws Exception {
-        Page inputPage = createBytesRefPage("a", "b", "c");
-
-        List<NamedExpression> extractFields = List.of(
-            createFieldAttribute("field1", DataType.KEYWORD),
-            createFieldAttribute("field2", DataType.INTEGER),
-            createFieldAttribute("field3", DataType.LONG)
-        );
-        boolean isEnrich = true;
-
-        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
-        MatcherAssert.assertThat(queryPlan, notNullValue());
-
-        // Verify complete plan structure
-        // Expected: EnrichQuerySourceOperator -> ValuesSourceReaderOperator -> MergePositionsOperator -> OutputOperator
-        verifyCompletePlan(
-            queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, MergePositionsOperator.class, OutputOperator.class),
-            extractFields,
-            isEnrich,
-            inputPage,
-            new MergePositionsDetails(3, BlockOptimization.RANGE, 0)
-        );
-    }
-
     public void testLookupJoinNoExtraFields() throws Exception {
         // Test lookup join where we don't need to get extra fields (no extract fields, no merge)
         // This is the simplest lookup join case - just joining without extracting additional fields
@@ -354,7 +250,7 @@ public class LookupExecutionMapperTests extends ESTestCase {
         List<NamedExpression> extractFields = Collections.emptyList();
         boolean isEnrich = false;
 
-        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
@@ -377,7 +273,7 @@ public class LookupExecutionMapperTests extends ESTestCase {
         List<NamedExpression> extractFields = List.of(createFieldAttribute("field1", DataType.KEYWORD));
         boolean isEnrich = false;
 
-        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
@@ -385,32 +281,6 @@ public class LookupExecutionMapperTests extends ESTestCase {
         verifyCompletePlan(
             queryPlan,
             List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class, OutputOperator.class),
-            extractFields,
-            isEnrich,
-            null,
-            null
-        );
-    }
-
-    public void testEnrichMergeWithEmptyExtractFields() throws Exception {
-        // Test enrich with mergePages=true but empty extract fields
-        // This is an edge case: when mergingChannels is empty, we should use dropDocBlockOperator instead of MergePositionsOperator
-        Page inputPage = createBytesRefPage("a", "b");
-
-        // Empty extract fields
-        List<NamedExpression> extractFields = Collections.emptyList();
-        boolean isEnrich = true;
-
-        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
-        MatcherAssert.assertThat(queryPlan, notNullValue());
-
-        // Verify complete plan structure
-        // Expected: EnrichQuerySourceOperator -> ProjectOperator -> OutputOperator
-        // Even though mergePages=true, empty mergingChannels means we use dropDocBlockOperator (ProjectOperator) instead of
-        // MergePositionsOperator
-        verifyCompletePlan(
-            queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class),
             extractFields,
             isEnrich,
             null,
@@ -428,7 +298,7 @@ public class LookupExecutionMapperTests extends ESTestCase {
 
         // With all null values, doLookup() returns early without calling startDriver()
         // Therefore, no operators should be generated
-        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         assertNull("No operators should be generated for all-null input page", queryPlan);
     }
 
@@ -444,7 +314,7 @@ public class LookupExecutionMapperTests extends ESTestCase {
      * @param mergePositionsDetails Optional details for MergePositionsOperator verification
      */
     private void verifyCompletePlan(
-        AbstractLookupService.LookupQueryPlan queryPlan,
+        LookupFromIndexService.LookupQueryPlan queryPlan,
         List<Class<? extends Operator>> expectedOperators,
         List<NamedExpression> extractFields,
         boolean isEnrich,
@@ -524,19 +394,20 @@ public class LookupExecutionMapperTests extends ESTestCase {
     /**
      * Verifies EnrichQuerySourceOperator and returns it.
      */
-    private EnrichQuerySourceOperator verifyEnrichQuerySourceOperator(AbstractLookupService.LookupQueryPlan queryPlan) {
-        EnrichQuerySourceOperator sourceOp = queryPlan.queryOperator();
+    private EnrichQuerySourceOperator verifyEnrichQuerySourceOperator(LookupFromIndexService.LookupQueryPlan queryPlan) {
+        SourceOperator sourceOp = queryPlan.queryOperator();
         MatcherAssert.assertThat(sourceOp, notNullValue());
         MatcherAssert.assertThat(sourceOp, instanceOf(EnrichQuerySourceOperator.class));
-        Page inputPage = sourceOp.getInputPage();
+        EnrichQuerySourceOperator enrichOp = (EnrichQuerySourceOperator) sourceOp;
+        Page inputPage = enrichOp.getInputPage();
         MatcherAssert.assertThat(inputPage, notNullValue());
-        return sourceOp;
+        return enrichOp;
     }
 
     /**
      * Verifies ValuesSourceReaderOperator at the specified index.
      */
-    private ValuesSourceReaderOperator verifyValuesSourceReaderOperator(AbstractLookupService.LookupQueryPlan queryPlan, int index) {
+    private ValuesSourceReaderOperator verifyValuesSourceReaderOperator(LookupFromIndexService.LookupQueryPlan queryPlan, int index) {
         Operator operator = queryPlan.operators().get(index);
         MatcherAssert.assertThat(operator, instanceOf(ValuesSourceReaderOperator.class));
         return (ValuesSourceReaderOperator) operator;
@@ -629,7 +500,7 @@ public class LookupExecutionMapperTests extends ESTestCase {
     }
 
     private void verifyOutputOperator(
-        AbstractLookupService.LookupQueryPlan queryPlan,
+        LookupFromIndexService.LookupQueryPlan queryPlan,
         List<NamedExpression> extractFields,
         boolean isEnrich
     ) {
@@ -700,20 +571,30 @@ public class LookupExecutionMapperTests extends ESTestCase {
      * Executes doLookup() and returns the captured LookupQueryPlan.
      * This is the common pattern used by all test cases.
      */
-    private AbstractLookupService.LookupQueryPlan generateQueryPlan(Page inputPage, List<NamedExpression> extractFields, boolean isEnrich)
+    private LookupFromIndexService.LookupQueryPlan generateQueryPlan(Page inputPage, List<NamedExpression> extractFields, boolean isEnrich)
         throws Exception {
         AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
         TestLookupService testService = createTestService(isEnrich, shardContext);
 
-        TestLookupService.TestRequest request = new TestLookupService.TestRequest(inputPage, extractFields, Source.EMPTY);
-        TestLookupService.TestTransportRequest transportRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
+        LookupFromIndexService.Request request = new LookupFromIndexService.Request(
+            "test-session",
+            "test-index",
+            "test-index",
+            List.of(new MatchConfig("test-field", 0, DataType.KEYWORD)),
+            inputPage,
+            extractFields,
+            Source.EMPTY,
+            null,
+            null
+        );
+        LookupFromIndexService.TransportRequest transportRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
 
         testService.doLookup(transportRequest, null, ActionListener.wrap(pages -> {}, e -> {}));
 
         return testService.getCapturedPlan();
     }
 
-    private TestLookupService createTestService(boolean mergePages, AbstractLookupService.LookupShardContext shardContext) {
+    private TestLookupService createTestService(boolean isEnrich, AbstractLookupService.LookupShardContext shardContext) {
         AbstractLookupService.LookupShardContextFactory factory = shardId -> shardContext;
         // Use TestProjectResolvers which provides a proper implementation
         ProjectResolver projectResolver = TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID);
@@ -725,7 +606,6 @@ public class LookupExecutionMapperTests extends ESTestCase {
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            mergePages,
             projectResolver
         );
     }

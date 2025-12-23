@@ -39,13 +39,14 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.LookupMergeDropExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -97,7 +98,7 @@ public class LookupExecutionMapper {
     /**
      * Creates the actual operators from the PhysicalOperation using DriverContext.
      */
-    public AbstractLookupService.LookupQueryPlan buildOperators(
+    public LookupFromIndexService.LookupQueryPlan buildOperators(
         PhysicalOperation physicalOperation,
         AbstractLookupService.LookupShardContext shardContext,
         LocalCircuitBreaker localBreaker,
@@ -120,11 +121,11 @@ public class LookupExecutionMapper {
         SinkOperator sinkOperator = physicalOperation.sink(driverContext);
         releasables.add(sinkOperator);
 
-        return new AbstractLookupService.LookupQueryPlan(
+        return new LookupFromIndexService.LookupQueryPlan(
             shardContext,
             localBreaker,
             driverContext,
-            (EnrichQuerySourceOperator) sourceOperator,
+            sourceOperator,
             intermediateOperators,
             collectedPages,
             (OutputOperator) sinkOperator
@@ -154,8 +155,8 @@ public class LookupExecutionMapper {
             return planParameterizedQueryExec(parameterizedQueryExec, request, shardContext, warnings, optimizationState);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(fieldExtractExec, source, shardContext);
-        } else if (node instanceof LookupMergeDropExec lookupMergeDropExec) {
-            return planLookupMergeDropExec(lookupMergeDropExec, source, optimizationState, request.inputPage);
+        } else if (node instanceof ProjectExec projectExec) {
+            return planProjectExec(projectExec, source);
         } else if (node instanceof OutputExec outputExec) {
             return planOutputExec(outputExec, source, collectedPages);
         } else {
@@ -230,8 +231,8 @@ public class LookupExecutionMapper {
         }
 
         Layout.Builder layoutBuilder = new Layout.Builder();
-        for (NamedExpression extractField : fieldExtractExec.attributesToExtract()) {
-            layoutBuilder.append(extractField.toAttribute());
+        for (Attribute attr : fieldExtractExec.output()) {
+            layoutBuilder.append(attr);
         }
         Layout layout = layoutBuilder.build();
 
@@ -253,40 +254,25 @@ public class LookupExecutionMapper {
     }
 
     /**
-     * Plans LookupMergeDropExec into a PhysicalOperation with MergePositionsOperatorFactory or ProjectOperatorFactory.
+     * Plans ProjectExec into a PhysicalOperation with ProjectOperatorFactory.
+     * Uses the same logic as LocalExecutionPlanner.planProject: looks up each projection's
+     * NameId in the source layout to find the corresponding channel.
      */
-    private PhysicalOperation planLookupMergeDropExec(
-        LookupMergeDropExec lookupMergeDropExec,
-        PhysicalOperation source,
-        BlockOptimization blockOptimization,
-        Page inputPage
-    ) {
-        // Build layout with just the extract fields (output of this operation)
-        Layout.Builder layoutBuilder = new Layout.Builder();
-        for (NamedExpression extractField : lookupMergeDropExec.extractFields()) {
-            layoutBuilder.append(extractField.toAttribute());
-        }
-        Layout layout = layoutBuilder.build();
+    private PhysicalOperation planProjectExec(ProjectExec projectExec, PhysicalOperation source) {
+        List<? extends NamedExpression> projections = projectExec.projections();
+        List<Integer> projectionList = new ArrayList<>(projections.size());
 
-        if (mergePages && lookupMergeDropExec.mergingChannels().length > 0 && blockOptimization != BlockOptimization.NONE) {
-            return source.with(
-                new MergePositionsOperatorFactory(
-                    1,
-                    lookupMergeDropExec.mergingChannels(),
-                    lookupMergeDropExec.mergingTypes(),
-                    blockOptimization,
-                    inputPage
-                ),
-                layout
-            );
+        Layout.Builder layout = new Layout.Builder();
+        for (NamedExpression ne : projections) {
+            NameId inputId = ne instanceof Alias a ? ((NamedExpression) a.child()).id() : ne.id();
+            Layout.ChannelAndType input = source.layout().get(inputId);
+            if (input == null) {
+                throw new EsqlIllegalArgumentException("can't find input for [{}]", ne);
+            }
+            layout.append(ne);
+            projectionList.add(input.channel());
         }
-        // No merge: just drop doc block
-        int end = lookupMergeDropExec.extractFields().size() + 1;
-        List<Integer> projection = new ArrayList<>(end);
-        for (int i = 1; i <= end; i++) {
-            projection.add(i);
-        }
-        return source.with(new ProjectOperator.ProjectOperatorFactory(projection), layout);
+        return source.with(new ProjectOperator.ProjectOperatorFactory(projectionList), layout.build());
     }
 
     /**

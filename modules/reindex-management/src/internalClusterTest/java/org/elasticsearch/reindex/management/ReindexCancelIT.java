@@ -239,14 +239,12 @@ public class ReindexCancelIT extends ESIntegTestCase {
     private CancelReindexResponse cancelReindexSynchronously(final TaskId taskId) {
         final CancelReindexRequest request = new CancelReindexRequest(true);
         request.setTargetTaskId(taskId);
-        request.setTimeout(TimeValue.timeValueSeconds(30));
         return client().execute(TransportCancelReindexAction.TYPE, request).actionGet();
     }
 
     private CancelReindexResponse cancelReindexAsynchronously(final TaskId taskId) {
         final CancelReindexRequest request = new CancelReindexRequest(false);
         request.setTargetTaskId(taskId);
-        request.setTimeout(TimeValue.timeValueSeconds(30));
         return client().execute(TransportCancelReindexAction.TYPE, request).actionGet();
     }
 

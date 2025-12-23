@@ -33,11 +33,6 @@
         "type": "boolean",
         "default": true,
         "description": "Should the request block until the cancellation of the reindex operation is completed. Defaults to true"
-      },
-      "timeout": {
-        "type": "time",
-        "default": "30s",
-        "description": "Explicit operation timeout"
       }
     }
   }

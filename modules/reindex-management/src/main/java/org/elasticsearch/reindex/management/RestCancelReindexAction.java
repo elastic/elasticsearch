@@ -10,7 +10,6 @@
 package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -59,7 +58,6 @@ public class RestCancelReindexAction extends BaseRestHandler {
         final boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
         final CancelReindexRequest cancelRequest = new CancelReindexRequest(waitForCompletion);
         cancelRequest.setTargetTaskId(taskId);
-        cancelRequest.setTimeout(request.paramAsTime("timeout", TimeValue.THIRTY_SECONDS));
 
         return channel -> client.execute(TransportCancelReindexAction.TYPE, cancelRequest, new RestToXContentListener<>(channel));
     }

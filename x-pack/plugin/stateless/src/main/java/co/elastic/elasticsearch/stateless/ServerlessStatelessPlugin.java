@@ -21,7 +21,6 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.action.TransportEnsureDocsSearchableAction;
 import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -70,7 +69,6 @@ import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher;
 import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingService;
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesResponse;
 import co.elastic.elasticsearch.stateless.cache.action.TransportClearBlobCacheAction;
 import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
@@ -82,8 +80,6 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElection
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.TransportConsistentClusterStateReadAction;
-import co.elastic.elasticsearch.stateless.commits.BCCHeaderReadExecutor;
-import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import co.elastic.elasticsearch.stateless.commits.HollowIndexEngineDeletionPolicy;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
@@ -101,7 +97,6 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.lucene.stats.GetAllShardSizesAction;
 import co.elastic.elasticsearch.stateless.lucene.stats.GetShardSizeAction;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
@@ -198,7 +193,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -240,19 +234,23 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.action.TransportEnsureDocsSearchableAction;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor;
+import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -273,8 +271,8 @@ import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 
 public class ServerlessStatelessPlugin extends Plugin
     implements
@@ -288,14 +286,12 @@ public class ServerlessStatelessPlugin extends Plugin
 
     private static final Logger logger = LogManager.getLogger(ServerlessStatelessPlugin.class);
 
-    public static final String NAME = "stateless";
-
     public static final ActionType<GetBlobStoreStatsNodesResponse> GET_BLOB_STORE_STATS_ACTION = new ActionType<>(
-        "cluster:monitor/" + NAME + "/blob_store/stats/get"
+        "cluster:monitor/stateless/blob_store/stats/get"
     );
 
     public static final ActionType<ClearBlobCacheNodesResponse> CLEAR_BLOB_CACHE_ACTION = new ActionType<>(
-        "cluster:admin/" + NAME + "/blob_cache/clear"
+        "cluster:admin/stateless/blob_cache/clear"
     );
 
     /** Temporary feature flag setting for creating indices with a refresh block. Defaults to false. **/
@@ -305,34 +301,6 @@ public class ServerlessStatelessPlugin extends Plugin
         Setting.Property.NodeScope
     );
 
-    // Thread pool names are defined in the BlobStoreRepository because we need to verify there that no requests are running on other pools.
-    public static final String SHARD_READ_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME;
-    public static final String SHARD_READ_THREAD_POOL_SETTING = "stateless." + SHARD_READ_THREAD_POOL + "_thread_pool";
-    public static final String TRANSLOG_THREAD_POOL = BlobStoreRepository.STATELESS_TRANSLOG_THREAD_NAME;
-    public static final String TRANSLOG_THREAD_POOL_SETTING = "stateless." + TRANSLOG_THREAD_POOL + "_thread_pool";
-    public static final String SHARD_WRITE_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_WRITE_THREAD_NAME;
-    public static final String SHARD_WRITE_THREAD_POOL_SETTING = "stateless." + SHARD_WRITE_THREAD_POOL + "_thread_pool";
-    public static final String CLUSTER_STATE_READ_WRITE_THREAD_POOL = BlobStoreRepository.STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME;
-    public static final String CLUSTER_STATE_READ_WRITE_THREAD_POOL_SETTING = "stateless."
-        + CLUSTER_STATE_READ_WRITE_THREAD_POOL
-        + "_thread_pool";
-    public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL = "stateless_get_vbcc_chunk";
-    public static final String FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL = "stateless_fill_vbcc_cache";
-    public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING = "stateless."
-        + GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL
-        + "_thread_pool";
-    public static final String FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING = "stateless."
-        + FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
-        + "_thread_pool";
-    public static final String PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME;
-    public static final String PREWARM_THREAD_POOL_SETTING = "stateless." + PREWARM_THREAD_POOL + "_thread_pool";
-    public static final String UPLOAD_PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME;
-    public static final String UPLOAD_PREWARM_THREAD_POOL_SETTING = "stateless." + UPLOAD_PREWARM_THREAD_POOL + "_thread_pool";
-
-    /**
-     * The set of {@link ShardRouting.Role}s that we expect to see in a stateless deployment
-     */
-    public static final Set<ShardRouting.Role> STATELESS_SHARD_ROLES = Set.of(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
     private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
     private final SetOnce<SplitSourceService> splitSourceService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
@@ -892,142 +860,6 @@ public class ServerlessStatelessPlugin extends Plugin
     @Override
     public Collection<HealthIndicatorService> getHealthIndicatorServices() {
         return List.of(blobStoreHealthIndicator.get());
-    }
-
-    @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return List.of(statelessExecutorBuilders(settings, hasIndexRole));
-    }
-
-    public static ExecutorBuilder<?>[] statelessExecutorBuilders(Settings settings, boolean hasIndexRole) {
-        // TODO: Consider modifying these pool counts if we change the object store client connections based on node size.
-        // Right now we have 10 threads for snapshots, 1 or 8 threads for translog and 20 or 28 threads for shard thread pools. This is to
-        // attempt to keep the threads below the default client connections limit of 50. This assumption is currently broken by the snapshot
-        // metadata pool having 50 threads. But we will continue to iterate on this numbers and limits.
-
-        final int processors = EsExecutors.allocatedProcessors(settings);
-        final int shardReadMaxThreads;
-        final int translogCoreThreads;
-        final int translogMaxThreads;
-        final int shardWriteCoreThreads;
-        final int shardWriteMaxThreads;
-        final int clusterStateReadWriteCoreThreads;
-        final int clusterStateReadWriteMaxThreads;
-        final int getVirtualBatchedCompoundCommitChunkCoreThreads;
-        final int getVirtualBatchedCompoundCommitChunkMaxThreads;
-        final int fillVirtualBatchedCompoundCommitCacheCoreThreads;
-        final int fillVirtualBatchedCompoundCommitCacheMaxThreads;
-        final int prewarmMaxThreads;
-        final int uploadPrewarmCoreThreads;
-        final int uploadPrewarmMaxThreads;
-
-        if (hasIndexRole) {
-            shardReadMaxThreads = Math.min(processors * 4, 10);
-            translogCoreThreads = 2;
-            translogMaxThreads = Math.min(processors * 2, 8);
-            shardWriteCoreThreads = 2;
-            shardWriteMaxThreads = Math.min(processors * 4, 10);
-            clusterStateReadWriteCoreThreads = 2;
-            clusterStateReadWriteMaxThreads = 4;
-            getVirtualBatchedCompoundCommitChunkCoreThreads = 1;
-            getVirtualBatchedCompoundCommitChunkMaxThreads = Math.min(processors, 4);
-            fillVirtualBatchedCompoundCommitCacheCoreThreads = 0;
-            fillVirtualBatchedCompoundCommitCacheMaxThreads = 1;
-            prewarmMaxThreads = Math.min(processors * 2, 32);
-            // These threads are used for prewarming the shared blob cache on upload, and are separate from the prewarm thread pool
-            // in order to avoid any deadlocks between the two (e.g., when two fillgaps compete). Since they are used to prewarm on upload,
-            // we use the same amount of max threads as the shard write pool.
-            // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
-            // threads around to reduce churn and re-use the existing buffers more
-            uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
-            uploadPrewarmCoreThreads = uploadPrewarmMaxThreads / 2;
-        } else {
-            shardReadMaxThreads = Math.min(processors * 4, 28);
-            translogCoreThreads = 0;
-            translogMaxThreads = 1;
-            shardWriteCoreThreads = 0;
-            shardWriteMaxThreads = 1;
-            clusterStateReadWriteCoreThreads = 0;
-            clusterStateReadWriteMaxThreads = 1;
-            getVirtualBatchedCompoundCommitChunkCoreThreads = 0;
-            getVirtualBatchedCompoundCommitChunkMaxThreads = 1;
-            prewarmMaxThreads = Math.min(processors * 4, 32);
-            // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
-            // threads around to reduce churn and re-use the existing buffers more
-            fillVirtualBatchedCompoundCommitCacheCoreThreads = Math.max(processors / 2, 2);
-            fillVirtualBatchedCompoundCommitCacheMaxThreads = Math.max(processors, 2);
-            uploadPrewarmCoreThreads = 0;
-            uploadPrewarmMaxThreads = 1;
-        }
-
-        return new ExecutorBuilder<?>[] {
-            new ScalingExecutorBuilder(
-                SHARD_READ_THREAD_POOL,
-                4,
-                shardReadMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                SHARD_READ_THREAD_POOL_SETTING,
-                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(0.3).build()
-            ),
-            new ScalingExecutorBuilder(
-                TRANSLOG_THREAD_POOL,
-                translogCoreThreads,
-                translogMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                TRANSLOG_THREAD_POOL_SETTING
-            ),
-            new ScalingExecutorBuilder(
-                SHARD_WRITE_THREAD_POOL,
-                shardWriteCoreThreads,
-                shardWriteMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                SHARD_WRITE_THREAD_POOL_SETTING
-            ),
-            new ScalingExecutorBuilder(
-                CLUSTER_STATE_READ_WRITE_THREAD_POOL,
-                clusterStateReadWriteCoreThreads,
-                clusterStateReadWriteMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                CLUSTER_STATE_READ_WRITE_THREAD_POOL_SETTING
-            ),
-            new ScalingExecutorBuilder(
-                GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
-                getVirtualBatchedCompoundCommitChunkCoreThreads,
-                getVirtualBatchedCompoundCommitChunkMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING
-            ),
-            new ScalingExecutorBuilder(
-                FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL,
-                fillVirtualBatchedCompoundCommitCacheCoreThreads,
-                fillVirtualBatchedCompoundCommitCacheMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING
-            ),
-            new ScalingExecutorBuilder(
-                PREWARM_THREAD_POOL,
-                // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
-                // threads around to reduce churn and re-use the existing buffers more
-                prewarmMaxThreads / 2,
-                prewarmMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                PREWARM_THREAD_POOL_SETTING
-            ),
-            new ScalingExecutorBuilder(
-                UPLOAD_PREWARM_THREAD_POOL,
-                uploadPrewarmCoreThreads,
-                uploadPrewarmMaxThreads,
-                TimeValue.timeValueMinutes(5),
-                true,
-                UPLOAD_PREWARM_THREAD_POOL_SETTING
-            ) };
     }
 
     public MemoryMetricsService getMemoryMetricsService() {
@@ -1695,7 +1527,7 @@ public class ServerlessStatelessPlugin extends Plugin
                 final long translogReleaseEndFile;
                 try {
                     Map<String, String> userData = indexCommitRef.getIndexCommit().getUserData();
-                    String startFile = userData.get(IndexEngine.TRANSLOG_RECOVERY_START_FILE);
+                    String startFile = userData.get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
                     String releaseFile = userData.get(IndexEngine.TRANSLOG_RELEASE_END_FILE);
                     if (startFile == null) {
                         // If we don't have it in the user data, then this is the first commit and no operations have been processed on
@@ -1797,7 +1629,7 @@ public class ServerlessStatelessPlugin extends Plugin
 
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
-        return Map.of(NAME, new StatelessExistingShardsAllocator());
+        return Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator());
     }
 
     @Override
@@ -1913,7 +1745,7 @@ public class ServerlessStatelessPlugin extends Plugin
      */
     private static void validateSettings(final Settings settings) {
         if (STATELESS_ENABLED.get(settings) == false) {
-            throw new IllegalArgumentException(NAME + " is not enabled");
+            throw new IllegalArgumentException(StatelessPlugin.NAME + " is not enabled");
         }
     }
 

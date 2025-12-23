@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginInteg
 import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.TestStatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
@@ -56,6 +55,9 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -132,7 +134,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractServerlessStatelessPlug
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         // this is the executor Lucene uses to fetch data from the object store in the cache in an on-demand manner
         // (e.g. when a reader is opened or when a search operation is executed)
-        String shardReadThreadPool = ServerlessStatelessPlugin.SHARD_READ_THREAD_POOL;
+        String shardReadThreadPool = StatelessPlugin.SHARD_READ_THREAD_POOL;
         // let's get the number of completed tasks before we start indexing so when we wait for the downloads to finish
         // we can assert that the number of completed tasks is higher, to make sure downloads actually occurred
         long preRefreshCompletedDownloadTasks = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);

@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.Map;
 import java.util.Set;

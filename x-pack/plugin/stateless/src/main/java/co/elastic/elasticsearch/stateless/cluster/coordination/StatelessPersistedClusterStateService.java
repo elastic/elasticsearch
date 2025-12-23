@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.store.Directory;
@@ -37,6 +36,7 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -88,11 +88,11 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
     }
 
     protected Executor getClusterStateUploadsThreadPool() {
-        return threadPool.executor(ServerlessStatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
+        return threadPool.executor(StatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
     }
 
     protected Executor getClusterStateDownloadsThreadPool() {
-        return threadPool.executor(ServerlessStatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
+        return threadPool.executor(StatelessPlugin.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
     }
 
     private BlobContainer getBlobContainerForCurrentTerm() {

@@ -17,15 +17,14 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommitTestUtils;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests;
-
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests;
 
 import java.io.IOException;
 
-import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests.randomPrimaryTermAndGeneration;
+import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGenerationTests.randomPrimaryTermAndGeneration;
 
 public class RegisterCommitResponseSerializationTests extends AbstractWireSerializingTestCase<RegisterCommitResponse> {
 

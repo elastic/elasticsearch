@@ -17,15 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
-import co.elastic.elasticsearch.stateless.commits.BlobFile;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.engine.NewCommitNotification;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -41,6 +34,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.NewCommitNotification;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -50,11 +52,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.PREWARM_THREAD_POOL;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
 
 /**
- * Prefetches segment files from {@link co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit}
+ * Prefetches segment files from {@link BatchedCompoundCommit}
  * to improve search performance.
  * <p>
  * Optimizes search latency by proactively fetching commit data into the shared blob cache
@@ -325,10 +327,10 @@ public class SearchCommitPrefetcher {
                             prefetchedBytes::addAndGet,
                             // I/O for pre-warming uses DIRECT_EXECUTOR, meaning the pre-warm thread pool
                             // itself is responsible for fetching data from the blob store.
-                            ServerlessStatelessPlugin.PREWARM_THREAD_POOL,
+                            StatelessPlugin.PREWARM_THREAD_POOL,
                             // If the data is pre-fetched from the indexing node (for non-uploaded BCCs),
                             // these reads would be executed in the fill VBCC thread poll.
-                            ServerlessStatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                         ),
                         executor,
                         forcePrefetch,
@@ -468,7 +470,7 @@ public class SearchCommitPrefetcher {
                 PrefetchExecutor.class.getCanonicalName(),
                 // Leave room for the recovery and online pre-warming to make progress
                 threadPool.info(PREWARM_THREAD_POOL).getMax() / 2 + 1,
-                threadPool.executor(ServerlessStatelessPlugin.PREWARM_THREAD_POOL)
+                threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
             );
         }
 

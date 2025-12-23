@@ -20,7 +20,6 @@
 package co.elastic.elasticsearch.stateless.cache.reader;
 
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker.UploadInfo;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,6 +29,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.InputStream;
 

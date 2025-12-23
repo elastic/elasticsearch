@@ -57,6 +57,7 @@ dependencies {
     testImplementation("org.elasticsearch.plugin:repository-gcs")
     testImplementation("org.elasticsearch.plugin:repository-azure")
     testImplementation(testArtifact("org.elasticsearch:server"))
+    testImplementation(testArtifact(xpackModule("stateless")))
     javaRestTestImplementation(project(":libs:serverless-shared-constants"))
 }
 

@@ -19,24 +19,13 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
-import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
@@ -102,6 +91,17 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -633,9 +633,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
     public void testProjectObjectStoreExceptions() throws IOException {
         final long primaryTerm = randomLongBetween(1, 42);
         final ProjectId projectId = randomUniqueProjectId();
-        final var expectedException = randomBoolean()
-            ? new RepositoryException(ServerlessStatelessPlugin.NAME, "boom")
-            : new RuntimeException("ugh");
+        final var expectedException = randomBoolean() ? new RepositoryException(StatelessPlugin.NAME, "boom") : new RuntimeException("ugh");
         try (
             var testHarness = new FakeStatelessNode(
                 this::newEnvironment,
@@ -897,11 +895,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final var objectStoreService = testHarness.objectStoreService;
 
             // Block shard file deletions
-            final int maxDeletionThreads = testHarness.threadPool.info(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax();
+            final int maxDeletionThreads = testHarness.threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax();
             final var startBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             final var deletionBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             for (int i = 0; i < maxDeletionThreads; i++) {
-                testHarness.threadPool.executor(ServerlessStatelessPlugin.SHARD_WRITE_THREAD_POOL).submit(() -> {
+                testHarness.threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).submit(() -> {
                     safeAwait(startBarrier);
                     safeAwait(deletionBarrier);
                 });
@@ -989,7 +987,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {
         final var e = expectThrows(RepositoryException.class, () -> objectStoreService.getProjectObjectStore(projectId));
-        assertThat(e.getMessage(), equalTo("[" + ServerlessStatelessPlugin.NAME + "] project [" + projectId + "] object store not found"));
+        assertThat(e.getMessage(), equalTo("[" + StatelessPlugin.NAME + "] project [" + projectId + "] object store not found"));
     }
 
     private record CacheWriteCount(int writeCount, int regionStart, int regionEnd) {}

@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
@@ -69,6 +68,9 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkResponse;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -77,7 +79,7 @@ import java.nio.file.NoSuchFileException;
 public class TransportGetVirtualBatchedCompoundCommitChunkAction extends TransportAction<
     GetVirtualBatchedCompoundCommitChunkRequest,
     GetVirtualBatchedCompoundCommitChunkResponse> {
-    public static final String NAME = "internal:admin/" + ServerlessStatelessPlugin.NAME + "/vbcc/get/chunk";
+    public static final String NAME = "internal:admin/stateless/vbcc/get/chunk";
     public static final ActionType<GetVirtualBatchedCompoundCommitChunkResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportGetVirtualBatchedCompoundCommitChunkAction.class);
     protected final String transportPrimaryAction;
@@ -106,15 +108,13 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
-            transportService.getThreadPool().executor(ServerlessStatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL),
+            transportService.getThreadPool().executor(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL),
             GetVirtualBatchedCompoundCommitChunkRequest::new,
             (request, channel, task) -> {
                 final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener = new ChannelActionListener<>(channel);
                 ActionListener.run(listener, (l) -> {
                     assert transportService.getLocalNode().hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) : "not an indexing node";
-                    assert ThreadPool.assertCurrentThreadPool(
-                        ServerlessStatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL
-                    );
+                    assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL);
                     final ShardId shardId = request.getShardId();
                     final Index index = shardId.getIndex();
                     final IndexShard shard = indicesService.indexServiceSafe(index).getShard(request.getShardId().id());

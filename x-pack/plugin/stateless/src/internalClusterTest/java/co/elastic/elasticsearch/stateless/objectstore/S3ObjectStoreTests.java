@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.objectstore;
 
 import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import fixture.s3.S3ConsistencyModel;
@@ -58,6 +57,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.junit.Before;
 
 import java.io.IOException;

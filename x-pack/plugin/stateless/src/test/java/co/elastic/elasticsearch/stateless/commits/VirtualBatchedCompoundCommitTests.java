@@ -13,14 +13,10 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
- *
- * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.commits;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
-import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -34,6 +30,13 @@ import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -309,7 +312,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
                 // Read first header
                 var firstCC = virtualBatchedCompoundCommit.getPendingCompoundCommits().getFirst();
-                long firstCCHeaderSize = firstCC.getHeaderSize();
+                long firstCCHeaderSize = VirtualBatchedCompoundCommitTestUtils.getHeaderSize(firstCC);
                 assertBytesRange.accept(0L, firstCCHeaderSize);
 
                 // Read first StatelessCompoundCommit (without header)
@@ -397,7 +400,11 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 if (virtualBatchedCompoundCommit.getPendingCompoundCommits().size() > 0) {
                     try (BytesStreamOutput output = new BytesStreamOutput()) {
                         // Workaround to serialize VBCC without freezing for testing
-                        try (var vbccInputStream = virtualBatchedCompoundCommit.getInputStreamForUpload()) {
+                        try (
+                            var vbccInputStream = VirtualBatchedCompoundCommitTestUtils.getInputStreamForUpload(
+                                virtualBatchedCompoundCommit
+                            )
+                        ) {
                             Streams.copy(vbccInputStream, output, false);
                         }
 
@@ -491,7 +498,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             var batchedCompoundCommitBlobs = new HashMap<String, BytesReference>();
 
             try (BytesStreamOutput output = new BytesStreamOutput()) {
-                try (var vbccInputStream = virtualBatchedCompoundCommit.getInputStreamForUpload()) {
+                try (var vbccInputStream = VirtualBatchedCompoundCommitTestUtils.getInputStreamForUpload(virtualBatchedCompoundCommit)) {
                     Streams.copy(vbccInputStream, output, false);
                 }
                 batchedCompoundCommitBlobs.put(virtualBatchedCompoundCommit.getBlobName(), output.bytes());
@@ -504,7 +511,10 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                         var replicatedRanges = commit.getStatelessCompoundCommit().internalFilesReplicatedRanges();
                         for (var replicatedRange : replicatedRanges.replicatedRanges()) {
                             // range represents header or footer
-                            vbccIndexInput.seek(lastCommitPosition + commit.getHeaderSize() + consumedReplicatedRangeSize);
+                            vbccIndexInput.seek(
+                                lastCommitPosition + VirtualBatchedCompoundCommitTestUtils.getHeaderSize(commit)
+                                    + consumedReplicatedRangeSize
+                            );
                             assertThat(
                                 CodecUtil.readBEInt(vbccIndexInput),
                                 anyOf(equalTo(CodecUtil.CODEC_MAGIC), equalTo(CodecUtil.FOOTER_MAGIC))
@@ -512,13 +522,14 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                             // range is the same as original content
                             byte[] replicatedBytes = readBytes(
                                 vbccIndexInput,
-                                lastCommitPosition + commit.getHeaderSize() + consumedReplicatedRangeSize,
+                                lastCommitPosition + VirtualBatchedCompoundCommitTestUtils.getHeaderSize(commit)
+                                    + consumedReplicatedRangeSize,
                                 replicatedRange.length()
                             );
                             byte[] originalBytes = readBytes(
                                 vbccIndexInput,
-                                lastCommitPosition + commit.getHeaderSize() + replicatedRanges.dataSizeInBytes() + replicatedRange
-                                    .position(),
+                                lastCommitPosition + VirtualBatchedCompoundCommitTestUtils.getHeaderSize(commit) + replicatedRanges
+                                    .dataSizeInBytes() + replicatedRange.position(),
                                 replicatedRange.length()
                             );
                             assertArrayEquals("Replicated range is not same as original content", originalBytes, replicatedBytes);

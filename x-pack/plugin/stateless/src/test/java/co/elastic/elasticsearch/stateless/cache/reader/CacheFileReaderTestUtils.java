@@ -17,9 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
-
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 public final class CacheFileReaderTestUtils {
 

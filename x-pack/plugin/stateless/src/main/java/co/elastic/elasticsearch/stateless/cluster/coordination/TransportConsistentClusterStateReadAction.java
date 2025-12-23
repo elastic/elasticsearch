@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -64,7 +62,7 @@ public final class TransportConsistentClusterStateReadAction extends TransportAc
     TransportConsistentClusterStateReadAction.Request,
     TransportConsistentClusterStateReadAction.Response> {
 
-    public static final String NAME = "internal:admin/" + ServerlessStatelessPlugin.NAME + "/coordination/consistent_cluster_state_read";
+    public static final String NAME = "internal:admin/stateless/coordination/consistent_cluster_state_read";
     // visible for testing
     static final String MASTER_NODE_ACTION = NAME + "[m]";
 

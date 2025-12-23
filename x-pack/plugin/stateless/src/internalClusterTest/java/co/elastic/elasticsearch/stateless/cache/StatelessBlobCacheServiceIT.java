@@ -21,14 +21,11 @@ import co.elastic.elasticsearch.stateless.AbstractServerlessStatelessPluginInteg
 import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.TestStatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
-import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -56,6 +53,11 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -67,10 +69,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.IntConsumer;
 
-import static co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin.PREWARM_THREAD_POOL;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -186,7 +188,7 @@ public class StatelessBlobCacheServiceIT extends AbstractServerlessStatelessPlug
                     blobReader,
                     () -> writeBuffer.get().clear(),
                     bytes -> {},
-                    ServerlessStatelessPlugin.PREWARM_THREAD_POOL
+                    StatelessPlugin.PREWARM_THREAD_POOL
                 ) {
                     @Override
                     public void fillCacheRange(
@@ -272,7 +274,7 @@ public class StatelessBlobCacheServiceIT extends AbstractServerlessStatelessPlug
                 blobReader,
                 () -> writeBuffer.get().clear(),
                 bytes -> {},
-                ServerlessStatelessPlugin.PREWARM_THREAD_POOL
+                StatelessPlugin.PREWARM_THREAD_POOL
             ),
             threadPool.executor(PREWARM_THREAD_POOL),
             future

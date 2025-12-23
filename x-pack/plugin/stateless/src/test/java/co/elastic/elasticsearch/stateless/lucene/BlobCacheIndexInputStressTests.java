@@ -19,11 +19,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheFileReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -42,6 +39,10 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,9 +56,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.TestUtils.newCacheService;
-import static co.elastic.elasticsearch.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
+import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -66,7 +67,7 @@ public class BlobCacheIndexInputStressTests extends ESIndexInputTestCase {
     public void testConcurrentReadsUnderHighContention() throws InterruptedException, IOException {
         final TestThreadPool threadPool = new TestThreadPool(
             "testConcurrentReadsUnderHighContention",
-            ServerlessStatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
         );
 
         // The shared cache write buffer size is set to 8kb in build.gradle.kts

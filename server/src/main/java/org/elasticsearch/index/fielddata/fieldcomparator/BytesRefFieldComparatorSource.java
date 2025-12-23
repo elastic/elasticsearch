@@ -123,6 +123,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 LeafFieldComparator leafComparator = super.getLeafComparator(context);
+                final SortedBinaryDocValues values = getValues(context);
                 // TopFieldCollector interacts with inter-segment concurrency by creating a FieldValueHitQueue per slice, each one with a
                 // specific instance of the FieldComparator. This ensures sequential execution across LeafFieldComparators returned by
                 // the same parent FieldComparator. That allows for effectively sharing the same instance of leaf comparator, like in this
@@ -155,6 +156,11 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                         // this ensures that the scorer is set for the specific leaf comparator
                         // corresponding to the leaf context we are scoring
                         BytesRefFieldComparatorSource.this.setScorer(context, scorer);
+                    }
+
+                    @Override
+                    public DocIdSetIterator competitiveIterator() throws IOException {
+                        return LeafFieldComparator.super.competitiveIterator();
                     }
                 };
             }

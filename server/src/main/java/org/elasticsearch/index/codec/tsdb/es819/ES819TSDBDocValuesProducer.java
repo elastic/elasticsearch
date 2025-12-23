@@ -68,6 +68,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<SortedSetEntry> sortedSets;
     final IntObjectHashMap<SortedNumericEntry> sortedNumerics;
     private final IntObjectHashMap<DocValuesSkipperEntry> skippers;
+    private final IntObjectHashMap<BinaryDocValuesSkipperEntry> binarySkippers;
     private final IndexInput data;
     private final int maxDoc;
     final int version;
@@ -84,6 +85,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.sortedSets = new IntObjectHashMap<>();
         this.sortedNumerics = new IntObjectHashMap<>();
         this.skippers = new IntObjectHashMap<>();
+        this.binarySkippers = new IntObjectHashMap<>();
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.merging = false;
@@ -158,6 +160,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         IntObjectHashMap<SortedSetEntry> sortedSets,
         IntObjectHashMap<SortedNumericEntry> sortedNumerics,
         IntObjectHashMap<DocValuesSkipperEntry> skippers,
+        IntObjectHashMap<BinaryDocValuesSkipperEntry> binarySkippers,
         IndexInput data,
         int maxDoc,
         int version,
@@ -171,6 +174,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.sortedSets = sortedSets;
         this.sortedNumerics = sortedNumerics;
         this.skippers = skippers;
+        this.binarySkippers = binarySkippers;
         this.data = data.clone();
         this.maxDoc = maxDoc;
         this.version = version;
@@ -190,6 +194,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             sortedSets,
             sortedNumerics,
             skippers,
+            binarySkippers,
             data,
             maxDoc,
             version,
@@ -279,6 +284,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             }
                         }
                     }
+
+                    @Override
+                    public BinaryDocValuesSkipperEntry getBinarySkipper() {
+                        return new BinaryDocValuesSkipperEntry(entry.numDocsWithField, entry.minValue, entry.maxValue);
+                    }
                 };
             } else {
                 // variable length
@@ -352,6 +362,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                                 return builder.build();
                             }
                         }
+                    }
+
+                    @Override
+                    public BinaryDocValuesSkipperEntry getBinarySkipper() {
+                        return new BinaryDocValuesSkipperEntry(entry.numDocsWithField, entry.minValue, entry.maxValue);
                     }
                 };
             }
@@ -457,6 +472,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             return builder.build();
                         }
                     }
+                }
+
+                @Override
+                public BinaryDocValuesSkipperEntry getBinarySkipper() {
+                    return new BinaryDocValuesSkipperEntry(entry.numDocsWithField, entry.minValue, entry.maxValue);
                 }
             };
         } else {
@@ -687,7 +707,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class DenseBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
+    abstract static class DenseBinaryDocValues extends BinaryDocValues
+        implements
+            BlockLoader.OptionalColumnAtATimeReader,
+            BinaryDocValuesSkipperProducer {
 
         final int maxDoc;
         int doc = -1;
@@ -1589,6 +1612,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("invalid type: " + type, meta);
             }
         }
+
+        for (var cursor : binaries) {
+            var binaryEntry = cursor.value;
+            binarySkippers.put(
+                cursor.key,
+                new BinaryDocValuesSkipperEntry(binaryEntry.numDocsWithField, binaryEntry.minValue, binaryEntry.maxValue)
+            );
+        }
     }
 
     private static NumericEntry readNumeric(IndexInput meta, int numericBlockShift) throws IOException {
@@ -1654,6 +1685,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.numDocsWithField = meta.readInt();
         entry.minLength = meta.readInt();
         entry.maxLength = meta.readInt();
+        if (version >= ES819TSDBDocValuesFormat.VERSION_BINARY_SKIPPERS) {
+            int minValueLength = meta.readInt();
+            if (minValueLength > 0) {
+                entry.minValue = new BytesRef(minValueLength);
+                meta.readBytes(entry.minValue.bytes, 0, minValueLength);
+            }
+            int maxValueLength = meta.readInt();
+            if (maxValueLength > 0) {
+                entry.maxValue = new BytesRef(maxValueLength);
+                meta.readBytes(entry.maxValue.bytes, 0, maxValueLength);
+            }
+        }
 
         if (compression == BinaryDVCompressionMode.NO_COMPRESS) {
             if (entry.minLength < entry.maxLength) {
@@ -2374,6 +2417,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         int numDocsWithField;
         int minLength;
         int maxLength;
+        BytesRef minValue;
+        BytesRef maxValue;
         long addressesOffset;
         long addressesLength;
         long docOffsetsOffset;

@@ -346,6 +346,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             final int numDocsWithField = tsdbValuesProducer.mergeStats.sumNumDocsWithField();
             final int minLength = tsdbValuesProducer.mergeStats.minLength();
             final int maxLength = tsdbValuesProducer.mergeStats.maxLength();
+            BytesRef minValue = tsdbValuesProducer.mergeStats.minValue();
+            BytesRef maxValue = tsdbValuesProducer.mergeStats.maxValue();;
 
             assert numDocsWithField <= maxDoc;
 
@@ -396,6 +398,16 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     meta.writeShort(jumpTableEntryCount);
                     meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                 }
+                if (numDocsWithField == 0) {
+                    meta.writeInt(0);
+                    meta.writeInt(0);
+                } else {
+                    // TODO: avoid writing too large min and max values:
+                    meta.writeInt(minValue.length);
+                    meta.writeBytes(minValue.bytes, minValue.offset, minValue.length);
+                    meta.writeInt(maxValue.length);
+                    meta.writeBytes(maxValue.bytes, maxValue.offset, maxValue.length);
+                }
 
                 meta.writeInt(numDocsWithField);
                 meta.writeInt(minLength);
@@ -420,6 +432,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 int numDocsWithField = 0;
                 int minLength = Integer.MAX_VALUE;
                 int maxLength = 0;
+                BytesRef minValue = null;
+                BytesRef maxValue = null;
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                     numDocsWithField++;
                     BytesRef v = values.binaryValue();
@@ -427,6 +441,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     binaryWriter.addDoc(v);
                     minLength = Math.min(length, minLength);
                     maxLength = Math.max(length, maxLength);
+                    if (minValue == null || minValue.compareTo(v) > 0) {
+                        minValue = BytesRef.deepCopyOf(v);
+                    }
+                    if (maxValue == null || maxValue.compareTo(v) < 0) {
+                        maxValue = BytesRef.deepCopyOf(v);
+                    }
                 }
                 binaryWriter.flushData();
 
@@ -456,6 +476,16 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 meta.writeInt(numDocsWithField);
                 meta.writeInt(minLength);
                 meta.writeInt(maxLength);
+                if (numDocsWithField == 0) {
+                    meta.writeInt(0);
+                    meta.writeInt(0);
+                } else {
+                    // TODO: avoid writing too large min and max values:
+                    meta.writeInt(minValue.length);
+                    meta.writeBytes(minValue.bytes, minValue.offset, minValue.length);
+                    meta.writeInt(maxValue.length);
+                    meta.writeBytes(maxValue.bytes, maxValue.offset, maxValue.length);
+                }
 
                 binaryWriter.writeAddressMetadata(minLength, maxLength, numDocsWithField);
             } finally {

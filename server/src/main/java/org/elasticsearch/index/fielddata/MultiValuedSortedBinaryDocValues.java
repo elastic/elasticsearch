@@ -12,6 +12,8 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.codec.tsdb.es819.BinaryDocValuesSkipperEntry;
+import org.elasticsearch.index.codec.tsdb.es819.BinaryDocValuesSkipperProducer;
 
 import java.io.IOException;
 
@@ -19,7 +21,7 @@ import java.io.IOException;
  * Wrapper around {@link BinaryDocValues} to decode the typical multivalued encoding used by
  * {@link org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField}.
  */
-public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
+public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues implements BinaryDocValuesSkipperProducer {
 
     BinaryDocValues values;
     int count;
@@ -59,5 +61,17 @@ public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
         scratch.offset = in.getPosition();
         in.setPosition(scratch.offset + scratch.length);
         return scratch;
+    }
+
+    @Override
+    public BinaryDocValuesSkipperEntry getBinarySkipper() {
+        if (values instanceof BinaryDocValuesSkipperProducer) {
+            var skipper = ((BinaryDocValuesSkipperProducer) values).getBinarySkipper();
+            // TODO: arg....
+            BytesRef minValue = skipper.minValue();
+            BytesRef maxValue = skipper.maxValue();
+            return new BinaryDocValuesSkipperEntry(skipper.numDocsWithField(), minValue, maxValue);
+        }
+        return null;
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -24,7 +25,14 @@ public class DataNodeRequestTests extends ESTestCase {
 
     public void testNoIndexPlaceholder() {
         var sessionId = randomAlphaOfLength(10);
-        List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("index-" + between(1, 10), "n/a", between(1, 10)));
+        List<DataNodeRequest.Shard> shards = randomList(
+            1,
+            10,
+            () -> new DataNodeRequest.Shard(
+                new ShardId("index-" + between(1, 10), "n/a", between(1, 10)),
+                SplitShardCountSummary.fromInt(randomIntBetween(0, 1024))
+            )
+        );
 
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
@@ -35,7 +43,7 @@ public class DataNodeRequestTests extends ESTestCase {
                 | stats x = avg(c)
                 """, randomTables()),
             randomAlphaOfLength(10),
-            shardIds,
+            shards,
             Collections.emptyMap(),
             null,
             generateRandomStringArray(10, 10, false, false),
@@ -44,14 +52,14 @@ public class DataNodeRequestTests extends ESTestCase {
             randomBoolean()
         );
 
-        assertThat(request.shardIds(), equalTo(shardIds));
+        assertThat(request.shards(), equalTo(shards));
 
         request.indices(generateRandomStringArray(10, 10, false, false));
 
-        assertThat(request.shardIds(), equalTo(shardIds));
+        assertThat(request.shards(), equalTo(shards));
 
         request.indices(NO_INDEX_PLACEHOLDER);
 
-        assertThat(request.shardIds(), empty());
+        assertThat(request.shards(), empty());
     }
 }

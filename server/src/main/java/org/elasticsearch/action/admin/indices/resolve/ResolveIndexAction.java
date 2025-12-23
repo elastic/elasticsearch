@@ -635,16 +635,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
                         if (resolveCrossProject) {
-                            // TODO temporary fix: we need to properly handle the case where a remote does not return a result due to
-                            // a failure -- in the current version of resolve indices though, these are just silently ignored
-                            if (remoteRequests != remoteResponses.size()) {
-                                listener.onFailure(
-                                    new IllegalStateException(
-                                        "expected [" + remoteRequests + "] remote responses but got only [" + remoteResponses.size() + "]"
-                                    )
-                                );
-                                return;
-                            }
                             final Exception ex = CrossProjectIndexResolutionValidator.validate(
                                 originalIndicesOptions,
                                 request.getProjectRouting(),

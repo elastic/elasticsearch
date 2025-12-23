@@ -60,6 +60,7 @@
           "cpu",
           "wait",
           "block",
+          "gpu",
           "mem"
         ],
         "default": "cpu",
@@ -69,7 +70,10 @@
         "type": "enum",
         "options": [
           "cpu",
-          "total"
+          "wait",
+          "block",
+          "gpu",
+          "mem"
         ],
         "description": "The sort order for 'cpu' type (default: total)"
       },

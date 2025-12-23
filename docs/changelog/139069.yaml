@@ -1,0 +1,5 @@
+pr: 139069
+summary: "[SIMD][x64] Optimized native bulk dot product scoring for Int7"
+area: Vector Search
+type: enhancement
+issues: []

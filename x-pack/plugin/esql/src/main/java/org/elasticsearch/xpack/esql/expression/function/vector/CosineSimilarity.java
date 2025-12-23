@@ -46,6 +46,11 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         public BlockLoaderFunctionConfig.Function function() {
             return BlockLoaderFunctionConfig.Function.V_COSINE;
         }
+
+        @Override
+        public String toString() {
+            return "V_COSINE";
+        }
     };
 
     @FunctionInfo(
@@ -53,7 +58,7 @@ public class CosineSimilarity extends VectorSimilarityFunction {
         preview = true,
         description = "Calculates the cosine similarity between two dense_vectors.",
         examples = { @Example(file = "vector-cosine-similarity", tag = "vector-cosine-similarity") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public CosineSimilarity(
         Source source,

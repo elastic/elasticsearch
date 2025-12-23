@@ -87,6 +87,7 @@ public class AggregatorImplementer {
 
     private final AggregationState aggState;
     private final List<Argument> aggParams;
+    private final boolean hasOnlyBlockArguments;
     private final boolean tryToUseVectors;
 
     public AggregatorImplementer(
@@ -120,7 +121,7 @@ public class AggregatorImplementer {
             }
             return a;
         }).filter(a -> a instanceof PositionArgument == false).toList();
-
+        this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
         this.tryToUseVectors = aggParams.stream().anyMatch(a -> (a instanceof BlockArgument) == false)
             && aggParams.stream().noneMatch(a -> a.supportsVectorReadAccess() == false);
 
@@ -438,38 +439,25 @@ public class AggregatorImplementer {
             if (masked) {
                 builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
             }
+
             for (Argument a : aggParams) {
-                builder.addStatement("int $LValueCount = $L.getValueCount(p)", a.name(), a.blockName());
-                builder.beginControlFlow("if ($LValueCount == 0)", a.name());
-                builder.addStatement("continue");
-                builder.endControlFlow();
+                a.addContinueIfPositionHasNoValueBlock(builder);
             }
 
-            if (aggParams.getFirst() instanceof BlockArgument) {
-                if (aggParams.size() > 1) {
-                    throw new IllegalArgumentException("array mode not supported for multiple args");
-                }
-                warningsBlock(
-                    builder,
-                    () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, aggParams.getFirst().blockName())
-                );
-            } else {
+            if (hasOnlyBlockArguments == false) {
                 if (first == null && aggState.hasSeen()) {
                     builder.addStatement("state.seen(true)");
                 }
-                for (Argument a : aggParams) {
-                    builder.addStatement("int $L = $L.getFirstValueIndex(p)", a.startName(), a.blockName());
-                    builder.addStatement("int $L = $L + $LValueCount", a.endName(), a.startName(), a.name());
-                    builder.beginControlFlow(
-                        "for (int $L = $L; $L < $L; $L++)",
-                        a.offsetName(),
-                        a.startName(),
-                        a.offsetName(),
-                        a.endName(),
-                        a.offsetName()
-                    );
-                    a.read(builder, a.blockName(), a.offsetName());
-                }
+            }
+
+            for (Argument a : aggParams) {
+                a.startBlockProcessingLoop(builder);
+            }
+
+            if (hasOnlyBlockArguments) {
+                String params = aggParams.stream().map(Argument::blockName).collect(joining(", "));
+                warningsBlock(builder, () -> builder.addStatement("$T.combine(state, p, $L)", declarationType, params));
+            } else {
                 if (first != null) {
                     builder.addComment("Check seen in every iteration to save on complexity in the Block path");
                     builder.beginControlFlow("if (state.seen())");
@@ -485,9 +473,11 @@ public class AggregatorImplementer {
                 } else {
                     combineRawInput(builder, false);
                 }
-                for (Argument a : aggParams) {
-                    builder.endControlFlow();
-                }
+            }
+
+            for (int i = aggParams.size() - 1; i >= 0; --i) {
+                Argument a = aggParams.get(i);
+                a.endBlockProcessingLoop(builder);
             }
         }
         builder.endControlFlow();

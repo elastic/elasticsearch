@@ -58,8 +58,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ALLOCATION,
     }
 
-    private volatile UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
-    private volatile UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
+    private final UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
+    private final UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,

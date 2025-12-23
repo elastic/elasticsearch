@@ -75,6 +75,7 @@ public class ParsedDocument {
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      * @param id                the id of the deleted document
      */
+    // used by tests
     public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
         return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, id, null /* ignored */);
     }
@@ -101,6 +102,9 @@ public class ParsedDocument {
             // Use a synthetic _id field which is not indexed nor stored
             document.add(IdFieldMapper.syntheticIdField(id));
 
+            // Add doc values fields that are used to synthesize the synthetic _id.
+            // Note: It is not strictly required for tombstones documents but we decided to add them so that iterating and seeking synthetic
+            // _id terms over tombstones also work as if a regular _id field was present.
             var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
             var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
             var routingHash = TsidExtractingIdFieldMapper.extractRoutingHashBytesFromSyntheticId(uid);

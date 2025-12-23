@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionCrea
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -276,9 +276,16 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
         JinaAIModel jinaaiModel = (JinaAIModel) model;
         var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
+        boolean batchChunksAcrossInputs = true;
+        if (jinaaiModel.getTaskSettings() instanceof JinaAIEmbeddingsTaskSettings jinaAIEmbeddingsTaskSettings) {
+            batchChunksAcrossInputs = jinaAIEmbeddingsTaskSettings.getLateChunking() == null
+                || jinaAIEmbeddingsTaskSettings.getLateChunking() == false;
+        }
+
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            batchChunksAcrossInputs,
             jinaaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -305,7 +312,8 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
                 similarityToUse,
                 embeddingSize,
                 maxInputTokens,
-                serviceSettings.getEmbeddingType()
+                serviceSettings.getEmbeddingType(),
+                serviceSettings.dimensionsSetByUser()
             );
 
             return new JinaAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -331,7 +339,7 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

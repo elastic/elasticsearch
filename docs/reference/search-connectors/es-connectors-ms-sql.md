@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic Microsoft SQL connector* is a [connector](/reference/search-connectors/index.md) for [Microsoft SQL](https://learn.microsoft.com/en-us/sql/) databases. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/mssql.py) (branch *main*, compatible with Elastic *9.0*).
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mssql) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
@@ -29,7 +29,7 @@ This connector is available as a self-managed connector. To use this connector, 
 
 To create a new Microsoft SQL connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Microsoft SQL** self-managed connector.
 
 
@@ -199,7 +199,7 @@ You can deploy the Microsoft SQL connector as a self-managed connector using Doc
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
 % NOTCONSOLE
 
@@ -407,4 +407,4 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector uses the [generic database connector source code](https://github.com/elastic/connectors-python/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*).
 
-View [additional code specific to this data source](https://github.com/elastic/connectors/tree/main/connectors/sources/mssql.py) (branch *main*, compatible with Elastic *9.0*).
+View [additional code specific to this data source](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mssql) (branch *main*, compatible with Elastic *9.0*).

@@ -22,7 +22,7 @@ import java.io.IOException;
 public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
 
-    AbstractIntsFromDocValuesBlockLoader(String fieldName) {
+    protected AbstractIntsFromDocValuesBlockLoader(String fieldName) {
         this.fieldName = fieldName;
     }
 
@@ -55,14 +55,14 @@ public abstract class AbstractIntsFromDocValuesBlockLoader extends BlockDocValue
     public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
         private final NumericDocValues numericDocValues;
 
-        Singleton(NumericDocValues numericDocValues) {
+        public Singleton(NumericDocValues numericDocValues) {
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (numericDocValues instanceof OptionalColumnAtATimeReader direct) {
-                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, true);
+                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, true, false);
                 if (result != null) {
                     return result;
                 }

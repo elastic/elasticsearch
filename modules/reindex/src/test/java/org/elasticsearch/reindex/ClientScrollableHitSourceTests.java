@@ -50,6 +50,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -174,7 +175,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
     private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {
         assertEquals(actual.size(), expected.length);
         for (int i = 0; i < actual.size(); ++i) {
-            assertEquals(actual.get(i).getSource(), expected[i].getSourceRef());
+            assertThat(expected[i].getSourceRef(), equalBytes(actual.get(i).getSource()));
             assertEquals(actual.get(i).getIndex(), expected[i].getIndex());
             assertEquals(actual.get(i).getVersion(), expected[i].getVersion());
             assertEquals(actual.get(i).getPrimaryTerm(), expected[i].getPrimaryTerm());

@@ -923,6 +923,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Invoke {@code POST /_features/_reset?error_trace} with the given {@link RestClient}.
+     */
+    public static void performPostFeaturesReset(RestClient restClient) throws IOException {
+        final var request = new Request(HttpPost.METHOD_NAME, "/_features/_reset");
+        request.addParameter("error_trace", "true");
+        assertOK(restClient.performRequest(request));
+    }
+
     private void wipeCluster() throws Exception {
         waitForClusterUpdates();
 
@@ -949,8 +958,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         wipeSnapshots();
 
         if (resetFeatureStates()) {
-            final Request postRequest = new Request("POST", "/_features/_reset");
-            cleanupClient().performRequest(postRequest);
+            performPostFeaturesReset(cleanupClient());
         }
 
         // wipe data streams before indices so that the backing indices for data streams are handled properly
@@ -1230,6 +1238,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
+        wipeAllIndices(preserveSecurityIndices, cleanupClient());
+    }
+
+    protected static void wipeAllIndices(boolean preserveSecurityIndices, RestClient cleanupClient) throws IOException {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
@@ -1248,7 +1260,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 RequestOptions.DEFAULT.toBuilder().setWarningsHandler(ESRestTestCase::ignoreSystemIndexAccessWarnings)
             );
 
-            final Response response = cleanupClient().performRequest(deleteRequest);
+            final Response response = cleanupClient.performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }
@@ -2544,7 +2556,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 objectPath.evaluate("nodes." + id + ".transport_version"),
                 () -> TransportVersion.minimumCompatible()
             );
-            if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
+            if (minTransportVersion == null || transportVersion.supports(minTransportVersion) == false) {
                 minTransportVersion = transportVersion;
             }
         }
@@ -2751,17 +2763,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         return matchesMap() //
             .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
+            .entry("parsing", instanceOf(Map.class))
+            .entry("preanalysis", instanceOf(Map.class))
+            .entry("dependency_resolution", instanceOf(Map.class))
+            .entry("analysis", instanceOf(Map.class))
             .entry("drivers", instanceOf(List.class))
-            .entry("plans", instanceOf(List.class));
+            .entry("plans", instanceOf(List.class))
+            .entry("minimumTransportVersion", instanceOf(Integer.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound) {
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
         }
+        if (includeTimestamps) {
+            // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
+            mapMatcher = mapMatcher.entry("start_time_in_millis", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("completion_time_in_millis", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("expiration_time_in_millis", greaterThanOrEqualTo(0L));
+        }
+
         mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         // Older version may not have is_partial
         if (includePartial) {
@@ -2774,7 +2798,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Create empty result matcher from result, taking into account all metadata items.
      */
     protected static MapMatcher getResultMatcher(Map<String, Object> result) {
-        return getResultMatcher(result.containsKey("is_partial"), result.containsKey("documents_found"));
+        return getResultMatcher(
+            result.containsKey("is_partial"),
+            result.containsKey("documents_found"),
+            result.containsKey("start_time_in_millis")
+        );
     }
 
     /**

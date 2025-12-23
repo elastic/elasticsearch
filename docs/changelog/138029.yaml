@@ -1,0 +1,5 @@
+pr: 138029
+summary: Fuse MV_MIN and MV_MAX and document process
+area: ES|QL
+type: feature
+issues: []

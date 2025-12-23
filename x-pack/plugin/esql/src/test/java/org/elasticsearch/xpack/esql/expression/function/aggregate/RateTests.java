@@ -158,8 +158,8 @@ public class RateTests extends AbstractAggregationTestCase {
         assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
         assertThat(params.get(2).dataType(), equalTo(DataType.INTEGER));
         assertThat(params.get(3).dataType(), equalTo(DataType.LONG));
-        var unavailable = appliesTo(FunctionAppliesToLifecycle.UNAVAILABLE, "9.3.0", "", false);
-        DocsV3Support.Param windowParam = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(unavailable));
-        return List.of(params.get(0));
+        var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        DocsV3Support.Param window = new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview));
+        return List.of(params.get(0), window);
     }
 }

@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -57,9 +56,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
         origin = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            reopen = in.readBoolean();
-        }
+        reopen = in.readBoolean();
     }
 
     public UpdateSettingsRequest() {
@@ -204,9 +201,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings.writeTo(out);
         out.writeBoolean(preserveExisting);
         out.writeString(origin);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(reopen);
-        }
+        out.writeBoolean(reopen);
     }
 
     @Override

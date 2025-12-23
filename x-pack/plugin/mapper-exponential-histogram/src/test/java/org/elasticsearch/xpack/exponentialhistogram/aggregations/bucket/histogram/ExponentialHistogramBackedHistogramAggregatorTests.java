@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.exponentialhistogram.aggregations.bucket.histogr
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -67,7 +67,7 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
         Map<Double, Long> expectedHistogram = computeExpectedHistogram(histograms, interval, offset);
 
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             histoAgg -> histoAgg.interval(interval).offset(offset),
             iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)),
             histogram -> {
@@ -95,7 +95,7 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
         );
 
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             histoAgg -> histoAgg.interval(5).minDocCount(2),
             iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)),
             histogram -> {
@@ -114,7 +114,7 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, histogram -> {
             assertThat(histogram.getBuckets().isEmpty(), equalTo(true));
@@ -124,7 +124,7 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
 
     public void testNoMatchingField() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(10);
-        testCase(new MatchAllDocsQuery(), iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), histogram -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), histogram -> {
             assertThat(histogram.getBuckets().isEmpty(), equalTo(true));
             assertThat(AggregationInspectionHelper.hasValue(histogram), equalTo(false));
         });
@@ -194,7 +194,7 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
     }
 
     private MappedFieldType defaultFieldType(String fieldName) {
-        return new ExponentialHistogramFieldMapper.ExponentialHistogramFieldType(fieldName, Collections.emptyMap());
+        return new ExponentialHistogramFieldMapper.ExponentialHistogramFieldType(fieldName, Collections.emptyMap(), null);
     }
 
     private Map<Double, Long> computeExpectedHistogram(List<ExponentialHistogram> histograms, double interval, double offset) {

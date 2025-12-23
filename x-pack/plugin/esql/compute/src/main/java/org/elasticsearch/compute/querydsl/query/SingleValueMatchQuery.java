@@ -19,7 +19,6 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -27,6 +26,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -210,7 +210,7 @@ public final class SingleValueMatchQuery extends Query {
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         if (fieldData instanceof ConstantIndexFieldData cfd && cfd.getValue() != null) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         for (LeafReaderContext context : indexSearcher.getIndexReader().leaves()) {
             final LeafReader reader = context.reader();
@@ -248,7 +248,7 @@ public final class SingleValueMatchQuery extends Query {
                 return super.rewrite(indexSearcher);
             }
         }
-        return new MatchAllDocsQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override

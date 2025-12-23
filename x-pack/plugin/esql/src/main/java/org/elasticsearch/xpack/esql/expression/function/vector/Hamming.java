@@ -42,6 +42,11 @@ public class Hamming extends VectorSimilarityFunction {
         public BlockLoaderFunctionConfig.Function function() {
             return BlockLoaderFunctionConfig.Function.V_HAMMING;
         }
+
+        @Override
+        public String toString() {
+            return "V_HAMMING";
+        }
     };
     public static final DenseVectorFieldMapper.SimilarityFunction EVALUATOR_SIMILARITY_FUNCTION =
         new DenseVectorFieldMapper.SimilarityFunction() {
@@ -74,7 +79,7 @@ public class Hamming extends VectorSimilarityFunction {
         preview = true,
         description = "Calculates the Hamming distance between two dense vectors.",
         examples = { @Example(file = "vector-hamming", tag = "vector-hamming") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public Hamming(
         Source source,

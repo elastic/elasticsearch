@@ -138,6 +138,12 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false && dt != DataType.DATE_RANGE,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types or date_range"
+        );
     }
 }

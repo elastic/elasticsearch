@@ -153,10 +153,14 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.EXPONENTIAL_HISTOGRAM && dt != DataType.TDIGEST && dt != DataType.HISTOGRAM,
+            dt -> dt.isCounter() == false
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.TDIGEST
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types, tdigest, histogram, or exponential_histogram"
+            "any type except counter types, tdigest, histogram, exponential_histogram, or date_range"
         );
     }
 

@@ -132,7 +132,13 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false && dt != DataType.DATE_RANGE,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types or date_range"
+        );
     }
 
     @Override

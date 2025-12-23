@@ -32,12 +32,17 @@ public class AbsentErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        assert false : "All checked types must work";
-        return null;
+        return equalTo(
+            "argument of ["
+                + signature.getFirst().esType()
+                + "] must be [any type except counter types or date_range], found value [] type ["
+                + signature.getFirst().esType()
+                + "]"
+        );
     }
 
     @Override
     protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
-        assertThat(invalidSignatureSamples, equalTo(Set.of()));
+        assertThat(invalidSignatureSamples, equalTo(Set.of(List.of(DataType.DATE_PERIOD))));
     }
 }

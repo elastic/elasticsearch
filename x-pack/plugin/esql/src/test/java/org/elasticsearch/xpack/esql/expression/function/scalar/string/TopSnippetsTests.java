@@ -126,7 +126,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                 MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
                 List<String> scoredChunks = scorer.scoreChunks(chunks, query, numSnippets, false)
                     .stream()
-                    .map(ScoredChunk::content)
+                    .map(MemoryIndexChunkScorer.ScoredChunk::content)
                     .toList();
 
                 Object expectedResult;

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.security.slowlog;
 
+import org.elasticsearch.index.ActionLogFieldProvider;
+import org.elasticsearch.index.ActionLogFields;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.xpack.security.Security;
 
 import java.util.Map;
@@ -17,14 +17,14 @@ import java.util.Map;
 import static org.elasticsearch.index.IndexingSlowLog.INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING;
 import static org.elasticsearch.index.SearchSlowLog.INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING;
 
-public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
+public class SecurityActionLogFieldProvider implements ActionLogFieldProvider {
     private final Security plugin;
 
-    private class SecuritySlowLogFields implements SlowLogFields {
+    private class SecurityActionLogFields implements ActionLogFields {
         private boolean includeUserInIndexing = false;
         private boolean includeUserInSearch = false;
 
-        SecuritySlowLogFields(IndexSettings indexSettings) {
+        SecurityActionLogFields(IndexSettings indexSettings) {
             indexSettings.getScopedSettings()
                 .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING, newValue -> this.includeUserInSearch = newValue);
             this.includeUserInSearch = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING);
@@ -33,7 +33,7 @@ public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
             this.includeUserInIndexing = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING);
         }
 
-        SecuritySlowLogFields() {}
+        SecurityActionLogFields() {}
 
         @Override
         public Map<String, String> indexFields() {
@@ -57,21 +57,21 @@ public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
         }
     }
 
-    public SecuritySlowLogFieldProvider() {
+    public SecurityActionLogFieldProvider() {
         throw new IllegalStateException("Provider must be constructed using PluginsService");
     }
 
-    public SecuritySlowLogFieldProvider(Security plugin) {
+    public SecurityActionLogFieldProvider(Security plugin) {
         this.plugin = plugin;
     }
 
     @Override
-    public SlowLogFields create(IndexSettings indexSettings) {
-        return new SecuritySlowLogFields(indexSettings);
+    public ActionLogFields create(IndexSettings indexSettings) {
+        return new SecurityActionLogFields(indexSettings);
     }
 
     @Override
-    public SlowLogFields create() {
-        return new SecuritySlowLogFields();
+    public ActionLogFields create() {
+        return new SecurityActionLogFields();
     }
 }

@@ -45,7 +45,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     private static final Logger queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     private static final Logger fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
 
-    private final SlowLogFields slowLogFields;
+    private final ActionLogFields slowLogFields;
 
     public static final Setting<Boolean> INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".include.user",
@@ -126,7 +126,7 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    public SearchSlowLog(IndexSettings indexSettings, SlowLogFields slowLogFields) {
+    public SearchSlowLog(IndexSettings indexSettings, ActionLogFields slowLogFields) {
         this.slowLogFields = slowLogFields;
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);

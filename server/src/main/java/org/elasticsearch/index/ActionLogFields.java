@@ -12,24 +12,24 @@ package org.elasticsearch.index;
 import java.util.Map;
 
 /**
- * Fields for the slow log. These may be different each call depending on the state of the system.
+ * Fields for the action log. These may be different each call depending on the state of the system.
  */
-public interface SlowLogFields {
+public interface ActionLogFields {
 
     /**
-     * Slow log fields for indexing events
+     * Log fields for indexing events
      * @return map of field name to value
      */
     Map<String, String> indexFields();
 
     /**
-     * Slow log fields for search events
+     * Log fields for search events
      * @return map of field name to value
      */
     Map<String, String> searchFields();
 
     /**
-     * Slow log fields for query
+     * Log fields for query
      * @return map of field name to value
      */
     default Map<String, String> queryFields() {

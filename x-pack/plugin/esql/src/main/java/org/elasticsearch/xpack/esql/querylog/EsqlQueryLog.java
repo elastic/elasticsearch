@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
+import org.elasticsearch.index.ActionLogFieldProvider;
+import org.elasticsearch.index.ActionLogFields;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -45,7 +45,7 @@ public final class EsqlQueryLog {
 
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
-    private final SlowLogFields additionalFields;
+    private final ActionLogFields additionalFields;
 
     private volatile long queryWarnThreshold;
     private volatile long queryInfoThreshold;
@@ -54,14 +54,14 @@ public final class EsqlQueryLog {
 
     private volatile boolean includeUser;
 
-    public EsqlQueryLog(ClusterSettings settings, SlowLogFieldProvider slowLogFieldProvider) {
+    public EsqlQueryLog(ClusterSettings settings, ActionLogFieldProvider actionLogFieldProvider) {
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_WARN_SETTING, this::setQueryWarnThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_INFO_SETTING, this::setQueryInfoThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING, this::setQueryTraceThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, this::setIncludeUser);
 
-        this.additionalFields = slowLogFieldProvider.create();
+        this.additionalFields = actionLogFieldProvider.create();
     }
 
     public void onQueryPhase(Versioned<Result> esqlResult, String query) {

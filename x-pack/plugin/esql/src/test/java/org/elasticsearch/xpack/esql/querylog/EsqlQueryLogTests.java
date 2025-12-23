@@ -19,9 +19,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLogFieldProvider;
+import org.elasticsearch.index.ActionLogFields;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -139,16 +139,16 @@ public class EsqlQueryLogTests extends ESTestCase {
 
     }
 
-    private SlowLogFieldProvider mockFieldProvider() {
-        return new SlowLogFieldProvider() {
+    private ActionLogFieldProvider mockFieldProvider() {
+        return new ActionLogFieldProvider() {
             @Override
-            public SlowLogFields create(IndexSettings indexSettings) {
+            public ActionLogFields create(IndexSettings indexSettings) {
                 return create();
             }
 
             @Override
-            public SlowLogFields create() {
-                return new SlowLogFields() {
+            public ActionLogFields create() {
+                return new ActionLogFields() {
                     @Override
                     public Map<String, String> indexFields() {
                         return Map.of();

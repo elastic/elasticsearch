@@ -347,7 +347,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             final int minLength = tsdbValuesProducer.mergeStats.minLength();
             final int maxLength = tsdbValuesProducer.mergeStats.maxLength();
             BytesRef minValue = tsdbValuesProducer.mergeStats.minValue();
-            BytesRef maxValue = tsdbValuesProducer.mergeStats.maxValue();;
+            BytesRef maxValue = tsdbValuesProducer.mergeStats.maxValue();
+            ;
 
             assert numDocsWithField <= maxDoc;
 

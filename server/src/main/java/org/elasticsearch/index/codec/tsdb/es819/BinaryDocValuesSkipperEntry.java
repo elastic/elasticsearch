@@ -11,5 +11,4 @@ package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.util.BytesRef;
 
-public record BinaryDocValuesSkipperEntry(int numDocsWithField, BytesRef minValue, BytesRef maxValue) {
-}
+public record BinaryDocValuesSkipperEntry(int numDocsWithField, BytesRef minValue, BytesRef maxValue) {}

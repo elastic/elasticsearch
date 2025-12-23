@@ -1528,6 +1528,25 @@ public class MasterService extends AbstractLifecycleComponent {
         );
     }
 
+    /**
+     * Allows to impose an optional limit on a master node timeout specified in a request.
+     *
+     * @param requestTimeout The requested master-node timeout.
+     * @param maxTimeout     The maximum configured master-node timeout.
+     * @return An appropriate master-node timeout for the task.
+     */
+    public static TimeValue maybeLimitMasterNodeTimeout(TimeValue requestTimeout, TimeValue maxTimeout) {
+        if (maxTimeout.millis() <= 0) {
+            // no max timeout specified
+            return requestTimeout;
+        }
+        if (requestTimeout.millis() <= 0) {
+            // requesting infinite timeout, so limit applies
+            return maxTimeout;
+        }
+        return TimeValue.min(requestTimeout, maxTimeout);
+    }
+
     @FunctionalInterface
     private interface BatchConsumer<T extends ClusterStateTaskListener> {
         void runBatch(

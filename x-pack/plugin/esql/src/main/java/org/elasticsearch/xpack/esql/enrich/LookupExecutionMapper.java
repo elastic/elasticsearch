@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -21,6 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator;
+import org.elasticsearch.compute.operator.OutputOperator.CollectedPagesProvider;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -30,10 +29,10 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
-import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -56,7 +55,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -68,17 +67,64 @@ import java.util.function.Function;
 public class LookupExecutionMapper {
     private final BlockFactory blockFactory;
     private final BigArrays bigArrays;
-    private final boolean mergePages;
+    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
-    public LookupExecutionMapper(
-        BlockFactory blockFactory,
-        BigArrays bigArrays,
-        LocalCircuitBreaker.SizeSettings localBreakerSettings,
-        boolean mergePages
-    ) {
+    /**
+     * Extended DriverContext that provides access to ShardContext, LookupShardContext, collectedPages, and inputPage.
+     * This allows factories to retrieve ShardContext, SearchExecutionContext (from LookupShardContext),
+     * collectedPages, and inputPage at operator creation time.
+     * SearchExecutionContext is retrieved dynamically from LookupShardContext to avoid caching stale references.
+     */
+    static class LookupDriverContext extends DriverContext implements CollectedPagesProvider {
+        private final ShardContext shardContext;
+        private final AbstractLookupService.LookupShardContext lookupShardContext;
+        private final List<Page> collectedPages;
+        private final Page inputPage;
+
+        LookupDriverContext(
+            BigArrays bigArrays,
+            BlockFactory blockFactory,
+            ShardContext shardContext,
+            AbstractLookupService.LookupShardContext lookupShardContext,
+            List<Page> collectedPages,
+            Page inputPage
+        ) {
+            super(bigArrays, blockFactory);
+            this.shardContext = shardContext;
+            this.lookupShardContext = lookupShardContext;
+            this.collectedPages = collectedPages;
+            this.inputPage = inputPage;
+        }
+
+        ShardContext shardContext() {
+            return shardContext;
+        }
+
+        AbstractLookupService.LookupShardContext lookupShardContext() {
+            return lookupShardContext;
+        }
+
+        /**
+         * Get SearchExecutionContext dynamically from LookupShardContext to ensure it's current and not stale.
+         */
+        SearchExecutionContext searchExecutionContext() {
+            return lookupShardContext.executionContext();
+        }
+
+        @Override
+        public List<Page> collectedPages() {
+            return collectedPages;
+        }
+
+        Page inputPage() {
+            return inputPage;
+        }
+    }
+
+    public LookupExecutionMapper(BlockFactory blockFactory, BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this.blockFactory = blockFactory;
         this.bigArrays = bigArrays;
-        this.mergePages = mergePages;
+        this.localBreakerSettings = localBreakerSettings;
     }
 
     /**
@@ -87,26 +133,41 @@ public class LookupExecutionMapper {
     public PhysicalOperation buildOperatorFactories(
         AbstractLookupService.TransportRequest request,
         PhysicalPlan physicalPlan,
-        AbstractLookupService.LookupShardContext shardContext,
         Warnings warnings,
-        BlockOptimization blockOptimization,
-        List<Page> collectedPages
+        BlockOptimization blockOptimization
     ) throws IOException {
-        return planLookupNode(physicalPlan, request, shardContext, warnings, blockOptimization, collectedPages);
+        return planLookupNode(physicalPlan, request, warnings, blockOptimization);
     }
 
     /**
      * Creates the actual operators from the PhysicalOperation using DriverContext.
+     * The collectedPages list is created here and stored in LookupDriverContext.
      */
     public LookupFromIndexService.LookupQueryPlan buildOperators(
         PhysicalOperation physicalOperation,
         AbstractLookupService.LookupShardContext shardContext,
-        LocalCircuitBreaker localBreaker,
-        List<Page> collectedPages,
-        List<Releasable> releasables
+        List<Releasable> releasables,
+        Page inputPage
     ) {
-        // Create driver context
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
+
+        final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
+            blockFactory.breaker(),
+            localBreakerSettings.overReservedBytes(),
+            localBreakerSettings.maxOverReservedBytes()
+        );
+        releasables.add(localBreaker);
+
+        // Create collectedPages list that will be used by OutputOperatorFactory
+        List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+
+        LookupDriverContext driverContext = new LookupDriverContext(
+            bigArrays,
+            blockFactory.newChildFactory(localBreaker),
+            shardContext.context(),
+            shardContext,
+            collectedPages,
+            inputPage
+        );
 
         // Create operators from factories
         SourceOperator sourceOperator = physicalOperation.source(driverContext);
@@ -138,27 +199,25 @@ public class LookupExecutionMapper {
     private PhysicalOperation planLookupNode(
         PhysicalPlan node,
         AbstractLookupService.TransportRequest request,
-        AbstractLookupService.LookupShardContext shardContext,
         Warnings warnings,
-        BlockOptimization optimizationState,
-        List<Page> collectedPages
+        BlockOptimization optimizationState
     ) throws IOException {
         PhysicalOperation source;
         if (node instanceof UnaryExec unaryExec) {
-            source = planLookupNode(unaryExec.child(), request, shardContext, warnings, optimizationState, collectedPages);
+            source = planLookupNode(unaryExec.child(), request, warnings, optimizationState);
         } else {
             source = null;
         }
 
         // Plan this node based on its type
         if (node instanceof ParameterizedQueryExec parameterizedQueryExec) {
-            return planParameterizedQueryExec(parameterizedQueryExec, request, shardContext, warnings, optimizationState);
+            return planParameterizedQueryExec(parameterizedQueryExec, request, warnings, optimizationState);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
-            return planFieldExtractExec(fieldExtractExec, source, shardContext);
+            return planFieldExtractExec(fieldExtractExec, source);
         } else if (node instanceof ProjectExec projectExec) {
             return planProjectExec(projectExec, source);
         } else if (node instanceof OutputExec outputExec) {
-            return planOutputExec(outputExec, source, collectedPages);
+            return planOutputExec(outputExec, source);
         } else {
             throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
         }
@@ -170,7 +229,6 @@ public class LookupExecutionMapper {
     private PhysicalOperation planParameterizedQueryExec(
         ParameterizedQueryExec parameterizedQueryExec,
         AbstractLookupService.TransportRequest request,
-        AbstractLookupService.LookupShardContext shardContext,
         Warnings warnings,
         BlockOptimization optimizationState
     ) {
@@ -187,9 +245,7 @@ public class LookupExecutionMapper {
             new EnrichQuerySourceOperatorFactory(
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
-                request.inputPage,
                 optimizationState,
-                new IndexedByShardIdFromSingleton<>(shardContext.context()),
                 0,
                 warnings
             ),
@@ -200,35 +256,10 @@ public class LookupExecutionMapper {
     /**
      * Plans FieldExtractExec into a PhysicalOperation with ValuesSourceReaderOperatorFactory.
      */
-    private PhysicalOperation planFieldExtractExec(
-        FieldExtractExec fieldExtractExec,
-        PhysicalOperation source,
-        AbstractLookupService.LookupShardContext shardContext
-    ) {
-        EsPhysicalOperationProviders.ShardContext esShardContext = shardContext.context();
-        List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(fieldExtractExec.attributesToExtract().size());
-        for (NamedExpression extractField : fieldExtractExec.attributesToExtract()) {
-            String fieldName = extractFieldName(extractField);
-            BlockLoader loader = esShardContext.blockLoader(
-                fieldName,
-                extractField.dataType() == DataType.UNSUPPORTED,
-                MappedFieldType.FieldExtractPreference.NONE,
-                null
-            );
-            fields.add(
-                new ValuesSourceReaderOperator.FieldInfo(
-                    extractField.name(),
-                    PlannerUtils.toElementType(extractField.dataType()),
-                    false,
-                    shardIdx -> {
-                        if (shardIdx != 0) {
-                            throw new IllegalStateException("only one shard");
-                        }
-                        return loader;
-                    }
-                )
-            );
-        }
+    private PhysicalOperation planFieldExtractExec(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+        // Store field information instead of creating BlockLoader here (phase 2)
+        // BlockLoader will be created dynamically in phase 3 using fresh shardContext
+        List<Attribute> attributesToExtract = fieldExtractExec.attributesToExtract();
 
         Layout.Builder layoutBuilder = new Layout.Builder();
         for (Attribute attr : fieldExtractExec.output()) {
@@ -236,21 +267,72 @@ public class LookupExecutionMapper {
         }
         Layout layout = layoutBuilder.build();
 
-        return source.with(
-            new ValuesSourceReaderOperator.Factory(
-                org.elasticsearch.common.unit.ByteSizeValue.ofBytes(Long.MAX_VALUE),
-                fields,
-                new IndexedByShardIdFromSingleton<>(
+        // Create a factory that builds ShardContext and BlockLoader dynamically from LookupDriverContext
+        // to avoid caching stale IndexReader references when PhysicalOperation is cached
+        org.elasticsearch.common.unit.ByteSizeValue jumboSize = org.elasticsearch.common.unit.ByteSizeValue.ofBytes(Long.MAX_VALUE);
+        return source.with(new OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                // In lookup execution path, driverContext is always LookupDriverContext
+                LookupDriverContext lookupDriverContext = (LookupDriverContext) driverContext;
+                EsPhysicalOperationProviders.ShardContext esShardContext = lookupDriverContext.lookupShardContext().context();
+
+                // Create BlockLoader dynamically using fresh shardContext from LookupDriverContext
+                List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(attributesToExtract.size());
+                for (Attribute attr : attributesToExtract) {
+                    NamedExpression extractField = (NamedExpression) attr;
+                    BlockLoader loader = esShardContext.blockLoader(
+                        extractFieldName(extractField),
+                        extractField.dataType() == DataType.UNSUPPORTED,
+                        MappedFieldType.FieldExtractPreference.NONE,
+                        null
+                    );
+                    fields.add(
+                        new ValuesSourceReaderOperator.FieldInfo(
+                            extractField.name(),
+                            PlannerUtils.toElementType(extractField.dataType()),
+                            false,
+                            shardIdx -> {
+                                if (shardIdx != 0) {
+                                    throw new IllegalStateException("only one shard");
+                                }
+                                return loader;
+                            }
+                        )
+                    );
+                }
+
+                IndexedByShardId<ValuesSourceReaderOperator.ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(
                     new ValuesSourceReaderOperator.ShardContext(
                         esShardContext.searcher().getIndexReader(),
                         esShardContext::newSourceLoader,
                         EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(org.elasticsearch.common.settings.Settings.EMPTY)
                     )
-                ),
-                0
-            ),
-            layout
-        );
+                );
+                return new ValuesSourceReaderOperator(driverContext.blockFactory(), jumboSize.getBytes(), fields, shardContexts, 0);
+            }
+
+            @Override
+            public String describe() {
+                StringBuilder sb = new StringBuilder();
+                sb.append("ValuesSourceReaderOperator[fields = [");
+                if (attributesToExtract.size() < 10) {
+                    boolean first = true;
+                    for (Attribute attr : attributesToExtract) {
+                        if (first) {
+                            first = false;
+                        } else {
+                            sb.append(", ");
+                        }
+                        sb.append(attr.name());
+                    }
+                } else {
+                    sb.append(attributesToExtract.size()).append(" fields");
+                }
+                sb.append("]]");
+                return sb.toString();
+            }
+        }, layout);
     }
 
     /**
@@ -277,13 +359,11 @@ public class LookupExecutionMapper {
 
     /**
      * Plans OutputExec into a PhysicalOperation with OutputOperatorFactory.
+     * The OutputOperatorFactory will get collectedPages from LookupDriverContext via CollectedPagesProvider.
      */
-    private PhysicalOperation planOutputExec(OutputExec outputExec, PhysicalOperation source, List<Page> collectedPages) {
+    private PhysicalOperation planOutputExec(OutputExec outputExec, PhysicalOperation source) {
         var output = outputExec.output();
-        return source.withSink(
-            new OutputOperatorFactory(Expressions.names(output), Function.identity(), collectedPages::add),
-            source.layout()
-        );
+        return source.withSink(new OutputOperatorFactory(Expressions.names(output), Function.identity(), page -> {}), source.layout());
     }
 
     /**
@@ -293,14 +373,19 @@ public class LookupExecutionMapper {
     private record EnrichQuerySourceOperatorFactory(
         int maxPageSize,
         LookupEnrichQueryGenerator queryList,
-        Page inputPage,
         BlockOptimization blockOptimization,
-        IndexedByShardIdFromSingleton<? extends ShardContext> shardContexts,
         int shardId,
         Warnings warnings
     ) implements SourceOperatorFactory {
         @Override
         public SourceOperator get(DriverContext driverContext) {
+            // In lookup execution path, driverContext is always LookupDriverContext
+            LookupDriverContext lookupDriverContext = (LookupDriverContext) driverContext;
+            ShardContext shardContext = lookupDriverContext.shardContext();
+            SearchExecutionContext searchExecutionContext = lookupDriverContext.searchExecutionContext();
+            Page inputPage = lookupDriverContext.inputPage();
+            IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
+
             return new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 maxPageSize,
@@ -309,6 +394,7 @@ public class LookupExecutionMapper {
                 blockOptimization,
                 shardContexts,
                 shardId,
+                searchExecutionContext,
                 warnings
             );
         }
@@ -317,56 +403,6 @@ public class LookupExecutionMapper {
         public String describe() {
             return "EnrichQuerySourceOperator[maxPageSize=" + maxPageSize + "]";
         }
-    }
-
-    /**
-     * Factory for MergePositionsOperator.
-     */
-    private record MergePositionsOperatorFactory(
-        int positionChannel,
-        int[] mergingChannels,
-        ElementType[] mergingTypes,
-        BlockOptimization blockOptimization,
-        Page inputPage
-    ) implements OperatorFactory {
-        @Override
-        public Operator get(DriverContext driverContext) {
-            return new MergePositionsOperator(
-                positionChannel,
-                mergingChannels,
-                mergingTypes,
-                blockOptimization,
-                inputPage,
-                driverContext.blockFactory()
-            );
-        }
-
-        @Override
-        public String describe() {
-            return "MergePositionsOperator[positionChannel="
-                + positionChannel
-                + ", mergingChannels="
-                + Arrays.toString(mergingChannels)
-                + "]";
-        }
-    }
-
-    /**
-     * Determines the optimization applicable for the input page.
-     * Returns the state that indicates what optimization can be applied:
-     * - DICTIONARY: input block has ordinals, can use dictionary block and ordinals
-     * - RANGE: need to create range block for selected positions
-     * - NONE: no optimization needed
-     */
-    public BlockOptimization determineOptimization(Page inputPage) {
-        if (mergePages == false) {
-            return BlockOptimization.NONE;
-        }
-        Block inputBlock = inputPage.getBlock(0);
-        if (inputBlock instanceof BytesRefBlock bytesRefBlock && bytesRefBlock.asOrdinals() != null) {
-            return BlockOptimization.DICTIONARY;
-        }
-        return BlockOptimization.RANGE;
     }
 
     /**

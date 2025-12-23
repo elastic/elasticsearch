@@ -53,10 +53,10 @@ public final class MergePositionsOperator implements Operator {
     private boolean finished = false;
     private final int positionChannel;
     private final EnrichResultBuilder[] builders;
+    private IntBlock selectedPositions;
     private final BlockFactory blockFactory;
     private final BlockOptimization optimizationState;
     private final Page inputPage;
-    private IntBlock selectedPositions;
     boolean selectedPositionsNeedsRelease = false;
 
     private Page outputPage;

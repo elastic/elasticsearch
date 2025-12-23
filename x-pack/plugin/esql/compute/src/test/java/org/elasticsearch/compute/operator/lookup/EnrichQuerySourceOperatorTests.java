@@ -88,23 +88,26 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         ) {
             MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
             Page inputPage = new Page(inputTerms);
-            QueryList queryList = QueryList.rawTermQueryList(
-                uidField,
-                directoryData.searchExecutionContext,
-                AliasFilter.EMPTY,
-                0,
-                ElementType.BYTES_REF
-            );
+            QueryList queryList = QueryList.rawTermQueryList(uidField, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
             assertThat(queryList.getPositionCount(inputPage), equalTo(6));
-            assertThat(queryList.getQuery(0, inputPage), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
             assertThat(
-                queryList.getQuery(1, inputPage),
+                queryList.getQuery(0, inputPage, directoryData.searchExecutionContext),
+                equalTo(new TermQuery(new Term("uid", new BytesRef("b2"))))
+            );
+            assertThat(
+                queryList.getQuery(1, inputPage, directoryData.searchExecutionContext),
                 equalTo(new TermInSetQuery("uid", List.of(new BytesRef("c1"), new BytesRef("a2"))))
             );
-            assertThat(queryList.getQuery(2, inputPage), equalTo(new TermQuery(new Term("uid", new BytesRef("z2")))));
-            assertNull(queryList.getQuery(3, inputPage));
-            assertThat(queryList.getQuery(4, inputPage), equalTo(new TermQuery(new Term("uid", new BytesRef("a3")))));
-            assertNull(queryList.getQuery(5, inputPage));
+            assertThat(
+                queryList.getQuery(2, inputPage, directoryData.searchExecutionContext),
+                equalTo(new TermQuery(new Term("uid", new BytesRef("z2"))))
+            );
+            assertNull(queryList.getQuery(3, inputPage, directoryData.searchExecutionContext));
+            assertThat(
+                queryList.getQuery(4, inputPage, directoryData.searchExecutionContext),
+                equalTo(new TermQuery(new Term("uid", new BytesRef("a3"))))
+            );
+            assertNull(queryList.getQuery(5, inputPage, directoryData.searchExecutionContext));
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> [1, 4]
@@ -122,6 +125,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     BlockOptimization.NONE,
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
+                    directoryData.searchExecutionContext,
                     warnings()
                 )
             ) {
@@ -173,13 +177,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         }).toList();
 
         try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
-            var queryList = QueryList.rawTermQueryList(
-                directoryData.field,
-                directoryData.searchExecutionContext,
-                AliasFilter.EMPTY,
-                0,
-                ElementType.BYTES_REF
-            );
+            var queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
             int maxPageSize = between(1, 256);
             Page inputPage = new Page(inputTerms);
             try (
@@ -191,6 +189,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     BlockOptimization.RANGE,
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
+                    directoryData.searchExecutionContext,
                     warnings()
                 )
             ) {
@@ -223,13 +222,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of("a3", "a2", "z2", "xx"))
             )
         ) {
-            QueryList queryList = QueryList.rawTermQueryList(
-                directoryData.field,
-                directoryData.searchExecutionContext,
-                AliasFilter.EMPTY,
-                0,
-                ElementType.BYTES_REF
-            ).onlySingleValues(warnings(), "multi-value found");
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF)
+                .onlySingleValues(warnings(), "multi-value found");
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> []
@@ -248,6 +242,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     BlockOptimization.NONE,
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
+                    directoryData.searchExecutionContext,
                     warnings()
                 )
             ) {

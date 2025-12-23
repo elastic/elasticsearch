@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
@@ -155,7 +156,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * figure out what to do with a {@link List} of resulting pages.
      */
     protected final boolean mergePages;
-    protected final LookupExecutionMapper executionMapper;
 
     AbstractLookupService(
         String actionName,
@@ -182,7 +182,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.mergePages = mergePages;
         this.projectResolver = projectResolver;
-        this.executionMapper = new LookupExecutionMapper(blockFactory, bigArrays, localBreakerSettings, mergePages);
         transportService.registerRequestHandler(
             actionName,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -221,24 +220,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      */
     protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException;
 
-    protected static QueryList termQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        int channelOffset,
-        DataType inputDataType
-    ) {
+    protected static QueryList termQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset, DataType inputDataType) {
         return switch (inputDataType) {
-            case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
-            case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
-            case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
-            default -> QueryList.rawTermQueryList(
-                field,
-                searchExecutionContext,
-                aliasFilter,
-                channelOffset,
-                PlannerUtils.toElementType(inputDataType)
-            );
+            case IP -> QueryList.ipTermQueryList(field, aliasFilter, channelOffset);
+            case DATETIME -> QueryList.dateTermQueryList(field, aliasFilter, channelOffset);
+            case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, aliasFilter, channelOffset);
+            default -> QueryList.rawTermQueryList(field, aliasFilter, channelOffset, PlannerUtils.toElementType(inputDataType));
         };
     }
 
@@ -323,7 +310,22 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             }
             final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
             final Operator finishPages;
-            BlockOptimization blockOptimization = executionMapper.determineOptimization(request.inputPage);
+            // Determines the optimization applicable for the input page.
+            // Returns the state that indicates what optimization can be applied:
+            // - DICTIONARY: input block has ordinals, can use dictionary block and ordinals
+            // - RANGE: need to create range block for selected positions
+            // - NONE: no optimization needed
+            BlockOptimization blockOptimization;
+            if (mergePages == false) {
+                blockOptimization = BlockOptimization.NONE;
+            } else {
+                Block inputBlock = request.inputPage.getBlock(0);
+                if (inputBlock instanceof BytesRefBlock bytesRefBlock && bytesRefBlock.asOrdinals() != null) {
+                    blockOptimization = BlockOptimization.DICTIONARY;
+                } else {
+                    blockOptimization = BlockOptimization.RANGE;
+                }
+            }
             if (mergePages) {
                 finishPages = new MergePositionsOperator(
                     1,
@@ -352,6 +354,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 blockOptimization,
                 new IndexedByShardIdFromSingleton<>(shardContext.context),
                 0,
+                shardContext.executionContext,
                 warnings
             );
             releasables.add(queryOperator);

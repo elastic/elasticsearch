@@ -66,7 +66,6 @@ import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -80,8 +79,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
     private static final Logger logger = LogManager.getLogger(LookupFromIndexService.class);
 
+    /**
+     * Switch between new streaming implementation and base class implementation.
+     */
+    protected static boolean USE_STREAMING_LOOKUP = true;
+
     private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
+
+    private final LookupExecutionMapper executionMapper;
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -106,6 +112,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             TransportRequest::readFrom,
             projectResolver
         );
+        this.executionMapper = new LookupExecutionMapper(blockFactory, bigArrays, localBreakerSettings);
     }
 
     @Override
@@ -138,13 +145,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             for (int i = 0; i < request.matchFields.size(); i++) {
                 MatchConfig matchField = request.matchFields.get(i);
                 int channelOffset = matchField.channel();
-                QueryList q = termQueryList(
-                    context.getFieldType(matchField.fieldName()),
-                    context,
-                    aliasFilter,
-                    channelOffset,
-                    matchField.type()
-                );
+                QueryList q = termQueryList(context.getFieldType(matchField.fieldName()), aliasFilter, channelOffset, matchField.type());
                 queryLists.add(q.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
             }
             if (queryLists.size() == 1 && lookupNodePlan instanceof FilterExec == false) {
@@ -426,7 +427,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     @Override
     protected void doLookup(TransportRequest request, CancellableTask task, ActionListener<List<Page>> listener) {
-        doLookupStreaming(request, task, listener);
+        if (USE_STREAMING_LOOKUP) {
+            doLookupStreaming(request, task, listener);
+        } else {
+            super.doLookup(request, task, listener);
+        }
     }
 
     protected void doLookupStreaming(
@@ -445,47 +450,18 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-            // Phase 1: Physical Planning
+            LocalExecutionPlanner.PhysicalOperation physicalOperation = buildOperatorFactories(request);
+
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release());
-            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext);
 
-            final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
-                blockFactory.breaker(),
-                localBreakerSettings.overReservedBytes(),
-                localBreakerSettings.maxOverReservedBytes()
-            );
-            releasables.add(localBreaker);
-
-            var warnings = Warnings.createWarnings(
-                DriverContext.WarningsMode.COLLECT,
-                request.source.source().getLineNumber(),
-                request.source.source().getColumnNumber(),
-                request.source.text()
-            );
-
-            List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-
-            // Phase 2: Build PhysicalOperation, a factory for Operators needed
-            LocalExecutionPlanner.PhysicalOperation physicalOperation = executionMapper.buildOperatorFactories(
-                request,
-                physicalPlan,
-                shardContext,
-                warnings,
-                BlockOptimization.NONE,
-                collectedPages
-            );
-
-            // Phase 3: Build Operators
             LookupQueryPlan lookupQueryPlan = executionMapper.buildOperators(
                 physicalOperation,
                 shardContext,
-                localBreaker,
-                collectedPages,
-                releasables
+                releasables,
+                request.inputPage
             );
 
-            // Phase 4: Start Driver
             startDriver(request, task, listener, lookupQueryPlan);
             started = true;
         } catch (Exception e) {
@@ -498,10 +474,32 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     /**
+     * Builds operator factories for lookup.
+     * The factories do not refer to any input data,
+     * so they can be reused across multiple calls with different input pages.
+     */
+    private LocalExecutionPlanner.PhysicalOperation buildOperatorFactories(TransportRequest request) throws IOException {
+        LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
+        try (Releasable ignored = shardContext.release()) {
+            var warnings = Warnings.createWarnings(
+                DriverContext.WarningsMode.COLLECT,
+                request.source.source().getLineNumber(),
+                request.source.source().getColumnNumber(),
+                request.source.text()
+            );
+
+            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext, warnings);
+
+            return executionMapper.buildOperatorFactories(request, physicalPlan, warnings, BlockOptimization.NONE);
+        }
+    }
+
+    /**
      * Creates a PhysicalPlan tree representing the lookup operation structure.
      * This plan can be cached and reused across multiple calls with different input data.
      */
-    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request, LookupShardContext shardContext) throws IOException {
+    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request, LookupShardContext shardContext, Warnings warnings)
+        throws IOException {
         var projectState = projectResolver.getProjectState(clusterService.state());
         AliasFilter aliasFilter = indicesService.buildAliasFilter(
             projectState,
@@ -522,12 +520,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         // Use the reference attribute directly
         sourceOutput.add(AbstractLookupService.LOOKUP_POSITIONS_FIELD);
 
-        var warnings = Warnings.createWarnings(
-            DriverContext.WarningsMode.COLLECT,
-            request.source.source().getLineNumber(),
-            request.source.source().getColumnNumber(),
-            request.source.text()
-        );
         LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext(), aliasFilter, warnings);
 
         ParameterizedQueryExec source = new ParameterizedQueryExec(request.source, sourceOutput, queryList);

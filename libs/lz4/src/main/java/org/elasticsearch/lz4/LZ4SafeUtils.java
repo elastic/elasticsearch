@@ -39,7 +39,7 @@ import static org.elasticsearch.lz4.LZ4Utils.notEnoughSpace;
  * <p>
  * Differences from the original are annotated with [ES change from upstream]
  *
- * @see <a href=https://github.com/yawkat/lz4-java/blob/v1.10.1/src/java/net/jpountz/lz4/LZ4SafeUtils.java">LZ4SafeUtils.java</a>
+ * @see <a href="https://github.com/yawkat/lz4-java/blob/v1.10.1/src/java/net/jpountz/lz4/LZ4SafeUtils.java">LZ4SafeUtils.java</a>
  */
 enum LZ4SafeUtils {
     ;

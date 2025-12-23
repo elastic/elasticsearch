@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.search.SearchService.FETCH_PHASE_CHUNKED_ENABLED;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -149,6 +150,8 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     }
 
     public void testWithDlsAndFls() throws Exception {
+        updateClusterSettings(Settings.builder().put(FETCH_PHASE_CHUNKED_ENABLED.getKey(), false).build());
+
         Response submitResp = submitAsyncSearch("*", "*", TimeValue.timeValueSeconds(10), "user-dls");
         assertOK(submitResp);
         SearchHit[] hits = getSearchHits(extractResponseId(submitResp), "user-dls");
@@ -171,6 +174,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
                 return "index-user2".equals(hit.getIndex()) && "1".equals(hit.getId()) && hit.getSourceAsMap().isEmpty();
             }
         }));
+        updateClusterSettings(Settings.builder().putNull(FETCH_PHASE_CHUNKED_ENABLED.getKey()).build());
     }
 
     public void testWithUsers() throws Exception {

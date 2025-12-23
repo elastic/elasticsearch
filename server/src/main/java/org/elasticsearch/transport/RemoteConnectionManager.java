@@ -260,7 +260,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         this.connectedNodes = Collections.unmodifiableList(newConnectedNodes);
     }
 
-    public static final class ProxyConnection implements Transport.Connection {
+    static final class ProxyConnection implements Transport.Connection {
         private final Transport.Connection connection;
         private final DiscoveryNode targetNode;
 

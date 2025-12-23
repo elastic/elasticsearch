@@ -581,7 +581,7 @@ public class SearchTransportService {
                     canConnectToCoordinator,
                     remoteDataNodeRequest,
                     channelVersion,
-                    hasCoordinator ? ((ShardFetchSearchRequest) request).getCoordinatingNode() : "N/A"
+                    hasCoordinator ? request.getCoordinatingNode() : "N/A"
                 );
             }
 
@@ -594,11 +594,8 @@ public class SearchTransportService {
                     @Override
                     public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
                         try {
-                            // Get connection only when actually sending chunks (not in field initializer!)
-                            Transport.Connection conn = transportService.getConnection(fetchSearchReq.getCoordinatingNode());
-
                             transportService.sendChildRequest(
-                                conn,
+                                transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
                                 TransportFetchPhaseResponseChunkAction.TYPE.name(),
                                 new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
                                 task,
@@ -617,8 +614,7 @@ public class SearchTransportService {
 
                 searchService.executeFetchPhase(request, (SearchShardTask) task, writer, new ChannelActionListener<>(channel));
             } else {
-                // Normal path - used for local requests, CCS, and version mismatches
-                logger.info("Using NORMAL fetch path (canConnectToCoordinator={})", canConnectToCoordinator);
+                // Normal path - used for CCS, and version mismatches
                 searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
         };

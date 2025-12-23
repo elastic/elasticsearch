@@ -110,7 +110,7 @@ class FetchSearchPhase extends SearchPhase {
         final int numShards = context.getNumShards();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
-        boolean queryAndFetchOptimization = numShards == 1
+        final boolean queryAndFetchOptimization = numShards == 1
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
@@ -225,7 +225,6 @@ class FetchSearchPhase extends SearchPhase {
             ? shardPhaseResult.queryResult().getContextId()
             : shardPhaseResult.rankFeatureResult().getContextId();
 
-        // Create the listener that handles the fetch result
         var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
             @Override
             public void innerOnResponse(FetchSearchResult result) {
@@ -286,7 +285,7 @@ class FetchSearchPhase extends SearchPhase {
 
             TransportVersion dataNodeVersion = connection.getTransportVersion();
             dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
-            isCCSQuery = connection instanceof RemoteConnectionManager.ProxyConnection || shardTarget.getClusterAlias() != null;
+            isCCSQuery = shardTarget.getClusterAlias() != null;
             isScrollOrReindex = context.getRequest().scroll() != null || shardFetchRequest.getShardSearchRequest().scroll() != null;
 
             if (logger.isTraceEnabled()) {

@@ -59,8 +59,8 @@ sourceSets {
 }
 
 dependencies {
-  api 'at.yawk.lz4:lz4-java:1.8.1'
-  api project(':libs:elasticsearch-core')
+  api 'at.yawk.lz4:lz4-java:1.10.1'
+  api project(':libs:core')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-lz4'

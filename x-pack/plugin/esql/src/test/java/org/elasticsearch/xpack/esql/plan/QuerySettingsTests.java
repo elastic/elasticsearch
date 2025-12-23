@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -150,13 +149,7 @@ public class QuerySettingsTests extends ESTestCase {
 
         assertInvalid(
             def.name(),
-            new MapExpression(
-                Source.EMPTY,
-                List.of(
-                    Literal.keyword(Source.EMPTY, "foo"),
-                    Literal.integer(Source.EMPTY, 10)
-                )
-            ),
+            new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "foo"), Literal.integer(Source.EMPTY, 10))),
             "line -1:-1: Error validating setting [approximate]: Approximate configuration contains unknown key [foo]"
         );
     }

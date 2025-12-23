@@ -9675,10 +9675,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Project[[foo{r}#12, $$id$converted_to$keyword{f$}#13 AS id#9]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[foo{f}#10,foo{r}#12]
-     *     \_Project[[foo{f}#10, $$id$converted_to$keyword{f$}#13]]
+     *   \_MvExpand[foo{f}#11,foo{r}#12]
+     *     \_Project[[!id, foo{f}#11, $$id$converted_to$keyword{f$}#13]]
      *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[union_index*][foo{f}#10, !id, $$id$converted_to$keyword{f$}#13]
+     *         \_EsRelation[union_index*][foo{f}#11, !id, $$id$converted_to$keyword{f$}#13]
      */
     public void testUnionTypesResolvePastProjections() {
         LogicalPlan plan = planUnionIndex("""
@@ -9704,8 +9704,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         Project innerProject = as(mvExpand.child(), Project.class);
         var innerOutput = innerProject.output();
-        assertThat(innerOutput, hasSize(2));
-        assertThat(Expressions.names(innerOutput), contains("foo", "$$id$converted_to$keyword"));
+        assertThat(innerOutput, hasSize(3));
+        assertThat(Expressions.names(innerOutput), containsInAnyOrder("id", "foo", "$$id$converted_to$keyword"));
 
         Limit limit2 = asLimit(innerProject.child(), 1000, false);
         EsRelation relation = as(limit2.child(), EsRelation.class);

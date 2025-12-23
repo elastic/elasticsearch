@@ -1966,7 +1966,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<NamedExpression> newProjections = new ArrayList<>(p.projections());
                 newProjections.addAll(syntheticAttributesToCarryOver);
-                newProjections.removeIf(expr -> expr.dataType().equals(UNSUPPORTED));
                 return new Project(p.source(), p.child(), newProjections);
             });
             return res;
@@ -2133,16 +2132,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
-            LogicalPlan planWithCheckedUnionTypes = plan.transformUp(
+
+            // We start by dropping synthetic attributes if the plan is resolved
+            LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
+
+            // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
+            // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
+            // unsupported / unresolved fields can be explicitly retained
+            return cleanPlan.transformUp(
                 LogicalPlan.class,
                 p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
             );
-
-            // To drop synthetic attributes at the end, we need to compute the plan's output.
-            // This is only legal to do if the plan is resolved.
-            return planWithCheckedUnionTypes.resolved()
-                ? planWithoutSyntheticAttributes(planWithCheckedUnionTypes)
-                : planWithCheckedUnionTypes;
         }
 
         static Attribute checkUnresolved(FieldAttribute fa) {

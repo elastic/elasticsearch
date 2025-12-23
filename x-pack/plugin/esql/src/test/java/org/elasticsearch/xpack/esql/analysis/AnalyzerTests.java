@@ -4454,6 +4454,9 @@ public class AnalyzerTests extends ESTestCase {
         Project project = as(plan, Project.class);
         Eval eval = as(project.child().children().getFirst(), Eval.class);
         FieldAttribute convertedFa = as(eval.output().get(1), FieldAttribute.class);
+
+        // The synthetic field used for the conversion should be propagated through intermediate nodes (like MV_EXPAND) but ultimately
+        // stripped from the final output, leaving only the aliased 'id' and 'foo'.
         verifyNameAndType(convertedFa.name(), convertedFa.dataType(), "$$id$converted_to$keyword", KEYWORD);
 
         eval.forEachDown(Project.class, p -> {

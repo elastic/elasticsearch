@@ -995,7 +995,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             // A dirty hack to make some bwc tests pass
-            if (out.getTransportVersion().onOrAfter(TransportVersions.VIRTUAL_THREADS)) {
+            if (out.getTransportVersion().supports(TransportVersions.VIRTUAL_THREADS)) {
                 out.writeString(type.getType());
             } else {
                 out.writeString(ThreadPoolType.bwcType(name, type).getType());

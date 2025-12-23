@@ -11,7 +11,6 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -62,11 +61,11 @@ public class VirtualThreadsExecutorBuilder extends ExecutorBuilder<VirtualThread
 
     @Override
     ThreadPool.ExecutorHolder build(VirtualThreadsExecutorSettings settings, ThreadContext threadContext) {
-        final String threadName = EsExecutors.threadName(settings.nodeName, name());
+        final String threadName = EsExecutors.threadName(Settings.builder().put("node.name", settings.nodeName).build(), name());
         final ExecutorService executorService = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name(threadName + "[v]").factory());
         return new ThreadPool.ExecutorHolder(
             new EsExecutorServiceDecorator(name(), executorService, threadContext, rejectAfterShutdown),
-            new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.VIRTUAL, 999, 999, TimeValue.ZERO, SizeValue.parseSizeValue("999"))
+            new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.VIRTUAL, 999, 999, TimeValue.ZERO, 999L)
         );
     }
 

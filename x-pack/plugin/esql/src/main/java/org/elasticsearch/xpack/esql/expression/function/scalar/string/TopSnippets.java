@@ -92,16 +92,16 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             """) Expression query,
         @MapParam(
             name = "options",
-            description = "Options to customize snippet extraction behavior.",
+            description = "(Optional) TopSnippets additional options as <<esql-function-named-params,function named parameters>>.",
             optional = true,
             params = {
                 @MapParam.MapParamEntry(
                     name = "num_snippets",
-                    type = { "integer" },
+                    type = "integer",
                     description = "The maximum number of matching snippets to return.",
                     valueHint = { "3" }
                 ),
-                @MapParam.MapParamEntry(name = "num_words", type = { "integer" }, description = """
+                @MapParam.MapParamEntry(name = "num_words", type = "integer", description = """
                     The maximum number of words to return in each snippet.
                     This allows better control of inference costs by limiting the size of tokens per snippet.
                     """, valueHint = { "300" }) }

@@ -355,9 +355,6 @@ tests:
   - class: org.elasticsearch.packaging.test.PackageTests
     method: test32JavaHomeOverride
     issue: https://github.com/elastic/elasticsearch/issues/131842
-  - class: org.elasticsearch.packaging.test.ArchiveTests
-    method: test63BundledJdkRemoved
-    issue: https://github.com/elastic/elasticsearch/issues/131891
   - class: org.elasticsearch.packaging.test.PackageTests
     method: test42BundledJdkRemoved
     issue: https://github.com/elastic/elasticsearch/issues/131890

@@ -190,6 +190,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
@@ -9722,5 +9723,44 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         assertThat(relationOutput.get(2).name(), equalTo("$$id$converted_to$keyword"));
         assertThat(relationOutput.get(2).dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * Project[[!id, $$id$converted_to$long{f$}#9 AS x#6]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_EsRelation[union_index*][foo{f}#7, !id, $$id$converted_to$long{f$}#9]
+     */
+    public void testExplicitRetainOriginalFieldWithCast() {
+        LogicalPlan plan = planUnionIndex("""
+            FROM union_index*
+            | KEEP id
+            | EVAL x = id::long
+            """);
+
+        Project topProject = as(plan, Project.class);
+        var projections = topProject.projections();
+        assertThat(projections, hasSize(2));
+        assertThat(projections.get(0).name(), equalTo("id"));
+        assertThat(projections.get(0).dataType(), equalTo(UNSUPPORTED));
+
+        Alias xAlias = as(projections.get(1), Alias.class);
+        assertThat(xAlias.name(), equalTo("x"));
+        assertThat(xAlias.dataType(), equalTo(LONG));
+        FieldAttribute syntheticFieldAttr = as(xAlias.child(), FieldAttribute.class);
+        assertThat(syntheticFieldAttr.name(), equalTo("$$id$converted_to$long"));
+        ReferenceAttribute xRef = as(topProject.output().get(1), ReferenceAttribute.class);
+        assertThat(xRef, is(xAlias.toAttribute()));
+
+        Limit limit = asLimit(topProject.child(), 1000, false);
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertEquals("union_index*", relation.indexPattern());
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(3));
+        assertThat(relationOutput.get(1).name(), equalTo("id"));
+        assertThat(relationOutput.get(1).dataType(), equalTo(UNSUPPORTED));
+        var syntheticField = relationOutput.get(2);
+        assertThat(syntheticField.name(), equalTo("$$id$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+        assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
     }
 }

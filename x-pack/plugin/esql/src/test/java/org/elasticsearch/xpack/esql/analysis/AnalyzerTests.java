@@ -4475,6 +4475,58 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(idAttr.name(), equalTo("id"));
     }
 
+    public void testExplicitRetainOriginalFieldWithCast() {
+        // Use the existing union index fixture (id has keyword/integer union types)
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("test1"));
+        typesToIndices.put("integer", Set.of("test2"));
+        EsField idField = new InvalidMappedField("id", typesToIndices);
+        EsIndex index = new EsIndex(
+            "union_index*",
+            Map.of("id", idField),
+            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)
+        );
+        IndexResolution resolution = IndexResolution.valid(index);
+        Analyzer analyzer = analyzer(resolution);
+
+        String query = """
+            FROM union_index*
+            | KEEP id
+            | EVAL x = id::long
+            """;
+        LogicalPlan plan = analyze(query, analyzer);
+
+        Project topProject = as(plan, Project.class);
+        var projections = topProject.projections();
+        assertThat(projections, hasSize(2));
+        assertThat(projections.get(0).name(), equalTo("id"));
+        assertThat(projections.get(0).dataType(), equalTo(UNSUPPORTED));
+
+        ReferenceAttribute xRef = as(projections.get(1), ReferenceAttribute.class);
+        assertThat(xRef.name(), equalTo("x"));
+        assertThat(xRef.dataType(), equalTo(LONG));
+
+        Limit limit = as(topProject.child(), Limit.class);
+        Eval eval = as(limit.child(), Eval.class);
+        Alias xAlias = as(eval.fields().get(0), Alias.class);
+        assertThat(xAlias.name(), equalTo("x"));
+        FieldAttribute syntheticFieldAttr = as(xAlias.child(), FieldAttribute.class);
+        assertThat(syntheticFieldAttr.name(), equalTo("$$id$converted_to$long"));
+        assertThat(xRef, is(xAlias.toAttribute()));
+
+        Project innerProject = as(eval.child(), Project.class);
+        EsRelation relation = as(innerProject.child(), EsRelation.class);
+        assertEquals("union_index*", relation.indexPattern());
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(2));
+        assertThat(relationOutput.get(0).name(), equalTo("id"));
+        assertThat(relationOutput.get(0).dataType(), equalTo(UNSUPPORTED));
+        var syntheticField = relationOutput.get(1);
+        assertThat(syntheticField.name(), equalTo("$$id$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+        assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
+    }
+
     public void testImplicitCastingForDateAndDateNanosFields() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);

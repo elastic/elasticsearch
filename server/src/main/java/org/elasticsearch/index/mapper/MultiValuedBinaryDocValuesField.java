@@ -14,9 +14,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
-import java.util.Set;
 import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.Set;
 
 /**
  * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique

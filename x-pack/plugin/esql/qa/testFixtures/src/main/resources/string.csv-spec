@@ -2856,3 +2856,14 @@ book_no:keyword | author_encoded:keyword | title_encoded:keyword
 1463            | J.%20R.%20R.%20Tolkien | Realms%20of%20Tolkien%3A%20Images%20of%20Middle-earth
 ;
 
+to_ascii
+required_capability: to_ascii
+// tag::to_ascii[]
+ROW a = "Hello\n\t 世界! 🌍 Café naïve résumé こんにちは 🎉 中文测试 αβγδε 日本語テスト 🚀🔥💧🪨" | EVAL x = TO_ASCII(a) | KEEP x;
+// end::to_ascii[]
+
+// tag::to_ascii-result[]
+x:keyword
+Hello\\n\\t \\u4e16\\u754c! \\U0001f30d Caf\\xe9 na\\xefve r\\xe9sum\\xe9 \\u3053\\u3093\\u306b\\u3061\\u306f \\U0001f389 \\u4e2d\\u6587\\u6d4b\\u8bd5 \\u03b1\\u03b2\\u03b3\\u03b4\\u03b5 \\u65e5\\u672c\\u8a9e\\u30c6\\u30b9\\u30c8 \\U0001f680\\U0001f525\\U0001f4a7\\U0001faa8
+// end::to_ascii-result[]
+;

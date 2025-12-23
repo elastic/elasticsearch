@@ -14,6 +14,8 @@ mapped_pages:
 :::{include} ../_snippets/lists/string-functions.md
 :::
 
+:::{include} ../_snippets/functions/layout/to_ascii.md
+:::
 
 :::{include} ../_snippets/functions/layout/bit_length.md
 :::

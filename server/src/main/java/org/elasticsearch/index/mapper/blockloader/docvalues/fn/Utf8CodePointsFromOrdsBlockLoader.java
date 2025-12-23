@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -16,6 +17,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
@@ -68,6 +70,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return new ImmediateOrdinals(warnings, DocValues.singleton(singleton));
             }
             return new Singleton(singleton);
+        }
+        BinaryDocValues binary = context.reader().getBinaryDocValues(fieldName);
+        if (binary != null) {
+            return new Binary(warnings, binary);
         }
         return new ConstantNullsReader();
     }
@@ -514,6 +520,93 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         private int codePointsAtOrd(long ord) throws IOException {
             return UnicodeUtil.codePointCount(ordinals.lookupOrd(ord));
         }
+    }
+
+    private static class Binary extends BlockDocValuesReader {
+        private final Warnings warnings;
+        private final BinaryDocValues binaryDocValues;
+
+        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        private final BytesRef scratch = new BytesRef();
+
+        Binary(Warnings warnings, BinaryDocValues binaryDocValues) {
+            this.warnings = warnings;
+            this.binaryDocValues = binaryDocValues;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            int count = docs.count() - offset;
+            if (count == 1) {
+                return blockForSingleDoc(factory, docs.get(offset));
+            }
+
+            try (IntBuilder builder = factory.ints(count)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    appendLength(doc, builder);
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            appendLength(docId, (IntBuilder) builder);
+        }
+
+        @Override
+        public int docId() {
+            return binaryDocValues.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.Binary";
+        }
+
+        private void appendLength(int doc, IntBuilder builder) throws IOException {
+            if (binaryDocValues.advanceExact(doc) == false) {
+                builder.appendNull();
+            } else {
+                BytesRef bytes = binaryDocValues.binaryValue();
+                in.reset(bytes.bytes, bytes.offset, bytes.length);
+                int valueCount = in.readVInt();
+                scratch.bytes = bytes.bytes;
+
+                if (valueCount == 1) {
+                    scratch.length = in.readVInt();
+                    scratch.offset = in.getPosition();
+                    int length = UnicodeUtil.codePointCount(scratch);
+                    builder.appendInt(length);
+                } else {
+                    registerSingleValueWarning(warnings);
+                    builder.appendNull();
+                }
+            }
+        }
+
+        private Block blockForSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (binaryDocValues.advanceExact(docId) == false) {
+                return factory.constantNulls(1);
+            } else {
+                BytesRef bytes = binaryDocValues.binaryValue();
+                in.reset(bytes.bytes, bytes.offset, bytes.length);
+                int valueCount = in.readVInt();
+                scratch.bytes = bytes.bytes;
+
+                if (valueCount == 1) {
+                    scratch.length = in.readVInt();
+                    scratch.offset = in.getPosition();
+                    int length = UnicodeUtil.codePointCount(scratch);
+                    return factory.constantInt(length, 1);
+                } else {
+                    registerSingleValueWarning(warnings);
+                    return factory.constantNulls(1);
+                }
+            }
+        }
+
     }
 
     /**

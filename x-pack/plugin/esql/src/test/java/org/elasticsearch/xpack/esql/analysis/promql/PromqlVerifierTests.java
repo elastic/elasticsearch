@@ -30,13 +30,10 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlMissingAcrossSeriesAggregation() {
-        assertThat(
-            error("""
-                PROMQL index=test step=5m (
-                  rate(network.bytes_in[5m])
-                )""", tsdb),
-            equalTo("2:3: top-level within-series aggregations are not supported at this time [rate(network.bytes_in[5m])]")
-        );
+        assertThat(error("""
+            PROMQL index=test step=5m (
+              rate(network.bytes_in[5m])
+            )""", tsdb), equalTo("2:3: top-level within-series aggregations are not supported at this time [rate(network.bytes_in[5m])]"));
     }
 
     public void testPromqlRangeVector() {

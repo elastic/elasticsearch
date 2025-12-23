@@ -24,7 +24,6 @@ import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActio
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
-import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;

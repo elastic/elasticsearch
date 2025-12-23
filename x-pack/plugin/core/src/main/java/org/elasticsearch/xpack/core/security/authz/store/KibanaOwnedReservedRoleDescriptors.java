@@ -578,8 +578,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-cyera.issue-*",
                         "logs-cyera.datastore-*",
                         "logs-ironscales.incident-*",
-                        "logs-jupiter_one.risks_and_alerts-*"
-                        "logs-axonius.adapter-*"
+                        "logs-jupiter_one.risks_and_alerts-*",
+                        "logs-axonius.adapter-*",
                     )
                     .privileges(
                         "manage",

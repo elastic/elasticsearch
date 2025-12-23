@@ -2016,8 +2016,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cyera.issue-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-ironscales.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10))
-            "logs-axonius.adapter-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.adapter-" + randomAlphaOfLength(randomIntBetween(1, 10)),
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 

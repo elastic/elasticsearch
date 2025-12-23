@@ -77,12 +77,17 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         new CartesianShapeIndexer("ST_Intersects")
     );
 
-    @FunctionInfo(returnType = { "boolean" }, description = """
-        Returns true if two geometries intersect.
-        They intersect if they have any point in common, including their interior points
-        (points along lines or within polygons).
-        This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function.
-        In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅""", examples = @Example(file = "spatial", tag = "st_intersects-airports"))
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = """
+            Returns true if two geometries intersect.
+            They intersect if they have any point in common, including their interior points
+            (points along lines or within polygons).
+            This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function.
+            In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅""",
+        examples = @Example(file = "spatial", tag = "st_intersects-airports"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
+    )
     public SpatialIntersects(
         Source source,
         @Param(

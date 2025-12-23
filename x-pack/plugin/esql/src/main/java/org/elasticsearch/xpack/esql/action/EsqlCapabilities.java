@@ -429,6 +429,16 @@ public class EsqlCapabilities {
         ST_ENVELOPE,
 
         /**
+         * Fix ST_ENVELOPE to support multi-values and doc-values.
+         */
+        ST_ENVELOPE_MV_FIX,
+
+        /**
+         * Support ST_NPOINTS function.
+         */
+        ST_NPOINTS,
+
+        /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
         SPATIAL_GRID,
@@ -1555,6 +1565,7 @@ public class EsqlCapabilities {
          * Rate and increase calculations use interpolation at the boundaries between time buckets
          */
         RATE_WITH_INTERPOLATION,
+        RATE_WITH_INTERPOLATION_V2,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -1621,14 +1632,9 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
-         * Development capability for the histogram field integration
+         * Histogram field integration
          */
-        HISTOGRAM_FIELD_SUPPORT_V0,
-
-        /**
-         * histogram to tdigest conversion function
-         */
-        HISTOGRAM_TO_TDIGEST_CAST,
+        HISTOGRAM_RELEASE_VERSION,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1760,7 +1766,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V7(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V8(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1801,6 +1807,11 @@ public class EsqlCapabilities {
          * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
          */
         FN_MV_INTERSECTION,
+
+        /**
+         * Support for the MV_UNION function which returns the set union of two multivalued fields
+         */
+        FN_MV_UNION,
 
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION

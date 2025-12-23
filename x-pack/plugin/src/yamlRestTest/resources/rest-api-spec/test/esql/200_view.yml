@@ -4,6 +4,7 @@ setup:
       capabilities:
         - method: GET
           path: /_query/view
+          capabilities: [view_index_abstraction]
       test_runner_features: capabilities
       reason: "ES|QL views introduced"
 

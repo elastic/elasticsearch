@@ -65,16 +65,20 @@ enum LZ4SafeUtils {
         }
     }
 
-    // Modified wildIncrementalCopy to mirror version in LZ4UnsafeUtils
     static void wildIncrementalCopy(byte[] dest, int matchOff, int dOff, int matchCopyEnd) {
+        // [ES change from upstream]: use the implementation from LZ4UnsafeUtils#wildIncrementalCopy
+        // see https://github.com/yawkat/lz4-java/blob/v1.10.1/src/java-unsafe/net/jpountz/lz4/LZ4UnsafeUtils.java#L55-L99
+        // with further modifications as noted with [ES change from upstream] comments
         if (dOff - matchOff < 4) {
             for (int i = 0; i < 4; ++i) {
+                // [ES change from upstream]: just copy the byte directly, don't use readByte and writeByte
                 dest[dOff + i] = dest[matchOff + i];
             }
             dOff += 4;
             matchOff += 4;
             int dec = 0;
             assert dOff >= matchOff && dOff - matchOff < 8;
+            // [ES change from upstream]: use enhanced switch
             switch (dOff - matchOff) {
                 case 1 -> matchOff -= 3;
                 case 2 -> matchOff -= 2;
@@ -87,14 +91,17 @@ enum LZ4SafeUtils {
                 case 7 -> dec = 3;
             }
 
+            // [ES change from upstream]: use copy4Bytes instead of readInt and writeInt
             copy4Bytes(dest, matchOff, dest, dOff);
             dOff += 4;
             matchOff -= dec;
         } else if (dOff - matchOff < LZ4Constants.COPY_LENGTH) {
+            // [ES change from upstream]: use copy8Bytes instead of readLong and writeLong
             copy8Bytes(dest, matchOff, dest, dOff);
             dOff += dOff - matchOff;
         }
         while (dOff < matchCopyEnd) {
+            // [ES change from upstream]: use copy8Bytes instead of readLong and writeLong
             copy8Bytes(dest, matchOff, dest, dOff);
             dOff += 8;
             matchOff += 8;

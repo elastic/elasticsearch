@@ -1324,7 +1324,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
-                        Collection<BytesRef> valueCollection = keepDuplicatesInBinaryDocValues() ? new ArrayList<>() : new LinkedHashSet<>();
+                        Collection<BytesRef> valueCollection = keepDuplicatesInBinaryDocValues()
+                            ? new ArrayList<>()
+                            : new LinkedHashSet<>();
                         field = new MultiValuedBinaryDocValuesField(fieldName, valueCollection);
                         context.doc().addWithKey(fieldName, field);
                     }

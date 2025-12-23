@@ -502,6 +502,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.start();
 
         executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
         assertTrue(service.isTerminated());
         assertThat(service.remainingQueueCapacity(requestManager), is(1));
         assertThat(service.queueSize(), is(0));

@@ -277,7 +277,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             () -> requestBreaker.addEstimateBytesAndMaybeBreak(reservationInBytes, "request")
         );
         // it was the parent that rejected the reservation
-        assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [request] would be"));
+        assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [parent] would be"));
         assertThat(exception.getMessage(), containsString("which is larger than the limit of [200/200b]"));
         assertThat(
             exception.getMessage(),
@@ -897,10 +897,10 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 Map.of("child", new TestChildCircuitBreaker(7L), "otherChild", new TestChildCircuitBreaker(8L))
             ),
             oneOf(
-                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                "[parent] Data too large, data for [parent] would be [3/3b], which is larger than the limit of [6/6b], "
                     + "usages [child=7/7b, otherChild=8/8b]; for more information, see "
                     + ReferenceDocs.CIRCUIT_BREAKER_ERRORS,
-                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                "[parent] Data too large, data for [parent] would be [3/3b], which is larger than the limit of [6/6b], "
                     + "usages [otherChild=8/8b, child=7/7b]; for more information, see "
                     + ReferenceDocs.CIRCUIT_BREAKER_ERRORS
             )
@@ -916,7 +916,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 Map.of()
             ),
             equalTo(
-                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                "[parent] Data too large, data for [parent] would be [3/3b], which is larger than the limit of [6/6b], "
                     + "real usage: [2/2b], new bytes reserved for [test]: [1/1b], usages []; for more information, see "
                     + ReferenceDocs.CIRCUIT_BREAKER_ERRORS
             )

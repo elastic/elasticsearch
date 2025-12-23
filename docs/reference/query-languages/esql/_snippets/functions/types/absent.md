@@ -17,6 +17,7 @@
 | geohash | boolean |
 | geohex | boolean |
 | geotile | boolean |
+| histogram | boolean |
 | integer | boolean |
 | ip | boolean |
 | keyword | boolean |

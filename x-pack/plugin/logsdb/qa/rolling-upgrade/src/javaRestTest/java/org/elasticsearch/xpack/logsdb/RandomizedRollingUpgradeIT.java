@@ -132,7 +132,9 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
 
         int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
         for (int i = 0; i < numNodes; i++) {
+            flush(indexNameBase + "*", true);
             upgradeNode(i);
+            ensureGreen(indexNameBase + "*");
             for (int j = 0; j < NUM_INDICES; j++) {
                 indexAndQueryDocuments(indexConfigs[j]);
             }

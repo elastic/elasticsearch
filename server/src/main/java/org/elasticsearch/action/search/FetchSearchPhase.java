@@ -306,7 +306,7 @@ class FetchSearchPhase extends SearchPhase {
             }
         }
 
-        if (fetchPhaseChunked && remoteDataNodeRequest && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
+        if (fetchPhaseChunked && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
             fetchCoordinationAction.execute(

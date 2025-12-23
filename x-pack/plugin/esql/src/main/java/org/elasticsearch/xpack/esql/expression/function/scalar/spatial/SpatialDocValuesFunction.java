@@ -48,9 +48,25 @@ public abstract class SpatialDocValuesFunction extends EsqlScalarFunction {
         return false;
     }
 
+    @Override
+    public boolean foldable() {
+        return children().stream().allMatch(Expression::foldable);
+    }
+
     public abstract Expression spatialField();
 
     public boolean spatialDocValues() {
         return spatialDocValues;
+    }
+
+    /**
+     * Indicates that this function prefers to have its spatial argument extracted from doc values.
+     * This is a hint to the planner that can be ignored if necessary. If a function does not
+     * prefer doc values extraction, it should override this method to return false. Examples of
+     * such functions are ST_X and ST_Y that should provide exact values from source.
+     * Note that if the original field is not dropped from the output, this request will be ignored.
+     */
+    public boolean prefersDocValuesExtraction() {
+        return true;
     }
 }

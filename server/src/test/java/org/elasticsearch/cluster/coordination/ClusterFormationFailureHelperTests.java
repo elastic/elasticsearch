@@ -1123,17 +1123,17 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         Settings settings = Settings.builder()
             .putList(INITIAL_MASTER_NODES_SETTING.getKey(), originalClusterFormationState.initialMasterNodesSetting())
             .build();
-        final DiscoveryNode localNode = originalClusterFormationState.clusterFormationClusterStateView().localNode();
+        final DiscoveryNode localNode = originalClusterFormationState.localNode();
         List<TransportAddress> resolvedAddresses = originalClusterFormationState.resolvedAddresses();
         List<DiscoveryNode> foundPeers = originalClusterFormationState.foundPeers();
         Set<DiscoveryNode> mastersOfPeers = originalClusterFormationState.mastersOfPeers();
-        long currentTerm = originalClusterFormationState.clusterFormationClusterStateView().currentTerm();
+        long currentTerm = originalClusterFormationState.currentTerm();
         StatusInfo statusInfo = originalClusterFormationState.statusInfo();
         List<JoinStatus> joinStatuses = originalClusterFormationState.inFlightJoinStatuses();
         ClusterState clusterState = state(
             localNode,
-            originalClusterFormationState.clusterFormationClusterStateView().lastAcceptedConfiguration(),
-            originalClusterFormationState.clusterFormationClusterStateView().lastCommittedConfiguration()
+            originalClusterFormationState.lastAcceptedConfiguration(),
+            originalClusterFormationState.lastCommittedConfiguration()
         );
         switch (randomIntBetween(1, 6)) {
             case 1 -> {

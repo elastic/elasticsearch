@@ -443,7 +443,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             logger.trace("handleApplyCommit: applying commit {}", applyCommitRequest);
 
             coordinationState.get().handleCommit(applyCommitRequest);
-            // Since the coordination state changed, we update accordingly
             updateClusterFormationClusterStateView();
 
             final ClusterState committedState = hideStateIfNotRecovered(coordinationState.get().getLastAcceptedState());
@@ -524,7 +523,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
             ensureTermAtLeast(sourceNode, newClusterState.term());
             final PublishResponse publishResponse = coordinationState.get().handlePublishRequest(publishRequest);
-            // Since the coordination state changed, we update accordingly
             updateClusterFormationClusterStateView();
 
             if (sourceNode.equals(getLocalNode())) {
@@ -1182,7 +1180,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         synchronized (mutex) {
             CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
             coordinationState.set(new CoordinationState(getLocalNode(), persistedState, electionStrategy));
-            // Since the coordination state changed, we update accordingly
             updateClusterFormationClusterStateView();
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
@@ -1424,7 +1421,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             metadataBuilder.coordinationMetadata(coordinationMetadata);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metadata(metadataBuilder).build());
-            // Since the coordination state changed, we update accordingly
             updateClusterFormationClusterStateView();
 
             var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);

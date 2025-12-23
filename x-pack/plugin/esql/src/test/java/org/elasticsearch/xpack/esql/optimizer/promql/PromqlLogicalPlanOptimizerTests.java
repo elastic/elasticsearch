@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,6 +27,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -472,6 +478,49 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filters, hasSize(1));
         var filter = (Filter) filters.getFirst();
         assertThat(filter.condition().anyMatch(RegexMatch.class::isInstance), equalTo(true));
+    }
+
+    public void testLabelSelectorNotEquals() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var not = filter.condition().collect(Not.class).getFirst();
+        var in = as(not.field(), In.class);
+        assertThat(as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(in.list(), hasSize(1));
+        assertThat(as(as(in.list().getFirst(), Literal.class).value(), BytesRef.class).utf8ToString(), equalTo("foo"));
+    }
+
+    public void testLabelSelectorRegexNegation() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var not = filter.condition().collect(Not.class).getFirst();
+        var rLike = as(not.field(), RLike.class);
+        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(rLike.pattern().pattern(), equalTo("f.o"));
+    }
+
+    public void testLabelSelectors() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var and = as(filter.condition(), And.class);
+        if (and.left() instanceof IsNotNull) {
+            and = as(and.right(), And.class);
+        }
+        var left = as(and.left(), And.class);
+        var podNotFoo = as(as(left.left(), Not.class).field(), In.class);
+        assertThat(podNotFoo.list(), hasSize(1));
+        assertThat(as(podNotFoo.list().getFirst(), Literal.class).value(), equalTo(new BytesRef("foo")));
+
+        var clusterInBarBaz = as(left.right(), In.class);
+        assertThat(clusterInBarBaz.list(), hasSize(2));
+        assertThat(as(clusterInBarBaz.list().get(0), Literal.class).value(), equalTo(new BytesRef("bar")));
+        assertThat(as(clusterInBarBaz.list().get(1), Literal.class).value(), equalTo(new BytesRef("baz")));
+
+        var regionNotUs = as(as(and.right(), Not.class).field(), StartsWith.class);
+        assertThat(as(regionNotUs.prefix(), Literal.class).value(), equalTo(new BytesRef("us-")));
     }
 
     @AwaitsFix(bugUrl = "This should never be called before the attribute is resolved")

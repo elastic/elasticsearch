@@ -126,7 +126,7 @@ public class Detector implements ToXContentObject, Writeable {
     );
 
     /**
-     * The set of functions that require a fieldname
+     * The set of functions that require a field name
      */
     public static final EnumSet<DetectorFunction> FIELD_NAME_FUNCTIONS = EnumSet.of(
         DetectorFunction.DISTINCT_COUNT,
@@ -160,22 +160,25 @@ public class Detector implements ToXContentObject, Writeable {
     );
 
     /**
-     * The set of functions that require a by fieldname
+     * The set of functions that require a by-field name
      */
     public static final EnumSet<DetectorFunction> BY_FIELD_NAME_FUNCTIONS = EnumSet.of(DetectorFunction.RARE, DetectorFunction.FREQ_RARE);
 
     /**
-     * The set of functions that require a over fieldname
+     * The set of functions that require an over-field name
      */
     public static final EnumSet<DetectorFunction> OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(DetectorFunction.FREQ_RARE);
 
     /**
-     * The set of functions that cannot have an over fieldname
+     * The set of functions that cannot have an over-field name
      */
     public static final EnumSet<DetectorFunction> NO_OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(
         DetectorFunction.NON_ZERO_COUNT,
         DetectorFunction.LOW_NON_ZERO_COUNT,
-        DetectorFunction.HIGH_NON_ZERO_COUNT
+        DetectorFunction.HIGH_NON_ZERO_COUNT,
+        DetectorFunction.NON_NULL_SUM,
+        DetectorFunction.LOW_NON_NULL_SUM,
+        DetectorFunction.HIGH_NON_NULL_SUM
     );
 
     /**

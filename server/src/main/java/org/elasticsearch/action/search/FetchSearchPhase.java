@@ -273,8 +273,7 @@ class FetchSearchPhase extends SearchPhase {
         boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
         boolean isCCSQuery = shardTarget.getClusterAlias() != null;
         boolean isScrollOrReindex = context.getRequest().scroll() != null
-            || (shardFetchRequest.getShardSearchRequest() != null
-            && shardFetchRequest.getShardSearchRequest().scroll() != null);
+            || (shardFetchRequest.getShardSearchRequest() != null && shardFetchRequest.getShardSearchRequest().scroll() != null);
 
         if (logger.isTraceEnabled()) {
             logger.info(

@@ -53,7 +53,9 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            null,
+            1
         );
         assertNull(format);
     }

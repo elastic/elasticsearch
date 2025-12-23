@@ -397,6 +397,19 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    public void writeCentroids(
+        FieldInfo fieldInfo,
+        CentroidSupplier centroidSupplier,
+        int[] centroidAssignments,
+        float[] globalCentroid,
+        CentroidOffsetAndLength centroidOffsetAndLength,
+        IndexOutput centroidOutput,
+        MergeState mergeState
+    ) throws IOException {
+        writeCentroids(fieldInfo, centroidSupplier, centroidAssignments, globalCentroid, centroidOffsetAndLength, centroidOutput);
+    }
+
+    @Override
     public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids) {
         // Do Nothing Extra
     }

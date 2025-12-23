@@ -88,6 +88,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
+import static org.elasticsearch.cluster.service.MasterService.maybeLimitMasterNodeTimeout;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -2739,5 +2740,40 @@ public class MasterServiceTests extends ESTestCase {
         public void onFailure(Exception e) {
             throw new AssertionError("should not be called", e);
         }
+    }
+
+    public void testMaybeLimitMasterNodeTimeout() {
+
+        // returns the request timeout if the max is unspecified
+        for (final var requestTimeout : List.of(
+            randomTimeValue(),
+            TimeValue.MINUS_ONE,
+            TimeValue.ZERO,
+            TimeValue.timeValueMillis(1),
+            TimeValue.THIRTY_SECONDS,
+            TimeValue.ONE_MINUTE,
+            TimeValue.ONE_HOUR,
+            TimeValue.MAX_VALUE
+        )) {
+            assertSame(requestTimeout, maybeLimitMasterNodeTimeout(requestTimeout, TimeValue.MINUS_ONE));
+            // undocumented, but zero also means an infinite timeout against which we must protect
+            assertSame(requestTimeout, maybeLimitMasterNodeTimeout(requestTimeout, TimeValue.ZERO));
+        }
+
+        // returns the limit if the requested timeout is unlimited or larger than the limit
+        for (final var requestTimeout : List.of(
+            TimeValue.MINUS_ONE,
+            TimeValue.ZERO /* undocumented, but zero here means an infinite timeout against which we must protect */,
+            TimeValue.ONE_MINUTE,
+            TimeValue.ONE_HOUR,
+            TimeValue.MAX_VALUE
+        )) {
+            assertSame(TimeValue.ONE_MINUTE, maybeLimitMasterNodeTimeout(requestTimeout, TimeValue.ONE_MINUTE));
+            assertSame(TimeValue.ONE_MINUTE, maybeLimitMasterNodeTimeout(requestTimeout, TimeValue.ONE_MINUTE));
+        }
+
+        // returns the smaller one when both specified
+        assertSame(TimeValue.ONE_MINUTE, maybeLimitMasterNodeTimeout(TimeValue.ONE_HOUR, TimeValue.ONE_MINUTE));
+        assertSame(TimeValue.THIRTY_SECONDS, maybeLimitMasterNodeTimeout(TimeValue.THIRTY_SECONDS, TimeValue.ONE_MINUTE));
     }
 }

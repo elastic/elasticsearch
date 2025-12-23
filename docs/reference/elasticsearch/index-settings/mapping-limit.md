@@ -159,6 +159,10 @@ This mapping counts as **2 mappers**:
 
 ### Reducing field count with `subobjects: false` [reducing-field-count]
 
+```{applies_to}
+stack: ga 8.3
+```
+
 The [`subobjects`](/reference/elasticsearch/mapping-reference/subobjects.md) setting prevents the creation of intermediate object mappers. With `subobjects: false`, dotted field names are stored as literal strings rather than creating nested objects.
 
 ```json

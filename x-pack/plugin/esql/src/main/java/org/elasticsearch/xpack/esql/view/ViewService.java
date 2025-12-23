@@ -117,6 +117,10 @@ public class ViewService {
         return getMetadata(clusterService.state().metadata().getProject(projectId));
     }
 
+    protected Map<String, IndexAbstraction> getIndicesLookup(ProjectMetadata projectMetadata) {
+        return projectMetadata.getIndicesLookup();
+    }
+
     /**
      * Adds or modifies a view by name.
      */
@@ -212,7 +216,7 @@ public class ViewService {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
 
-        final Map<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
+        final Map<String, IndexAbstraction> indicesLookup = getIndicesLookup(metadata);
         indicesLookup.entrySet()
             .stream()
             .filter(entry -> entry.getKey().equals(view.name()))

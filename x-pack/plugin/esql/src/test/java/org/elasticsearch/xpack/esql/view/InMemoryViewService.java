@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Simple implementation of {@link ViewService} that keeps the views in memory.
@@ -78,6 +80,11 @@ public class InMemoryViewService extends ViewService implements Closeable {
     @Override
     protected ViewMetadata getMetadata(ProjectId projectId) {
         return metadata;
+    }
+
+    @Override
+    protected Map<String, IndexAbstraction> getIndicesLookup(ProjectMetadata projectMetadata) {
+        return metadata.views().values().stream().collect(Collectors.toMap(IndexAbstraction::getName, v -> v));
     }
 
     @Override

@@ -25,7 +25,7 @@ public class JoinStatusTests extends ESTestCase {
             DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
             randomLongBetween(0, 1000),
             randomAlphaOfLengthBetween(0, 100),
-            randomNonNegativeTimeValue()
+            randomTimeValue()
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             joinStatus,
@@ -57,7 +57,7 @@ public class JoinStatusTests extends ESTestCase {
                     originalJoinStatus.remoteNode(),
                     originalJoinStatus.term(),
                     originalJoinStatus.message(),
-                    randomValueOtherThan(originalJoinStatus.age(), this::randomNonNegativeTimeValue)
+                    randomValueOtherThan(originalJoinStatus.age(), ESTestCase::randomTimeValue)
                 );
             }
             case 4 -> {
@@ -66,9 +66,5 @@ public class JoinStatusTests extends ESTestCase {
             }
             default -> throw new IllegalStateException();
         }
-    }
-
-    private TimeValue randomNonNegativeTimeValue() {
-        return new TimeValue(randomIntBetween(0, 1000), randomFrom(TimeUnit.values()));
     }
 }

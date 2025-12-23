@@ -10,10 +10,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Set;
 
@@ -21,7 +21,7 @@ import java.util.Set;
  * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
  * binary doc values for fields with multiple values per document.
  */
-public class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+final class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
 
     // vints are unlike normal ints in that they may require 5 bytes instead of 4
     // see BytesStreamOutput.writeVInt()
@@ -66,7 +66,7 @@ public class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
             }
             return out.bytes().toBytesRef();
         } catch (IOException e) {
-            throw new ElasticsearchException("Failed to get binary value", e);
+            throw new UncheckedIOException("Failed to get binary value", e);
         }
     }
 }

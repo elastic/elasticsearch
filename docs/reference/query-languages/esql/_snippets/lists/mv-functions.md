@@ -16,4 +16,5 @@
 * [`MV_SORT`](../../functions-operators/mv-functions.md#esql-mv_sort)
 * [`MV_SLICE`](../../functions-operators/mv-functions.md#esql-mv_slice)
 * [`MV_SUM`](../../functions-operators/mv-functions.md#esql-mv_sum)
+* [`MV_UNION`](../../functions-operators/mv-functions.md#esql-mv_union) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_ZIP`](../../functions-operators/mv-functions.md#esql-mv_zip)

@@ -959,7 +959,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     public void testStartDeployment_ModelTooBig() throws IOException {
         String modelId = "test_start_deployment_too_big_model";
         // Create a model with memory requirements that exceed available node native memory
-        long perDeploymentMemoryBytes = ByteSizeValue.ofGb(30).getBytes();
+        long perDeploymentMemoryBytes = ByteSizeValue.ofGb(100).getBytes();
         long perAllocationMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
         createPassThroughModel(modelId, perDeploymentMemoryBytes, perAllocationMemoryBytes);
         putModelDefinition(modelId);

@@ -75,20 +75,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    /**
-     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
-     * TODO: Remove in 9.0
-     */
-    @Deprecated
-    public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(
-        INDEX_INDEXING_SLOWLOG_PREFIX + ".level",
-        SlowLogLevel.TRACE.name(),
-        SlowLogLevel::parse,
-        Property.Dynamic,
-        Property.IndexScope,
-        Property.IndexSettingDeprecatedInV7AndRemovedInV8
-    );
-
     private static final Logger indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
 
     private final Index index;

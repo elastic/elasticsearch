@@ -347,7 +347,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                             failures.add(
                                 fail(
                                     child,
-                                    "parse error: binary expression must contain only scalar and instant vector types",
+                                    "binary expression must contain only scalar and instant vector types",
                                     child.sourceText()
                                 )
                             );

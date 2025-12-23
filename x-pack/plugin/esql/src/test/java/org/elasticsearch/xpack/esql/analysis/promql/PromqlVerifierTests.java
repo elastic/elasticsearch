@@ -49,7 +49,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlRangeVectorBinaryExpression() {
         assertThat(
             error("PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])", tsdb),
-            equalTo("1:31: parse error: binary expression must contain only scalar and instant vector types")
+            equalTo("1:31: binary expression must contain only scalar and instant vector types")
         );
     }
 

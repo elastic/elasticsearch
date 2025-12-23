@@ -283,3 +283,20 @@ setup:
         index: myview
         id: "1"
         body: { "foo": "bar" }
+
+  - do:
+      index:
+        index: myotherindex
+        id: "1"
+        body: { "foo": "bar" }
+  - do:
+      indices.refresh:
+        index: myotherindex
+
+  - do:
+      search:
+        index: my*
+        expand_wildcards: [ all ]
+        body: { query: { match_all: {} } }
+
+  - length: { hits.hits: 1 }

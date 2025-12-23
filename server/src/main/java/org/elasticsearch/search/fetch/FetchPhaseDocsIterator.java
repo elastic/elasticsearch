@@ -352,18 +352,20 @@ abstract class FetchPhaseDocsIterator {
                         throw new RuntimeException("Interrupted while waiting for transmit permit", e);
                     }
 
-                    pendingChunks.addLast(sendChunk(
-                        chunkWriter,
-                        chunkBuffer,
-                        shardId,
-                        currentChunkSequenceStart,
-                        processedCount - chunkBuffer.size(),
-                        totalDocs,
-                        totalHits,
-                        maxScore,
-                        sendFailure,
-                        transmitPermits
-                    ));
+                    pendingChunks.addLast(
+                        sendChunk(
+                            chunkWriter,
+                            chunkBuffer,
+                            shardId,
+                            currentChunkSequenceStart,
+                            processedCount - chunkBuffer.size(),
+                            totalDocs,
+                            totalHits,
+                            maxScore,
+                            sendFailure,
+                            transmitPermits
+                        )
+                    );
                     chunkBuffer.clear();
                 }
             }

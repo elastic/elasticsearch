@@ -1,5 +1,0 @@
-pr: 138813
-summary: Always block encode centroid tail
-area: Vector Search
-type: enhancement
-issues: []

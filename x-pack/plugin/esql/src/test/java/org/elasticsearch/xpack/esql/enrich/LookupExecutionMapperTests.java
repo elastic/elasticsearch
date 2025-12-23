@@ -32,7 +32,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -41,10 +40,8 @@ import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
-import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -224,9 +221,8 @@ public class LookupExecutionMapperTests extends ESTestCase {
 
         // No extract fields
         List<NamedExpression> extractFields = Collections.emptyList();
-        boolean isEnrich = false;
 
-        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
@@ -235,8 +231,6 @@ public class LookupExecutionMapperTests extends ESTestCase {
             queryPlan,
             List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class),
             extractFields,
-            isEnrich,
-            null,
             null
         );
     }
@@ -248,32 +242,28 @@ public class LookupExecutionMapperTests extends ESTestCase {
 
         // No extract fields - pure lookup join without extra field extraction
         List<NamedExpression> extractFields = Collections.emptyList();
-        boolean isEnrich = false;
 
-        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
         // Expected: EnrichQuerySourceOperator -> ProjectOperator -> OutputOperator
-        // No ValuesSourceReaderOperator (no extract fields), no MergePositionsOperator (no merge)
+        // No ValuesSourceReaderOperator (no extract fields)
         verifyCompletePlan(
             queryPlan,
             List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class),
             extractFields,
-            isEnrich,
-            null,
             null
         );
     }
 
     public void testLookupJoinWithExtractFields() throws Exception {
-        // Test lookup join with mergePages=false but with extract fields (uses ProjectOperator, not MergePositionsOperator)
+        // Test lookup join with extract fields (uses ProjectOperator)
         Page inputPage = createBytesRefPage("a", "b");
 
         List<NamedExpression> extractFields = List.of(createFieldAttribute("field1", DataType.KEYWORD));
-        boolean isEnrich = false;
 
-        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
@@ -282,8 +272,6 @@ public class LookupExecutionMapperTests extends ESTestCase {
             queryPlan,
             List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class, OutputOperator.class),
             extractFields,
-            isEnrich,
-            null,
             null
         );
     }
@@ -294,11 +282,10 @@ public class LookupExecutionMapperTests extends ESTestCase {
         Page inputPage = createAllNullBytesRefPage(3);
 
         List<NamedExpression> extractFields = List.of(createFieldAttribute("field1", DataType.KEYWORD));
-        boolean isEnrich = true;
 
         // With all null values, doLookup() returns early without calling startDriver()
         // Therefore, no operators should be generated
-        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        LookupFromIndexService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields);
         assertNull("No operators should be generated for all-null input page", queryPlan);
     }
 
@@ -309,17 +296,13 @@ public class LookupExecutionMapperTests extends ESTestCase {
      * @param queryPlan The query plan to verify
      * @param expectedOperators List of expected operator types in order: [source, intermediate1, intermediate2, ..., output]
      * @param extractFields Extract fields for OutputOperator and ProjectOperator verification
-     * @param isEnrich Whether this is an enrich operation (affects OutputOperator columns)
      * @param inputPage Optional input page for optimization verification
-     * @param mergePositionsDetails Optional details for MergePositionsOperator verification
      */
     private void verifyCompletePlan(
         LookupFromIndexService.LookupQueryPlan queryPlan,
         List<Class<? extends Operator>> expectedOperators,
         List<NamedExpression> extractFields,
-        boolean isEnrich,
-        Page inputPage,
-        MergePositionsDetails mergePositionsDetails
+        Page inputPage
     ) {
         if (expectedOperators.size() < 2) {
             throw new IllegalArgumentException("Expected operators list must have at least 2 elements (source and output)");
@@ -365,16 +348,6 @@ public class LookupExecutionMapperTests extends ESTestCase {
 
             if (expectedType == ValuesSourceReaderOperator.class) {
                 verifyValuesSourceReaderOperator(queryPlan, operatorIndex);
-            } else if (expectedType == MergePositionsOperator.class) {
-                if (mergePositionsDetails != null) {
-                    verifyMergePositionsOperator(
-                        (MergePositionsOperator) operator,
-                        sourceOp,
-                        mergePositionsDetails.positionCount,
-                        mergePositionsDetails.blockOptimization,
-                        mergePositionsDetails.dictionarySize
-                    );
-                }
             } else if (expectedType == ProjectOperator.class) {
                 verifyProjectOperator((ProjectOperator) operator, extractFields.size());
             }
@@ -383,13 +356,8 @@ public class LookupExecutionMapperTests extends ESTestCase {
         }
 
         // Always verify OutputOperator
-        verifyOutputOperator(queryPlan, extractFields, isEnrich);
+        verifyOutputOperator(queryPlan, extractFields);
     }
-
-    /**
-     * Details for MergePositionsOperator verification.
-     */
-    private record MergePositionsDetails(int positionCount, BlockOptimization blockOptimization, int dictionarySize) {}
 
     /**
      * Verifies EnrichQuerySourceOperator and returns it.
@@ -426,70 +394,6 @@ public class LookupExecutionMapperTests extends ESTestCase {
         }
     }
 
-    /**
-     * Verifies MergePositionsOperator with range block or dictionary ordinals.
-     * @param mergeOp The MergePositionsOperator to verify
-     * @param sourceOp The EnrichQuerySourceOperator to verify optimization state
-     * @param expectedPositionCount Expected number of positions
-     * @param expectedOptimizationState Expected optimization state (DICTIONARY or RANGE)
-     * @param expectedDictionarySize Expected dictionary size (only used for DICTIONARY optimization)
-     */
-    private void verifyMergePositionsOperator(
-        MergePositionsOperator mergeOp,
-        EnrichQuerySourceOperator sourceOp,
-        int expectedPositionCount,
-        BlockOptimization expectedOptimizationState,
-        int expectedDictionarySize
-    ) {
-        MatcherAssert.assertThat(mergeOp, notNullValue());
-        IntBlock selectedPositions = mergeOp.getSelectedPositions();
-        MatcherAssert.assertThat(selectedPositions, notNullValue());
-        MatcherAssert.assertThat(
-            "Selected positions should have expected position count",
-            selectedPositions.getPositionCount(),
-            is(expectedPositionCount)
-        );
-
-        if (expectedOptimizationState == BlockOptimization.DICTIONARY) {
-            // Verify dictionary optimization was applied to the input page
-            Page optimizedPage = sourceOp.getInputPage();
-            Block optimizedBlock = optimizedPage.getBlock(0);
-            MatcherAssert.assertThat(
-                "Optimized block should be a BytesRefBlock (dictionary block)",
-                optimizedBlock,
-                instanceOf(BytesRefBlock.class)
-            );
-            MatcherAssert.assertThat(
-                "Dictionary block should have dictionary size positions",
-                optimizedBlock.getPositionCount(),
-                is(expectedDictionarySize)
-            );
-
-            // Verify the dictionary values are present
-            BytesRefBlock dictBlock = (BytesRefBlock) optimizedBlock;
-            BytesRef value1 = new BytesRef();
-            BytesRef value2 = new BytesRef();
-            dictBlock.getBytesRef(0, value1);
-            dictBlock.getBytesRef(1, value2);
-            // The dictionary should contain "a" and "b" (order may vary)
-            MatcherAssert.assertThat(
-                "Dictionary block should contain expected values",
-                (value1.utf8ToString().equals("a") && value2.utf8ToString().equals("b"))
-                    || (value1.utf8ToString().equals("b") && value2.utf8ToString().equals("a")),
-                is(true)
-            );
-        } else if (expectedOptimizationState == BlockOptimization.RANGE) {
-            // Verify it's a range block (vector with sequential values 0, 1, 2, ...)
-            IntVector selectedPositionsVector = selectedPositions.asVector();
-            MatcherAssert.assertThat("Selected positions should be a vector (range block)", selectedPositionsVector, notNullValue());
-            for (int i = 0; i < expectedPositionCount; i++) {
-                MatcherAssert.assertThat("Range block position " + i + " should be " + i, selectedPositionsVector.getInt(i), is(i));
-            }
-        } else {
-            throw new IllegalArgumentException("Unsupported optimization state: " + expectedOptimizationState);
-        }
-    }
-
     private void verifyNoPageOptimization(EnrichQuerySourceOperator sourceOp, Block expectedInputBlock) {
         Page sourceInputPage = sourceOp.getInputPage();
         MatcherAssert.assertThat(
@@ -499,20 +403,14 @@ public class LookupExecutionMapperTests extends ESTestCase {
         );
     }
 
-    private void verifyOutputOperator(
-        LookupFromIndexService.LookupQueryPlan queryPlan,
-        List<NamedExpression> extractFields,
-        boolean isEnrich
-    ) {
+    private void verifyOutputOperator(LookupFromIndexService.LookupQueryPlan queryPlan, List<NamedExpression> extractFields) {
         OutputOperator outputOp = queryPlan.outputOperator();
         MatcherAssert.assertThat(outputOp, notNullValue());
         MatcherAssert.assertThat(outputOp, instanceOf(OutputOperator.class));
 
-        // Build expected columns: for lookup joins (!isEnrich) with no extractFields, include positions
+        // Build expected columns: lookup joins always include positions
         List<String> expectedColumns = new ArrayList<>();
-        if (isEnrich == false) {
-            expectedColumns.add("$$Positions$$");
-        }
+        expectedColumns.add("$$Positions$$");
         expectedColumns.addAll(extractFields.stream().map(NamedExpression::name).toList());
 
         // Verify columns
@@ -571,10 +469,9 @@ public class LookupExecutionMapperTests extends ESTestCase {
      * Executes doLookup() and returns the captured LookupQueryPlan.
      * This is the common pattern used by all test cases.
      */
-    private LookupFromIndexService.LookupQueryPlan generateQueryPlan(Page inputPage, List<NamedExpression> extractFields, boolean isEnrich)
-        throws Exception {
+    private LookupFromIndexService.LookupQueryPlan generateQueryPlan(Page inputPage, List<NamedExpression> extractFields) throws Exception {
         AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
-        TestLookupService testService = createTestService(isEnrich, shardContext);
+        TestLookupService testService = createTestService(shardContext);
 
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             "test-session",
@@ -594,7 +491,7 @@ public class LookupExecutionMapperTests extends ESTestCase {
         return testService.getCapturedPlan();
     }
 
-    private TestLookupService createTestService(boolean isEnrich, AbstractLookupService.LookupShardContext shardContext) {
+    private TestLookupService createTestService(AbstractLookupService.LookupShardContext shardContext) {
         AbstractLookupService.LookupShardContextFactory factory = shardId -> shardContext;
         // Use TestProjectResolvers which provides a proper implementation
         ProjectResolver projectResolver = TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID);

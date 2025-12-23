@@ -44,12 +44,10 @@ import java.util.function.BiFunction;
 public class BinaryComparisonQueryList extends QueryList {
     private final EsqlBinaryComparison binaryComparison;
     private final BiFunction<Block, Integer, Object> blockValueReader;
-    private final SearchExecutionContext searchExecutionContext;
-    private final LucenePushdownPredicates lucenePushdownPredicates;
+    private final ClusterService clusterService;
 
     public BinaryComparisonQueryList(
         MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
         ElementType leftHandSideElementType,
         int channelOffset,
         EsqlBinaryComparison binaryComparison,
@@ -57,13 +55,7 @@ public class BinaryComparisonQueryList extends QueryList {
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
-        super(
-            field,
-            searchExecutionContext,
-            aliasFilter,
-            channelOffset,
-            new OnlySingleValueParams(warnings, "LOOKUP JOIN encountered multi-value")
-        );
+        super(field, aliasFilter, channelOffset, new OnlySingleValueParams(warnings, "LOOKUP JOIN encountered multi-value"));
         // swap left and right if the field is on the right
         // We get a filter in the form left_expr >= right_expr
         // here we will swap it to right_expr <= left_expr
@@ -71,11 +63,7 @@ public class BinaryComparisonQueryList extends QueryList {
         // We do that because binaryComparison expects the field to be on the left and the literal on the right to be translatable
         this.binaryComparison = (EsqlBinaryComparison) binaryComparison.swapLeftAndRight();
         this.blockValueReader = QueryList.createBlockValueReaderForType(leftHandSideElementType);
-        this.searchExecutionContext = searchExecutionContext;
-        lucenePushdownPredicates = LucenePushdownPredicates.from(
-            SearchContextStats.from(List.of(searchExecutionContext)),
-            new EsqlFlags(clusterService.getClusterSettings())
-        );
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -84,7 +72,13 @@ public class BinaryComparisonQueryList extends QueryList {
     }
 
     @Override
-    public Query doGetQuery(int position, int firstValueIndex, int valueCount, Block inputBlock) {
+    public Query doGetQuery(
+        int position,
+        int firstValueIndex,
+        int valueCount,
+        Block inputBlock,
+        SearchExecutionContext searchExecutionContext
+    ) {
         Object value = blockValueReader.apply(inputBlock, firstValueIndex);
         // create a new comparison with the value from the block as a literal
         EsqlBinaryComparison comparison = binaryComparison.getFunctionType()
@@ -93,6 +87,11 @@ public class BinaryComparisonQueryList extends QueryList {
                 binaryComparison.left(),
                 new Literal(binaryComparison.right().source(), value, binaryComparison.right().dataType())
             );
+        // Create LucenePushdownPredicates dynamically from the current SearchExecutionContext
+        LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
+            SearchContextStats.from(List.of(searchExecutionContext)),
+            new EsqlFlags(clusterService.getClusterSettings())
+        );
         try {
             if (TranslationAware.Translatable.YES == comparison.translatable(lucenePushdownPredicates)) {
                 return comparison.asQuery(lucenePushdownPredicates, TranslatorHandler.TRANSLATOR_HANDLER)

@@ -120,8 +120,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         validateTypes(inputDataType, fieldType);
         int channelOffset = 0;
         return switch (request.matchType) {
-            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, channelOffset, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, channelOffset);
+            case "match", "range" -> termQueryList(fieldType, aliasFilter, channelOffset, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, aliasFilter, channelOffset);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }

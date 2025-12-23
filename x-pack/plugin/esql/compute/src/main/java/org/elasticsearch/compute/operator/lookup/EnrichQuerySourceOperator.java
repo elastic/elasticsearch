@@ -29,6 +29,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,6 +48,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private int queryPosition = -1;
     private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
+    private final SearchExecutionContext searchExecutionContext;
     private final IndexReader indexReader;
     private final IndexSearcher searcher;
     private final Warnings warnings;
@@ -63,6 +65,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         BlockOptimization blockOptimization,
         IndexedByShardId<? extends ShardContext> shardContexts,
         int shardId,
+        SearchExecutionContext searchExecutionContext,
         Warnings warnings
     ) {
         this.blockFactory = blockFactory;
@@ -73,6 +76,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.shardContexts = shardContexts;
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
+        this.searchExecutionContext = searchExecutionContext;
         this.searcher = shardContext.searcher();
         this.indexReader = searcher.getIndexReader();
         this.warnings = warnings;
@@ -212,7 +216,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         ++queryPosition;
         Page inputPage = getInputPageInternal();
         while (isFinished() == false) {
-            Query query = queryList.getQuery(queryPosition, inputPage);
+            Query query = queryList.getQuery(queryPosition, inputPage, searchExecutionContext);
             if (query != null) {
                 return query;
             }

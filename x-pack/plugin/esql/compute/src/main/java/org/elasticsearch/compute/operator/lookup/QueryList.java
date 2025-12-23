@@ -52,21 +52,13 @@ import java.util.function.BiFunction;
  * Each QueryList stores a channel offset to extract the correct Block from the Page.
  */
 public abstract class QueryList implements LookupEnrichQueryGenerator {
-    protected final SearchExecutionContext searchExecutionContext;
     protected final AliasFilter aliasFilter;
     protected final MappedFieldType field;
     protected final int channelOffset; // Channel index in the input Page
     @Nullable
     protected final OnlySingleValueParams onlySingleValueParams;
 
-    protected QueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        int channelOffset,
-        OnlySingleValueParams onlySingleValueParams
-    ) {
-        this.searchExecutionContext = searchExecutionContext;
+    protected QueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset, OnlySingleValueParams onlySingleValueParams) {
         this.aliasFilter = aliasFilter;
         this.field = field;
         this.channelOffset = channelOffset;
@@ -91,7 +83,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     public abstract QueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage);
 
     @Override
-    public final Query getQuery(int position, Page inputPage) {
+    public final Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
         Block inputBlock = inputPage.getBlock(channelOffset);
         final int valueCount = inputBlock.getValueCount(position);
         if (onlySingleValueParams != null && valueCount != 1) {
@@ -104,7 +96,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
         final int firstValueIndex = inputBlock.getFirstValueIndex(position);
 
-        Query query = doGetQuery(position, firstValueIndex, valueCount, inputBlock);
+        Query query = doGetQuery(position, firstValueIndex, valueCount, inputBlock, searchExecutionContext);
 
         if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -118,7 +110,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
 
         if (onlySingleValueParams != null) {
-            query = wrapSingleValueQuery(query);
+            query = wrapSingleValueQuery(query, searchExecutionContext);
         }
 
         return query;
@@ -128,9 +120,15 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
      * Returns the query at the given position.
      */
     @Nullable
-    public abstract Query doGetQuery(int position, int firstValueIndex, int valueCount, Block inputBlock);
+    public abstract Query doGetQuery(
+        int position,
+        int firstValueIndex,
+        int valueCount,
+        Block inputBlock,
+        SearchExecutionContext searchExecutionContext
+    );
 
-    private Query wrapSingleValueQuery(Query query) {
+    private Query wrapSingleValueQuery(Query query, SearchExecutionContext searchExecutionContext) {
         assert onlySingleValueParams != null : "Requested to wrap single value query without single value params";
 
         SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
@@ -182,35 +180,17 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     /**
      * Returns a list of term queries for the given field and element type.
      */
-    public static QueryList rawTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        int channelOffset,
-        ElementType elementType
-    ) {
-        return new TermQueryList(
-            field,
-            searchExecutionContext,
-            aliasFilter,
-            channelOffset,
-            null,
-            createBlockValueReaderForType(elementType)
-        );
+    public static QueryList rawTermQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset, ElementType elementType) {
+        return new TermQueryList(field, aliasFilter, channelOffset, null, createBlockValueReaderForType(elementType));
     }
 
     /**
      * Returns a list of term queries for the given field for IP values.
      */
-    public static QueryList ipTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        int channelOffset
-    ) {
+    public static QueryList ipTermQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset) {
         BytesRef scratch = new BytesRef();
         byte[] ipBytes = new byte[InetAddressPoint.BYTES];
-        return new TermQueryList(field, searchExecutionContext, aliasFilter, channelOffset, null, (block, offset) -> {
+        return new TermQueryList(field, aliasFilter, channelOffset, null, (block, offset) -> {
             BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
             final var bytes = bytesRefBlock.getBytesRef(offset, scratch);
             if (ipBytes.length != bytes.length) {
@@ -225,15 +205,9 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     /**
      * Returns a list of term queries for the given field for date values.
      */
-    public static QueryList dateTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        int channelOffset
-    ) {
+    public static QueryList dateTermQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset) {
         return new TermQueryList(
             field,
-            searchExecutionContext,
             aliasFilter,
             channelOffset,
             null,
@@ -246,25 +220,15 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     /**
      * Returns a list of term queries for the given field for date_nanos values.
      */
-    public static QueryList dateNanosTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        int channelOffset
-    ) {
-        return new DateNanosQueryList(field, searchExecutionContext, aliasFilter, channelOffset, null);
+    public static QueryList dateNanosTermQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset) {
+        return new DateNanosQueryList(field, aliasFilter, channelOffset, null);
     }
 
     /**
      * Returns a list of geo_shape queries for the given field.
      */
-    public static QueryList geoShapeQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        int channelOffset
-    ) {
-        return new GeoShapeQueryList(field, searchExecutionContext, aliasFilter, channelOffset, null);
+    public static QueryList geoShapeQueryList(MappedFieldType field, AliasFilter aliasFilter, int channelOffset) {
+        return new GeoShapeQueryList(field, aliasFilter, channelOffset, null);
     }
 
     private static class TermQueryList extends QueryList {
@@ -272,13 +236,12 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
 
         private TermQueryList(
             MappedFieldType field,
-            SearchExecutionContext searchExecutionContext,
             AliasFilter aliasFilter,
             int channelOffset,
             OnlySingleValueParams onlySingleValueParams,
             BiFunction<Block, Integer, Object> blockValueReader
         ) {
-            super(field, searchExecutionContext, aliasFilter, channelOffset, onlySingleValueParams);
+            super(field, aliasFilter, channelOffset, onlySingleValueParams);
             this.blockValueReader = blockValueReader;
         }
 
@@ -286,7 +249,6 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         public TermQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
             return new TermQueryList(
                 field,
-                searchExecutionContext,
                 aliasFilter,
                 channelOffset,
                 new OnlySingleValueParams(warnings, multiValueWarningMessage),
@@ -295,7 +257,13 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
 
         @Override
-        public Query doGetQuery(int position, int firstValueIndex, int valueCount, Block inputBlock) {
+        public Query doGetQuery(
+            int position,
+            int firstValueIndex,
+            int valueCount,
+            Block inputBlock,
+            SearchExecutionContext searchExecutionContext
+        ) {
             return switch (valueCount) {
                 case 0 -> null;
                 case 1 -> field.termQuery(blockValueReader.apply(inputBlock, firstValueIndex), searchExecutionContext);
@@ -316,12 +284,11 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
 
         private DateNanosQueryList(
             MappedFieldType field,
-            SearchExecutionContext searchExecutionContext,
             AliasFilter aliasFilter,
             int channelOffset,
             OnlySingleValueParams onlySingleValueParams
         ) {
-            super(field, searchExecutionContext, aliasFilter, channelOffset, onlySingleValueParams);
+            super(field, aliasFilter, channelOffset, onlySingleValueParams);
             if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
                 // TODO: do this validation earlier
                 throw new IllegalArgumentException(
@@ -346,36 +313,42 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
 
         @Override
         public DateNanosQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
-            return new DateNanosQueryList(
-                field,
-                searchExecutionContext,
-                aliasFilter,
-                channelOffset,
-                new OnlySingleValueParams(warnings, multiValueWarningMessage)
-            );
+            return new DateNanosQueryList(field, aliasFilter, channelOffset, new OnlySingleValueParams(warnings, multiValueWarningMessage));
         }
 
         @Override
-        public Query doGetQuery(int position, int firstValueIndex, int valueCount, Block inputBlock) {
-            LongBlock longBlock = (LongBlock) inputBlock;
-            return switch (valueCount) {
-                case 0 -> null;
-                case 1 -> dateFieldType.equalityQuery(longBlock.getLong(firstValueIndex), searchExecutionContext);
-                default -> {
-                    // The following code is a slight simplification of the DateFieldMapper.termsQuery method
-                    final Set<Long> values = new HashSet<>(valueCount);
-                    BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                    for (int i = 0; i < valueCount; i++) {
-                        final Long value = longBlock.getLong(firstValueIndex + i);
-                        if (values.contains(value)) {
-                            continue; // Skip duplicates
+        public Query doGetQuery(
+            int position,
+            int firstValueIndex,
+            int valueCount,
+            Block inputBlock,
+            SearchExecutionContext searchExecutionContext
+        ) {
+            // DateNanosQueryList is only created for DATE_NANOS input types, which are always LongBlock
+            if (inputBlock instanceof LongBlock longBlock) {
+                return switch (valueCount) {
+                    case 0 -> null;
+                    case 1 -> dateFieldType.equalityQuery(longBlock.getLong(firstValueIndex), searchExecutionContext);
+                    default -> {
+                        // The following code is a slight simplification of the DateFieldMapper.termsQuery method
+                        final Set<Long> values = new HashSet<>(valueCount);
+                        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                        for (int i = 0; i < valueCount; i++) {
+                            final Long value = longBlock.getLong(firstValueIndex + i);
+                            if (values.contains(value)) {
+                                continue; // Skip duplicates
+                            }
+                            values.add(value);
+                            builder.add(dateFieldType.equalityQuery(value, searchExecutionContext), BooleanClause.Occur.SHOULD);
                         }
-                        values.add(value);
-                        builder.add(dateFieldType.equalityQuery(value, searchExecutionContext), BooleanClause.Occur.SHOULD);
+                        yield new ConstantScoreQuery(builder.build());
                     }
-                    yield new ConstantScoreQuery(builder.build());
-                }
-            };
+                };
+            } else {
+                throw new IllegalArgumentException(
+                    "DateNanosQueryList expects LongBlock input, but got: " + inputBlock.elementType() + " block"
+                );
+            }
         }
     }
 
@@ -384,32 +357,31 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
 
         private GeoShapeQueryList(
             MappedFieldType field,
-            SearchExecutionContext searchExecutionContext,
             AliasFilter aliasFilter,
             int channelOffset,
             OnlySingleValueParams onlySingleValueParams
         ) {
-            super(field, searchExecutionContext, aliasFilter, channelOffset, onlySingleValueParams);
+            super(field, aliasFilter, channelOffset, onlySingleValueParams);
         }
 
         @Override
         public GeoShapeQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
-            return new GeoShapeQueryList(
-                field,
-                searchExecutionContext,
-                aliasFilter,
-                channelOffset,
-                new OnlySingleValueParams(warnings, multiValueWarningMessage)
-            );
+            return new GeoShapeQueryList(field, aliasFilter, channelOffset, new OnlySingleValueParams(warnings, multiValueWarningMessage));
         }
 
         @Override
-        public Query doGetQuery(int position, int firstValueIndex, int valueCount, Block inputBlock) {
+        public Query doGetQuery(
+            int position,
+            int firstValueIndex,
+            int valueCount,
+            Block inputBlock,
+            SearchExecutionContext searchExecutionContext
+        ) {
             return switch (valueCount) {
                 case 0 -> null;
                 case 1 -> {
                     Geometry geometry = blockToGeometry(inputBlock, firstValueIndex);
-                    yield shapeQuery(geometry);
+                    yield shapeQuery(geometry, searchExecutionContext);
                 }
                 // TODO: support multiple values
                 default -> throw new IllegalArgumentException("can't read multiple Geometry values from a single position");
@@ -434,7 +406,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
             };
         }
 
-        private Query shapeQuery(Geometry geometry) {
+        private Query shapeQuery(Geometry geometry, SearchExecutionContext searchExecutionContext) {
             if (field instanceof GeoShapeQueryable geoShapeQueryable) {
                 return geoShapeQueryable.geoShapeQuery(searchExecutionContext, field.name(), ShapeRelation.INTERSECTS, geometry);
             }

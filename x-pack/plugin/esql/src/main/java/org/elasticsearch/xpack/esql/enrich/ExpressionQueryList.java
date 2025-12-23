@@ -59,10 +59,9 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private final List<QueryList> queryLists;
-    private final List<Query> lucenePushableFilters = new ArrayList<>();
-    private final SearchExecutionContext context;
+    private final List<QueryBuilder> lucenePushableFilterBuilders = new ArrayList<>();
     private final AliasFilter aliasFilter;
-    private final LucenePushdownPredicates lucenePushdownPredicates;
+    private final ClusterService clusterService;
 
     private ExpressionQueryList(
         List<QueryList> queryLists,
@@ -72,13 +71,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         AliasFilter aliasFilter
     ) {
         this.queryLists = new ArrayList<>(queryLists);
-        this.context = context;
         this.aliasFilter = aliasFilter;
-        this.lucenePushdownPredicates = LucenePushdownPredicates.from(
+        this.clusterService = clusterService;
+        LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
             SearchContextStats.from(List.of(context)),
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        buildPreJoinFilter(rightPreJoinPlan, clusterService);
+        buildPreJoinFilter(rightPreJoinPlan, context, lucenePushdownPredicates);
     }
 
     /**
@@ -130,21 +129,33 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             clusterService,
             aliasFilter
         );
-        expressionQueryList.buildJoinOnForExpressionJoin(request.getJoinOnConditions(), request.getMatchFields(), clusterService, warnings);
+        // Build join-on conditions using the context from planning (this is safe as conditions are static)
+        LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
+            SearchContextStats.from(List.of(context)),
+            new EsqlFlags(clusterService.getClusterSettings())
+        );
+        expressionQueryList.buildJoinOnForExpressionJoin(
+            request.getJoinOnConditions(),
+            request.getMatchFields(),
+            context,
+            lucenePushdownPredicates,
+            warnings
+        );
         return expressionQueryList;
     }
 
     private void buildJoinOnForExpressionJoin(
         Expression joinOnConditions,
         List<MatchConfig> matchFields,
-        ClusterService clusterService,
+        SearchExecutionContext context,
+        LucenePushdownPredicates lucenePushdownPredicates,
         Warnings warnings
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
         for (Expression expr : expressions) {
-            boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, clusterService, warnings);
+            boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, context, clusterService, warnings);
             if (applied == false) {
-                applied = applyAsRightSidePushableFilter(expr);
+                applied = applyAsRightSidePushableFilter(expr, context, lucenePushdownPredicates);
             }
             if (applied == false) {
                 throw new IllegalArgumentException("Cannot apply join condition: " + expr);
@@ -152,7 +163,11 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         }
     }
 
-    private boolean applyAsRightSidePushableFilter(Expression filter) {
+    private boolean applyAsRightSidePushableFilter(
+        Expression filter,
+        SearchExecutionContext context,
+        LucenePushdownPredicates lucenePushdownPredicates
+    ) {
         if (filter instanceof TranslationAware translationAware) {
             if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
                 QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
@@ -173,6 +188,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private boolean applyAsLeftRightBinaryComparison(
         Expression expr,
         List<MatchConfig> matchFields,
+        SearchExecutionContext context,
         ClusterService clusterService,
         Warnings warnings
     ) {
@@ -197,14 +213,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
                 // so here we reuse the existing logic from field based join to build a termQueryList for Equals
                 if (binaryComparison instanceof Equals) {
-                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, channelOffset, dataType);
+                    QueryList termQueryForEquals = termQueryList(rightFieldType, aliasFilter, channelOffset, dataType);
                     queryLists.add(termQueryForEquals.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
                 } else {
                     ElementType elementType = PlannerUtils.toElementType(dataType);
                     queryLists.add(
                         new BinaryComparisonQueryList(
                             rightFieldType,
-                            context,
                             elementType,
                             channelOffset,
                             binaryComparison,
@@ -220,23 +235,32 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         return false;
     }
 
-    private void addToLucenePushableFilters(QueryBuilder query) {
-        try {
-            if (query != null) {
-                lucenePushableFilters.add(query.toQuery(context));
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+    private void addToLucenePushableFilters(QueryBuilder queryBuilder) {
+        if (queryBuilder != null) {
+            lucenePushableFilterBuilders.add(queryBuilder);
         }
     }
 
-    private void buildPreJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
+    private void buildPreJoinFilter(
+        PhysicalPlan rightPreJoinPlan,
+        SearchExecutionContext context,
+        LucenePushdownPredicates lucenePushdownPredicates
+    ) {
         if (rightPreJoinPlan instanceof FilterExec filterExec) {
             List<Expression> candidateRightHandFilters = Predicates.splitAnd(filterExec.condition());
             for (Expression filter : candidateRightHandFilters) {
                 if (filter instanceof TranslationAware translationAware) {
                     if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
-                        addToLucenePushableFilters(translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder());
+                        QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
+                        // Rewrite the query builder to ensure doIndexMetadataRewrite is called
+                        // Some functions, such as KQL require rewriting to work properly
+                        try {
+                            queryBuilder = Rewriteable.rewrite(queryBuilder, context, true);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException("Error while rewriting query for Lucene pushable filter", e);
+                        }
+                        // Store QueryBuilder instead of Query to avoid caching IndexReader references
+                        addToLucenePushableFilters(queryBuilder);
                     }
                 }
                 // If the filter is not translatable we will not apply it for now
@@ -261,10 +285,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      * @return The query at the given position, or null if any of the match fields are null.
      */
     @Override
-    public Query getQuery(int position, Page inputPage) {
+    public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryList queryList : queryLists) {
-            Query q = queryList.getQuery(position, inputPage);
+            Query q = queryList.getQuery(position, inputPage, searchExecutionContext);
             if (q == null) {
                 // if any of the matchFields are null, it means there is no match for this position
                 // A AND NULL is always NULL, so we can skip this position
@@ -273,8 +297,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             builder.add(q, BooleanClause.Occur.FILTER);
         }
         // also attach the pre-join filter if it exists
-        for (Query preJoinFilter : lucenePushableFilters) {
-            builder.add(preJoinFilter, BooleanClause.Occur.FILTER);
+        // Build queries from QueryBuilders dynamically to avoid caching stale IndexReader references
+        for (QueryBuilder queryBuilder : lucenePushableFilterBuilders) {
+            try {
+                builder.add(queryBuilder.toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+            }
         }
         return builder.build();
     }

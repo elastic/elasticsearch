@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -174,11 +175,17 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                             }
                         } else {
                             assert item.getResponse() != null;
-                            var rankDocs = getRankDocs(item.getResponse());
-                            innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
-                            topDocs.add(rankDocs);
+                            // TODO: handle partial failures by passing them back up with the results
+                            if (item.getResponse().getFailedShards() > 0 && ctx.allowPartialSearchResults() == false) {
+                                statusCode = handleShardFailures(item.getResponse(), statusCode, failures);
+                            } else {
+                                var rankDocs = getRankDocs(item.getResponse());
+                                innerRetrievers.get(i).retriever().setRankDocs(rankDocs);
+                                topDocs.add(rankDocs);
+                            }
                         }
                     }
+
                     if (false == failures.isEmpty()) {
                         assert statusCode != RestStatus.OK.getStatus();
                         final String errMessage = "["
@@ -210,6 +217,37 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         );
         rankDocsRetrieverBuilder.retrieverName(retrieverName());
         return rankDocsRetrieverBuilder;
+    }
+
+    int handleShardFailures(SearchResponse response, int statusCode, List<Exception> failures) {
+        ShardSearchFailure[] shardFailures = response.getShardFailures();
+        for (ShardSearchFailure shardFailure : shardFailures) {
+            if (shardFailure != null) {
+                int shardFailureStatusCode = ExceptionsHelper.status(shardFailure.getCause()).getStatus();
+                failures.add(
+                    processInnerItemFailureException(
+                        new ElasticsearchStatusException(
+                            "failed to retrieve data from shard ["
+                                + shardFailure.shardId()
+                                + "] with message: "
+                                + shardFailure.getCause().getMessage(),
+                            RestStatus.fromCode(shardFailureStatusCode)
+                        )
+                    )
+                );
+                statusCode = Math.max(shardFailureStatusCode, statusCode);
+            }
+        }
+        return statusCode;
+    }
+
+    /**
+     * Overridable method to check or modify any failures from child retrievers if needed
+     * @param ex the exception thrown
+     * @return the failure exception
+     */
+    protected Exception processInnerItemFailureException(Exception ex) {
+        return ex;
     }
 
     @Override
@@ -246,12 +284,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                     rankWindowSize,
                     size
                 ),
-                validationException
-            );
-        }
-        if (allowPartialSearchResults) {
-            validationException = addValidationError(
-                "cannot specify [" + getName() + "] and [allow_partial_search_results]",
                 validationException
             );
         }

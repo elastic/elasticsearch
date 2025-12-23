@@ -339,9 +339,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
-                if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                    out.writeBoolean(failureStoreEffectivelyEnabled);
-                }
+                out.writeBoolean(failureStoreEffectivelyEnabled);
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);

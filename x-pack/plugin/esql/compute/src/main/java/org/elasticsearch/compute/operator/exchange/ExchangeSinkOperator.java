@@ -114,21 +114,13 @@ public class ExchangeSinkOperator extends SinkOperator {
 
         Status(StreamInput in) throws IOException {
             pagesReceived = in.readVInt();
-
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                rowsReceived = in.readVLong();
-            } else {
-                rowsReceived = 0;
-            }
+            rowsReceived = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(pagesReceived);
-
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                out.writeVLong(rowsReceived);
-            }
+            out.writeVLong(rowsReceived);
         }
 
         @Override

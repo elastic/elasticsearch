@@ -291,7 +291,7 @@ from doc with aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -320,7 +320,7 @@ stats on aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -351,7 +351,7 @@ grouping stats on aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -392,7 +392,7 @@ sorting with aggregate_metric_double with partial submetrics:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_sorting, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for sorting when aggregate_metric_double present"
   - do:
       allowed_warnings_regex:
@@ -424,7 +424,7 @@ aggregate_metric_double unsortable:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_sorting, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for sorting when aggregate_metric_double present"
   - do:
       catch: /cannot sort on aggregate_metric_double/
@@ -440,7 +440,7 @@ stats on aggregate_metric_double with partial submetrics:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_partial_submetrics, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -480,7 +480,7 @@ stats on aggregate_metric_double missing min and max:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_partial_submetrics, dense_vector_agg_metric_double_if_version ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -512,7 +512,7 @@ render aggregate_metric_double when missing min and max:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering, dense_vector_agg_metric_double_if_version ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -536,7 +536,7 @@ render aggregate_metric_double when missing value:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering, dense_vector_agg_metric_double_if_version ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -560,7 +560,7 @@ to_string aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_rendering, dense_vector_agg_metric_double_if_version ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
@@ -583,7 +583,7 @@ from index pattern unsupported counter:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_partial_submetrics, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
@@ -675,7 +675,7 @@ to_aggregate_metric_double with multi_values:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_convert_to ]
+          capabilities: [ aggregate_metric_double_v0 ]
       reason: "Support for to_aggregate_metric_double function"
 
   - do:
@@ -725,7 +725,7 @@ avg of aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_avg, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "support avg aggregations with aggregate metric double"
 
   - do:
@@ -846,7 +846,9 @@ error on rename timestamp:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message ]
+          # inline_stats_with_no_columns is a stand-in for a missed capability that should have been introduced along with the
+          # TimestampAware interface. This capability is the first one added past #137040.
+          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message, inline_stats_with_no_columns ]
       reason: "TS specific check"
 
   - do:

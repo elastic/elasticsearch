@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class DimensionFieldValueFetcher extends FieldValueFetcher {
 
@@ -29,18 +30,23 @@ public class DimensionFieldValueFetcher extends FieldValueFetcher {
     }
 
     @Override
-    public AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer fieldProducer() {
         return this.dimensionFieldProducer;
     }
 
     /**
      * Retrieve field value fetchers for a list of dimensions.
      */
-    static List<FieldValueFetcher> create(final SearchExecutionContext context, final String[] dimensions) {
+    static List<FieldValueFetcher> create(
+        final SearchExecutionContext context,
+        final String[] dimensions,
+        final Map<String, String> multiFieldSources
+    ) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String dimension : dimensions) {
-            MappedFieldType fieldType = context.getFieldType(dimension);
-            assert fieldType != null : "Unknown type for dimension field: [" + dimension + "]";
+            String sourceFieldName = multiFieldSources.getOrDefault(dimension, dimension);
+            MappedFieldType fieldType = context.getFieldType(sourceFieldName);
+            assert fieldType != null : "Unknown type for dimension field: [" + sourceFieldName + "]";
 
             if (context.fieldExistsInIndex(fieldType.name())) {
                 final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
@@ -49,10 +55,7 @@ public class DimensionFieldValueFetcher extends FieldValueFetcher {
                     var dimensionName = flattenedFieldType.rootName() + '.' + flattenedFieldType.key();
                     fetchers.add(new DimensionFieldValueFetcher(dimensionName, fieldType, fieldData));
                 } else {
-                    final String fieldName = context.isMultiField(dimension)
-                        ? fieldType.name().substring(0, fieldType.name().lastIndexOf('.'))
-                        : fieldType.name();
-                    fetchers.add(new DimensionFieldValueFetcher(fieldName, fieldType, fieldData));
+                    fetchers.add(new DimensionFieldValueFetcher(dimension, fieldType, fieldData));
                 }
             }
         }

@@ -25,7 +25,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
-import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -84,13 +83,15 @@ public class IndexResolver {
     }
 
     /**
-     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
+     * Like {@code resolveAsMergedMappingAndRetrieveMinimumVersion}
+     * but does not pass on the determined minimum transport version to the listener.
      */
     public void resolveAsMergedMapping(
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
+        TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         ActionListener<IndexResolution> listener
@@ -104,6 +105,7 @@ public class IndexResolver {
             fieldNames,
             requestFilter,
             includeAllDimensions,
+            minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
             ignoreVersion
@@ -111,15 +113,37 @@ public class IndexResolver {
     }
 
     /**
-     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping. Also retrieves the minimum transport
-     * version available in the cluster (and remotes).
+     * Perform a field caps request to resolve a pattern to one mapping (potentially compound, meaning it spans multiple indices).
+     * <p>
+     * The field caps response contains the minimum transport version of all clusters that apply to the pattern,
+     * and it is used to deal with previously unsupported data types during resolution.
+     * <p>
+     * If a field's type is not supported on the minimum version, it will be {@link DataType#UNSUPPORTED}.
+     * <p>
+     * If the nodes are too old to include their minimum transport version in the field caps response, we'll assume
+     * {@link TransportVersion#minimumCompatible()}.
+     * <p>
+     * The {@code minimumVersion} already known so far must be passed in and will be used instead of the minimum version
+     * from the field caps response if it is lower. During main index resolution, this is the local cluster's minimum version.
+     * This safeguards against using too new a version in case of {@code FROM remote_only:* | ...} queries that don't have any indices
+     * on the local cluster.
+     * <p>
+     * But it's also important for remote {@code ENRICH} resolution, because in CCS enrich policies are resolved on remote clusters,
+     * so the overall minimum transport version that the coordinating cluster observed must be passed in here to avoid inconsistencies.
+     * <p>
+     * The overall minimum version is updated using the field caps response and is passed on to the listener.
      */
     public void resolveAsMergedMappingAndRetrieveMinimumVersion(
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
+        TransportVersion minimumVersion,
+        // Used for bwc with 9.2.0, which supports aggregate_metric_double but doesn't provide its version in the field
+        // caps response. We'll just assume the type is supported based on usage in the query to not break compatibility
+        // with 9.2.0.
         boolean useAggregateMetricDoubleWhenNotSupported,
+        // Same as above
         boolean useDenseVectorWhenNotSupported,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -127,15 +151,29 @@ public class IndexResolver {
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> {
+                TransportVersion responseMinimumVersion = response.minTransportVersion();
+                // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
+                // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.
+                TransportVersion overallMinimumVersion = responseMinimumVersion == null
+                    ? TransportVersion.minimumCompatible()
+                    : TransportVersion.min(minimumVersion, responseMinimumVersion);
+
                 FieldsInfo info = new FieldsInfo(
                     response.caps(),
-                    response.minTransportVersion(),
+                    overallMinimumVersion,
                     Build.current().isSnapshot(),
                     useAggregateMetricDoubleWhenNotSupported,
                     useDenseVectorWhenNotSupported
                 );
-                LOGGER.debug("minimum transport version {} {}", response.minTransportVersion(), info.effectiveMinTransportVersion());
-                l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.effectiveMinTransportVersion()));
+                LOGGER.debug(
+                    "previously assumed minimum transport version [{}] updated to effective version [{}]"
+                        + " using field caps response version [{}] for index pattern [{}]",
+                    minimumVersion,
+                    info.minTransportVersion(),
+                    responseMinimumVersion,
+                    indexWildcard
+                );
+                l.onResponse(new Versioned<>(mergedMappings(indexWildcard, info), info.minTransportVersion()));
             })
         );
     }
@@ -148,6 +186,22 @@ public class IndexResolver {
      *                            is targeting. It doesn't matter if the node is a data node or an ML node or a unicorn, it's transport
      *                            version counts. BUT if the query doesn't dispatch to that cluster AT ALL, we don't count the versions
      *                            of any nodes in that cluster.
+     *                            <p>
+     *                            If any remote didn't tell us the version we assume
+     *                            that it's very, very old. This effectively disables any fields that were created "recently".
+     *                            Which is appropriate because those fields are not supported on *almost* all versions that
+     *                            don't return the transport version in the response.
+     *                            <p>
+     *                            "Very, very old" above means that there are versions of Elasticsearch that we're wire
+     *                            compatible that with that don't support sending the version back. That's anything
+     *                            from {@code 8.19.FIRST} to {@code 9.2.0}. "Recently" means any field types we
+     *                            added support for after the initial release of ESQL. These fields use
+     *                            {@link SupportedVersion#supportedOn} rather than {@link SupportedVersion#SUPPORTED_ON_ALL_NODES}.
+     *                            Except for DATE_NANOS. For DATE_NANOS we got lucky/made a mistake. It wasn't widely
+     *                            used before ESQL added support for it and we weren't careful about enabling it. So
+     *                            queries on mixed version clusters that touch DATE_NANOS will fail. All the types
+     *                            added after that, like DENSE_VECTOR, will gracefully disable themselves when talking
+     *                            to older nodes.
      * @param currentBuildIsSnapshot is the current build a snapshot? Note: This is always {@code Build.current().isSnapshot()} in
      *                               production but tests need more control
      * @param useAggregateMetricDoubleWhenNotSupported does the query itself force us to use {@code aggregate_metric_double} fields
@@ -166,34 +220,7 @@ public class IndexResolver {
         boolean currentBuildIsSnapshot,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported
-    ) {
-        /**
-         * The {@link #minTransportVersion}, but if any remote didn't tell us the version we assume
-         * that it's very, very old. This effectively disables any fields that were created "recently".
-         * Which is appropriate because those fields are not supported on *almost* all versions that
-         * don't return the transport version in the response.
-         * <p>
-         *     "Very, very old" above means that there are versions of Elasticsearch that we're wire
-         *     compatible that with that don't support sending the version back. That's anything
-         *     from {@code 8.19.FIRST} to {@code 9.2.0}. "Recently" means any field types we
-         *     added support for after the initial release of ESQL. These fields use
-         *     {@link SupportedVersion#supportedOn} rather than {@link SupportedVersion#SUPPORTED_ON_ALL_NODES}.
-         *     Except for DATE_NANOS. For DATE_NANOS we got lucky/made a mistake. It wasn't widely
-         *     used before ESQL added support for it and we weren't careful about enabling it. So
-         *     queries on mixed version clusters that touch DATE_NANOS will fail. All the types
-         *     added after that, like DENSE_VECTOR, will gracefully disable themselves when talking
-         *     to older nodes.
-         * </p>
-         * <p>
-         *     Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
-         *     we can remove this and make sure {@link #minTransportVersion} is non-null. That'll
-         *     be 10.0-ish.
-         * </p>
-         */
-        TransportVersion effectiveMinTransportVersion() {
-            return minTransportVersion != null ? minTransportVersion : TransportVersion.minimumCompatible();
-        }
-    }
+    ) {}
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldsInfo fieldsInfo) {
@@ -328,8 +355,7 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        boolean typeSupported = type.supportedVersion()
-            .supportedOn(fieldsInfo.effectiveMinTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
+        boolean typeSupported = type.supportedVersion().supportedOn(fieldsInfo.minTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
             || switch (type) {
                 case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
                 case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;

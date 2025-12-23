@@ -145,7 +145,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, queryBuilder);
+        return Objects.hash(super.hashCode(), query, System.identityHashCode(queryBuilder));
     }
 
     @Override
@@ -154,7 +154,9 @@ public abstract class FullTextFunction extends Function
             return false;
         }
 
-        return Objects.equals(queryBuilder, ((FullTextFunction) obj).queryBuilder) && Objects.equals(query, ((FullTextFunction) obj).query);
+        // Compare query builders using identity because that's how they are compared during query rewriting
+        FullTextFunction other = (FullTextFunction) obj;
+        return queryBuilder == other.queryBuilder && Objects.equals(query, other.query);
     }
 
     @Override

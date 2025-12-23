@@ -14,6 +14,7 @@ public final class ServiceFields {
 
     public static final String SIMILARITY = "similarity";
     public static final String DIMENSIONS = "dimensions";
+    public static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
     // Typically we use this to define the maximum tokens for the input text (text being sent to an integration)
     public static final String MAX_INPUT_TOKENS = "max_input_tokens";
     public static final String URL = "url";

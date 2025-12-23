@@ -127,11 +127,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         asyncExecutionId = in.readOptionalString();
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
-        } else {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        }
+        shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -146,9 +142,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeOptionalString(asyncExecutionId);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeArray(shardFailures);
-        }
+        out.writeArray(shardFailures);
     }
 
     @Override

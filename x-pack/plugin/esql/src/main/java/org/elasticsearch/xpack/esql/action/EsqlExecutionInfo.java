@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -70,7 +69,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
     public final ConcurrentMap<String, Cluster> clusterInfo;
-    // Is the clusterInfo map iinitialization in progress? If so, we should not try to serialize it.
+    // Is the clusterInfo map initialization in progress? If so, we should not try to serialize it.
     private transient volatile boolean clusterInfoInitializing;
     // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
     private final boolean includeCCSMetadata;
@@ -119,7 +118,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         this.overallTook = in.readOptionalTimeValue();
         this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
         this.includeCCSMetadata = in.readBoolean();
-        this.isPartial = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readBoolean() : false;
+        this.isPartial = in.readBoolean();
         this.skipOnFailurePredicate = Predicates.always();
         this.relativeStart = null;
         if (in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
@@ -137,9 +136,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeCollection(Collections.emptyList());
         }
         out.writeBoolean(includeCCSMetadata);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(isPartial);
-        }
+        out.writeBoolean(isPartial);
         if (out.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)) {
             out.writeOptionalWriteable(overallTimeSpan);
             out.writeOptionalWriteable(planningTimeSpan);

@@ -11,26 +11,25 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp;
 import org.junit.BeforeClass;
 
 import java.time.Duration;
 
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.ADD;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.DIV;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.MOD;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.MUL;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.POW;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.arithmetic.VectorBinaryArithmetic.ArithmeticOp.SUB;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp.EQ;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp.GT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp.GTE;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp.LT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp.LTE;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.comparison.VectorBinaryComparison.ComparisonOp.NEQ;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp.ADD;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp.DIV;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp.MOD;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp.MUL;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp.POW;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic.ArithmeticOp.SUB;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp.EQ;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp.GT;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp.GTE;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp.LT;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp.LTE;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison.ComparisonOp.NEQ;
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assume.assumeTrue;
 
 public class PromqlFoldingUtilsTests extends ESTestCase {
 

@@ -62,7 +62,8 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         Source source,
         @Param(
             name = "field",
-            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "exponential_histogram" }
+            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "exponential_histogram" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

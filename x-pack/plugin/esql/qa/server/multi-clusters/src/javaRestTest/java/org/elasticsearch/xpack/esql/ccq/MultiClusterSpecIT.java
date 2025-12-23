@@ -324,6 +324,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String query = testCase.query;
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
+        // Check if query contains enrich source indices - these are loaded into both clusters,
+        // so we should use onlyRemotes=true to avoid duplicates
+        if (onlyRemotes == false && EsqlTestUtils.queryContainsIndices(query, Set.copyOf(ENRICH_SOURCE_INDICES))) {
+            onlyRemotes = true;
+        }
         testCase.query = EsqlTestUtils.addRemoteIndices(testCase.query, LOOKUP_INDICES, onlyRemotes);
 
         int offset = testCase.query.length() - query.length();
@@ -404,10 +409,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsTDigestField() {
         try {
-            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V4.capabilityName()))
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()))
                 && RestEsqlTestCase.hasCapabilities(
                     remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V4.capabilityName())
+                    List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName())
                 );
         } catch (IOException e) {
             throw new RuntimeException(e);

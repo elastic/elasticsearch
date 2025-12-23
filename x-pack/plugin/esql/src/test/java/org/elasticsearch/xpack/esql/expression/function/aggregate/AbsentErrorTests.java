@@ -33,7 +33,11 @@ public class AbsentErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            "argument of [dense_vector] must be [any type except counter types or dense_vector], found value [] type [dense_vector]"
+            "argument of ["
+                + signature.getFirst().esType()
+                + "] must be [any type except counter types, dense_vector or date_range], found value [] type ["
+                + signature.getFirst().esType()
+                + "]"
         );
     }
 

@@ -1464,6 +1464,13 @@ warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treatin
 warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
 ;
 
+invalidDateTimeBucket
+required_capability: date_time_exceptions_handled
+ROW a="2026-02-01"::date | STATS BY BUCKET(a, 5, "2026-02-29", "2026-02-29")
+warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:37: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
+;
+
 dayNameRowTest
 required_capability:fn_day_name
 // tag::docsDayName[]

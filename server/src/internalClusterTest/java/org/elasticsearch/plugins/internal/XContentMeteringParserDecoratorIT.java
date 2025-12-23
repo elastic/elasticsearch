@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -168,7 +169,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         }
 
         @Override
-        public XContentParser decorate(XContentParser xContentParser) {
+        public XContentParser decorate(XContentParser xContentParser, Mapping mapping) {
             hasWrappedParser = true;
             return new FilterXContentParserWrapper(xContentParser) {
 

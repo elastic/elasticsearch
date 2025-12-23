@@ -519,14 +519,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         List<Attribute> sourceOutput = new ArrayList<>();
         sourceOutput.add(docAttribute);
 
-        FieldAttribute positionsAttribute = new FieldAttribute(
-            request.source,
-            null,
-            null,
-            AbstractLookupService.LOOKUP_POSITIONS_FIELD.getName(),
-            AbstractLookupService.LOOKUP_POSITIONS_FIELD
-        );
-        sourceOutput.add(positionsAttribute);
+        // Use the reference attribute directly
+        sourceOutput.add(AbstractLookupService.LOOKUP_POSITIONS_FIELD);
 
         var warnings = Warnings.createWarnings(
             DriverContext.WarningsMode.COLLECT,

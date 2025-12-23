@@ -72,9 +72,9 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -126,14 +126,13 @@ import java.util.stream.IntStream;
 public abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
 
     /**
-     * Field for Positions in lookup operations. Contains an IntBlock of positions.
+     * Represents an integer column that corresponds to the positions of the page that we perform the lookup for.
      */
-    public static final EsField LOOKUP_POSITIONS_FIELD = new EsField(
+    public static final ReferenceAttribute LOOKUP_POSITIONS_FIELD = new ReferenceAttribute(
+        Source.EMPTY,
+        null,
         "$$Positions$$",
-        DataType.INTEGER,
-        Map.of(),
-        false,
-        EsField.TimeSeriesFieldType.NONE
+        DataType.INTEGER
     );
 
     private final String actionName;

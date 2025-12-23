@@ -20,7 +20,9 @@ import java.util.Objects;
 /**
  * Physical plan node representing a lookup source operation.
  * This represents the source of a lookup query before conversion to operators.
- * The QueryList is created during physical plan creation and will receive the Block at runtime.
+ * The QueryList is created during physical plan creation
+ * and will receive the Page to operate on in the runtime
+ * when we call queryList.getQuery(position, inputPage).
  */
 public class ParameterizedQueryExec extends LeafExec {
     private final List<Attribute> output;

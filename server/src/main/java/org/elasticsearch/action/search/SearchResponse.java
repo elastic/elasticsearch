@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
@@ -856,6 +857,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * See the Clusters clusterInfo Map for details.
      */
     public static class Cluster implements ToXContentFragment, Writeable {
+
+        public static final TransportVersion SEARCH_RESPONSE_ORIGIN_CLUSTER_LABEL_TV =
+            TransportVersion.fromName("search_response_origin_cluster_label");
+
         public static final ParseField INDICES_FIELD = new ParseField("indices");
         public static final ParseField STATUS_FIELD = new ParseField("status");
 
@@ -969,8 +974,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
             this.skipUnavailable = in.readBoolean();
-            // TODO: wrap in new version check
-            this.originClusterLabel = in.readOptionalString();
+            if (in.getTransportVersion().supports(SEARCH_RESPONSE_ORIGIN_CLUSTER_LABEL_TV)) {
+                this.originClusterLabel = in.readOptionalString();
+            } else {
+                this.originClusterLabel = SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION;
+            }
         }
 
         /**
@@ -1073,8 +1081,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
             out.writeBoolean(skipUnavailable);
-            // TODO: wrap in new Transport version check
-            out.writeOptionalString(originClusterLabel);
+            if (out.getTransportVersion().supports(SEARCH_RESPONSE_ORIGIN_CLUSTER_LABEL_TV)) {
+                out.writeOptionalString(originClusterLabel);
+            }
         }
 
         @Override

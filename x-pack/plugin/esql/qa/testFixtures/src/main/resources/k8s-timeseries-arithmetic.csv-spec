@@ -56,6 +56,108 @@ max_bits:double | step:datetime            | cluster:keyword
 59224.0         | 2024-05-10T00:00:00.000Z | staging
 ;
 
+division_metric_metric_grouping
+required_capability: ts_command_v0
+required_capability: tbucket
+TS k8s
+| STATS div=max(
+    // TODO leaving out last_over_time should be equivalent, but currently fails
+    last_over_time(network.total_bytes_in) /
+    last_over_time(network.total_bytes_in)
+  ) BY step=TBUCKET(1h), cluster
+| SORT cluster;
+
+div:long | step:datetime            | cluster:keyword
+1        | 2024-05-10T00:00:00.000Z | prod
+1        | 2024-05-10T00:00:00.000Z | qa
+1        | 2024-05-10T00:00:00.000Z | staging
+;
+
+division_metric_metric_grouping_promql
+required_capability: promql_pre_tech_preview_v9
+PROMQL index=k8s step=1h div=(
+  max by (cluster) (network.total_bytes_in / network.total_bytes_in)
+)
+| SORT cluster;
+
+div:double | step:datetime            | cluster:keyword
+1.0        | 2024-05-10T00:00:00.000Z | prod
+1.0        | 2024-05-10T00:00:00.000Z | qa
+1.0        | 2024-05-10T00:00:00.000Z | staging
+;
+
+division_metric_metric_grouping_filtering_promql
+required_capability: promql_pre_tech_preview_v9
+PROMQL index=k8s step=1h div=(
+  max by (cluster) (network.total_bytes_in{cluster!="prod"} / network.total_bytes_in{cluster=~"prod|qa"})
+) | SORT cluster;
+
+div:double | step:datetime            | cluster:keyword
+1.0        | 2024-05-10T00:00:00.000Z | qa
+;
+
+division_within_series_grouping
+required_capability: ts_command_v0
+required_capability: tbucket
+TS k8s
+| STATS div=max(
+    rate(network.total_bytes_in) /
+    rate(network.total_bytes_in)
+  ) BY step=TBUCKET(1h), cluster
+| SORT cluster;
+
+div:double | step:datetime            | cluster:keyword
+1.0        | 2024-05-10T00:00:00.000Z | prod
+1.0        | 2024-05-10T00:00:00.000Z | qa
+1.0        | 2024-05-10T00:00:00.000Z | staging
+;
+
+division_within_series_grouping_promql
+required_capability: promql_pre_tech_preview_v9
+PROMQL index=k8s step=1h div=(
+  max by (cluster) (rate(network.total_bytes_in[1h]) / rate(network.total_bytes_in[1h]))
+) | SORT cluster;
+
+div:double | step:datetime            | cluster:keyword
+1.0        | 2024-05-10T00:00:00.000Z | prod
+1.0        | 2024-05-10T00:00:00.000Z | qa
+1.0        | 2024-05-10T00:00:00.000Z | staging
+;
+
+tx_ratio
+required_capability: ts_command_v0
+required_capability: tbucket
+TS k8s
+| STATS ratio=max(
+    last_over_time(network.eth0.tx::double) /
+    (last_over_time(network.eth0.tx::double) + last_over_time(network.eth0.rx::double))
+  ) BY step=TBUCKET(1h), cluster
+| EVAL ratio=ROUND(ratio, 6), step, cluster=cluster
+| SORT ratio DESC;
+
+ratio:double | step:datetime            | cluster:keyword
+0.60063      | 2024-05-10T00:00:00.000Z | qa
+0.568155     | 2024-05-10T00:00:00.000Z | prod
+0.518662     | 2024-05-10T00:00:00.000Z | staging
+;
+
+tx_ratio_promql
+required_capability: promql_pre_tech_preview_v9
+PROMQL index=k8s step=1h ratio=(
+  max by (cluster) (
+    network.eth0.tx /
+    (network.eth0.tx + network.eth0.rx)
+  )
+)
+| EVAL ratio=ROUND(ratio, 6), step=step, cluster=cluster
+| SORT ratio DESC;
+
+ratio:double | step:datetime            | cluster:keyword
+0.60063      | 2024-05-10T00:00:00.000Z | qa
+0.568155     | 2024-05-10T00:00:00.000Z | prod
+0.518662     | 2024-05-10T00:00:00.000Z | staging
+;
+
 // TODO we don't support top-level binary operations yet
 // multiplication_cross_series_scalar_agg
 // required_capability: ts_command_v0
@@ -80,54 +182,3 @@ max_bits:double | step:datetime            | cluster:keyword
 // 10277         | 2024-05-10T00:00:00.000Z | prod
 // 7403          | 2024-05-10T00:00:00.000Z | staging
 // ;
-
-division_metric_metric_grouping_promql
-required_capability: promql_pre_tech_preview_v9
-PROMQL index=k8s step=1h div=(
-  max by (cluster) (network.total_bytes_in / network.total_bytes_in)
-) | SORT cluster;
-
-div:double | step:datetime            | cluster:keyword
-1.0        | 2024-05-10T00:00:00.000Z | prod
-1.0        | 2024-05-10T00:00:00.000Z | qa
-1.0        | 2024-05-10T00:00:00.000Z | staging
-;
-
-division_metric_metric_grouping_filtering_promql
-required_capability: promql_pre_tech_preview_v9
-PROMQL index=k8s step=1h div=(
-  max by (cluster) (network.total_bytes_in{cluster!="prod"} / network.total_bytes_in{cluster=~"prod|qa"})
-) | SORT cluster;
-
-div:double | step:datetime            | cluster:keyword
-1.0        | 2024-05-10T00:00:00.000Z | qa
-;
-
-division_within_series_grouping_promql
-required_capability: promql_pre_tech_preview_v9
-PROMQL index=k8s step=1h div=(
-  max by (cluster) (last_over_time(network.total_bytes_in[1h]) / last_over_time(network.total_bytes_in[1h]))
-) | SORT cluster;
-
-div:double | step:datetime            | cluster:keyword
-1.0        | 2024-05-10T00:00:00.000Z | prod
-1.0        | 2024-05-10T00:00:00.000Z | qa
-1.0        | 2024-05-10T00:00:00.000Z | staging
-;
-
-tx_ratio_promql
-required_capability: promql_pre_tech_preview_v9
-PROMQL index=k8s step=1h ratio=(
-  max by (cluster) (
-    network.eth0.tx /
-    (network.eth0.tx + network.eth0.rx)
-  )
-)
-| EVAL ratio=ROUND(ratio, 6), step=step, cluster=cluster
-| SORT ratio DESC;
-
-ratio:double | step:datetime            | cluster:keyword
-0.60063      | 2024-05-10T00:00:00.000Z | qa
-0.568155     | 2024-05-10T00:00:00.000Z | prod
-0.518662     | 2024-05-10T00:00:00.000Z | staging
-;

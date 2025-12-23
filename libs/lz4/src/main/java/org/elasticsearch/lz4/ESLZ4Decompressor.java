@@ -30,13 +30,15 @@ import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
 import static org.elasticsearch.lz4.LZ4Utils.notEnoughSpace;
 
 /**
- * This file is a vendored version of {@code net.jpountz.lz4.LZ4JavaSafeFastDecompressor} vendored from
+ * This file is a vendored version of {@code net.jpountz.lz4.LZ4JavaSafeFastDecompressor} from
  * <a href="https://github.com/yawkat/lz4-java">yawkat/lz4-java</a>. To obtain the original file, check out the {@code lz4-java} repository
  * and run {@code mvn clean install} which will generate the original source of this class at
  * {@code target/generated-sources/mvel/net/jpountz/lz4/LZ4JavaSafeFastDecompressor.java}.
  * <p>
  * It modifies the original implementation to use local {@link LZ4SafeUtils} and {@link SafeUtils} implementations which include some
  * performance optimisations, and it also drops support for decompressing data from a direct (non-heap) {@link ByteBuffer}.
+ * <p>
+ * Differences from the original are annotated with [ES change from upstream]
  */
 public class ESLZ4Decompressor extends LZ4FastDecompressor {
     public static final LZ4FastDecompressor INSTANCE = new ESLZ4Decompressor();
@@ -178,8 +180,9 @@ public class ESLZ4Decompressor extends LZ4FastDecompressor {
 
         if (src.hasArray() && dest.hasArray()) {
             return decompress(src.array(), srcOff + src.arrayOffset(), srcLen, dest.array(), destOff + dest.arrayOffset(), destLen);
-        } else {
-            throw new AssertionError("Do not support decompression on direct buffers");
         }
+
+        // [ES change from upstream]: remove unused code
+        throw new AssertionError("Do not support decompression on direct buffers");
     }
 }

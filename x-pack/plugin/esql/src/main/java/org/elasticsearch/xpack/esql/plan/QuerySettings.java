@@ -73,6 +73,7 @@ public class QuerySettings {
             @MapParam.MapParamEntry(name = "num_rows", type = { "integer" }, description = "Number of rows."),
             @MapParam.MapParamEntry(name = "confidence_level", type = { "double" }, description = "Confidence level.") }
     )
+    @SuppressWarnings("unchecked")
     public static final QuerySettingDef<Map<String, Object>> APPROXIMATE = new QuerySettingDef<>(
         "approximate",
         null,
@@ -88,6 +89,21 @@ public class QuerySettings {
                     res = me.toFoldedMap(FoldContext.small());
                 } catch (IllegalStateException ex) {
                     return "Approximate configuration must be a constant value [" + me + "]";
+                }
+
+                Map<String, Object> map = (Map<String, Object>) res;
+                for (Map.Entry<String, Object> entry : map.entrySet()) {
+                    if (entry.getKey().equals("num_rows")) {
+                        if (entry.getValue() instanceof Integer == false) {
+                            return "Approximate configuration [num_rows] must be an integer value";
+                        }
+                    } else if (entry.getKey().equals("confidence_level")) {
+                        if (entry.getValue() instanceof Double == false) {
+                            return "Approximate configuration [confidence_level] must be a double value";
+                        }
+                    } else {
+                        return "Approximate configuration contains unknown key [" + entry.getKey() + "]";
+                    }
                 }
             }
             if (res instanceof Boolean || res instanceof Map || res == null) {
@@ -127,6 +143,7 @@ public class QuerySettings {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] is only available in snapshot builds");
             }
 
+            // def.type() can be null if the expression is not foldable, eg. see MapExpression for approximate
             if (def.type() != null && setting.value().dataType() != def.type()) {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + def.type());
             }

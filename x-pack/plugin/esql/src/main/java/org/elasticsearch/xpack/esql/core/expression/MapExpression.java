@@ -155,12 +155,11 @@ public class MapExpression extends Expression {
             Expression val = entry.getValue();
             if (val instanceof MapExpression me) {
                 foldedMap.put(BytesRefs.toString(key), me.toFoldedMap(ctx));
-                continue;
             } else if (val.foldable()) {
                 foldedMap.put(BytesRefs.toString(key), val.fold(ctx));
-                continue;
+            } else {
+                throw new IllegalStateException("Cannot fold map with non-foldable value [" + val + "]");
             }
-            throw new IllegalStateException("Cannot fold map with non-foldable value [" + val + "]");
         }
         return foldedMap;
     }

@@ -5,7 +5,7 @@
     "boolean",
     "map_param"
   ],
-  "mapParams" : "{name='num_rows', values=[], description='Number of rows.'}, {name='confidence_level', values=[], description='Confidence level.'}",
+  "mapParams" : "{name='num_rows', values=[], description='Number of rows.', type=[integer]}, {name='confidence_level', values=[], description='Confidence level.', type=[double]}",
   "serverlessOnly" : false,
   "preview" : false,
   "snapshotOnly" : true,

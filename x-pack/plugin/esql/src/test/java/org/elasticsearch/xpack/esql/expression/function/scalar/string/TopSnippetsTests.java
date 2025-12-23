@@ -142,11 +142,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                 List<TestCaseSupplier.TypedData> values = List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), supplier.types().get(0), "field"),
                     new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query"),
-                    new TestCaseSupplier.TypedData(
-                        createOptions(numSnippets, numWords),
-                        UNSUPPORTED,
-                        "options"
-                    ).forceLiteral()
+                    new TestCaseSupplier.TypedData(createOptions(numSnippets, numWords), UNSUPPORTED, "options").forceLiteral()
                 );
 
                 return new TestCaseSupplier.TestCase(

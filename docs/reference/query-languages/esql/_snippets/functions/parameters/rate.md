@@ -3,5 +3,8 @@
 **Parameters**
 
 `field`
-:   
+:   the counter field whose per-second average rate of increase is computed
+
+`window`
+:   the time window over which the rate is computed
 

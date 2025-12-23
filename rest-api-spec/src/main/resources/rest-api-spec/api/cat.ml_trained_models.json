@@ -69,7 +69,23 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "create_time",
+          "created_by",
+          "data_frame_analytics_id",
+          "description",
+          "heap_size",
+          "id",
+          "ingest.count",
+          "ingest.current",
+          "ingest.failed",
+          "ingest.pipelines",
+          "ingest.time",
+          "license",
+          "operations",
+          "version"
+        ]
       },
       "help": {
         "type": "boolean",
@@ -78,7 +94,23 @@
       },
       "s": {
         "type": "list",
-        "description": "Comma-separated list of column names or column aliases to sort by"
+        "description": "Comma-separated list of column names or column aliases to sort by",
+        "options": [
+          "create_time",
+          "created_by",
+          "data_frame_analytics_id",
+          "description",
+          "heap_size",
+          "id",
+          "ingest.count",
+          "ingest.current",
+          "ingest.failed",
+          "ingest.pipelines",
+          "ingest.time",
+          "license",
+          "operations",
+          "version"
+        ]
       },
       "time": {
         "type": "enum",

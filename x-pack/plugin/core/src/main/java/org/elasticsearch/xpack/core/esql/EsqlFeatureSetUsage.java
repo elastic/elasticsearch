@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.esql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,7 +35,9 @@ public class EsqlFeatureSetUsage extends XPackFeatureUsage {
         this.stats = stats;
     }
 
-    /** Returns a feature set usage where the feature is not available or enabled, and has an empty stats. */
+    /**
+     * Returns a feature set usage where the feature is not available or enabled, and has an empty stats.
+     */
     public static EsqlFeatureSetUsage unavailable() {
         return new EsqlFeatureSetUsage(false, false, Map.of());
     }
@@ -63,7 +64,7 @@ public class EsqlFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 
 }

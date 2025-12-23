@@ -14,10 +14,10 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -71,6 +71,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongLeafFieldData.convertUnsignedLongToDouble;
 
 public class UnsignedLongFieldMapper extends FieldMapper {
@@ -123,25 +124,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return false;
+                }
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
                     return metricType != MetricType.COUNTER && metricType != MetricType.GAUGE;
                 } else {
                     return true;
-                }
-            });
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
-                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
-                            + "] requires that ["
-                            + indexed.name
-                            + "] and ["
-                            + hasDocValues.name
-                            + "] are true"
-                    );
                 }
             });
 
@@ -198,6 +190,19 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return parsed >= 0 ? parsed : BigInteger.valueOf(parsed).and(BIGINTEGER_2_64_MINUS_ONE);
         }
 
+        private IndexType indexType() {
+            if (indexed.get() == false && hasDocValues.get()) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                    return IndexType.skippers();
+                }
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
+            }
+            return IndexType.points(indexed.get(), hasDocValues.get());
+        }
+
         @Override
         public UnsignedLongFieldMapper build(MapperBuilderContext context) {
             if (inheritDimensionParameterFromParentObject(context)) {
@@ -205,7 +210,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
                 context.buildFullName(leafName()),
-                IndexType.points(indexed.get(), hasDocValues.get()),
+                indexType(),
                 stored.getValue(),
                 parsedNullValue(),
                 meta.getValue(),
@@ -287,7 +292,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long longValue = parseTerm(value);
             if (longValue == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
         }
@@ -304,7 +309,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             }
             if (upTo == 0) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             if (upTo != lvalues.length) {
                 lvalues = Arrays.copyOf(lvalues, upTo);
@@ -325,15 +330,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
                 Long lt = parseLowerRangeTerm(lowerTerm, includeLower);
-                if (lt == null) return new MatchNoDocsQuery();
+                if (lt == null) return Queries.NO_DOCS_INSTANCE;
                 l = unsignedToSortableSignedLong(lt);
             }
             if (upperTerm != null) {
                 Long ut = parseUpperRangeTerm(upperTerm, includeUpper);
-                if (ut == null) return new MatchNoDocsQuery();
+                if (ut == null) return Queries.NO_DOCS_INSTANCE;
                 u = unsignedToSortableSignedLong(ut);
             }
-            if (l > u) return new MatchNoDocsQuery();
+            if (l > u) return Queries.NO_DOCS_INSTANCE;
 
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {
@@ -767,7 +772,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (indexed && hasDocValues) {
                 fields.add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
             } else if (hasDocValues) {
-                fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+                if (fieldType().indexType().hasDocValuesSkipper()) {
+                    fields.add(SortedNumericDocValuesField.indexedField(fieldType().name(), numericValue));
+                } else {
+                    fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
+                }
             } else if (indexed) {
                 fields.add(new LongPoint(fieldType().name(), numericValue));
             }

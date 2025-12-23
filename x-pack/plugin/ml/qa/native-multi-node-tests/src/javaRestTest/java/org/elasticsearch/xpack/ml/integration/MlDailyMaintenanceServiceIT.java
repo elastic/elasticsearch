@@ -58,6 +58,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
             mock(IndexNameExpressionResolver.class),
             true,
             true,
+            true,
             true
         );
 

@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.not;
 public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
     public void testDevelopmentInline() throws Exception {
-        LogicalPlan plan = parser().createStatement("row a = 1 | inline stats b = min(a) by c, d.e");
+        LogicalPlan plan = parser().parseQuery("row a = 1 | inline stats b = min(a) by c, d.e");
         assertNotNull(plan);
     }
 
@@ -29,19 +29,17 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     void parse(String query, String errorMessage) {
-        ParsingException pe = expectThrows(ParsingException.class, () -> parser().createStatement(query));
+        ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));
         // check the parser eliminated the DEV_ tokens from the message
         assertThat(pe.getMessage(), not(containsString("DEV_")));
     }
 
     private EsqlParser parser() {
-        EsqlParser parser = new EsqlParser();
-        EsqlConfig config = parser.config();
-        assumeTrue(" requires snapshot builds", config.devVersion);
+        assumeTrue(" requires snapshot builds", new EsqlConfig().isDevVersion());
 
         // manually disable dev mode (make it production)
-        config.setDevVersion(false);
-        return parser;
+        EsqlConfig config = new EsqlConfig(false);
+        return new EsqlParser(config);
     }
 }

@@ -109,14 +109,20 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         private final int maxDoc;
         private final int numDocs;
         private final Map<String, PointValues> pointValuesMap;
+        private final Map<String, DocValuesSkipper> skipperMap;
         private final FieldInfos fieldInfos;
 
         private RewriteCachingLeafReader(LeafReader original) throws IOException {
             this.maxDoc = original.maxDoc();
             this.numDocs = original.numDocs();
             fieldInfos = original.getFieldInfos();
+            pointValuesMap = cachePointValues(original);
+            skipperMap = cacheDocValuesSkippers(original);
+        }
+
+        private static Map<String, PointValues> cachePointValues(LeafReader original) throws IOException {
             Map<String, PointValues> valuesMap = new HashMap<>();
-            for (FieldInfo info : fieldInfos) {
+            for (FieldInfo info : original.getFieldInfos()) {
                 if (info.getPointIndexDimensionCount() != 0) {
                     PointValues pointValues = original.getPointValues(info.name);
                     if (pointValues != null) { // might not be in this reader
@@ -171,7 +177,71 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
                     }
                 }
             }
-            pointValuesMap = valuesMap;
+            return valuesMap;
+        }
+
+        private static Map<String, DocValuesSkipper> cacheDocValuesSkippers(LeafReader original) throws IOException {
+            Map<String, DocValuesSkipper> valuesMap = new HashMap<>();
+            for (FieldInfo info : original.getFieldInfos()) {
+                DocValuesSkipper skipper = original.getDocValuesSkipper(info.name);
+                if (skipper != null) {
+                    long minValue = skipper.minValue();
+                    long maxValue = skipper.maxValue();
+                    int docCount = skipper.docCount();
+                    valuesMap.put(info.name, new DocValuesSkipper() {
+                        @Override
+                        public void advance(int target) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public int numLevels() {
+                            return 0;
+                        }
+
+                        @Override
+                        public int minDocID(int level) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public int maxDocID(int level) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public long minValue(int level) {
+                            return minValue;
+                        }
+
+                        @Override
+                        public long maxValue(int level) {
+                            return maxValue;
+                        }
+
+                        @Override
+                        public int docCount(int level) {
+                            return docCount;
+                        }
+
+                        @Override
+                        public long minValue() {
+                            return minValue;
+                        }
+
+                        @Override
+                        public long maxValue() {
+                            return maxValue;
+                        }
+
+                        @Override
+                        public int docCount() {
+                            return docCount;
+                        }
+                    });
+                }
+            }
+            return valuesMap;
         }
 
         @Override
@@ -216,7 +286,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
         @Override
         public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
-            throw new UnsupportedOperationException();
+            return skipperMap.get(field);
         }
 
         @Override

@@ -116,6 +116,12 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.flushAlways(), is(false));
     }
 
+    public void testProjectRouting() throws Exception {
+        JdbcConfiguration ci = ci(jdbcPrefix() + "a:1/?project.routing=foo");
+        assertThat(ci.baseUri().toString(), is("http://a:1/"));
+        assertThat(ci.projectRouting(), is("foo"));
+    }
+
     public void testTypeInParam() throws Exception {
         Exception e = expectThrows(JdbcSQLException.class, () -> ci(jdbcPrefix() + "a:1/foo/bar/tar?debug=true&debug.out=jdbc.out"));
         assertEquals("Unknown parameter [debug.out]; did you mean [debug.output]", e.getMessage());

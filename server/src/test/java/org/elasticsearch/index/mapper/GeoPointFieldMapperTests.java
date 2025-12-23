@@ -724,4 +724,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
     }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
 }

@@ -25,9 +25,10 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -36,38 +37,36 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.JINA_EMBED_V3_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
+
+    public static final Set<String> EIS_PRECONFIGURED_ENDPOINT_IDS = Set.of(
+        RAINBOW_SPRINKLES_ENDPOINT_ID,
+        ELSER_V2_ENDPOINT_ID,
+        JINA_EMBED_V3_ENDPOINT_ID,
+        RERANK_V1_ENDPOINT_ID
+    );
+
     public static final String AUTH_TASK_ACTION = AuthorizationPoller.TASK_NAME + "[c]";
-
-    public static final String EMPTY_AUTH_RESPONSE = """
-        {
-            "models": [
-            ]
-        }
-        """;
-
-    public static final String AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE = """
-        {
-            "models": [
-                {
-                  "model_name": "rainbow-sprinkles",
-                  "task_types": ["chat"]
-                }
-            ]
-        }
-        """;
 
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
+    private static String chatCompletionResponseBody;
 
     private ModelRegistry modelRegistry;
     private AuthorizationTaskExecutor authorizationTaskExecutor;
@@ -76,7 +75,8 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     public static void initClass() throws IOException {
         webServer.start();
         gatewayUrl = getUrl(webServer);
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
+        chatCompletionResponseBody = getEisRainbowSprinklesAuthorizationResponse(gatewayUrl).responseJson();
     }
 
     @Before
@@ -87,9 +87,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     @After
     public void shutdown() {
+        removeEisPreconfiguredEndpoints(modelRegistry);
+    }
+
+    static void removeEisPreconfiguredEndpoints(ModelRegistry modelRegistry) {
         // Delete all the eis preconfigured endpoints
         var listener = new PlainActionFuture<Boolean>();
-        modelRegistry.deleteModels(InternalPreconfiguredEndpoints.EIS_PRECONFIGURED_ENDPOINT_IDS, listener);
+        modelRegistry.deleteModels(EIS_PRECONFIGURED_ENDPOINT_IDS, listener);
         listener.actionGet(TimeValue.THIRTY_SECONDS);
     }
 
@@ -101,10 +105,15 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
+            // Disable CCM to ensure that we don't rely on a CCM configuration existing
+            .put(CCMSettings.CCM_SUPPORTED_ENVIRONMENT.getKey(), false)
             .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), gatewayUrl)
             // Ensure that the polling logic only occurs once so we can deterministically control when an authorization response is
             // received
             .put(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), false)
+            // Use very short intervals for testing purposes so that waiting for the task to be recreated is fast
+            .put(ElasticInferenceServiceSettings.AUTHORIZATION_REQUEST_INTERVAL.getKey(), TimeValue.timeValueMillis(1))
+            .put(ElasticInferenceServiceSettings.MAX_AUTHORIZATION_REQUEST_JITTER.getKey(), TimeValue.timeValueMillis(1))
             .build();
     }
 
@@ -113,17 +122,33 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
     }
 
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
     public void testCreatesEisChatCompletionEndpoint() throws Exception {
         assertNoAuthorizedEisEndpoints();
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
+        webServer.clearRequests();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         restartPollingTaskAndWaitForAuthResponse();
+
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
     }
 
     private void assertNoAuthorizedEisEndpoints() throws Exception {
-        waitForTask(AUTH_TASK_ACTION, admin());
+        assertNoAuthorizedEisEndpoints(admin(), authorizationTaskExecutor, modelRegistry);
+    }
+
+    static void assertNoAuthorizedEisEndpoints(
+        AdminClient adminClient,
+        AuthorizationTaskExecutor authorizationTaskExecutor,
+        ModelRegistry modelRegistry
+    ) throws Exception {
+        waitForTask(AUTH_TASK_ACTION, adminClient);
 
         assertBusy(() -> {
             var newPoller = authorizationTaskExecutor.getCurrentPollerTask();
@@ -131,10 +156,10 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             newPoller.waitForAuthorizationToComplete(TimeValue.THIRTY_SECONDS);
         });
 
-        var eisEndpoints = getEisEndpoints();
+        var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints, empty());
 
-        for (String eisPreconfiguredEndpoints : InternalPreconfiguredEndpoints.EIS_PRECONFIGURED_ENDPOINT_IDS) {
+        for (String eisPreconfiguredEndpoints : EIS_PRECONFIGURED_ENDPOINT_IDS) {
             assertFalse(modelRegistry.containsPreconfiguredInferenceEndpointId(eisPreconfiguredEndpoints));
         }
     }
@@ -153,7 +178,22 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         return taskRef.get();
     }
 
+    static void waitForNoTask(String taskAction, AdminClient adminClient) throws Exception {
+        var builder = new ListTasksRequestBuilder(adminClient.cluster());
+
+        assertBusy(() -> {
+            var response = builder.get();
+            var authPollerTask = response.getTasks().stream().filter(task -> task.action().equals(taskAction)).findFirst();
+            assertFalse(authPollerTask.isPresent());
+        });
+
+    }
+
     private List<UnparsedModel> getEisEndpoints() {
+        return getEisEndpoints(modelRegistry);
+    }
+
+    static List<UnparsedModel> getEisEndpoints(ModelRegistry modelRegistry) {
         var listener = new PlainActionFuture<List<UnparsedModel>>();
         modelRegistry.getAllModels(false, listener);
 
@@ -162,17 +202,33 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     private void restartPollingTaskAndWaitForAuthResponse() throws Exception {
-        cancelAuthorizationTask(admin());
+        restartPollingTaskAndWaitForAuthResponse(admin(), authorizationTaskExecutor);
+    }
+
+    private static void restartPollingTaskAndWaitForAuthResponse(AdminClient adminClient, AuthorizationTaskExecutor authTaskExecutor)
+        throws Exception {
+        cancelAuthorizationTask(adminClient);
 
         // wait for the new task to be recreated and an authorization response to be processed
+        waitForAuthorizationToComplete(authTaskExecutor);
+    }
+
+    private static void assertWebServerReceivedRequest() throws Exception {
         assertBusy(() -> {
-            var newPoller = authorizationTaskExecutor.getCurrentPollerTask();
+            var requests = webServer.requests();
+            assertThat(requests.size(), is(1));
+        });
+    }
+
+    static void waitForAuthorizationToComplete(AuthorizationTaskExecutor authTaskExecutor) throws Exception {
+        assertBusy(() -> {
+            var newPoller = authTaskExecutor.getCurrentPollerTask();
             assertNotNull(newPoller);
             newPoller.waitForAuthorizationToComplete(TimeValue.THIRTY_SECONDS);
         });
     }
 
-    public static void cancelAuthorizationTask(AdminClient adminClient) throws Exception {
+    static void cancelAuthorizationTask(AdminClient adminClient) throws Exception {
         var pollerTask = waitForTask(AUTH_TASK_ACTION, adminClient);
         var builder = new CancelTasksRequestBuilder(adminClient.cluster());
 
@@ -189,73 +245,79 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     public void testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized() throws Exception {
         assertNoAuthorizedEisEndpoints();
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
+        webServer.clearRequests();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
 
+        webServer.clearRequests();
         // Simulate that the model is no longer authorized
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
     }
 
-    private void assertChatCompletionEndpointExists() {
-        var eisEndpoints = getEisEndpoints();
-        assertThat(eisEndpoints.size(), is(1));
-
-        var rainbowSprinklesModel = eisEndpoints.get(0);
-        assertChatCompletionUnparsedModel(rainbowSprinklesModel);
-        assertTrue(
-            modelRegistry.containsPreconfiguredInferenceEndpointId(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1)
-        );
+    private void assertChatCompletionEndpointExists() throws Exception {
+        assertChatCompletionEndpointExists(modelRegistry);
     }
 
-    private void assertChatCompletionUnparsedModel(UnparsedModel rainbowSprinklesModel) {
+    static void assertChatCompletionEndpointExists(ModelRegistry modelRegistry) throws Exception {
+        assertBusy(() -> {
+            var eisEndpoints = getEisEndpoints(modelRegistry);
+            assertThat(eisEndpoints.size(), is(1));
+
+            var rainbowSprinklesModel = eisEndpoints.get(0);
+            assertChatCompletionUnparsedModel(rainbowSprinklesModel);
+            assertTrue(modelRegistry.containsPreconfiguredInferenceEndpointId(RAINBOW_SPRINKLES_ENDPOINT_ID));
+        });
+    }
+
+    static void assertChatCompletionUnparsedModel(UnparsedModel rainbowSprinklesModel) {
         assertThat(rainbowSprinklesModel.taskType(), is(TaskType.CHAT_COMPLETION));
         assertThat(rainbowSprinklesModel.service(), is(ElasticInferenceService.NAME));
-        assertThat(rainbowSprinklesModel.inferenceEntityId(), is(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
+        assertThat(rainbowSprinklesModel.inferenceEntityId(), is(RAINBOW_SPRINKLES_ENDPOINT_ID));
     }
 
     public void testCreatesChatCompletion_AndThenCreatesTextEmbedding() throws Exception {
         assertNoAuthorizedEisEndpoints();
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(AUTHORIZED_RAINBOW_SPRINKLES_RESPONSE));
+        webServer.clearRequests();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
 
         // Simulate that the model is no longer authorized
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
+        webServer.clearRequests();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
 
+        webServer.clearRequests();
         // Simulate that a text embedding model is now authorized
-        var authorizedTextEmbeddingResponse = """
-            {
-                "models": [
-                    {
-                      "model_name": "jina-embeddings-v3",
-                      "task_types": ["embed/text/dense"]
-                    }
-                ]
-            }
-            """;
+        var jinaEmbedResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisJinaEmbedAuthorizationResponse(gatewayUrl)
+            .responseJson();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(jinaEmbedResponseBody));
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authorizedTextEmbeddingResponse));
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
 
         var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
         assertThat(eisEndpoints.size(), is(2));
 
-        assertTrue(eisEndpoints.containsKey(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
-        assertChatCompletionUnparsedModel(eisEndpoints.get(InternalPreconfiguredEndpoints.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1));
+        assertTrue(eisEndpoints.containsKey(RAINBOW_SPRINKLES_ENDPOINT_ID));
+        assertChatCompletionUnparsedModel(eisEndpoints.get(RAINBOW_SPRINKLES_ENDPOINT_ID));
 
-        assertTrue(eisEndpoints.containsKey(InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID));
+        assertTrue(eisEndpoints.containsKey(JINA_EMBED_V3_ENDPOINT_ID));
 
-        var textEmbeddingEndpoint = eisEndpoints.get(InternalPreconfiguredEndpoints.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID);
+        var textEmbeddingEndpoint = eisEndpoints.get(JINA_EMBED_V3_ENDPOINT_ID);
         assertThat(textEmbeddingEndpoint.taskType(), is(TaskType.TEXT_EMBEDDING));
         assertThat(textEmbeddingEndpoint.service(), is(ElasticInferenceService.NAME));
     }
@@ -264,8 +326,10 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         // Ensure the task is created and we get an initial authorization response
         assertNoAuthorizedEisEndpoints();
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMPTY_AUTH_RESPONSE));
+        webServer.clearRequests();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         // Abort the task and ensure it is restarted
         restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
     }
 }

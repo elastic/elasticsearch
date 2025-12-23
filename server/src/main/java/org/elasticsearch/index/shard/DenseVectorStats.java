@@ -112,7 +112,7 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
 
     private Map<String, Long> getTotalsByCategory() {
         if (offHeapStats == null) {
-            return Map.of("veb", 0L, "vec", 0L, "veq", 0L, "vex", 0L);
+            return Map.of("veb", 0L, "vec", 0L, "veq", 0L, "vex", 0L, "cenivf", 0L, "clivf", 0L);
         } else {
             return offHeapStats.entrySet()
                 .stream()
@@ -140,6 +140,8 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
         builder.humanReadableField("total_vec_size_bytes", "total_vec_size", ofBytes(totals.getOrDefault("vec", 0L)));
         builder.humanReadableField("total_veq_size_bytes", "total_veq_size", ofBytes(totals.getOrDefault("veq", 0L)));
         builder.humanReadableField("total_vex_size_bytes", "total_vex_size", ofBytes(totals.getOrDefault("vex", 0L)));
+        builder.humanReadableField("total_cenivf_size_bytes", "total_cenivf_size", ofBytes(totals.getOrDefault("cenivf", 0L)));
+        builder.humanReadableField("total_clivf_size_bytes", "total_clivf_size", ofBytes(totals.getOrDefault("clivf", 0L)));
         if (params.paramAsBoolean(INCLUDE_PER_FIELD_STATS, false) && offHeapStats != null && offHeapStats.size() > 0) {
             toXContentWithPerFieldStats(builder);
         }

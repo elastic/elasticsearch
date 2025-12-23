@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.idp.saml.support;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -23,6 +22,7 @@ import org.opensaml.saml.saml2.core.NameID;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SamlAuthenticationStateTests extends IdpSamlTestCase {
@@ -81,18 +81,14 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
             assertThat(obj2, equalTo(obj1));
 
             final BytesReference bytes2 = XContentHelper.toXContent(obj2, xContentType, humanReadable);
-            assertThat(bytes2, equalTo(bytes1));
+            assertThat(bytes2, equalBytes(bytes1));
 
             return obj2;
         }
     }
 
     private SamlAuthenticationState assertSerializationRoundTrip(SamlAuthenticationState state) throws IOException {
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersion.current()
-        );
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final SamlAuthenticationState read = copyWriteable(
             state,
             new NamedWriteableRegistry(List.of()),

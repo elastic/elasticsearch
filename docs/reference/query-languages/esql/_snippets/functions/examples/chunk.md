@@ -7,16 +7,15 @@ stack: preview 9.3.0
 ```
 
 ```esql
-FROM books
-| EVAL chunks = CHUNK(description, {"num_chunks":1, "chunk_size":20})
+ROW result = CHUNK("It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief.", {"strategy": "word", "max_chunk_size": 10, "overlap": 1})
+| MV_EXPAND result
 ```
 
-| book_no:keyword | title:text | chunks:keyword |
-| --- | --- | --- |
-| 1211 | The brothers Karamazov | In 1880 Dostoevsky completed The Brothers Karamazov, the literary effort for which he had been preparing all his life. |
-| 1463 | Realms of Tolkien: Images of Middle-earth | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 |
-| 1502 | Selected Passages from Correspondence with Friends | Nikolai Gogol wrote some letters to his friends, none of which were a nose of high rank. |
-| 1937 | The Best Short Stories of Dostoevsky (Modern Library) | This collection, unique to the Modern Library, gathers seven of Dostoevsky's key works and shows him to be equally adept |
-| 1985 | Brothers Karamazov | Four brothers reunite in their hometown in Russia. |
+| result:keyword |
+| --- |
+| It was the best of times, it was the worst |
+| worst of times, it was the age of wisdom, it |
+| , it was the age of foolishness, it was the epoch |
+| epoch of belief. |
 
 

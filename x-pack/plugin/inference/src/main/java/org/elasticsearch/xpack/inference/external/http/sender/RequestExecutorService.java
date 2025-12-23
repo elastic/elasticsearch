@@ -305,12 +305,12 @@ public class RequestExecutorService implements RequestExecutor {
                 e
             );
 
-            task.onRejection(
-                new EsRejectedExecutionException(
-                    format("Failed to execute request for inference id [%s]", task.getRequestManager().inferenceEntityId()),
-                    false
-                )
+            var rejectionException = new EsRejectedExecutionException(
+                format("Failed to execute request for inference id [%s]", task.getRequestManager().inferenceEntityId()),
+                false
             );
+            rejectionException.initCause(e);
+            task.onRejection(rejectionException);
         }
     }
 

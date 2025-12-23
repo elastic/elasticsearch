@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -19,6 +18,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
@@ -138,7 +138,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         List.of(
                             new EmbeddingResults.Chunk(
                                 denseEmbeddingResults.embeddings().get(i),
-                                new ChunkedInference.TextOffset(0, inputs.get(i).input().value().length())
+                                new ChunkedInference.TextOffset(0, inputs.get(i).input().textValue().length())
                             )
                         )
                     )
@@ -147,7 +147,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             return results;
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
             var inputsAsList = ChunkInferenceInput.inputs(inputs);
-            return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
+            return ChunkedInferenceEmbedding.listOf(InferenceStringGroup.toInferenceStringList(inputsAsList), sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));
         } else {
@@ -177,7 +177,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public static class Configuration {

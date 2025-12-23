@@ -50,8 +50,7 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
 
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest original) {
-        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
-        request.query(original.query());
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest(original.query());
         request.pragmas(original.pragmas());
         // deliberately small timeout, to frequently trigger incomplete response
         request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));

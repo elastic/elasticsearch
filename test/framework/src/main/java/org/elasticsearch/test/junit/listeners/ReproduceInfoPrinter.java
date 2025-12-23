@@ -100,7 +100,7 @@ public class ReproduceInfoPrinter extends RunListener {
             b.append(
                 "This is a Rest Api Compatibility Test. "
                     + "See the developers guide for details how to troubleshoot - "
-                    + "https://github.com/elastic/elasticsearch/blob/master/REST_API_COMPATIBILITY.md"
+                    + "https://github.com/elastic/elasticsearch/blob/main/REST_API_COMPATIBILITY.md"
             );
         }
         printToErr(b.toString());
@@ -179,7 +179,8 @@ public class ReproduceInfoPrinter extends RunListener {
                 "build.snapshot",
                 "tests.configure_test_clusters_with_one_processor",
                 "tests.bwc.main.version",
-                "tests.bwc.refspec.main"
+                "tests.bwc.refspec.main",
+                "tests.vectorsize"
             );
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");

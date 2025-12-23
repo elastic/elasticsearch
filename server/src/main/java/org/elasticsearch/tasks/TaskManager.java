@@ -139,7 +139,7 @@ public class TaskManager implements ClusterStateApplier {
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        assert threadContext.hasTraceContext() == false : "Expected threadContext to have no traceContext fields";
+        assert threadContext.hasApmTraceContext() == false : "Expected threadContext to have no APM trace context";
 
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
@@ -181,7 +181,7 @@ public class TaskManager implements ClusterStateApplier {
      * For REST actions this will be the case, otherwise {@link Tracer#startTrace} can be used.
      */
     void maybeStartTrace(ThreadContext threadContext, Task task) {
-        if (threadContext.hasParentTraceContext() == false) {
+        if (threadContext.hasParentApmTraceContext() == false) {
             return;
         }
         TaskId parentTask = task.getParentTaskId();

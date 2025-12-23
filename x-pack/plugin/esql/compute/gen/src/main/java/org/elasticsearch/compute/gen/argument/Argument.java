@@ -220,6 +220,30 @@ public interface Argument {
     }
 
     /**
+     * Adds a block to read the value at the current position, and to skip calling the aggregator if the value is zeroed.
+     */
+    default void addContinueIfPositionHasNoValueBlock(MethodSpec.Builder builder) {
+        builder.addStatement("int $LValueCount = $L.getValueCount(p)", name(), blockName());
+        builder.beginControlFlow("if ($LValueCount == 0)", name());
+        builder.addStatement("continue");
+        builder.endControlFlow();
+    }
+
+    /**
+     * Starts the loop needed to process this argument's values when passed as a block.
+     */
+    default void startBlockProcessingLoop(MethodSpec.Builder builder) {
+        throw new UnsupportedOperationException("can't build raw block for " + type());
+    }
+
+    /**
+     * Ends the loop needed to process this argument's values when passed as a block.
+     */
+    default void endBlockProcessingLoop(MethodSpec.Builder builder) {
+        throw new UnsupportedOperationException("can't end block for " + type());
+    }
+
+    /**
      * Build the invocation of the process method for this parameter.
      */
     void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle);

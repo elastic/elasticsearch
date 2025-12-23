@@ -12,10 +12,15 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
+import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
+import org.elasticsearch.index.codec.bloomfilter.DelegatingBloomFilterFieldsProducer;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -43,11 +48,13 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
         boolean success = false;
         try {
             var codec = state.segmentInfo.getCodec();
+            BloomFilter bloomFilter = TSDBStoredFieldsFormat.getBloomFilterForId(state);
+
             // Erase the segment suffix (used only for reading postings)
             docValuesProducer = codec.docValuesFormat().fieldsProducer(new SegmentReadState(state, ""));
             var fieldsProducer = new TSDBSyntheticIdFieldsProducer(state, docValuesProducer);
             success = true;
-            return fieldsProducer;
+            return new DelegatingBloomFilterFieldsProducer(fieldsProducer, bloomFilter);
         } finally {
             if (success == false) {
                 IOUtils.close(docValuesProducer);
@@ -57,7 +64,23 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
 
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        assert false : "this should never be called";
-        throw new UnsupportedOperationException();
+        return new FieldsConsumer() {
+            @Override
+            public void write(Fields fields, NormsProducer norms) {
+                // Segments flushed to disk should never have terms produced for the synthetic _id field
+                if (state.context.flushInfo() != null) {
+                    for (var field : fields) {
+                        if (SYNTHETIC_ID.equalsIgnoreCase(field)) {
+                            var message = "Field [" + SYNTHETIC_ID + "] has terms produced during indexing";
+                            assert false : message;
+                            throw new IllegalArgumentException(message);
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void close() {}
+        };
     }
 }

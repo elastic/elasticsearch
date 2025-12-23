@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -30,6 +31,7 @@ public final class AnomalyDetectorsIndex {
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/ml/anomalydetection/";
+    private static final String WRITE_ALIAS_PREFIX = ".write-";
     public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private AnomalyDetectorsIndex() {}
@@ -57,11 +59,16 @@ public final class AnomalyDetectorsIndex {
      * @param jobResultsAliasedName The alias
      * @return The job Id
      */
-    public static String jobIdFromAlias(String jobResultsAliasedName) {
+    public static Optional<String> jobIdFromAlias(String jobResultsAliasedName) {
         if (jobResultsAliasedName.length() < AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length()) {
-            return null;
+            return Optional.empty();
         }
-        return jobResultsAliasedName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
+
+        var jobId = jobResultsAliasedName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
+        if (jobId.startsWith(WRITE_ALIAS_PREFIX)) {
+            jobId = jobId.substring(WRITE_ALIAS_PREFIX.length());
+        }
+        return Optional.of(jobId);
     }
 
     /**

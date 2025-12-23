@@ -16,6 +16,8 @@ import java.util.Set;
 
 public final class IndexResolution {
 
+    public static final IndexResolution EMPTY_SUBQUERY = notFound("empty subquery");
+
     /**
      * @param index EsIndex encapsulating requested index expression, resolved mappings and index modes from field-caps.
      * @param resolvedIndices Set of concrete indices resolved by field-caps. (This information is not always present in the EsIndex).
@@ -33,11 +35,11 @@ public final class IndexResolution {
      * Use this method only if the set of concrete resolved indices is the same as EsIndex#concreteIndices().
      */
     public static IndexResolution valid(EsIndex index) {
-        return valid(index, index.concreteIndices(), Map.of());
+        return valid(index, index.concreteQualifiedIndices(), Map.of());
     }
 
     public static IndexResolution empty(String indexPattern) {
-        return valid(new EsIndex(indexPattern, Map.of(), Map.of(), Set.of()));
+        return valid(new EsIndex(indexPattern, Map.of(), Map.of(), Map.of(), Map.of(), Set.of()));
     }
 
     public static IndexResolution invalid(String invalid) {

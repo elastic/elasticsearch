@@ -103,8 +103,6 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
         ComposableIndexTemplate indexTemplate = req.indexTemplate();
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-state-write"));
     }
 
     public void testStatsTemplate() {

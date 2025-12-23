@@ -61,7 +61,10 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             """, validQuery), "query malformed, empty clause found" },
         { String.format(Locale.ROOT, """
             {"query": "%s", "max_samples_per_key": 0}
-            """, validQuery), "max_samples_per_key must be greater than 0" } };
+            """, validQuery), "max_samples_per_key must be greater than 0" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "project_routing": "foo"}
+            """, validQuery), "[project_routing] is only allowed when cross-project search is enabled" } };
 
     public void testBadRequests() throws Exception {
         createIndex(defaultValidationIndexName, (String) null);

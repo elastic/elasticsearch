@@ -1621,14 +1621,9 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
-         * Development capability for the histogram field integration
+         * Histogram field integration
          */
-        HISTOGRAM_FIELD_SUPPORT_V0,
-
-        /**
-         * histogram to tdigest conversion function
-         */
-        HISTOGRAM_TO_TDIGEST_CAST,
+        HISTOGRAM_RELEASE_VERSION,
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
@@ -1801,6 +1796,11 @@ public class EsqlCapabilities {
          * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
          */
         FN_MV_INTERSECTION,
+
+        /**
+         * Support for the MV_UNION function which returns the set union of two multivalued fields
+         */
+        FN_MV_UNION,
 
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION

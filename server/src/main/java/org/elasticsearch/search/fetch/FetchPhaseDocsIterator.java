@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -449,19 +448,16 @@ abstract class FetchPhaseDocsIterator {
                 sequenceStart
             );
 
-            writer.writeResponseChunk(chunk, ActionListener.wrap(
-                ack -> {
-                    // Coordinator now owns the hits, decRef to release local reference
-                    finalChunkHits.decRef();
-                    future.onResponse(null);
-                },
-                ex -> {
-                    // Failed to send - we still own the hits, must clean up
-                    finalChunkHits.decRef();
-                    sendFailure.compareAndSet(null, ex);
-                    future.onFailure(ex);
-                }
-            ));
+            writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
+                // Coordinator now owns the hits, decRef to release local reference
+                finalChunkHits.decRef();
+                future.onResponse(null);
+            }, ex -> {
+                // Failed to send - we still own the hits, must clean up
+                finalChunkHits.decRef();
+                sendFailure.compareAndSet(null, ex);
+                future.onFailure(ex);
+            }));
         } catch (Exception e) {
             sendFailure.compareAndSet(null, e);
             future.onFailure(e);

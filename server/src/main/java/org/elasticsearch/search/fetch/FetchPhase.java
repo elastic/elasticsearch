@@ -99,7 +99,7 @@ public final class FetchPhase {
         SearchHits hits = null;
         try {
             // Collect all pending chunk futures
-            final int maxInFlightChunks = 1; // TODO make configurable
+            final int maxInFlightChunks = 3; // TODO make configurable
             final ArrayDeque<PlainActionFuture<Void>> pendingChunks = new ArrayDeque<>();
             final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
             hits = buildSearchHits(

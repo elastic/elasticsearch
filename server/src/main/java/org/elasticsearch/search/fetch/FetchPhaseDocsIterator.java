@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -254,6 +255,9 @@ abstract class FetchPhaseDocsIterator {
         List<LeafReaderContext> leaves = indexReader.leaves();
         long currentChunkSequenceStart = -1;
 
+        // Semaphore with maxInFlightChunks permits
+        Semaphore transmitPermits = new Semaphore(maxInFlightChunks);
+
         // Store hits with their original score position
         SearchHit[] hitsInScoreOrder = new SearchHit[docs.length];
 
@@ -341,7 +345,14 @@ abstract class FetchPhaseDocsIterator {
                         throw new RuntimeException("Fetch chunk failed", knownFailure);
                     }
 
-                    PlainActionFuture<Void> chunkFuture = sendChunk(
+                    try {
+                        transmitPermits.acquire();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted while waiting for transmit permit", e);
+                    }
+
+                    pendingChunks.addLast(sendChunk(
                         chunkWriter,
                         chunkBuffer,
                         shardId,
@@ -350,15 +361,9 @@ abstract class FetchPhaseDocsIterator {
                         totalDocs,
                         totalHits,
                         maxScore,
-                        sendFailure
-                    );
-
-                    pendingChunks.addLast(chunkFuture);
-
-                    if (pendingChunks.size() >= maxInFlightChunks) {
-                        awaitOldestOrFail(pendingChunks, sendFailure);
-                    }
-
+                        sendFailure,
+                        transmitPermits
+                    ));
                     chunkBuffer.clear();
                 }
             }
@@ -392,19 +397,9 @@ abstract class FetchPhaseDocsIterator {
         }
     }
 
-    private static void awaitOldestOrFail(ArrayDeque<PlainActionFuture<Void>> inFlight, AtomicReference<Throwable> sendFailure) {
-        final PlainActionFuture<Void> oldest = inFlight.removeFirst();
-        try {
-            oldest.actionGet();
-        } catch (Exception e) {
-            sendFailure.compareAndSet(null, e);
-            throw new RuntimeException("Failed to send fetch chunk", e);
-        }
-    }
-
     /**
      * Sends a chunk of hits to the coordinator with sequence information for ordering.
-     * Updates sendFailure reference on any error.
+     * Releases a transmit permit when complete (success or failure).
      */
     private static PlainActionFuture<Void> sendChunk(
         FetchPhaseResponseChunk.Writer writer,
@@ -415,11 +410,14 @@ abstract class FetchPhaseDocsIterator {
         int totalDocs,
         TotalHits totalHits,
         float maxScore,
-        AtomicReference<Throwable> sendFailure
+        AtomicReference<Throwable> sendFailure,
+        Semaphore transmitPermits
     ) {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
 
+        // Release if nothing to send
         if (buffer.isEmpty()) {
+            transmitPermits.release();
             future.onResponse(null);
             return future;
         }
@@ -450,15 +448,18 @@ abstract class FetchPhaseDocsIterator {
 
             writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
                 // Coordinator now owns the hits, decRef to release local reference
+                transmitPermits.release();
                 finalChunkHits.decRef();
                 future.onResponse(null);
             }, ex -> {
                 // Failed to send - we still own the hits, must clean up
+                transmitPermits.release();
                 finalChunkHits.decRef();
                 sendFailure.compareAndSet(null, ex);
                 future.onFailure(ex);
             }));
         } catch (Exception e) {
+            transmitPermits.release();
             sendFailure.compareAndSet(null, e);
             future.onFailure(e);
 

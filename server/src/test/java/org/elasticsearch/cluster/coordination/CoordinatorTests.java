@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -2088,6 +2089,45 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.blackhole();
             cluster.stabilise();
             delayedActions.clear();
+        }
+    }
+
+    public void testGetClusterFormationStateDoesNotBlockOnMutex() {
+        // Pick any node in the cluster (all have a Coordinator)
+        try (Cluster cluster = new Cluster(1)) {
+            cluster.stabilise();
+            final Coordinator coordinator = cluster.getAnyNode().coordinator;
+
+            // Latches for coordination
+            final var mutexAcquired = new CountDownLatch(1);
+            final var release = new CountDownLatch(1);
+
+            // Start a thread that acquires the mutex and blocks
+            Thread t = new Thread(() -> {
+                synchronized (coordinator.mutex) {
+                    mutexAcquired.countDown();
+                    try {
+                        release.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            });
+            t.start();
+
+            // Wait for the mutex to be acquired
+            assertTrue(mutexAcquired.await(10, java.util.concurrent.TimeUnit.SECONDS));
+
+            // This should NOT block, even though the mutex is held by another thread
+            ClusterFormationFailureHelper.ClusterFormationState state = coordinator.getClusterFormationState();
+            assertNotNull(state);
+
+            // Release the background thread
+            release.countDown();
+            t.join(5000);
+            assertFalse("Background thread did not terminate", t.isAlive());
+        } catch (InterruptedException e) {
+            fail("The thread was interrupted");
         }
     }
 

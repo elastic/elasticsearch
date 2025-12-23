@@ -13,7 +13,6 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 

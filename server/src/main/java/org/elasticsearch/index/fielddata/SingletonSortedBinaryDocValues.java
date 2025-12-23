@@ -11,10 +11,12 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.tsdb.es819.BinaryDocValuesSkipperEntry;
+import org.elasticsearch.index.codec.tsdb.es819.BinaryDocValuesSkipperProducer;
 
 import java.io.IOException;
 
-final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
+final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues implements BinaryDocValuesSkipperProducer {
 
     private final BinaryDocValues in;
 
@@ -35,6 +37,14 @@ final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
     @Override
     public BytesRef nextValue() throws IOException {
         return in.binaryValue();
+    }
+
+    @Override
+    public BinaryDocValuesSkipperEntry getBinarySkipper() {
+        if (in instanceof BinaryDocValuesSkipperProducer) {
+            return ((BinaryDocValuesSkipperProducer) in).getBinarySkipper();
+        }
+        return null;
     }
 
     public BinaryDocValues getBinaryDocValues() {

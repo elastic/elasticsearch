@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 
@@ -20,9 +21,17 @@ import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
  */
 class DocValuesConsumerUtil {
 
-    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1, -1, -1);
+    static final MergeStats UNSUPPORTED = new MergeStats(false, -1, -1, -1, -1, null, null);
 
-    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField, int minLength, int maxLength) {}
+    record MergeStats(
+        boolean supported,
+        long sumNumValues,
+        int sumNumDocsWithField,
+        int minLength,
+        int maxLength,
+        BytesRef minValue,
+        BytesRef maxValue
+    ) {}
 
     static MergeStats compatibleWithOptimizedMerge(boolean optimizedMergeEnabled, MergeState mergeState, FieldInfo mergedFieldInfo) {
         if (optimizedMergeEnabled == false || mergeState.needsIndexSort == false) {
@@ -40,6 +49,8 @@ class DocValuesConsumerUtil {
         int sumNumDocsWithField = 0;
         int minLength = Integer.MAX_VALUE;
         int maxLength = 0;
+        BytesRef minValue = null;
+        BytesRef maxValue = null;
 
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             final FieldInfo fieldInfo = mergeState.fieldInfos[i].fieldInfo(mergedFieldInfo.name);
@@ -110,6 +121,12 @@ class DocValuesConsumerUtil {
                                 sumNumDocsWithField += entry.numDocsWithField;
                                 minLength = Math.min(minLength, entry.minLength);
                                 maxLength = Math.max(maxLength, entry.maxLength);
+                                if (minValue == null || minValue.compareTo(entry.minValue) > 0) {
+                                    minValue = entry.minValue;
+                                }
+                                if (maxValue == null || maxValue.compareTo(entry.maxValue) < 0) {
+                                    maxValue = entry.maxValue;
+                                }
                             } else {
                                 assert false : "unexpectedly got no entry for field [" + fieldInfo.number + "\\" + fieldInfo.name + "]";
                                 return UNSUPPORTED;
@@ -125,7 +142,7 @@ class DocValuesConsumerUtil {
             }
         }
 
-        return new MergeStats(true, sumNumValues, sumNumDocsWithField, minLength, maxLength);
+        return new MergeStats(true, sumNumValues, sumNumDocsWithField, minLength, maxLength, minValue, maxValue);
     }
 
 }

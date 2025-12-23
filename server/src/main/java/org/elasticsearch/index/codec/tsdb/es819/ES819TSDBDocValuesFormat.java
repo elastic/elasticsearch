@@ -54,7 +54,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final int VERSION_START = 0;
     static final int VERSION_BINARY_DV_COMPRESSION = 1;
     static final int VERSION_NUMERIC_LARGE_BLOCKS = 2;
-    static final int VERSION_CURRENT = VERSION_NUMERIC_LARGE_BLOCKS;
+    static final int VERSION_BINARY_SKIPPERS = 3;
+    static final int VERSION_CURRENT = VERSION_BINARY_SKIPPERS;
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;

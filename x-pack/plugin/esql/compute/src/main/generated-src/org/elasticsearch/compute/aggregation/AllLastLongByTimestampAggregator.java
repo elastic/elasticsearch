@@ -100,10 +100,6 @@ public class AllLastLongByTimestampAggregator {
         long timestamp = timestamps.isNull(position) ? -1 : dominantTimestampAtPosition(position, timestamps);
         boolean timestampPresent = timestamps.isNull(position) == false;
 
-        // When to update:
-        // - We never saw a timestamp before ... current.seen() == false ... ts might be null/single-valued/multivalued
-        // - State's timestamp is null, or is not null but it loses against the incoming timestamp
-
         if (current.observed() == false) {
             // We never saw a timestamp before, regardless of nullability.
             overrideState(current, timestampPresent, timestamp, values, position);

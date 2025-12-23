@@ -198,6 +198,7 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.asVector().asBlock().getTotalValueCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getPositionCount(), is(positionCount));
             assertThat(block.mayHaveNulls(), is(false));
+            assertThat(block.nullValuesCount(), is(0));
             assertThat(block.areAllValuesNull(), is(false));
             assertThat(block.mayHaveMultivaluedFields(), is(false));
             assertThat(block.doesHaveMultivaluedFields(), is(false));
@@ -1270,6 +1271,7 @@ public class BasicBlockTests extends ESTestCase {
         var block = blockProducer.build(blockBuilder);
 
         assertThat(block.getPositionCount(), equalTo(positionCount));
+        assertThat(block.nullValuesCount(), equalTo(1));
         assertThat(block.getTotalValueCount(), equalTo(positionCount - 1));
         asserter.accept(randomNonNullPosition, block);
         assertTrue(block.isNull(randomNullPosition));
@@ -1293,6 +1295,7 @@ public class BasicBlockTests extends ESTestCase {
 
     void assertZeroPositionsAndRelease(Block block) {
         assertThat(block.getPositionCount(), is(0));
+        assertThat(block.nullValuesCount(), is(0));
         assertKeepMaskEmpty(block);
         assertInsertNulls(block);
         releaseAndAssertBreaker(block);

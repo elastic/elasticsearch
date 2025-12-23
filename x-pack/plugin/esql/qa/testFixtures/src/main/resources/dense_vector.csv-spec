@@ -105,3 +105,25 @@ row hex_str = "0102030405060708090a0b0c0d0e0f"
 vector:dense_vector
  [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
 ;
+
+denseVectorAggregationFunctions
+required_capability: dense_vector_agg_functions
+
+from colors
+| stats count_all = count(*), count_vectors = count(rgb_vector), present = present(rgb_vector), absent = absent(rgb_vector)
+;
+
+count_all:long | count_vectors:long | present:boolean | absent:boolean
+61             | 59                 | true            | false
+;
+
+denseVectorCount
+required_capability: dense_vector_agg_functions
+
+from colors
+| stats count_vectors = count(rgb_vector)
+;
+
+count_vectors:long
+59                
+;

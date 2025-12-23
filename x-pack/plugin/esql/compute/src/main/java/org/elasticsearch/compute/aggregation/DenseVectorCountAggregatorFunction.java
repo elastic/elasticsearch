@@ -32,14 +32,24 @@ public class DenseVectorCountAggregatorFunction extends CountAggregatorFunction 
 
     @Override
     protected int getBlockTotalValueCount(Block block) {
-        // Count 1 for each position, not the total number of values
-        return block.getPositionCount();
+        if (block.mayHaveNulls() == false) {
+            return block.getPositionCount();
+        }
+        int count = 0;
+        for (int i = 0; i < block.getPositionCount(); i++) {
+            // Count 1 for each non-null position, not the total number of values
+            // TODO We could include this as a Block operation and implement it directly on subclasses to avoid position by position checks
+            if (block.isNull(i) == false) {
+                count++;
+            }
+        }
+        return count;
     }
 
     @Override
     protected int getBlockValueCountAtPosition(Block block, int position) {
-        // Count 1 for each position, not the number of values (which is the number of vector dimensions)
-        return 1;
+        // Count 1 for each position that is not null, not the number of values (which is the number of vector dimensions)
+        return block.isNull(position) ? 0 : 1;
     }
 
     private static class DenseVectorCountAggregatorFunctionSupplier extends CountAggregatorFunctionSupplier {

@@ -139,7 +139,7 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithPromql
-required_capability: promql_pre_tech_preview_v7
+required_capability: promql_pre_tech_preview_v8
 required_capability: rate_with_interpolation_v2
 
 PROMQL index=k8s step=5m max(rate(network.total_bytes_in[5m]))
@@ -163,7 +163,7 @@ max_rate: double | time_bucket:date
 ;
 
 oneRateWithSingleStepPromql
-required_capability: promql_pre_tech_preview_v7
+required_capability: promql_pre_tech_preview_v8
 PROMQL index=k8s step=1h max(rate(network.total_bytes_in[1h]));
 
 max(rate(network.total_bytes_in[1h])):double | step:datetime

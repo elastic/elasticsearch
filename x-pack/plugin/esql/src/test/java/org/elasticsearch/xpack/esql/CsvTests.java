@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -302,7 +303,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't load metrics in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V8.capabilityName())
+                testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName())
             );
             assumeFalse(
                 "can't use QSTR function in csv tests",
@@ -362,7 +363,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use PromQL in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V8.capabilityName())
+                testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {

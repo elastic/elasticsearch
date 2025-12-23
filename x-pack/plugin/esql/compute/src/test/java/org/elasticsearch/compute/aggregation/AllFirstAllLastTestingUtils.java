@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.compute.aggregation.GroupingAggregatorFunctionTestCase.matchingGroups;
@@ -158,7 +159,7 @@ public class AllFirstAllLastTestingUtils {
         void checkMv(Object v) {
             if (expectedValuesMv.isEmpty()) {
                 if (v != null) {
-                    throw new AssertionError(String.format("Expected null but was %s", v));
+                    throw new AssertionError(String.format(Locale.ROOT, "Expected null but was %s", v));
                 }
             } else {
                 if (v instanceof List<?> list) {
@@ -170,12 +171,12 @@ public class AllFirstAllLastTestingUtils {
                         actualMap.put(item, count + 1);
                     }
                     if (checkMvHelper(actualMap) == false) {
-                        throw new AssertionError(String.format("Expected %s but was %s.", expectedMessage(), v));
+                        throw new AssertionError(String.format(Locale.ROOT, "Expected %s but was %s.", expectedMessage(), v));
                     }
                 } else {
                     // agg function returned a single value
                     if (checkMvHelper(v) == false) {
-                        throw new AssertionError(String.format("Expected %s but was %s.", expectedMessage(), v));
+                        throw new AssertionError(String.format(Locale.ROOT, "Expected %s but was %s.", expectedMessage(), v));
                     }
                 }
             }

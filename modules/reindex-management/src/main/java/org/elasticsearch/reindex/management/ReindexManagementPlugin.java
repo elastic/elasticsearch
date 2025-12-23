@@ -22,7 +22,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -35,11 +34,11 @@ public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler> getActions() {
-        List<ActionHandler> actions = new ArrayList<>();
         if (REINDEX_RESILIENCE_ENABLED) {
-            actions.addAll(List.of(new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class)));
+            return List.of(new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class));
+        } else {
+            return List.of();
         }
-        return actions;
     }
 
     @Override
@@ -54,10 +53,10 @@ public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        List<RestHandler> handlers = new ArrayList<>();
         if (REINDEX_RESILIENCE_ENABLED) {
-            handlers.addAll(List.of(new RestGetReindexAction(clusterSupportsFeature)));
+            return List.of(new RestGetReindexAction(clusterSupportsFeature));
+        } else {
+            return List.of();
         }
-        return handlers;
     }
 }

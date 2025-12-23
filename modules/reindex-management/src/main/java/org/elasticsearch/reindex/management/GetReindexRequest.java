@@ -37,8 +37,8 @@ public class GetReindexRequest extends ActionRequest {
     public GetReindexRequest(StreamInput in) throws IOException {
         super(in);
         taskId = TaskId.readFromStream(in);
-        timeout = in.readOptionalTimeValue();
         waitForCompletion = in.readBoolean();
+        timeout = in.readOptionalTimeValue();
     }
 
     public TaskId getTaskId() {
@@ -67,7 +67,7 @@ public class GetReindexRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         taskId.writeTo(out);
-        out.writeOptionalTimeValue(timeout);
         out.writeBoolean(waitForCompletion);
+        out.writeOptionalTimeValue(timeout);
     }
 }

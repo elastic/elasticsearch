@@ -41,7 +41,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         out.writeOptionalWriteable(task);
     }
 
-    public TaskResult getTask() {
+    public TaskResult getTaskResult() {
         return task;
     }
 
@@ -53,7 +53,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         TaskInfo taskInfo = task.getTask();
         builder.startObject();
         builder.field("completed", task.isCompleted());
-        // TODO: revisit if we should expose taskInfo.description
+        // TODO: revisit if we should expose taskInfo.description, since it may contain sensitive information like ip and username
         builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
         if (builder.humanReadable()) {
             builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());

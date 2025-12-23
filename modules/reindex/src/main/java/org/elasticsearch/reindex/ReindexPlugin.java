@@ -57,15 +57,12 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public List<ActionHandler> getActions() {
-        List<ActionHandler> actions = new ArrayList<>(
-            Arrays.asList(
-                new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
-                new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
-                new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-                new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
-            )
+        return Arrays.asList(
+            new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+            new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+            new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+            new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
         );
-        return actions;
     }
 
     @Override
@@ -87,15 +84,12 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        List<RestHandler> handlers = new ArrayList<>(
-            Arrays.asList(
-                new RestReindexAction(clusterSupportsFeature),
-                new RestUpdateByQueryAction(clusterSupportsFeature),
-                new RestDeleteByQueryAction(clusterSupportsFeature),
-                new RestRethrottleAction(nodesInCluster)
-            )
+        return Arrays.asList(
+            new RestReindexAction(clusterSupportsFeature),
+            new RestUpdateByQueryAction(clusterSupportsFeature),
+            new RestDeleteByQueryAction(clusterSupportsFeature),
+            new RestRethrottleAction(nodesInCluster)
         );
-        return handlers;
     }
 
     @Override

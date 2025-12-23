@@ -49,6 +49,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
         // We first issue a get task request with wait_for_completion=false to check if the task exists and is a reindex task, to avoid
         // waiting for tasks that are not reindex. If the original request has wait_for_completion=true, we issue a second get task request
         // with wait_for_completion=true to wait for the reindex task to complete.
+        // Note that the underlying transport get task action is multi-project aware, so it will only return project specific tasks
         TaskId taskId = request.getTaskId();
         GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(false).setTimeout(request.getTimeout());
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -35,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     private static final String ONE_PARAM_TYPE_ERROR_STRING = "time_duration or date_period";
-    private static final String TWO_PARAM_TYPE_ERROR_STRING = "string, long, date or date_nanos";
+    private static final String TWO_PARAM_TYPE_ERROR_STRING = "long, date or date_nanos";
 
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -64,30 +63,11 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 Source.EMPTY,
                 Literal.keyword(Source.EMPTY, "invalid_offset"),
                 null,
-                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                Literal.dateTime(Source.EMPTY, Instant.now()),
                 EsqlTestUtils.configuration(StringUtils.EMPTY)
             );
             trange.surrogate();
         });
-
-        // Invalid datetime string in two parameter mode
-        expectThrows(
-            InvalidArgumentException.class,
-            equalTo(
-                "invalid time range for []: TRANGE start_time_or_offset parameter must be a valid datetime string, got: "
-                    + BytesRefs.toBytesRef("invalid_offset")
-            ),
-            () -> {
-                TRange trange = new TRange(
-                    Source.EMPTY,
-                    Literal.keyword(Source.EMPTY, "invalid_offset"),
-                    Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
-                    EsqlTestUtils.configuration(StringUtils.EMPTY)
-                );
-                trange.surrogate();
-            }
-        );
 
         // Start time after end time in two parameter mode
         expectThrows(
@@ -96,9 +76,9 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             () -> {
                 TRange trange = new TRange(
                     Source.EMPTY,
-                    Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
-                    Literal.keyword(Source.EMPTY, "2024-01-01T10:00:00Z"),
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                    Literal.dateTime(Source.EMPTY, Instant.parse("2024-01-01T12:00:00Z")),
+                    Literal.dateTime(Source.EMPTY, Instant.parse("2024-01-01T10:00:00Z")),
+                    Literal.dateTime(Source.EMPTY, Instant.now()),
                     EsqlTestUtils.configuration(StringUtils.EMPTY)
                 );
                 trange.surrogate();
@@ -113,8 +93,8 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 TRange trange = new TRange(
                     Source.EMPTY,
                     Literal.fromDouble(Source.EMPTY, 123.45),
-                    Literal.keyword(Source.EMPTY, "2024-01-01T12:00:00Z"),
-                    new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                    Literal.dateTime(Source.EMPTY, Instant.parse("2024-01-01T12:00:00Z")),
+                    Literal.dateTime(Source.EMPTY, Instant.now()),
                     EsqlTestUtils.configuration(StringUtils.EMPTY)
                 );
                 trange.surrogate();
@@ -127,7 +107,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 Source.EMPTY,
                 Literal.fromDouble(Source.EMPTY, 123.45),
                 null,
-                new Literal(Source.EMPTY, Instant.now(), DataType.DATETIME),
+                Literal.dateTime(Source.EMPTY, Instant.now()),
                 EsqlTestUtils.configuration(StringUtils.EMPTY)
             );
             trange.surrogate();
@@ -181,10 +161,7 @@ public class TRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
         } else {
             // 2nd parameter must have the same type as the first (the 1st one is taken from signature to compare)
-            validPerPosition = List.of(
-                Set.of(DataType.KEYWORD, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS),
-                Set.of(signature.getFirst())
-            );
+            validPerPosition = List.of(Set.of(DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS), Set.of(signature.getFirst()));
             for (int i = 0; i < signature.size(); i++) {
                 if (validPerPosition.get(i).contains(signature.get(i)) == false) {
                     return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);

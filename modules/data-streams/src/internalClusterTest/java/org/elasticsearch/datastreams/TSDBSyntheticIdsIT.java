@@ -25,6 +25,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Test suite for time series indices that use synthetic ids for documents.
@@ -96,6 +99,40 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     + IndexSettings.USE_SYNTHETIC_ID.getKey()
                     + "] is only permitted when [index.mode] is set to [TIME_SERIES]. Current mode: ["
                     + randomNonTsdbIndexMode.getName().toUpperCase(Locale.ROOT)
+                    + "]."
+            )
+        );
+    }
+
+    public void testInvalidCodec() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        final var indexName = randomIdentifier();
+        internalCluster().startDataOnlyNode();
+        var randomNonDefaultCodec = randomFrom(
+            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LEGACY_DEFAULT_CODEC,
+            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LUCENE_DEFAULT_CODEC
+        );
+
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex(
+                indexName,
+                indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put("index.routing_path", "hostname")
+                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                    .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomNonDefaultCodec)
+                    .build()
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "The setting ["
+                    + IndexSettings.USE_SYNTHETIC_ID.getKey()
+                    + "] is only permitted when [index.codec] is set to [default]. Current mode: ["
+                    + randomNonDefaultCodec
                     + "]."
             )
         );
@@ -260,12 +297,19 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         flush(dataStreamName);
 
+        // TODO: Restart the node or relocate the shard randomly
+
         // Check that synthetic _id field have no postings on disk
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            // When _id's are only used to populate the bloom filter,
+            // IndexDiskUsageStats won't account for anything since
+            // the bloom filter it's not exposed through the Reader API and
+            // the analyzer expects to get documents with fields to do the
+            // disk usage accounting.
+            assertThat(diskUsageIdField, nullValue());
         }
     }
 
@@ -376,7 +420,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            // When _id's are only used to populate the bloom filter,
+            // IndexDiskUsageStats won't account for anything since
+            // the bloom filter it's not exposed through the Reader API and
+            // the analyzer expects to get documents with fields to do the
+            // disk usage accounting.
+            assertThat(diskUsageIdField, nullValue());
         }
 
         assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);

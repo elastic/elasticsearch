@@ -1,5 +1,0 @@
-pr: 138589
-summary: Upgrading commons-lang3 version for repository-hdfs plugin
-area: Snapshot/Restore
-type: upgrade
-issues: []

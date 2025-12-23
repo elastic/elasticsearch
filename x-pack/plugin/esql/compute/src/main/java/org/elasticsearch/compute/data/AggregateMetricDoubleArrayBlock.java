@@ -16,6 +16,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -238,12 +239,35 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            if (out.getTransportVersion().supports(WRITE_TYPED_BLOCK)) {
+        if (out.getTransportVersion().supports(WRITE_TYPED_BLOCK)) {
+            for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
                 Block.writeTypedBlock(block, out);
-            } else {
-                block.writeTo(out);
             }
+        } else {
+            // We can't serialize ConstantNullBlock instances for BWC reasons,
+            // so we replace them with non-constant null blocks here
+            for (DoubleBlock block : List.of(minBlock, maxBlock, sumBlock)) {
+                try (Block notConstantNull = replaceConstantNullBlock(block, blockFactory()::newDoubleBlockBuilder)) {
+                    notConstantNull.writeTo(out);
+                }
+            }
+            try (Block notConstantNull = replaceConstantNullBlock(countBlock, blockFactory()::newIntBlockBuilder)) {
+                notConstantNull.writeTo(out);
+            }
+        }
+    }
+
+    private Block replaceConstantNullBlock(Block block, IntFunction<Builder> builderProducer) {
+        if (block instanceof ConstantNullBlock) {
+            try (var builder = builderProducer.apply(block.getPositionCount())) {
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    builder.appendNull();
+                }
+                return builder.build();
+            }
+        } else {
+            block.incRef();
+            return block;
         }
     }
 
@@ -329,6 +353,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     @Override
     public String toString() {
         String valuesString = Stream.of(AggregateMetricDoubleBlockBuilder.Metric.values())
+            .filter(metric -> metric != AggregateMetricDoubleBlockBuilder.Metric.DEFAULT)
             .map(metric -> metric.getLabel() + "=" + getMetricBlock(metric.getIndex()))
             .collect(Collectors.joining(", ", "[", "]"));
 

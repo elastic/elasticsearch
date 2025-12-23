@@ -193,12 +193,23 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, metric };
         }
 
+        private IndexType indexType() {
+            if (indexed.getValue()) {
+                return IndexType.points(true, hasDocValues.getValue());
+            }
+            if (hasDocValues.getValue()
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
+                && indexSettings.useDocValuesSkipper()) {
+                return IndexType.skippers();
+            }
+            return IndexType.points(false, hasDocValues.getValue());
+        }
+
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
-            IndexType indexType = IndexType.points(indexed.get(), hasDocValues.get());
             ScaledFloatFieldType type = new ScaledFloatFieldType(
                 context.buildFullName(leafName()),
-                indexType,
+                indexType(),
                 stored.getValue(),
                 meta.getValue(),
                 scalingFactor.getValue(),
@@ -786,11 +797,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public long ramBytesUsed() {
             return scaledFieldData.ramBytesUsed();
-        }
-
-        @Override
-        public void close() {
-            scaledFieldData.close();
         }
 
         @Override

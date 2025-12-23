@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -70,12 +71,17 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      */
     public MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            restRequest.param("project_routing");
+        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+
+        if (crossProjectEnabled && multiRequest.allowsCrossProject()) {
+            multiRequest.setProjectRouting(restRequest.param("project_routing"));
+            multiRequest.indicesOptions(
+                IndicesOptions.builder(multiRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
         }
 
-        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
@@ -86,6 +92,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             allowExplicitIndex,
             (searchRequest, bytes) -> {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
+                // Do not allow project_routing if we're not in a CPS environment.
+                if (crossProjectEnabled == false && searchTemplateRequest.getProjectRouting() != null) {
+                    throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+                }
                 if (searchTemplateRequest.getScript() != null) {
                     searchTemplateRequest.setRequest(searchRequest);
                     multiRequest.add(searchTemplateRequest);
@@ -94,7 +104,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 }
                 RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             },
-            Optional.of(crossProjectEnabled)
+            (k, v, r) -> false,
+            Optional.of(crossProjectEnabled),
+            multiRequest.getProjectRouting()
         );
         return multiRequest;
     }

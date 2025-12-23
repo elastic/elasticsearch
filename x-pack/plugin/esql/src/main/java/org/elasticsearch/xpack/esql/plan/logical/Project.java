@@ -27,7 +27,7 @@ import java.util.Objects;
 /**
  * A {@code Project} is a {@code Plan} with one child. In {@code FROM idx | KEEP x, y}, the {@code KEEP} statement is a Project.
  */
-public class Project extends UnaryPlan implements Streaming, SortAgnostic {
+public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);
 
     private final List<? extends NamedExpression> projections;

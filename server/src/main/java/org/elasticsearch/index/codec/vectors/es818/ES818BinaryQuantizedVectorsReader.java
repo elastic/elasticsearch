@@ -45,7 +45,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
-import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
@@ -56,6 +55,7 @@ import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
+import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 import static org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat.VECTOR_DATA_EXTENSION;
 
 /**
@@ -247,17 +247,7 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
 
     @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        if (knnCollector.k() == 0) return;
-        final RandomVectorScorer scorer = getRandomVectorScorer(field, target);
-        if (scorer == null) return;
-        OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
-        Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
-        for (int i = 0; i < scorer.maxOrd(); i++) {
-            if (acceptedOrds == null || acceptedOrds.get(i)) {
-                collector.collect(i, scorer.score(i));
-                collector.incVisitedCount(1);
-            }
-        }
+        scoreAndCollectAll(knnCollector, acceptDocs, getRandomVectorScorer(field, target));
     }
 
     @Override

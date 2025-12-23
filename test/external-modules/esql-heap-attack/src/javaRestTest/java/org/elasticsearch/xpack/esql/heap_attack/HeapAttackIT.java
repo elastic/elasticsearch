@@ -169,6 +169,9 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 .entry("values", List.of(List.of(9)))
                 .entry("documents_found", greaterThan(0))
                 .entry("values_loaded", greaterThan(0))
+                .entry("completion_time_in_millis", greaterThan(0L))
+                .entry("expiration_time_in_millis", greaterThan(0L))
+                .entry("start_time_in_millis", greaterThan(0L))
         );
     }
 

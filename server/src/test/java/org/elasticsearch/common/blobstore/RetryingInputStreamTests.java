@@ -12,6 +12,7 @@ package org.elasticsearch.common.blobstore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
@@ -26,6 +27,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.OPEN;
+import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.READ;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.empty;
 
 public class RetryingInputStreamTests extends ESTestCase {
@@ -34,81 +38,85 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var retryableFailures = randomIntBetween(1, 5);
         final var failureCounter = new AtomicInteger(retryableFailures);
         final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
+        final var eTag = randomUUID();
 
         final var services = new BlobStoreServicesAdapter(retryableFailures * 2) {
             @Override
-            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
-                return new FailureAtIndexInputStream(resourceBytes, (int) start, failureCounter.getAndDecrement() > 0);
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
             }
         };
 
-        byte[] results = copyToBytes(new RetryingInputStream(services, randomRetryingPurpose()) {
-        });
+        byte[] results = copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()));
         assertEquals(resourceBytes.length(), results.length);
-        assertEquals(resourceBytes, new BytesArray(results));
+        assertThat(new BytesArray(results), equalBytes(resourceBytes));
         assertEquals(retryableFailures + 1, services.getAttempts());
-        assertEquals(Stream.generate(() -> "read").limit(retryableFailures).toList(), services.getRetryStarted());
+        assertEquals(Stream.generate(() -> READ).limit(retryableFailures).toList(), services.getRetryStarted());
     }
 
     public void testReadWillFailWhenRetryableErrorsExceedMaxRetries() {
         final var maxRetries = randomIntBetween(1, 5);
         final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(10, 100)).getBytes());
+        final var eTag = randomUUID();
 
         final var services = new BlobStoreServicesAdapter(maxRetries) {
             @Override
-            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
-                return new FailureAtIndexInputStream(resourceBytes, (int) start, true);
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true);
             }
         };
 
         final var ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new RetryingInputStream(services, randomFiniteRetryingPurpose()) {
-            })
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomFiniteRetryingPurpose()))
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(maxRetries + 1, services.getAttempts());
-        assertEquals(Stream.generate(() -> "read").limit(maxRetries + 1).toList(), services.getRetryStarted());
+        assertEquals(Stream.generate(() -> READ).limit(maxRetries + 1).toList(), services.getRetryStarted());
     }
 
     public void testReadWillFailWhenRetryableErrorsOccurDuringRepositoryAnalysis() {
         final var maxRetries = randomIntBetween(2, 5);
         final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
+        final var eTag = randomUUID();
 
         final var services = new BlobStoreServicesAdapter(maxRetries) {
             @Override
-            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
-                return new FailureAtIndexInputStream(resourceBytes, (int) start, true);
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true);
             }
         };
 
         final var ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new RetryingInputStream(services, OperationPurpose.REPOSITORY_ANALYSIS) {
-            })
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, OperationPurpose.REPOSITORY_ANALYSIS))
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(1, services.getAttempts());
-        assertEquals(List.of("read"), services.getRetryStarted());
+        assertEquals(List.of(READ), services.getRetryStarted());
     }
 
     public void testReadWillRetryIndefinitelyWhenErrorsOccurDuringIndicesOperation() throws IOException {
         final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
         final int numberOfFailures = randomIntBetween(1, 10);
         final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
+        final var eTag = randomUUID();
 
         final var services = new BlobStoreServicesAdapter(0) {
             @Override
-            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
-                return new FailureAtIndexInputStream(resourceBytes, (int) start, failureCounter.getAndDecrement() > 0);
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
             }
         };
 
-        byte[] result = copyToBytes(new RetryingInputStream(services, OperationPurpose.INDICES) {
-        });
-        assertEquals(resourceBytes, new BytesArray(result));
+        byte[] result = copyToBytes(new ShortDelayRetryingInputStream(services, OperationPurpose.INDICES));
+        assertThat(new BytesArray(result), equalBytes(resourceBytes));
         assertEquals(numberOfFailures + 1, services.getAttempts());
-        assertEquals(Stream.generate(() -> "read").limit(numberOfFailures).toList(), services.getRetryStarted());
+        assertEquals(Stream.generate(() -> READ).limit(numberOfFailures).toList(), services.getRetryStarted());
     }
 
     public void testRetriesWillBeExtendedWhenMeaningfulProgressIsMade() {
@@ -117,13 +125,15 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var meaningfulProgressSize = randomIntBetween(1024, 4096);
         final var meaningfulProgressAttempts = randomIntBetween(1, 3);
         final var meaningfulProgressAttemptsCounter = new AtomicInteger(meaningfulProgressAttempts);
+        final var eTag = randomUUID();
 
         final var services = new BlobStoreServicesAdapter(maxRetries) {
             @Override
-            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
                 final var inputStream = meaningfulProgressAttemptsCounter.decrementAndGet() > 0
-                    ? new FailureAtIndexInputStream(resourceBytes, (int) start, true, meaningfulProgressSize, Integer.MAX_VALUE)
-                    : new FailureAtIndexInputStream(resourceBytes, (int) start, true, 1, meaningfulProgressSize - 1);
+                    ? createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true, meaningfulProgressSize, Integer.MAX_VALUE)
+                    : createSingleAttemptInputStream(resourceBytes, eTag, (int) start, true, 1, meaningfulProgressSize - 1);
                 return inputStream;
             }
 
@@ -135,12 +145,11 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new RetryingInputStream(services, randomFiniteRetryingPurpose()) {
-            })
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomFiniteRetryingPurpose()))
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(maxRetries + meaningfulProgressAttempts, services.getAttempts());
-        assertEquals(Stream.generate(() -> "read").limit(maxRetries + meaningfulProgressAttempts).toList(), services.getRetryStarted());
+        assertEquals(Stream.generate(() -> READ).limit(maxRetries + meaningfulProgressAttempts).toList(), services.getRetryStarted());
     }
 
     public void testNoSuchFileExceptionAndRangeNotSatisfiedTerminatesWithoutRetry() {
@@ -154,7 +163,8 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var services = new BlobStoreServicesAdapter(retryableFailures * 2) {
             @Override
-            public RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException {
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
                 if (failureCounter.getAndDecrement() > 0) {
                     throw new RuntimeException("This is retry-able");
                 }
@@ -163,13 +173,68 @@ public class RetryingInputStreamTests extends ESTestCase {
         };
         final IOException ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new RetryingInputStream(services, randomRetryingPurpose()) {
-            })
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()))
         );
         assertSame(notRetriableException, ioException);
         assertEquals(retryableFailures + 1, services.getAttempts());
-        assertEquals(List.of("open"), services.getRetryStarted());
+        assertEquals(List.of(OPEN), services.getRetryStarted());
         assertThat(services.getRetrySucceeded(), empty());
+    }
+
+    public void testBlobVersionIsRequestedForSecondAndSubsequentAttempts() throws IOException {
+        final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
+        final int numberOfFailures = randomIntBetween(1, 10);
+        final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
+        final var eTag = randomUUID();
+
+        final var services = new BlobStoreServicesAdapter(numberOfFailures) {
+            @Override
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                if (getAttempts() > 1) {
+                    assertEquals(eTag, version);
+                } else {
+                    assertNull(version);
+                }
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
+            }
+        };
+
+        copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()));
+    }
+
+    public void testSkipWillRetry() throws IOException {
+        final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
+        final int numberOfFailures = randomIntBetween(1, 10);
+        final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
+        final var eTag = randomUUID();
+
+        final var services = new BlobStoreServicesAdapter(numberOfFailures) {
+            @Override
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
+            }
+        };
+
+        try (var inputStream = new ShortDelayRetryingInputStream(services, randomRetryingPurpose())) {
+            assertEquals(resourceBytes.length() - 1, inputStream.skip(resourceBytes.length() - 1));
+        }
+    }
+
+    /**
+     * RetryingInputStream with a short fixed delay so these tests run quickly
+     */
+    private static final class ShortDelayRetryingInputStream extends RetryingInputStream<String> {
+
+        ShortDelayRetryingInputStream(BlobStoreServices<String> blobStoreServices, OperationPurpose purpose) throws IOException {
+            super(blobStoreServices, purpose);
+        }
+
+        @Override
+        protected long getRetryDelayInMillis() {
+            return 1;
+        }
     }
 
     private static byte[] copyToBytes(InputStream inputStream) throws IOException {
@@ -188,10 +253,10 @@ public class RetryingInputStreamTests extends ESTestCase {
         return outputStream.toByteArray();
     }
 
-    private abstract static class BlobStoreServicesAdapter implements RetryingInputStream.BlobStoreServices {
+    private abstract static class BlobStoreServicesAdapter implements RetryingInputStream.BlobStoreServices<String> {
 
         private final AtomicInteger attemptCounter = new AtomicInteger();
-        private final List<String> retryStarted = new ArrayList<>();
+        private final List<RetryingInputStream.StreamAction> retryStarted = new ArrayList<>();
         private final List<Success> retrySucceeded = new ArrayList<>();
         private final int maxRetries;
 
@@ -199,21 +264,35 @@ public class RetryingInputStreamTests extends ESTestCase {
             this.maxRetries = maxRetries;
         }
 
-        public final RetryingInputStream.SingleAttemptInputStream getInputStream(long start, long end) throws IOException {
+        @Override
+        public final RetryingInputStream.SingleAttemptInputStream<String> getInputStream(@Nullable String version, long start, long end)
+            throws IOException {
             attemptCounter.incrementAndGet();
-            return doGetInputStream(start, end);
+            return doGetInputStream(version, start, end);
         }
 
-        protected abstract RetryingInputStream.SingleAttemptInputStream doGetInputStream(long start, long end) throws IOException;
+        protected abstract RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(
+            @Nullable String version,
+            long start,
+            long end
+        ) throws IOException;
 
         @Override
-        public void onRetryStarted(String action) {
+        public void onRetryStarted(RetryingInputStream.StreamAction action) {
             retryStarted.add(action);
         }
 
         @Override
-        public void onRetrySucceeded(String action, long numberOfRetries) {
+        public void onRetrySucceeded(RetryingInputStream.StreamAction action, long numberOfRetries) {
             retrySucceeded.add(new Success(action, numberOfRetries));
+        }
+
+        @Override
+        public boolean isRetryableException(RetryingInputStream.StreamAction action, Exception e) {
+            return switch (action) {
+                case OPEN -> e instanceof RuntimeException;
+                case READ -> e instanceof IOException;
+            };
         }
 
         @Override
@@ -231,13 +310,13 @@ public class RetryingInputStreamTests extends ESTestCase {
             return "";
         }
 
-        record Success(String action, long numberOfRetries) {};
+        record Success(RetryingInputStream.StreamAction action, long numberOfRetries) {};
 
         public int getAttempts() {
             return attemptCounter.get();
         }
 
-        public List<String> getRetryStarted() {
+        public List<RetryingInputStream.StreamAction> getRetryStarted() {
             return retryStarted;
         }
 
@@ -246,38 +325,50 @@ public class RetryingInputStreamTests extends ESTestCase {
         }
     }
 
-    private static class FailureAtIndexInputStream extends RetryingInputStream.SingleAttemptInputStream {
+    private static RetryingInputStream.SingleAttemptInputStream<String> createSingleAttemptInputStream(
+        BytesReference bytesReference,
+        String version,
+        int startIndex,
+        boolean failBeforeEnd
+    ) throws IOException {
+        return createSingleAttemptInputStream(bytesReference, version, startIndex, failBeforeEnd, 1, Integer.MAX_VALUE);
+    }
 
-        private final long firstOffset;
-        private final InputStream delegate;
+    private static RetryingInputStream.SingleAttemptInputStream<String> createSingleAttemptInputStream(
+        BytesReference bytesReference,
+        String version,
+        int startIndex,
+        boolean failBeforeEnd,
+        int minimumSuccess,
+        int maximumSuccess
+    ) throws IOException {
+        if (failBeforeEnd) {
+            return new RetryingInputStream.SingleAttemptInputStream<>(
+                new FailureAtIndexInputStream(bytesReference, startIndex, minimumSuccess, maximumSuccess),
+                startIndex,
+                version
+            );
+        }
+        return new RetryingInputStream.SingleAttemptInputStream<>(inputStreamAtIndex(bytesReference, startIndex), startIndex, version);
+    }
+
+    private static class FailureAtIndexInputStream extends InputStream {
+
+        private final InputStream inputStream;
         private int readRemaining;
 
-        private FailureAtIndexInputStream(BytesReference bytesReference, int startIndex, boolean failBeforeEnd) throws IOException {
-            this(bytesReference, startIndex, failBeforeEnd, 1, Integer.MAX_VALUE);
-        }
-
-        private FailureAtIndexInputStream(
-            BytesReference bytesReference,
-            int startIndex,
-            boolean failBeforeEnd,
-            int minimumSuccess,
-            int maximumSuccess
-        ) throws IOException {
+        private FailureAtIndexInputStream(BytesReference bytesReference, int startIndex, int minimumSuccess, int maximumSuccess)
+            throws IOException {
+            this.inputStream = inputStreamAtIndex(bytesReference, startIndex);
             final int remainingBytes = bytesReference.length() - startIndex;
-            this.delegate = bytesReference.slice(startIndex, remainingBytes).streamInput();
-            if (failBeforeEnd) {
-                this.readRemaining = randomIntBetween(Math.max(1, minimumSuccess), Math.min(maximumSuccess, remainingBytes / 2));
-            } else {
-                this.readRemaining = Integer.MAX_VALUE;
-            }
-            this.firstOffset = startIndex;
+            this.readRemaining = randomIntBetween(Math.max(1, minimumSuccess), Math.min(maximumSuccess, remainingBytes / 2));
         }
 
         @Override
         public int read() throws IOException {
             if (readRemaining > 0) {
                 readRemaining--;
-                return delegate.read();
+                return inputStream.read();
             } else {
                 throw new IOException("This is retry-able");
             }
@@ -287,11 +378,11 @@ public class RetryingInputStreamTests extends ESTestCase {
         public String toString() {
             return "Failing after " + readRemaining;
         }
+    }
 
-        @Override
-        protected long getFirstOffset() {
-            return firstOffset;
-        }
+    private static InputStream inputStreamAtIndex(BytesReference bytesReference, int startIndex) throws IOException {
+        final int remainingBytes = bytesReference.length() - startIndex;
+        return bytesReference.slice(startIndex, remainingBytes).streamInput();
     }
 
     public static OperationPurpose randomRetryingPurpose() {

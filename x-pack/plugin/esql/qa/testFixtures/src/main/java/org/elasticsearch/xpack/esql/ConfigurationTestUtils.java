@@ -51,6 +51,10 @@ public class ConfigurationTestUtils {
         return randomConfiguration(randomRealisticUnicodeOfLength(len), randomTables());
     }
 
+    public static Configuration randomConfiguration(String query) {
+        return randomConfiguration(query, randomTables());
+    }
+
     public static Configuration randomConfiguration(String query, Map<String, Map<String, Column>> tables) {
         var zoneId = randomZone();
         var locale = randomLocale(random());
@@ -76,7 +80,8 @@ public class ConfigurationTestUtils {
             System.nanoTime(),
             false,
             tsTruncation,
-            defaultTsTruncation
+            defaultTsTruncation,
+            null
         );
     }
 

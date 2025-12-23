@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -172,8 +171,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public SearchableSnapshotAction(StreamInput in) throws IOException {
         this.snapshotRepository = in.readString();
         this.forceMergeIndex = in.readBoolean();
-        this.totalShardsPerNode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalInt() : null;
-        this.replicateFor = in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readOptionalTimeValue() : null;
+        this.totalShardsPerNode = in.readOptionalInt();
+        this.replicateFor = in.readOptionalTimeValue();
         this.forceMergeOnClone = in.getTransportVersion().supports(FORCE_MERGE_ON_CLONE_TRANSPORT_VERSION)
             ? in.readOptionalBoolean()
             : null;
@@ -640,12 +639,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
         out.writeBoolean(forceMergeIndex);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalInt(totalShardsPerNode);
-        }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalTimeValue(replicateFor);
-        }
+        out.writeOptionalInt(totalShardsPerNode);
+        out.writeOptionalTimeValue(replicateFor);
         if (out.getTransportVersion().supports(FORCE_MERGE_ON_CLONE_TRANSPORT_VERSION)) {
             out.writeOptionalBoolean(forceMergeOnClone);
         }

@@ -6,6 +6,8 @@
 | --- | --- |
 | aggregate_metric_double | double |
 | double | double |
+| exponential_histogram | double |
 | integer | long |
 | long | long |
+| tdigest | double |
 

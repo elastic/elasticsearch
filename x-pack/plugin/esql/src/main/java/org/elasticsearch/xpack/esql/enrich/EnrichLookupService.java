@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
@@ -114,15 +113,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         TransportRequest request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
-        Block inputBlock,
         Warnings warnings
     ) {
         DataType inputDataType = request.inputDataType;
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
+        int channelOffset = 0;
         return switch (request.matchType) {
-            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, inputBlock);
+            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, channelOffset, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, channelOffset);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }

@@ -17,7 +17,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
@@ -108,7 +107,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         TransportRequest request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
-        Block inputBlock,
         Warnings warnings
     ) {
         PhysicalPlan lookupNodePlan = localLookupNodePlanning(request.rightPreJoinPlan);
@@ -117,14 +115,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<QueryList> queryLists = new ArrayList<>();
             for (int i = 0; i < request.matchFields.size(); i++) {
                 MatchConfig matchField = request.matchFields.get(i);
+                int channelOffset = matchField.channel();
                 QueryList q = termQueryList(
                     context.getFieldType(matchField.fieldName()),
                     context,
                     aliasFilter,
-                    request.inputPage.getBlock(matchField.channel()),
+                    channelOffset,
                     matchField.type()
-                ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
-                queryLists.add(q);
+                );
+                queryLists.add(q.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
             }
             if (queryLists.size() == 1 && lookupNodePlan instanceof FilterExec == false) {
                 return queryLists.getFirst();

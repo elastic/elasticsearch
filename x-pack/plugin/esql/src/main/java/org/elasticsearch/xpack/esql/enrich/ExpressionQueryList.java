@@ -11,7 +11,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
@@ -129,26 +130,19 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             clusterService,
             aliasFilter
         );
-        expressionQueryList.buildJoinOnForExpressionJoin(
-            request.getJoinOnConditions(),
-            request.getMatchFields(),
-            request.getInputPage(),
-            clusterService,
-            warnings
-        );
+        expressionQueryList.buildJoinOnForExpressionJoin(request.getJoinOnConditions(), request.getMatchFields(), clusterService, warnings);
         return expressionQueryList;
     }
 
     private void buildJoinOnForExpressionJoin(
         Expression joinOnConditions,
         List<MatchConfig> matchFields,
-        Page inputPage,
         ClusterService clusterService,
         Warnings warnings
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
         for (Expression expr : expressions) {
-            boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, inputPage, clusterService, warnings);
+            boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, clusterService, warnings);
             if (applied == false) {
                 applied = applyAsRightSidePushableFilter(expr);
             }
@@ -179,7 +173,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private boolean applyAsLeftRightBinaryComparison(
         Expression expr,
         List<MatchConfig> matchFields,
-        Page inputPage,
         ClusterService clusterService,
         Warnings warnings
     ) {
@@ -189,33 +182,31 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             // the left side comes from the page that was sent to the lookup node
             // the right side is the field from the lookup index
             // check if the left side is in the matchFields
-            // if it is its corresponding page is the corresponding number in inputPage
-            Block block = null;
             DataType dataType = null;
+            int channelOffset = -1;
             for (int i = 0; i < matchFields.size(); i++) {
                 if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
-                    block = inputPage.getBlock(i);
+                    channelOffset = i;
                     dataType = matchFields.get(i).type();
                     break;
                 }
             }
             MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
-            if (block != null && rightFieldType != null && dataType != null) {
+            if (rightFieldType != null && dataType != null && channelOffset != -1) {
                 // special handle Equals operator
                 // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
                 // so here we reuse the existing logic from field based join to build a termQueryList for Equals
                 if (binaryComparison instanceof Equals) {
-                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, block, dataType).onlySingleValues(
-                        warnings,
-                        "LOOKUP JOIN encountered multi-value"
-                    );
-                    queryLists.add(termQueryForEquals);
+                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, channelOffset, dataType);
+                    queryLists.add(termQueryForEquals.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
                 } else {
+                    ElementType elementType = PlannerUtils.toElementType(dataType);
                     queryLists.add(
                         new BinaryComparisonQueryList(
                             rightFieldType,
                             context,
-                            block,
+                            elementType,
+                            channelOffset,
                             binaryComparison,
                             clusterService,
                             aliasFilter,
@@ -266,13 +257,14 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      * The query is a conjunction of all queries from the input lists at the same position.
      * If a pre-join filter exists, it is also added to the query.
      * @param position The position of the query to return.
+     * @param inputPage The input page containing the values for the query lists.
      * @return The query at the given position, or null if any of the match fields are null.
      */
     @Override
-    public Query getQuery(int position) {
+    public Query getQuery(int position, Page inputPage) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryList queryList : queryLists) {
-            Query q = queryList.getQuery(position);
+            Query q = queryList.getQuery(position, inputPage);
             if (q == null) {
                 // if any of the matchFields are null, it means there is no match for this position
                 // A AND NULL is always NULL, so we can skip this position
@@ -294,15 +286,15 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      * @throws IllegalArgumentException if the query lists have different position counts.
      */
     @Override
-    public int getPositionCount() {
-        int positionCount = queryLists.get(0).getPositionCount();
+    public int getPositionCount(Page inputPage) {
+        int positionCount = queryLists.get(0).getPositionCount(inputPage);
         for (QueryList queryList : queryLists) {
-            if (queryList.getPositionCount() != positionCount) {
+            if (queryList.getPositionCount(inputPage) != positionCount) {
                 throw new IllegalArgumentException(
                     "All QueryLists must have the same position count, expected: "
                         + positionCount
                         + ", but got: "
-                        + queryList.getPositionCount()
+                        + queryList.getPositionCount(inputPage)
                 );
             }
         }

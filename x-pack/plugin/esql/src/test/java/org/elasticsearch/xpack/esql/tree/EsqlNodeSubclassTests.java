@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -393,6 +394,24 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return makeArg(toBuildClass, wt.getUpperBounds()[0]);
         }
         Class<?> argClass = (Class<?>) argType;
+
+        // Handle array types - can't mock arrays, so create them directly
+        if (argClass == int[].class) {
+            int arrayLength = between(0, 5);
+            int[] array = new int[arrayLength];
+            for (int i = 0; i < arrayLength; i++) {
+                array[i] = randomInt();
+            }
+            return array;
+        }
+        if (argClass == ElementType[].class) {
+            int arrayLength = between(0, 5);
+            ElementType[] array = new ElementType[arrayLength];
+            for (int i = 0; i < arrayLength; i++) {
+                array[i] = randomFrom(ElementType.values());
+            }
+            return array;
+        }
 
         /*
          * Sometimes all of the required type information isn't in the ctor

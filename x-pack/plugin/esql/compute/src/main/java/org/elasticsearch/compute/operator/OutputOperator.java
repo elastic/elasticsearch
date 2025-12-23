@@ -44,6 +44,10 @@ public class OutputOperator extends SinkOperator {
         this.pageConsumer = pageConsumer;
     }
 
+    public List<String> getColumns() {
+        return columns;
+    }
+
     boolean finished = false;
 
     @Override

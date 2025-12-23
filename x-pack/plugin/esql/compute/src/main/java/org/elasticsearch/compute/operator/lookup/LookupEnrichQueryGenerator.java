@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 
 /**
@@ -20,11 +21,11 @@ public interface LookupEnrichQueryGenerator {
      * Returns the query at the given position.
      */
     @Nullable
-    Query getQuery(int position);
+    Query getQuery(int position, Page inputPage);
 
     /**
-     * Returns the number of queries in this generator
+     * Returns the number of queries in this generator.
      */
-    int getPositionCount();
+    int getPositionCount(Page inputPage);
 
 }

@@ -16,10 +16,13 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -38,6 +41,9 @@ import java.io.UncheckedIOException;
 public final class EnrichQuerySourceOperator extends SourceOperator {
     private final BlockFactory blockFactory;
     private final LookupEnrichQueryGenerator queryList;
+    private final Page originalPage;
+    private final BlockOptimization blockOptimization;
+    private Page optimizedPage;
     private int queryPosition = -1;
     private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
@@ -53,6 +59,8 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         BlockFactory blockFactory,
         int maxPageSize,
         LookupEnrichQueryGenerator queryList,
+        Page originalPage,
+        BlockOptimization blockOptimization,
         IndexedByShardId<? extends ShardContext> shardContexts,
         int shardId,
         Warnings warnings
@@ -60,6 +68,8 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.queryList = queryList;
+        this.originalPage = originalPage;
+        this.blockOptimization = blockOptimization;
         this.shardContexts = shardContexts;
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
@@ -68,17 +78,53 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.warnings = warnings;
     }
 
+    /**
+     * Get the input page to use for queryList calls.
+     * Creates optimized page on-demand if needed (DICTIONARY state).
+     */
+    private Page getInputPageInternal() {
+        if (blockOptimization == BlockOptimization.DICTIONARY) {
+            if (optimizedPage == null) {
+                // Create optimized page on-demand
+                Block inputBlock = originalPage.getBlock(0);
+                OrdinalBytesRefBlock ordinalsBytesRefBlock = ((BytesRefBlock) inputBlock).asOrdinals();
+                Block optimizedBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
+                Block[] blocks = new Block[originalPage.getBlockCount()];
+                blocks[0] = optimizedBlock;
+                optimizedBlock.incRef();
+                for (int i = 1; i < blocks.length; i++) {
+                    Block originalBlock = originalPage.getBlock(i);
+                    originalBlock.incRef();
+                    blocks[i] = originalBlock;
+                }
+                optimizedPage = new Page(blocks);
+            }
+            return optimizedPage;
+        }
+        return originalPage;
+    }
+
+    /**
+     * Get the input page (may be optimized, e.g., using dictionary block instead of ordinal block).
+     * Exposed for testing to verify optimization behavior.
+     */
+    public Page getInputPage() {
+        return getInputPageInternal();
+    }
+
     @Override
     public void finish() {}
 
     @Override
     public boolean isFinished() {
-        return queryPosition >= queryList.getPositionCount();
+        Page inputPage = getInputPageInternal();
+        return queryPosition >= queryList.getPositionCount(inputPage);
     }
 
     @Override
     public Page getOutput() {
-        int estimatedSize = Math.min(maxPageSize, queryList.getPositionCount() - queryPosition);
+        Page inputPage = getInputPageInternal();
+        int estimatedSize = Math.min(maxPageSize, queryList.getPositionCount(inputPage) - queryPosition);
         IntVector.Builder positionsBuilder = null;
         IntVector.Builder docsBuilder = null;
         IntVector.Builder segmentsBuilder = null;
@@ -164,8 +210,9 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
 
     private Query nextQuery() {
         ++queryPosition;
+        Page inputPage = getInputPageInternal();
         while (isFinished() == false) {
-            Query query = queryList.getQuery(queryPosition);
+            Query query = queryList.getQuery(queryPosition, inputPage);
             if (query != null) {
                 return query;
             }
@@ -197,5 +244,10 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     @Override
     public void close() {
         this.shardContext.decRef();
+        // Release optimized page if it was created
+        if (optimizedPage != null && optimizedPage != originalPage) {
+            optimizedPage.allowPassingToDifferentDriver();
+            Releasables.closeExpectNoException(optimizedPage);
+        }
     }
 }

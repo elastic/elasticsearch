@@ -320,14 +320,14 @@ public class DetectorTests extends AbstractXContentSerializingTestCase<Detector>
             DetectorFunction.HIGH_NON_ZERO_COUNT
         );
         for (DetectorFunction f : noOverFieldFunctions) {
-            Detector.Builder builder = new Detector.Builder(f, null);
+            Detector.Builder builder = new Detector.Builder(randomBoolean()).setFunction(f.getFullName());
             builder.setOverFieldName("over_field");
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
             assertThat(e.getMessage(), equalTo("over_field_name cannot be used with function '" + f + "'"));
         }
     }
 
-    public void testVerify_GivenFunctionsRequiringFieldNameNotSupportingOverField() {
+    public void testVerify_GivenFunctionsRequiringFieldNameNotSupportingOverField_strict() {
         EnumSet<DetectorFunction> noOverFieldFunctions = EnumSet.of(
             DetectorFunction.NON_NULL_SUM,
             DetectorFunction.LOW_NON_NULL_SUM,
@@ -339,6 +339,20 @@ public class DetectorTests extends AbstractXContentSerializingTestCase<Detector>
             builder.setOverFieldName("over_field");
             ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
             assertThat(e.getMessage(), equalTo("over_field_name cannot be used with function '" + f + "'"));
+        }
+    }
+
+    public void testVerify_GivenFunctionsRequiringFieldNameNotSupportingOverField_lenient() {
+        EnumSet<DetectorFunction> noOverFieldFunctions = EnumSet.of(
+            DetectorFunction.NON_NULL_SUM,
+            DetectorFunction.LOW_NON_NULL_SUM,
+            DetectorFunction.HIGH_NON_NULL_SUM
+        );
+        for (DetectorFunction f : noOverFieldFunctions) {
+            Detector.Builder builder = new Detector.Builder(true).setFunction(f.getFullName());
+            builder.setFieldName("field");
+            builder.setOverFieldName("over_field");
+            builder.build();
         }
     }
 

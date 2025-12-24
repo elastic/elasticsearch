@@ -101,7 +101,6 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -1302,7 +1301,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         // Check if this is a chunked fetch request for a marked context
-        boolean skipValidation = false; //reader.isMarkedForChunkedFetch() && request instanceof ShardFetchSearchRequest;
+        boolean skipValidation = false; // reader.isMarkedForChunkedFetch() && request instanceof ShardFetchSearchRequest;
 
         if (skipValidation) {
             logger.debug("Skipping security validation for chunked fetch on context {}", id);

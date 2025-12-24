@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -214,6 +215,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Initialize",
             Limiter.ONCE,
+            new ResolveConfigurationAware(),
             new ResolveTable(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -1449,6 +1451,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named) {
         return named.withLocation(u.source());
+    }
+
+    private static class ResolveConfigurationAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformExpressionsOnly(
+                expression -> resolveConfigurationAware(expression, context.configuration())
+            );
+        }
+
+        public static Expression resolveConfigurationAware(
+            Expression expression,
+            Configuration configuration
+        ) {
+            if (expression instanceof ConfigurationAware<?> ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
+                return ca.withConfiguration(configuration);
+            }
+            return expression;
+        }
     }
 
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {

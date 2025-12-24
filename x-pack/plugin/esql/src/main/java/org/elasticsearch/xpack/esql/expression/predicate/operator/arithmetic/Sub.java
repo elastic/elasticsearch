@@ -12,13 +12,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -27,6 +31,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
+import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
@@ -34,8 +39,10 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSubtractExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 
-public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible, ConfigurationFunction, ConfigurationAware<Sub> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
+
+    private final Configuration configuration;
 
     @FunctionInfo(
         operator = "-",
@@ -54,7 +61,8 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             name = "rhs",
             description = "A numeric value or a date time value.",
             type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
-        ) Expression right
+        ) Expression right,
+        Configuration configuration
     ) {
         super(
             source,
@@ -68,6 +76,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );
+        this.configuration = configuration;
     }
 
     private Sub(StreamInput in) throws IOException {
@@ -81,6 +90,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubDatetimesEvaluator.Factory::new,
             SubDateNanosEvaluator.Factory::new
         );
+        this.configuration = ((PlanStreamInput) in).configuration();
     }
 
     @Override
@@ -110,17 +120,17 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Override
     protected NodeInfo<Sub> info() {
-        return NodeInfo.create(this, Sub::new, left(), right());
+        return NodeInfo.create(this, Sub::new, left(), right(), configuration);
     }
 
     @Override
     protected Sub replaceChildren(Expression left, Expression right) {
-        return new Sub(source(), left, right);
+        return new Sub(source(), left, right, configuration);
     }
 
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
-        return Add::new;
+        return (source, left, right) -> new Add(source, left, right, configuration);
     }
 
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
@@ -176,5 +186,30 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     @Override
     public Duration fold(Duration left, Duration right) {
         return left.minus(right);
+    }
+
+    @Override
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    @Override
+    public Sub withConfiguration(Configuration configuration) {
+        return new Sub(source(), left(), right(), configuration);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        Sub other = (Sub) obj;
+
+        return configuration.equals(other.configuration);
     }
 }

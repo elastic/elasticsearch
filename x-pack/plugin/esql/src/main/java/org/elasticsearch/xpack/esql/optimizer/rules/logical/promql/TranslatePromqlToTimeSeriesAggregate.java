@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
@@ -78,7 +79,7 @@ import java.util.List;
  *           └── EsRelation(*, mode=TIME_SERIES)
  * </pre>
  */
-public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.OptimizerRule<PromqlCommand> {
+public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
@@ -89,7 +90,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
     }
 
     @Override
-    protected LogicalPlan rule(PromqlCommand promqlCommand) {
+    protected LogicalPlan rule(PromqlCommand promqlCommand, LogicalOptimizerContext context) {
         // Safety check: this should never occur as the parser should reject PromQL when disabled,
         // but we check here as an additional safety measure
         if (PromqlFeatures.isEnabled() == false) {
@@ -99,7 +100,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         }
 
         List<Expression> labelFilterConditions = new ArrayList<>();
-        Expression value = mapNode(promqlCommand, promqlCommand.promqlPlan(), labelFilterConditions);
+        Expression value = mapNode(promqlCommand, promqlCommand.promqlPlan(), labelFilterConditions, context);
         LogicalPlan plan = withTimestampFilter(promqlCommand, promqlCommand.child());
         plan = addLabelFilters(promqlCommand, labelFilterConditions, plan);
         plan = createTimeSeriesAggregate(promqlCommand, value, plan);
@@ -205,14 +206,16 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
      * Recursively maps PromQL plan nodes to ESQL expressions to compute the value for the time series aggregation.
      * Collects label filter conditions into the provided list.
      */
-    private static Expression mapNode(PromqlCommand promqlCommand, LogicalPlan p, List<Expression> labelFilterConditions) {
+    private static Expression mapNode(PromqlCommand promqlCommand, LogicalPlan p, List<Expression> labelFilterConditions,
+                                      LogicalOptimizerContext context) {
         return switch (p) {
             case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
-            case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions);
+            case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions, context);
             case VectorBinaryArithmetic vectorBinaryArithmetic -> mapVectorBinaryArithmetic(
                 promqlCommand,
                 vectorBinaryArithmetic,
-                labelFilterConditions
+                labelFilterConditions,
+                context
             );
             default -> throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", p);
         };
@@ -226,15 +229,16 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
     private static Expression mapVectorBinaryArithmetic(
         PromqlCommand promqlCommand,
         VectorBinaryArithmetic vectorBinaryArithmetic,
-        List<Expression> labelFilterConditions
+        List<Expression> labelFilterConditions,
+        LogicalOptimizerContext context
     ) {
-        Expression left = mapNode(promqlCommand, vectorBinaryArithmetic.left(), labelFilterConditions);
+        Expression left = mapNode(promqlCommand, vectorBinaryArithmetic.left(), labelFilterConditions, context);
         left = new ToDouble(left.source(), left);
 
-        Expression right = mapNode(promqlCommand, vectorBinaryArithmetic.right(), labelFilterConditions);
+        Expression right = mapNode(promqlCommand, vectorBinaryArithmetic.right(), labelFilterConditions, context);
         right = new ToDouble(right.source(), right);
 
-        return vectorBinaryArithmetic.binaryOp().asFunction().create(vectorBinaryArithmetic.source(), left, right);
+        return vectorBinaryArithmetic.binaryOp().asFunction().create(vectorBinaryArithmetic.source(), left, right, context.configuration());
     }
 
     /**
@@ -267,9 +271,10 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
     private static Expression mapFunction(
         PromqlCommand promqlCommand,
         PromqlFunctionCall functionCall,
-        List<Expression> labelFilterConditions
+        List<Expression> labelFilterConditions,
+        LogicalOptimizerContext context
     ) {
-        Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions);
+        Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions, context);
         List<Expression> params = switch (functionCall) {
             case WithinSeriesAggregate within -> List.of(target, promqlCommand.timestamp());
             case AcrossSeriesAggregate across -> List.of(target);

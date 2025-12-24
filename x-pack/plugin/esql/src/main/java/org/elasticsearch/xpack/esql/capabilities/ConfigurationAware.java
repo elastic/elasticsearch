@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -15,8 +16,17 @@ import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Map;
 
-// See https://github.com/elastic/elasticsearch/issues/138203
-public interface ConfigurationAware {
+/**
+ * Interface for plan nodes that require the Configuration at parsing time.
+ * <p>
+ *     They should be created with {@link ConfigurationAware#CONFIGURATION_MARKER},
+ *     and it will be resolved in the {@link org.elasticsearch.xpack.esql.analysis.Analyzer}.
+ * </p>
+ * <p>
+ *   See <a href="https://github.com/elastic/elasticsearch/issues/138203">https://github.com/elastic/elasticsearch/issues/138203</a>
+ * </p>
+ */
+public interface ConfigurationAware<T extends Expression> {
 
     // Configuration placeholder used by the Analyzer to replace
     Configuration CONFIGURATION_MARKER = new Configuration(
@@ -39,5 +49,5 @@ public interface ConfigurationAware {
 
     Configuration configuration();
 
-    <T> T withConfiguration(Configuration configuration);
+    T withConfiguration(Configuration configuration);
 }

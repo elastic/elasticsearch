@@ -16,8 +16,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -26,14 +30,17 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 
-public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible, ConfigurationFunction, ConfigurationAware<Add> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
+
+    private final Configuration configuration;
 
     @FunctionInfo(
         operator = "+",
@@ -51,7 +58,8 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             name = "rhs",
             description = "A numeric value or a date time value.",
             type = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" }
-        ) Expression right
+        ) Expression right,
+        Configuration configuration
     ) {
         super(
             source,
@@ -65,6 +73,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
+        this.configuration = configuration;
     }
 
     private Add(StreamInput in) throws IOException {
@@ -78,6 +87,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
+        this.configuration = ((PlanStreamInput) in).configuration();
     }
 
     @Override
@@ -87,22 +97,22 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Override
     protected NodeInfo<Add> info() {
-        return NodeInfo.create(this, Add::new, left(), right());
+        return NodeInfo.create(this, Add::new, left(), right(), configuration);
     }
 
     @Override
     protected Add replaceChildren(Expression left, Expression right) {
-        return new Add(source(), left, right);
+        return new Add(source(), left, right, configuration);
     }
 
     @Override
     public Add swapLeftAndRight() {
-        return new Add(source(), right(), left());
+        return new Add(source(), right(), left(), configuration);
     }
 
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
-        return Sub::new;
+        return (source, left, right) -> new Sub(source, left, right, configuration);
     }
 
     @Override
@@ -163,5 +173,30 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     @Override
     public Duration fold(Duration left, Duration right) {
         return left.plus(right);
+    }
+
+    @Override
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    @Override
+    public Add withConfiguration(Configuration configuration) {
+        return new Add(source(), left(), right(), configuration);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        Add other = (Add) obj;
+
+        return configuration.equals(other.configuration);
     }
 }

@@ -51,7 +51,8 @@ public class BlockMultiValuedTests extends ESTestCase {
                 || e == ElementType.COMPOSITE
                 || e == ElementType.EXPONENTIAL_HISTOGRAM // TODO(b/133393): Enable tests once the block supports lookup
                 || e == ElementType.TDIGEST
-                || e == ElementType.AGGREGATE_METRIC_DOUBLE) {
+                || e == ElementType.AGGREGATE_METRIC_DOUBLE
+                || e == ElementType.LONG_RANGE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {

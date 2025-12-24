@@ -91,13 +91,15 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 AtomicBoolean chunkedFetchUsed = new AtomicBoolean(false);
                 AtomicBoolean traditionalFetchUsed = new AtomicBoolean(false);
 
-                provideSearchTransport(mockSearchPhaseContext,
+                provideSearchTransport(
+                    mockSearchPhaseContext,
                     mockTransportService,
                     traditionalFetchUsed,
                     ctx1,
                     shardTarget1,
                     shardTarget2,
-                    profiled);
+                    profiled
+                );
 
                 TransportFetchPhaseCoordinationAction fetchCoordinationAction = new TransportFetchPhaseCoordinationAction(
                     mockTransportService,
@@ -106,11 +108,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                     null
                 ) {
                     @Override
-                    protected void doExecute(
-                        Task task,
-                        Request request,
-                        ActionListener<Response> listener
-                    ) {
+                    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
                         chunkedFetchUsed.set(true);
                         FetchSearchResult fetchResult = new FetchSearchResult();
                         try {
@@ -199,13 +197,15 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
                 AtomicBoolean traditionalFetchUsed = new AtomicBoolean(false);
 
-                provideSearchTransport(mockSearchPhaseContext,
+                provideSearchTransport(
+                    mockSearchPhaseContext,
                     mockTransportService,
                     traditionalFetchUsed,
                     ctx1,
                     shardTarget1,
                     shardTarget2,
-                    profiled);
+                    profiled
+                );
 
                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
                 // Pass null for fetchCoordinationAction since chunked fetch is disabled
@@ -272,13 +272,15 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
                 AtomicBoolean traditionalFetchUsed = new AtomicBoolean(false);
 
-                provideSearchTransport(mockSearchPhaseContext,
+                provideSearchTransport(
+                    mockSearchPhaseContext,
                     mockTransportService,
                     traditionalFetchUsed,
                     ctx1,
                     shardTarget1,
                     shardTarget2,
-                    profiled);
+                    profiled
+                );
 
                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
 
@@ -363,13 +365,15 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
                 AtomicBoolean traditionalFetchUsed = new AtomicBoolean(false);
 
-                provideSearchTransport(mockSearchPhaseContext,
+                provideSearchTransport(
+                    mockSearchPhaseContext,
                     mockTransportService,
                     traditionalFetchUsed,
                     ctx1,
                     shardTarget1,
                     shardTarget2,
-                    profiled);
+                    profiled
+                );
 
                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
                 FetchSearchPhase phase = new FetchSearchPhase(
@@ -423,13 +427,14 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
         );
     }
 
-    private void provideSearchTransport(MockSearchPhaseContext mockSearchPhaseContext,
-                                        TransportService mockTransportService,
-                                        AtomicBoolean traditionalFetchUsed,
-                                        ShardSearchContextId ctx1,
-                                        SearchShardTarget shardTarget1,
-                                        SearchShardTarget shardTarget2,
-                                        boolean profiled
+    private void provideSearchTransport(
+        MockSearchPhaseContext mockSearchPhaseContext,
+        TransportService mockTransportService,
+        AtomicBoolean traditionalFetchUsed,
+        ShardSearchContextId ctx1,
+        SearchShardTarget shardTarget1,
+        SearchShardTarget shardTarget2,
+        boolean profiled
     ) {
         mockSearchPhaseContext.searchTransport = new SearchTransportService(mockTransportService, null, null) {
             @Override
@@ -461,11 +466,13 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
         };
     }
 
-    private void addQuerySearchResult(ShardSearchContextId ctx,
-                                      SearchShardTarget shardTarget,
-                                      boolean profiled,
-                                      int shardIndex,
-                                      SearchPhaseResults<SearchPhaseResult> results) {
+    private void addQuerySearchResult(
+        ShardSearchContextId ctx,
+        SearchShardTarget shardTarget,
+        boolean profiled,
+        int shardIndex,
+        SearchPhaseResults<SearchPhaseResult> results
+    ) {
         QuerySearchResult queryResult = new QuerySearchResult(ctx, shardTarget, null);
         try {
             queryResult.topDocs(

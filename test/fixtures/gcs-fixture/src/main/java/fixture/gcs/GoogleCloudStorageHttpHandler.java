@@ -287,10 +287,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
     }
 
-    private static final Pattern BUCKET_OBJECT_PATTERN = Pattern.compile("(?<method>\\w+) .+/v1/b/(?<bucket>.+)/o/(?<object>[^?]+)");
+    // Example of request line
+    // DELETE http://127.0.0.1:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-5odMgVMYTbKAI6DxS0qi-A.dat HTTP/1.1";
+    private static final Pattern METHOD_BUCKET_OBJECT_PATTERN = Pattern.compile("(?<method>\\w+) .+/v1/b/(?<bucket>.+)/o/(?<object>[^?]+)");
 
     private String readObjectName(String requestLine) {
-        var m = BUCKET_OBJECT_PATTERN.matcher(requestLine);
+        var m = METHOD_BUCKET_OBJECT_PATTERN.matcher(requestLine);
         if (m.find()) {
             final var _bucket = m.group("bucket");
             if (bucket.equals(_bucket) == false) {
@@ -375,16 +377,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         return ESTestCase.between(1, 10) == 1;
     }
 
-    // Example of DELETE batch item status line
-    // DELETE http://127.0.0.1:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-5odMgVMYTbKAI6DxS0qi-A.dat HTTP/1.1";
-    static final Pattern BATCH_ITEM_HTTP_LINE = Pattern.compile(
-        "(?<method>\\w+) (.+)/storage/v1/b/(?<bucket>.+)/o/(?<object>.+) HTTP/1\\.1"
-    );
-
     static String parseBatchItemDeleteObject(String bucket, BytesReference bytes) {
         final var s = bytes.utf8ToString();
         return s.lines().findFirst().map(line -> {
-            var matcher = BATCH_ITEM_HTTP_LINE.matcher(line);
+            var matcher = METHOD_BUCKET_OBJECT_PATTERN.matcher(line);
             if (matcher.find() == false) {
                 throw failAndThrow("Cannot parse batch item HTTP line: " + line);
             }

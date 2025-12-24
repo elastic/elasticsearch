@@ -515,7 +515,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         int tailBulkSize = size - i;
         if (tailBulkSize > 0) {
             if (acceptCentroids == null || acceptCentroids.cardinality(scoresOffset + i, scoresOffset + i + tailBulkSize) > 0) {
-                float[] tailScores = new float[tailBulkSize];
                 scorer.scoreBulk(
                     quantizeQuery,
                     queryCorrections.lowerInterval(),
@@ -524,13 +523,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                     queryCorrections.additionalCorrection(),
                     similarityFunction,
                     centroidDp,
-                    tailScores,
+                    scores,
                     tailBulkSize
                 );
                 for (int j = 0; j < tailBulkSize; j++) {
                     int centroidOrd = scoresOffset + i + j;
                     if (acceptCentroids == null || acceptCentroids.get(centroidOrd)) {
-                        neighborQueue.add(centroidOrd, tailScores[j]);
+                        neighborQueue.add(centroidOrd, scores[j]);
                     }
                 }
             } else {

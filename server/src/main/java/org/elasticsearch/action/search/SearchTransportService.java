@@ -561,62 +561,53 @@ public class SearchTransportService {
 
             // Check if we can connect to the coordinator (CCS detection)
             boolean canConnectToCoordinator = false;
-            boolean remoteDataNodeRequest = false;
             if (hasCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 DiscoveryNode coordinatorNode = fetchSearchReq.getCoordinatingNode();
                 // In CCS, the remote data node won't have a connection to the local coordinator
                 canConnectToCoordinator = transportService.nodeConnected(coordinatorNode);
-                // Check if this is a local request (coordinator == data node)
-                remoteDataNodeRequest = coordinatorNode.getId().equals(transportService.getLocalNode().getId()) == false;
             }
 
             if (logger.isTraceEnabled()) {
                 logger.info(
                     "CHUNKED_FETCH decision: enabled={}, versionSupported={}, hasCoordinator={}, "
-                        + "canConnectToCoordinator={}, remoteDataNodeRequest={}, channelVersion={}, request_from={}",
+                        + "canConnectToCoordinator={}, channelVersion={}, request_from={}",
                     fetchedPhaseChunkedEnabled,
                     versionSupported,
                     hasCoordinator,
                     canConnectToCoordinator,
-                    remoteDataNodeRequest,
                     channelVersion,
                     hasCoordinator ? request.getCoordinatingNode() : "N/A"
                 );
             }
 
+            FetchPhaseResponseChunk.Writer chunkWriter = null;
+
             // Only use chunked fetch if we can actually connect back to the coordinator
-            if (fetchedPhaseChunkedEnabled && versionSupported && hasCoordinator && canConnectToCoordinator) {
+            if (fetchedPhaseChunkedEnabled && versionSupported && canConnectToCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
 
-                final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {
-                    @Override
-                    public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
-                        try {
-                            transportService.sendChildRequest(
-                                transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
-                                TransportFetchPhaseResponseChunkAction.TYPE.name(),
-                                new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
-                                task,
-                                TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(
-                                    listener.map(ignored -> null),
-                                    in -> ActionResponse.Empty.INSTANCE,
-                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
-                                )
-                            );
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
+                chunkWriter = (responseChunk, listener) -> {
+                    try {
+                        transportService.sendChildRequest(
+                            transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
+                            TransportFetchPhaseResponseChunkAction.TYPE.name(),
+                            new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
+                            task,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(
+                                listener.map(ignored -> null),
+                                in -> ActionResponse.Empty.INSTANCE,
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                            )
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                     }
                 };
-
-                searchService.executeFetchPhase(request, (SearchShardTask) task, writer, new ChannelActionListener<>(channel));
-            } else {
-                // Normal path - used for CCS, and version mismatches
-                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
             }
+            searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, new ChannelActionListener<>(channel));
         };
 
         transportService.registerRequestHandler(

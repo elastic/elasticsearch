@@ -60,7 +60,8 @@ import static org.elasticsearch.index.get.ShardGetService.shouldExcludeInference
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
- * after reducing all of the matches returned by the query phase
+ * after reducing all the matches returned by the query phase
+ * Supports both traditional mode (all results in memory) and streaming mode (results sent in chunks).
  */
 public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
@@ -72,10 +73,44 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
+    /**
+     * Executes the fetch phase without memory checking or streaming.
+     *
+     * @param context the search context
+     * @param docIdsToLoad document IDs to fetch
+     * @param rankDocs ranking information
+     */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
-        execute(context, docIdsToLoad, rankDocs, null);
+        execute(context, docIdsToLoad, rankDocs, null, null);
     }
 
+    /**
+     * Executes the fetch phase with optional memory checking.
+     *
+     * @param context the search context
+     * @param docIdsToLoad document IDs to fetch
+     * @param rankDocs ranking information
+     * @param memoryChecker optional callback for memory tracking, may be null
+     */
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
+        execute(context, docIdsToLoad, rankDocs, memoryChecker, null);
+    }
+
+    /**
+     * Executes the fetch phase with optional memory checking and streaming support.
+     *
+     * When {@code writer} is null, all results are accumulated and returned at once.
+     * When {@code writer} is provided, results are sent in chunks to reduce memory usage.
+     *
+     * @param context the search context
+     * @param docIdsToLoad document IDs to fetch
+     * @param rankDocs ranking information
+     * @param memoryChecker optional callback for memory tracking, may be null
+     * @param writer optional chunk writer for streaming mode, may be null
+     *
+     * @throws TaskCancelledException if the task is cancelled
+     * @throws RuntimeException if streaming fails
+     */
     public void execute(
         SearchContext context,
         int[] docIdsToLoad,
@@ -89,6 +124,13 @@ public final class FetchPhase {
 
         if (context.isCancelled()) {
             throw new TaskCancelledException("cancelled");
+        }
+
+        if (docIdsToLoad == null || docIdsToLoad.length == 0) {
+            // no individual hits to process, so we shortcut
+            context.fetchResult()
+                .shardResult(SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()), null);
+            return;
         }
 
         final Profiler profiler = context.getProfilers() == null
@@ -136,53 +178,6 @@ public final class FetchPhase {
         } finally {
             if (hits != null) {
                 hits.decRef();
-            }
-        }
-    }
-
-    /**
-     *
-     * @param context
-     * @param docIdsToLoad
-     * @param rankDocs
-     * @param memoryChecker if not provided, the fetch phase will use the circuit breaker to check memory usage
-     */
-    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("{}", new SearchContextSourcePrinter(context));
-        }
-
-        if (context.isCancelled()) {
-            throw new TaskCancelledException("cancelled");
-        }
-
-        if (docIdsToLoad == null || docIdsToLoad.length == 0) {
-            // no individual hits to process, so we shortcut
-            context.fetchResult()
-                .shardResult(SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()), null);
-            return;
-        }
-
-        Profiler profiler = context.getProfilers() == null
-            || (context.request().source() != null && context.request().source().rankBuilder() != null)
-                ? Profiler.NOOP
-                : Profilers.startProfilingFetchPhase();
-        SearchHits hits = null;
-        try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, null, null, 0, null);
-        } finally {
-            try {
-                // Always finish profiling
-                ProfileResult profileResult = profiler.finish();
-                // Only set the shardResults if building search hits was successful
-                if (hits != null) {
-                    context.fetchResult().shardResult(hits, profileResult);
-                    hits = null;
-                }
-            } finally {
-                if (hits != null) {
-                    hits.decRef();
-                }
             }
         }
     }

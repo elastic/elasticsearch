@@ -288,8 +288,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     // Example of request line
-    // DELETE http://127.0.0.1:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-5odMgVMYTbKAI6DxS0qi-A.dat HTTP/1.1";
-    private static final Pattern METHOD_BUCKET_OBJECT_PATTERN = Pattern.compile("(?<method>\\w+) .+/v1/b/(?<bucket>.+)/o/(?<object>[^?]+)");
+    static final Pattern METHOD_BUCKET_OBJECT_PATTERN = Pattern.compile(
+        "(?<method>\\w+) .+/v1/b/(?<bucket>[a-zA-Z0-9._-]+)/o/" + "(?<object>[^?^\\s]+)"
+    );
 
     private String readObjectName(String requestLine) {
         var m = METHOD_BUCKET_OBJECT_PATTERN.matcher(requestLine);

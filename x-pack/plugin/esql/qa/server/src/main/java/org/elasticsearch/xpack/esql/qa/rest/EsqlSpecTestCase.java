@@ -184,7 +184,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsIndexModeLookup(),
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
-                false,
+                timeSeriesOnly(),
                 supportsExponentialHistograms(),
                 supportsTDigestField(),
                 supportsHistogramDataType(),
@@ -299,6 +299,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             KNN_FUNCTION_V5.capabilityName(),
             TEXT_EMBEDDING_FUNCTION.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
+    }
+
+    protected boolean timeSeriesOnly() {
+        return Boolean.getBoolean("tests.esql.csv.timeseries_only");
     }
 
     protected boolean supportsIndexModeLookup() throws IOException {

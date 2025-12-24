@@ -203,7 +203,6 @@ public abstract sealed class DiskBBQBulkWriter {
                 writeCorrections(corrections);
             }
             // write tail
-
             OptimizedScalarQuantizer.QuantizationResult[] tailCorrections = new OptimizedScalarQuantizer.QuantizationResult[qvv.count()
                 - i];
             int j = 0;
@@ -238,6 +237,7 @@ public abstract sealed class DiskBBQBulkWriter {
                 }
                 writeCorrections(corrections);
             }
+            // write tail
             if (i < qvv.count() && docsWriter != null) {
                 docsWriter.accept(i);
             }

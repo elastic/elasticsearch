@@ -34,11 +34,16 @@ public class ThrottledIterator<T> implements Releasable {
      * @param iterator The items to iterate. May be accessed by multiple threads, but accesses are always fully sequential: for any two
      *                 method calls {@code M1} and {@code M2} on this iterator, either the return of {@code M1} _happens-before_ the
      *                 invocation of {@code M2} or vice versa.
-     * @param itemConsumer The operation to perform on each item. Each operation receives a {@link RefCounted} which can be used to track
-     *                     the execution of any background tasks spawned for this item. This operation may run on the thread which
+     * @param itemConsumer The operation to perform on each item. Each operation receives a {@link Releasable} which can be used to track
+     *                     the execution of any background tasks spawned for this item and which must be closed when all processing of the
+     *                     item has finished. If the {@code iterator} has not been fully consumed then closing one operation's
+     *                     {@link Releasable} allows the operation on another item to start.
+     *                     <p>
+     *                     This operation may run on the thread which
      *                     originally called {@link #run}, if this method has not yet returned. Otherwise it will run on a thread on which a
-     *                     background task previously called {@link RefCounted#decRef()} on its ref count. This operation should not throw
-     *                     any exceptions.
+     *                     background task previously called {@link Releasable#close()} on its resource.
+     *                     <p>
+     *                     This operation must not throw any exceptions.
      * @param maxConcurrency The maximum number of ongoing operations at any time.
      * @param onCompletion   Executed when all items are completed.
      */

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
@@ -27,8 +26,7 @@ public class SortedBinaryDocValuesStringFieldScript extends StringFieldScript {
     public SortedBinaryDocValuesStringFieldScript(String fieldName, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, Map.of(), searchLookup, OnScriptError.FAIL, ctx);
         try {
-            var binaryDocValues = DocValues.getBinary(ctx.reader(), fieldName);
-            sortedBinaryDocValues = new MultiValuedSortedBinaryDocValues(binaryDocValues);
+            sortedBinaryDocValues = MultiValuedSortedBinaryDocValues.from(ctx.reader(), fieldName);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

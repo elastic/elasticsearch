@@ -46,8 +46,12 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         return from(leafReader.maxDoc(), values, counts, countsSkipper);
     }
 
-    public static MultiValuedSortedBinaryDocValues from(int maxDoc, BinaryDocValues values, NumericDocValues counts, DocValuesSkipper countsSkipper)
-        throws IOException {
+    public static MultiValuedSortedBinaryDocValues from(
+        int maxDoc,
+        BinaryDocValues values,
+        NumericDocValues counts,
+        DocValuesSkipper countsSkipper
+    ) throws IOException {
         if (counts == null) {
             return new IntegratedCounts(values);
         } else {

@@ -36,6 +36,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.ALLOWED_CHUNKING_SETTING_OPTIONS;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk.DEFAULT_CHUNKING_SETTINGS;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
@@ -64,42 +65,70 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true,
-            List.of(new TestCaseSupplier("Chunk with defaults", List.of(DataType.KEYWORD), () -> {
+        return parameterSuppliersFromTypedData(testCaseSuppliers());
+    }
+
+    private static List<TestCaseSupplier> testCaseSuppliers() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.add(createTestCaseSupplier("Chunk with defaults", DataType.KEYWORD));
+        suppliers.add(createTestCaseSupplier("Chunk with defaults text input", DataType.TEXT));
+        return addFunctionNamedParams(suppliers);
+    }
+
+    private static TestCaseSupplier createTestCaseSupplier(String description, DataType fieldDataType) {
+        return new TestCaseSupplier(description, List.of(fieldDataType), () -> {
+            String text = randomWordsBetween(25, 50);
+            ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
+
+            List<String> chunks = chunkText(text, chunkingSettings);
+            Object expectedResult = chunks.size() == 1
+                ? new BytesRef(chunks.get(0).trim())
+                : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
+
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "str")),
+                "ChunkBytesRefEvaluator[str=Attribute[channel=0], "
+                    + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}]",
+                DataType.KEYWORD,
+                equalTo(expectedResult)
+            );
+        });
+    }
+
+    /**
+     * Adds function named parameters to all the test case suppliers provided
+     */
+    private static List<TestCaseSupplier> addFunctionNamedParams(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> result = new ArrayList<>(suppliers);
+        for (TestCaseSupplier supplier : suppliers) {
+            List<DataType> dataTypes = new ArrayList<>(supplier.types());
+            dataTypes.add(UNSUPPORTED);
+            result.add(new TestCaseSupplier(supplier.name() + ", with chunking_settings", dataTypes, () -> {
                 String text = randomWordsBetween(25, 50);
-                ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
+                int chunkSize = 25;
+                ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(chunkSize, 0);
 
                 List<String> chunks = chunkText(text, chunkingSettings);
                 Object expectedResult = chunks.size() == 1
                     ? new BytesRef(chunks.get(0).trim())
                     : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
 
+                List<TestCaseSupplier.TypedData> values = List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), supplier.types().get(0), "str"),
+                    new TestCaseSupplier.TypedData(createChunkingSettings(chunkingSettings), UNSUPPORTED, "chunking_settings")
+                        .forceLiteral()
+                );
+
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str")),
+                    values,
                     "ChunkBytesRefEvaluator[str=Attribute[channel=0], "
-                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}]",
+                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
                 );
-            }), new TestCaseSupplier("Chunk with defaults text input", List.of(DataType.TEXT), () -> {
-                String text = randomWordsBetween(25, 50);
-                ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(Chunk.DEFAULT_CHUNK_SIZE, 0);
-
-                List<String> chunks = chunkText(text, chunkingSettings);
-                Object expectedResult = chunks.size() == 1
-                    ? new BytesRef(chunks.get(0).trim())
-                    : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
-
-                return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "str")),
-                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], "
-                        + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}]",
-                    DataType.KEYWORD,
-                    equalTo(expectedResult)
-                );
-            }))
-        );
+            }));
+        }
+        return result;
     }
 
     private static MapExpression createChunkingSettings(ChunkingSettings chunkingSettings) {
@@ -129,6 +158,16 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         // With MapParam, args contains: field, options_map
         Expression options = args.size() < 2 ? null : args.get(1);
         return new Chunk(source, args.get(0), options);
+    }
+
+    @Override
+    public void testFold() {
+        Expression expression = buildFieldExpression(testCase);
+        // Skip testFold if the expression is not foldable (e.g., when chunking_settings contains MapExpression)
+        if (expression.foldable() == false) {
+            return;
+        }
+        super.testFold();
     }
 
     public void testDefaults() {

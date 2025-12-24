@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
@@ -208,8 +209,32 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         return switch (p) {
             case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
             case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions);
+            case VectorBinaryArithmetic vectorBinaryArithmetic -> mapVectorBinaryArithmetic(
+                promqlCommand,
+                vectorBinaryArithmetic,
+                labelFilterConditions
+            );
             default -> throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", p);
         };
+    }
+
+    /**
+     * Maps a PromQL VectorBinaryArithmetic node to an ESQL expression.
+     * Recursively maps the left and right operands and applies the binary operation.
+     * Both operands are converted to double to ensure semantic consistency with PromQL.
+     */
+    private static Expression mapVectorBinaryArithmetic(
+        PromqlCommand promqlCommand,
+        VectorBinaryArithmetic vectorBinaryArithmetic,
+        List<Expression> labelFilterConditions
+    ) {
+        Expression left = mapNode(promqlCommand, vectorBinaryArithmetic.left(), labelFilterConditions);
+        left = new ToDouble(left.source(), left);
+
+        Expression right = mapNode(promqlCommand, vectorBinaryArithmetic.right(), labelFilterConditions);
+        right = new ToDouble(right.source(), right);
+
+        return vectorBinaryArithmetic.binaryOp().asFunction().create(vectorBinaryArithmetic.source(), left, right);
     }
 
     /**

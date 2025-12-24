@@ -68,7 +68,7 @@ public class ClusterFormationStateWireSerializingTests extends AbstractWireSeria
     @Override
     protected ClusterFormationFailureHelper.ClusterFormationState mutateInstance(
         ClusterFormationFailureHelper.ClusterFormationState instance
-    ) throws IOException {
+    ) {
         // Since ClusterFormationState is a record, we don't need to check for equality
         return null;
     }

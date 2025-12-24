@@ -42,7 +42,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
-        DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
+        DocValuesSkipper countsSkipper = counts != null ? leafReader.getDocValuesSkipper(countsFieldName) : null;
         return from(leafReader.maxDoc(), values, counts, countsSkipper);
     }
 

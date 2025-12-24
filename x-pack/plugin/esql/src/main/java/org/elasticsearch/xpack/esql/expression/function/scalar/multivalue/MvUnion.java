@@ -289,12 +289,12 @@ public class MvUnion extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     static <T> void processUnionSet(
-            Block.Builder builder,
-            int position,
-            Block field1,
-            Block field2,
-            BiFunction<Integer, Block, T> getValueFunction,
-            Consumer<T> addValueFunction
+        Block.Builder builder,
+        int position,
+        Block field1,
+        Block field2,
+        BiFunction<Integer, Block, T> getValueFunction,
+        Consumer<T> addValueFunction
     ) {
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);

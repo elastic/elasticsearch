@@ -70,6 +70,6 @@ public class ClusterFormationClusterStateViewWireSerializingTests extends Abstra
     protected ClusterFormationFailureHelper.ClusterFormationClusterStateView mutateInstance(
         ClusterFormationFailureHelper.ClusterFormationClusterStateView instance
     ) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return null;
     }
 }

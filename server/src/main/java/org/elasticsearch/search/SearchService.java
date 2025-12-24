@@ -1343,7 +1343,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         // Check if this is a chunked fetch request for a marked context
-        boolean skipValidation = reader.isMarkedForChunkedFetch() && request instanceof ShardFetchSearchRequest;
+        boolean skipValidation = false; //reader.isMarkedForChunkedFetch() && request instanceof ShardFetchSearchRequest;
 
         if (skipValidation) {
             logger.debug("Skipping security validation for chunked fetch on context {}", id);

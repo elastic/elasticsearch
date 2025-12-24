@@ -17,8 +17,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 
 public class DesiredBalanceMetricsTests extends ESTestCase {
 
@@ -72,31 +72,21 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME)
-                .getFirst()
-                .getLong(),
-            equalTo(undesiredAllocations)
+                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME),
+            measures(undesiredAllocations)
+        );
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME),
+            measures(totalAllocations)
+        );
+        assertThat(
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.UNASSIGNED_SHARDS_METRIC_NAME),
+            measures(unassignedShards)
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME)
-                .getFirst()
-                .getLong(),
-            equalTo(totalAllocations)
-        );
-        assertThat(
-            meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, DesiredBalanceMetrics.UNASSIGNED_SHARDS_METRIC_NAME)
-                .getFirst()
-                .getLong(),
-            equalTo(unassignedShards)
-        );
-        assertThat(
-            meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME)
-                .getFirst()
-                .getDouble(),
-            equalTo((double) undesiredAllocations / totalAllocations)
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
+            measures((double) undesiredAllocations / totalAllocations)
         );
     }
 
@@ -110,10 +100,8 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         meterRegistry.getRecorder().collect();
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME)
-                .getFirst()
-                .getDouble(),
-            equalTo(0d)
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME),
+            measures(0.0d)
         );
     }
 }

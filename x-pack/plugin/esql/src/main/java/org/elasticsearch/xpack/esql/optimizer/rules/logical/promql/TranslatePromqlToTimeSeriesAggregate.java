@@ -79,7 +79,9 @@ import java.util.List;
  *           └── EsRelation(*, mode=TIME_SERIES)
  * </pre>
  */
-public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
+public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<
+    PromqlCommand,
+    LogicalOptimizerContext> {
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
@@ -206,8 +208,12 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
      * Recursively maps PromQL plan nodes to ESQL expressions to compute the value for the time series aggregation.
      * Collects label filter conditions into the provided list.
      */
-    private static Expression mapNode(PromqlCommand promqlCommand, LogicalPlan p, List<Expression> labelFilterConditions,
-                                      LogicalOptimizerContext context) {
+    private static Expression mapNode(
+        PromqlCommand promqlCommand,
+        LogicalPlan p,
+        List<Expression> labelFilterConditions,
+        LogicalOptimizerContext context
+    ) {
         return switch (p) {
             case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
             case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions, context);

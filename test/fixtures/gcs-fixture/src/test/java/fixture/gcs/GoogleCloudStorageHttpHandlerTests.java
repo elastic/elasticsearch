@@ -573,8 +573,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             "DELETE http://host/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-DxS0qi-A.dat?generation=1 HTTP/1.1",
             "DELETE http://host:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-DxS0qi-A.dat?generation=1",
             "DELETE http://127.0.0.1:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-DxS0qi-A.dat HTTP/1.1",
-            "DELETE http://127.0.0.1:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-DxS0qi-A.dat",
-        };
+            "DELETE http://127.0.0.1:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-DxS0qi-A.dat", };
         for (var in : inputs) {
             final var m = GoogleCloudStorageHttpHandler.METHOD_BUCKET_OBJECT_PATTERN.matcher(in);
             assertTrue(in, m.find());

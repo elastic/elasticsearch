@@ -761,17 +761,23 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (Exception e) {
                 throw new IOException("Failed to execute batch", e);
             }
+            StorageException nonRetryableException = null;
             for (var deleteResult : batchResults) {
                 try {
                     deleteResult.result.get();
                 } catch (StorageException e) {
                     final var errCode = e.getCode();
-                    if (isRetryErrCode(errCode)) {
-                        batchFailures.add(new DeleteFailure(deleteResult.blobId, e.getCode()));
-                    } else {
-                        throw new IOException("Failed to process batch delete, non-retryable error for blobId=" + deleteResult.blobId, e);
+                    batchFailures.add(new DeleteFailure(deleteResult.blobId, e.getCode()));
+                    if (nonRetryableException == null && isRetryErrCode(errCode) == false) {
+                        nonRetryableException = e;
                     }
                 }
+            }
+            if (nonRetryableException != null) {
+                throw new IOException(
+                    "One or more batch items failed, non-retryable exception; all batch failures: " + batchFailures,
+                    nonRetryableException
+                );
             }
             batchResults.clear();
 

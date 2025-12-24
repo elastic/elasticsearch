@@ -177,15 +177,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final var responseStream = new ByteArrayOutputStream();
                 final var batchWriter = new MultipartContent.Writer(boundary, responseStream);
                 // allow some batches to proceed without partial failures
-                final var allowBatchItemFailures = ESTestCase.randomBoolean();
+                final var allowPartialFailures = ESTestCase.randomBoolean();
                 while (batchReader.hasNext()) {
                     final var batchItem = batchReader.next();
                     final var contentId = batchItem.headers().get("content-id");
                     // batch supports only deletions
                     final var objectName = parseBatchItemDeleteObject(bucket, batchItem.content());
-                    final var deleteStatus = allowBatchItemFailures
-                        ? deleteObjectOrRandomlyFail(objectName)
-                        : deleteObject(objectName);
+                    final var deleteStatus = allowPartialFailures ? deleteObjectOrRandomlyFail(objectName) : deleteObject(objectName);
                     final var partHeaders = new LinkedHashMap<String, String>() {
                         {
                             put("content-type", "application/http");
@@ -314,9 +312,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     return randomRetryableError();
                 }
             }
-            batchDeleteFailureCounters.remove(objectName);
-            final var deleted = mockGcsBlobStore.deleteBlob(objectName);
-            return deleted ? NO_CONTENT : NOT_FOUND;
+            return deleteObject(objectName);
         }
     }
 
@@ -363,9 +359,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                   }
                 }
                 """.replace("$code", Integer.toString(itemStatus.getStatus()));
-            responseText
-                // SDK client will try to parse error as JSON despite these headers. Adding them for HTTP spec consistency.
-                .append("content-type: application/json")
+            responseText.append("content-type: application/json")
                 .append(CRLF)
                 .append("content-length: ")
                 .append(errorObj.length())

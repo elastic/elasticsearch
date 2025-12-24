@@ -278,8 +278,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         return SortedBinaryDocValues.Sparsity.UNKNOWN;
     }
 
-
-        public void testMissingValueForAll() throws Exception {
+    public void testMissingValueForAll() throws Exception {
         fillAllMissing();
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();

@@ -99,12 +99,11 @@ public final class VectorScoringUtils {
         KnnVectorValues vectorValues,
         RandomVectorScorer scorer
     ) throws IOException {
-        int[] ords = new int[BULK_SCORE_BLOCKS];
-        int[] docs = new int[BULK_SCORE_BLOCKS];
-        float[] scores = new float[BULK_SCORE_BLOCKS];
-        int count = 0;
 
-        var conjunction = ConjunctionUtils.intersectIterators(List.of(vectorValues, acceptDocsIterator));
+        DocIdSetIterator vectorIterator = vectorValues.iterator();
+
+        DocIdSetIterator conjunction =
+            ConjunctionUtils.intersectIterators(List.of(vectorIterator, acceptDocsIterator));
 
         int doc;
         while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -112,27 +111,9 @@ public final class VectorScoringUtils {
                 break;
             }
 
-            int ord = vectorValues.ordValue();
-            ords[count] = ord;
-            docs[count] = doc;
-            count++;
-
-            if (count == BULK_SCORE_BLOCKS) {
-                scorer.bulkScore(ords, scores, count);
-                for (int j = 0; j < count; j++) {
-                    knnCollector.collect(docs[j], scores[j]);
-                }
-                knnCollector.incVisitedCount(count);
-                count = 0;
-            }
-        }
-
-        if (count > 0) {
-            scorer.bulkScore(ords, scores, count);
-            for (int j = 0; j < count; j++) {
-                knnCollector.collect(docs[j], scores[j]);
-            }
-            knnCollector.incVisitedCount(count);
+            float score = scorer.score(doc);
+            knnCollector.collect(doc, score);
+            knnCollector.incVisitedCount(1);
         }
     }
 }

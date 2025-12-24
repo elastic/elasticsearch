@@ -358,13 +358,7 @@
                   "type": "date"
                 },
                 "version": {
-                  "type": "text",
-                  "fields": {
-                    "keyword": {
-                      "type": "keyword",
-                      "ignore_above": 16
-                    }
-                  }
+                  "type": "version"
                 }
               }
             }

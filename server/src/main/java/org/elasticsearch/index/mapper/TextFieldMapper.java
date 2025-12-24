@@ -69,6 +69,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -1158,8 +1159,11 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // 5. check if we can load from a fallback stored field
+            // 5. check if we can load from a fallback field
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
+                if (storeFallbackFieldsInBinaryDocValues(indexCreatedVersion)) {
+                    return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
+                }
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(syntheticSourceFallbackFieldName());
             }
 
@@ -1533,9 +1537,30 @@ public final class TextFieldMapper extends FieldMapper {
             }
 
             // otherwise, just store the field ourselves
-            final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            context.doc().add(new StoredField(fieldName, value));
+            final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+            final BytesRef bytesRef = new BytesRef(value);
+
+            if (storeFallbackFieldsInBinaryDocValues()) {
+                // store the value in a binary doc values field, create one if it doesn't exist
+                MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
+                if (field == null) {
+                    field = new MultiValuedBinaryDocValuesField(fallbackFieldName, new ArrayList<>());
+                    context.doc().addWithKey(fallbackFieldName, field);
+                }
+                field.add(bytesRef);
+            } else {
+                // otherwise for bwc, store the value in a stored fields like we used to
+                context.doc().add(new StoredField(fallbackFieldName, value));
+            }
         }
+    }
+
+    private boolean storeFallbackFieldsInBinaryDocValues() {
+        return storeFallbackFieldsInBinaryDocValues(indexCreatedVersion);
+    }
+
+    private static boolean storeFallbackFieldsInBinaryDocValues(final IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
     }
 
     /**
@@ -1742,29 +1767,30 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        // since we don't know whether the delegate field loader can be used for synthetic source until parsing, we need to check both this
-        // field and the delegate
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
 
-        // first field loader - to check whether the field's value was stored under this text field
-        final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-        final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
-            @Override
-            protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                b.value(value.toString());
-            }
-        };
-
-        final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
-
-        // second loader - to check whether the field's value was stored by a keyword delegate field
-        var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
-        if (kwd != null) {
-            // merge the two field loaders into one
-            var kwdFieldLoader = kwd.syntheticFieldLoader(fullPath(), leafName());
-            return fieldLoader.mergedWith(kwdFieldLoader);
+        // layer for loading from a fallback field created during indexing by this text field mapper
+        final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+        if (storeFallbackFieldsInBinaryDocValues()) {
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName));
+        } else {
+            // for bwc - fallback fields were originally stored in StoredFields
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fallbackFieldName) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    b.value(value.toString());
+                }
+            });
         }
 
-        return fieldLoader;
+        // because we don't know whether the delegate can be used for loading fields (ex. the delegate ignored some values or the delegate
+        // doesn't even exist in the first place), we must check both the current field, as well as the delegate
+        var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
+        if (kwd != null) {
+            layers.addAll(kwd.syntheticFieldLoaderLayers());
+        }
+
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 
     public static class SyntheticSourceHelper {

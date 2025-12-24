@@ -586,7 +586,7 @@ public class SearchTransportService {
             }
 
             // Only use chunked fetch if we can actually connect back to the coordinator
-            if (fetchedPhaseChunkedEnabled && remoteDataNodeRequest && versionSupported && hasCoordinator && canConnectToCoordinator) {
+            if (fetchedPhaseChunkedEnabled && versionSupported && hasCoordinator && canConnectToCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
 

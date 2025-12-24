@@ -52,7 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -2096,25 +2096,21 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         try (Cluster cluster = new Cluster(1)) {
             cluster.stabilise();
             final Coordinator coordinator = cluster.getAnyNode().coordinator;
-            final CountDownLatch mutexAcquired = new CountDownLatch(1);
-            final CountDownLatch release = new CountDownLatch(1);
+            final CyclicBarrier barrier = new CyclicBarrier(2);
 
             runInParallel(2, i -> {
                 if (i == 0) {
                     // Thread 0: acquire mutex and block
                     synchronized (coordinator.mutex) {
-                        mutexAcquired.countDown();
-                        safeAwait(release);
+                        safeAwait(barrier);
+                        safeAwait(barrier);
                     }
                 } else {
                     // Thread 1: expect getClusterFormationState to run without needing the mutex
-                    try {
-                        safeAwait(mutexAcquired);
-                        ClusterFormationFailureHelper.ClusterFormationState state = coordinator.getClusterFormationState();
-                        assertNotNull(state);
-                    } finally {
-                        release.countDown();
-                    }
+                    safeAwait(barrier);
+                    ClusterFormationFailureHelper.ClusterFormationState state = coordinator.getClusterFormationState();
+                    assertNotNull(state);
+                    safeAwait(barrier);
                 }
             });
         }

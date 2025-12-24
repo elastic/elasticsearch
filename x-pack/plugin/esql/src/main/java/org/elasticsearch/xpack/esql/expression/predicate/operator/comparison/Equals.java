@@ -55,7 +55,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.DENSE_VECTOR, EqualsDenseVectorsEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -87,7 +88,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "dense_vector" },
             description = "An expression."
         ) Expression left,
         @Param(
@@ -109,7 +111,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "dense_vector" },
             description = "An expression."
         ) Expression right
     ) {
@@ -236,6 +239,14 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
 
     @Evaluator(extraName = "Geometries")
     static boolean processGeometries(BytesRef lhs, BytesRef rhs) {
+        return lhs.equals(rhs);
+    }
+
+    /**
+     * Evaluator for dense_vector equality.
+     */
+    @Evaluator(extraName = "DenseVectors")
+    static boolean processDenseVectors(BytesRef lhs, BytesRef rhs) {
         return lhs.equals(rhs);
     }
 

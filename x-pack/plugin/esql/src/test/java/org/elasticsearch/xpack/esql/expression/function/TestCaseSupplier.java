@@ -2352,4 +2352,27 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     static List<FunctionAppliesTo> appendAppliesTo(List<FunctionAppliesTo> current, FunctionAppliesTo next) {
         return Iterators.toList(Iterators.concat(current.iterator(), Iterators.single(next)));
     }
+
+    /**
+     * Generate cases for {@link DataType#DENSE_VECTOR}.
+     */
+    public static List<TypedDataSupplier> denseVectorCases() {
+        return List.of(
+            new TypedDataSupplier(
+                "<dense_vector>",
+                () -> {
+                    int dim = randomIntBetween(2, 5);
+                    float[] vector = new float[dim];
+                    for (int i = 0; i < dim; i++) {
+                        vector[i] = randomFloatBetween(-100.0f, 100.0f, true);
+                    }
+                    // Encode as BytesRef
+                    byte[] bytes = new byte[dim * 4];
+                    java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer().put(vector);
+                    return new org.apache.lucene.util.BytesRef(bytes);
+                },
+                DataType.DENSE_VECTOR
+            )
+        );
+    }
 }

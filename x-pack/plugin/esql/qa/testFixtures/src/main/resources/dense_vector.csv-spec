@@ -105,3 +105,25 @@ row hex_str = "0102030405060708090a0b0c0d0e0f"
 vector:dense_vector
  [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
 ;
+
+// Test dense_vector equality and inequality
+query
+ROW a = [1.0, 2.0], b = [1.0, 2.0], c = [1.0, 3.0]
+| EVAL same = a == b
+| EVAL diff = a == c
+| EVAL not_same = a != b
+| EVAL not_diff = a != c
+| KEEP same, diff, not_same, not_diff
+----
+true:boolean;false:boolean;false:boolean;true:boolean
+
+// Test dense_vector null handling
+query
+ROW a = [1.0], b = null
+| EVAL n1 = a == b
+| EVAL n2 = b == a
+| EVAL n3 = a != b
+| EVAL n4 = b != a
+| KEEP n1, n2, n3, n4
+----
+null:boolean;null:boolean;null:boolean;null:boolean

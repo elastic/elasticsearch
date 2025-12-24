@@ -2094,24 +2094,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     public void testGetClusterFormationStateDoesNotBlockOnMutex() {
         try (Cluster cluster = new Cluster(1)) {
+            cluster.runRandomly();
             cluster.stabilise();
             final Coordinator coordinator = cluster.getAnyNode().coordinator;
             final CyclicBarrier barrier = new CyclicBarrier(2);
 
-            runInParallel(2, i -> {
-                if (i == 0) {
-                    // Thread 0: acquire mutex and block
-                    synchronized (coordinator.mutex) {
-                        safeAwait(barrier);
-                        safeAwait(barrier);
-                    }
-                } else {
-                    // Thread 1: expect getClusterFormationState to run without needing the mutex
+            runInParallel(() -> {
+                // Thread 0: acquire mutex and block
+                synchronized (coordinator.mutex) {
                     safeAwait(barrier);
-                    ClusterFormationFailureHelper.ClusterFormationState state = coordinator.getClusterFormationState();
-                    assertNotNull(state);
                     safeAwait(barrier);
                 }
+            }, () -> {
+                // Thread 1: expect getClusterFormationState to run without needing the mutex
+                safeAwait(barrier);
+                ClusterFormationFailureHelper.ClusterFormationState state = coordinator.getClusterFormationState();
+                assertNotNull(state);
+                safeAwait(barrier);
             });
         }
     }

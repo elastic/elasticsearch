@@ -42,7 +42,8 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
         }
 
         var counts = leafReader.getNumericDocValues(name + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
-        bytesValues = MultiValuedSortedBinaryDocValues.from(docValues, counts);
+        var countsSkipper = leafReader.getDocValuesSkipper(name + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+        bytesValues = MultiValuedSortedBinaryDocValues.from(leafReader.maxDoc(), docValues, counts, countsSkipper);
 
         return docId -> {
             hasValue = bytesValues.advanceExact(docId);

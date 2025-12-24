@@ -11,6 +11,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -41,14 +42,16 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
-        return from(values, counts);
+        DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
+        return from(leafReader.maxDoc(), values, counts, countsSkipper);
     }
 
-    public static MultiValuedSortedBinaryDocValues from(BinaryDocValues values, NumericDocValues counts) throws IOException {
+    public static MultiValuedSortedBinaryDocValues from(int maxDoc, BinaryDocValues values, NumericDocValues counts, DocValuesSkipper countsSkipper)
+        throws IOException {
         if (counts == null) {
             return new IntegratedCounts(values);
         } else {
-            return new SeparateCounts(values, counts);
+            return new SeparateCounts(maxDoc, values, counts, countsSkipper);
         }
     }
 
@@ -102,11 +105,15 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      * If a binary value contains multiple values, payload is of the form: [length of value 1][value 1][length of value 2][value 2]...
      */
     private static class SeparateCounts extends MultiValuedSortedBinaryDocValues {
+        private final int maxDoc;
         private final NumericDocValues counts;
+        private final DocValuesSkipper countsSkipper;
 
-        SeparateCounts(BinaryDocValues values, NumericDocValues counts) {
+        SeparateCounts(int maxDoc, BinaryDocValues values, NumericDocValues counts, DocValuesSkipper countsSkipper) {
             super(values);
+            this.maxDoc = maxDoc;
             this.counts = counts;
+            this.countsSkipper = countsSkipper;
         }
 
         @Override
@@ -142,6 +149,26 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
             scratch.offset = in.getPosition();
             in.setPosition(scratch.offset + scratch.length);
             return scratch;
+        }
+
+        @Override
+        public Sparsity getSparsity() {
+            if (countsSkipper.docCount() == maxDoc) {
+                return Sparsity.DENSE;
+            } else {
+                return Sparsity.SPARSE;
+            }
+        }
+
+        @Override
+        public ValueMode getValueMode() {
+            long minValue = countsSkipper.minValue();
+            long maxValue = countsSkipper.maxValue();
+            if (minValue == 1 && maxValue == 1) {
+                return ValueMode.SINGLE_VALUED;
+            } else {
+                return ValueMode.MULTI_VALUED;
+            }
         }
     }
 }

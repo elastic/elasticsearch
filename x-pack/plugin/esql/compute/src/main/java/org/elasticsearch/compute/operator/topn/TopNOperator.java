@@ -342,7 +342,7 @@ public class TopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.inputQueue = Queue.build(breaker, topCount);
+        this.inputQueue = UngroupedQueue.build(breaker, topCount);
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -416,7 +416,7 @@ public class TopNOperator implements Operator, Accountable {
                 spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
 
                 // This is `inputQueue.insertWithOverflow` with followed by filling in the value only if we inserted.
-                if (inputQueue.size() < inputQueue.topCount) {
+                if (inputQueue.size() < inputQueue.topCount()) {
                     // Heap not yet full, just add elements
                     rowFiller.writeValues(i, spare);
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
@@ -641,7 +641,24 @@ public class TopNOperator implements Operator, Accountable {
             + "]";
     }
 
-    private static class Queue extends PriorityQueue<Row> implements Accountable, Releasable {
+    private interface Queue extends Accountable, Releasable {
+        int size();
+
+        int topCount();
+
+        Row add(Row spare);
+
+        Row top();
+
+        boolean lessThan(Row top, Row spare);
+
+        Row updateTop(Row spare);
+
+        Row pop();
+    }
+
+    private static class UngroupedQueue implements Queue {
+        private final PriorityQueue<Row> pq;
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
         private final CircuitBreaker breaker;
         private final int topCount;
@@ -650,18 +667,23 @@ public class TopNOperator implements Operator, Accountable {
          * Track memory usage in the breaker then build the {@link Queue}.
          */
         static Queue build(CircuitBreaker breaker, int topCount) {
-            breaker.addEstimateBytesAndMaybeBreak(Queue.sizeOf(topCount), "esql engine topn");
-            return new Queue(breaker, topCount);
+            breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "esql engine topn");
+            return new UngroupedQueue(breaker, topCount);
         }
 
-        private Queue(CircuitBreaker breaker, int topCount) {
-            super(topCount);
+        private UngroupedQueue(CircuitBreaker breaker, int topCount) {
+            this.pq = new PriorityQueue<>(topCount) {
+                @Override
+                protected boolean lessThan(Row r1, Row r2) {
+                    return UngroupedQueue.this.lessThan(r1, r2);
+                }
+            };
             this.breaker = breaker;
             this.topCount = topCount;
         }
 
         @Override
-        protected boolean lessThan(Row r1, Row r2) {
+        public boolean lessThan(Row r1, Row r2) {
             return compareRows(r1, r2) < 0;
         }
 
@@ -671,12 +693,42 @@ public class TopNOperator implements Operator, Accountable {
         }
 
         @Override
+        public int size() {
+            return pq.size();
+        }
+
+        @Override
+        public Row add(Row element) {
+            return pq.add(element);
+        }
+
+        @Override
+        public int topCount() {
+            return topCount;
+        }
+
+        @Override
+        public Row updateTop(Row newTop) {
+            return pq.updateTop(newTop);
+        }
+
+        @Override
+        public Row pop() {
+            return pq.pop();
+        }
+
+        @Override
+        public Row top() {
+            return pq.top();
+        }
+
+        @Override
         public long ramBytesUsed() {
             long total = SHALLOW_SIZE;
             total += RamUsageEstimator.alignObjectSize(
                 RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
             );
-            for (Row r : this) {
+            for (Row r : pq) {
                 total += r == null ? 0 : r.ramBytesUsed();
             }
             return total;
@@ -686,13 +738,13 @@ public class TopNOperator implements Operator, Accountable {
         public void close() {
             Releasables.close(
                 // Release all entries in the topn
-                Releasables.wrap(this),
+                Releasables.wrap(pq),
                 // Release the array itself
-                () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount))
+                () -> breaker.addWithoutBreaking(-sizeOf(topCount))
             );
         }
 
-        public static long sizeOf(int topCount) {
+        private static long sizeOf(int topCount) {
             long total = SHALLOW_SIZE;
             total += RamUsageEstimator.alignObjectSize(
                 RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)

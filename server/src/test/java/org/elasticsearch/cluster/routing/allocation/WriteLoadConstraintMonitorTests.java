@@ -149,7 +149,12 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         reason = "ensure we're skipping reroute for the right reason"
     )
     public void testRerouteIsNotCalledWhenNoNodesAreHotSpotting() {
-        final TestState testState = createRandomTestStateThatWillTriggerReroute();
+        final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(
+            randomIntBetween(3, 10),
+            randomIntBetween(0, 5), // search nodes
+            randomIntBetween(0, 2), // ML nodes
+            0
+        );
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
             testState.clusterSettings,
             testState.currentTimeSupplier,

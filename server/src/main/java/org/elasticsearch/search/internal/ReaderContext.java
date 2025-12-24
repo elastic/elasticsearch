@@ -85,9 +85,9 @@ public class ReaderContext implements Releasable {
 
     public void validate(TransportRequest request) {
         // Skip listener validation (including security checks) for internal chunked fetch operations
-        //if (allowInternalAccessForChunkedFetch == false) {
-            indexShard.getSearchOperationListener().validateReaderContext(this, request);
-        //}
+        // if (allowInternalAccessForChunkedFetch == false) {
+        indexShard.getSearchOperationListener().validateReaderContext(this, request);
+        // }
     }
 
     private long nowInMillis() {

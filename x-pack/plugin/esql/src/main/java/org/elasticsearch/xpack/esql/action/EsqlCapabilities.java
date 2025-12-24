@@ -1606,6 +1606,11 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
+         * Support for the DATE_RANGE field type.
+         */
+        DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
+
+        /**
          * Network direction function.
          */
         NETWORK_DIRECTION(Build.current().isSnapshot()),
@@ -1765,7 +1770,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V7(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V9(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options

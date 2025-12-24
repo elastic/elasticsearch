@@ -102,9 +102,6 @@ GET /my_index/_search
 //TEST[continued]
 
 
-==== Unsigned long in scripts
-Currently unsigned_long is not supported in scripts.
-
 ==== Stored fields
 A stored field of `unsigned_long` is stored and returned as `String`.
 
@@ -112,6 +109,67 @@ A stored field of `unsigned_long` is stored and returned as `String`.
 For `terms` aggregations, similarly to sort values, `Long` or
 `BigInteger` values are used. For other aggregations,
 values are converted to the `double` type.
+
+==== Script values
+By default, script values of an `unsigned_long` field are returned as
+Java signed `Long`, which means that values that are greater than
+`Long.MAX_VALUE` are shown as negative values. You can use
+`Long.compareUnsigned(long, long)`, `Long.divideUnsigned(long, long)`
+and `Long.remainderUnsigned(long, long)` to correctly work with
+these values.
+
+For example, the script below returns a value of the counter
+divided by 10.
+
+[source,console]
+--------------------------------
+GET /my_index/_search
+{
+    "query": {
+        "match_all" : {}
+    },
+    "script_fields": {
+        "count10" : {
+          "script": {
+            "source": "Long.divideUnsigned(doc['my_counter'].value, 10)"
+          }
+        }
+    }
+}
+--------------------------------
+//TEST[continued]
+
+
+Alternatively, you can treat the unsigned long type as `BigInteger`
+in your scripts by using the field API. For example, this script
+treats `my_counter` as `BigInteger` with a default value of `BigInteger.ZERO`:
+
+[source,js]
+--------------------------------------------------
+"script": {
+    "source": "field('my_counter').asBigInteger(BigInteger.ZERO)"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+For scripts that need to return float or double values, you
+can further convert `BigInteger` values to double or float:
+
+[source,console]
+--------------------------------
+GET /my_index/_search
+{
+    "query": {
+        "script_score": {
+          "query": {"match_all": {}},
+          "script": {
+            "source": "field('my_counter').asBigInteger(BigInteger.ZERO).floatValue()"
+          }
+        }
+    }
+}
+--------------------------------
+//TEST[continued]
 
 ==== Queries with mixed numeric types
 

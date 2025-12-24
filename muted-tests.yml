@@ -412,9 +412,6 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnQueryRescore
   issue: https://github.com/elastic/elasticsearch/issues/139912
-- class: org.elasticsearch.cluster.service.MasterServiceTests
-  method: testStarvationLogging
-  issue: https://github.com/elastic/elasticsearch/issues/139941
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/139974

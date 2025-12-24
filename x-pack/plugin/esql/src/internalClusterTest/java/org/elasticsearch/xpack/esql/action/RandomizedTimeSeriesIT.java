@@ -308,13 +308,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 if (offset > 0) {
                     var previousWindow = allTimeseries.get(offset - 1);
                     if (previousWindow.isEmpty() == false) {
-                        addBoundaryTuple(timeseries, previousWindow, true);
+                        addBoundaryTuple(timeseries, previousWindow, secondsInWindow, true);
                     }
                 }
                 if (offset < allTimeseries.size() - 1) {
                     var nextWindow = allTimeseries.get(offset + 1);
                     if (nextWindow.isEmpty() == false) {
-                        addBoundaryTuple(timeseries, nextWindow, false);
+                        addBoundaryTuple(timeseries, nextWindow, secondsInWindow, false);
                     }
                 }
             }
@@ -373,16 +373,17 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 lastValue = currentValue; // Update last value for next iteration
             }
             if (deltaAgg.equals(DeltaAgg.INCREASE)) {
+                // TODO: get tighter bounds by applying interpolation instead of median between adjacent buckets
                 return new RateRange(
-                    counterGrowth * 0.5, // INCREASE is RATE multiplied by the window size
+                    counterGrowth * 0.01, // INCREASE is RATE multiplied by the window size
                     // Upper bound is extrapolated to the window size
-                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.5
+                    counterGrowth * secondsInWindow / tsDurationSeconds * 4
                 );
             } else {
-                // TODO: get tighter bounds.
+                // TODO: get tighter bounds by applying interpolation instead of median between adjacent buckets
                 double smaller = Math.min(secondsInWindow, tsDurationSeconds);
                 double larger = Math.max(secondsInWindow, tsDurationSeconds);
-                double lowBound = counterGrowth / larger * 0.1;
+                double lowBound = counterGrowth / larger * 0.01;
                 if (lowBound < 1.0) {
                     lowBound = 0.0;
                 }
@@ -408,6 +409,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private static void addBoundaryTuple(
         List<Tuple<String, Tuple<Instant, Double>>> timeseries,
         Collection<List<Tuple<String, Tuple<Instant, Double>>>> otherWindow,
+        int secondsInWindow,
         boolean isLowerBoundary
     ) {
         String timeseriesId = timeseries.getFirst().v1();
@@ -416,6 +418,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         long otherTimestamp = 0;
         for (var doc : otherWindow) {
             for (var tuple : doc) {
+                if (instantsInAdjacentWindows(tuple.v2().v1(), referenceTuple.v1(), secondsInWindow) == false) {
+                    return;
+                }
                 String id = tuple.v1();
                 if (timeseriesId.equals(id)) {
                     long timestamp = tuple.v2().v1().toEpochMilli();
@@ -433,7 +438,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             if (isLowerBoundary) {
                 final double valueDelta;
                 final double baseValue;
-                if (referenceTuple.v2() > otherTuple.v2()) {
+                if (referenceTuple.v2() >= otherTuple.v2()) {
                     valueDelta = referenceTuple.v2() - otherTuple.v2();
                     baseValue = otherTuple.v2();
                 } else {
@@ -447,7 +452,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 timeseries.addFirst(boundaryTuple);
             } else {
                 final double valueDelta;
-                if (otherTuple.v2() > referenceTuple.v2()) {
+                if (otherTuple.v2() >= referenceTuple.v2()) {
                     valueDelta = otherTuple.v2() - referenceTuple.v2();
                 } else {
                     valueDelta = otherTuple.v2();
@@ -459,6 +464,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 timeseries.addLast(boundaryTuple);
             }
         }
+    }
+
+    private static boolean instantsInAdjacentWindows(Instant first, Instant second, int secondsInWindow) {
+        long firstRounded = first.getEpochSecond() / secondsInWindow * secondsInWindow;
+        long secondRounded = second.getEpochSecond() / secondsInWindow * secondsInWindow;
+        long delta = Math.abs(firstRounded - secondRounded);
+        return delta == secondsInWindow;
     }
 
     void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
@@ -586,13 +598,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                                 + row
                                 + "\nWanted: "
                                 + rateAgg
+                                + "\nException: "
+                                + e.getMessage()
                                 + "\nRow times and values:\n\tTS:"
                                 + docsPerTimeseries.get(i)
                                     .stream()
                                     .map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", ")))
                                     .collect(Collectors.joining("\n\tTS:"))
-                                + "\nException: "
-                                + e.getMessage()
                         );
                     }
                 }

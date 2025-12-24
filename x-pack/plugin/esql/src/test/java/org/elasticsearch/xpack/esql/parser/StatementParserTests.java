@@ -1068,6 +1068,69 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
+    public void testLimitPer() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 PER hostname
+            """);
+        assertThat(plan, instanceOf(Limit.class));
+        Limit limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+
+        assertThat(limit.groupKey(), instanceOf(UnresolvedAttribute.class));
+        UnresolvedAttribute groupKey = (UnresolvedAttribute) limit.groupKey();
+        assertThat(groupKey.name(), equalTo("hostname"));
+
+        assertThat(limit.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limit.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitPerQualifiedName() {
+        LogicalPlan plan = query("""
+                FROM foo
+                | SORT @timestamp DESC
+                | LIMIT 10 PER [foo].[hostname]
+            """);
+        assertThat(plan, instanceOf(Limit.class));
+        Limit limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+
+        assertThat(limit.groupKey(), instanceOf(UnresolvedAttribute.class));
+        UnresolvedAttribute groupKey = (UnresolvedAttribute) limit.groupKey();
+        assertThat(groupKey.qualifier(), equalTo("foo"));
+        assertThat(groupKey.name(), equalTo("hostname"));
+
+        assertThat(limit.child(), instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) limit.child();
+        assertThat(orderBy.expressionsResolved(), equalTo(false));
+
+        var orders = orderBy.order();
+        assertThat(orders.size(), equalTo(1));
+        assertThat(orders.getFirst(), instanceOf(Order.class));
+        Expression order = orders.getFirst().child();
+        assertThat(order, instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order).name(), equalTo("@timestamp"));
+
+        LogicalPlan relation = orderBy.child();
+        assertThat(relation, instanceOf(UnresolvedRelation.class));
+        assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
     public void testBasicSortCommand() {
         LogicalPlan plan = query("from text | where true | sort a+b asc nulls first, x desc nulls last | sort y asc | sort z desc");
         assertThat(plan, instanceOf(OrderBy.class));

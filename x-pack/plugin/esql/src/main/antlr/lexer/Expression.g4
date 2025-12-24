@@ -105,6 +105,7 @@ NULLS : 'nulls';
 ON: 'on';
 OR : 'or';
 PARAM: '?';
+PER: 'per';
 RLIKE: 'rlike';
 TRUE : 'true';
 WITH: 'with';

@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.GroupedTopN;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -10669,5 +10670,57 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mvAvgAlias = mvAvgEval.fields().getFirst();
         assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
         as(leftEval.child(), EsRelation.class);
+    }
+
+    public void testGroupedTopNPlan() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 PER languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var groupedTopN = as(plan, GroupedTopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        var groupKey = as(groupedTopN.groupKey(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(groupedTopN.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    public void testGroupedTopNQualifiedNamePlan() {
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 PER [employees].[languages]
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var groupedTopN = as(plan, GroupedTopN.class);
+        var limit = as(groupedTopN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(groupedTopN.order().size(), equalTo(1));
+
+        var groupKey = as(groupedTopN.groupKey(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(groupedTopN.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(groupedTopN.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
     }
 }

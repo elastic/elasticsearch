@@ -1,0 +1,5 @@
+pr: 140019
+summary: Adds `GroupedTopN` ESQL parsing and planning
+area: ES|QL
+type: feature
+issues: []

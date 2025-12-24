@@ -541,7 +541,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
+
         if (val instanceof Integer i && i >= 0) {
+            Expression groupKey;
+
+            var limitPerGroupKey = ctx.limitPerGroupKey();
+            if (ctx.limitPerGroupKey() != null) {
+                groupKey = expression(limitPerGroupKey.qualifiedNameExpression());
+                return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), groupKey, input);
+            }
+
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
         }
 

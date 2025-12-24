@@ -31,7 +31,7 @@ public class ThrottledIterator<T> implements Releasable {
      * number of such background tasks running concurrently to avoid overwhelming the rest of the system (e.g. starving other work of access
      * to an executor).
      *
-     * @param iterator The items to iterate. May be accessed by multiple threads, but accesses are always fully sequential: for any two
+     * @param iterator The items to iterate. May be accessed by multiple threads, but accesses are always strictly sequential: for any two
      *                 method calls {@code M1} and {@code M2} on this iterator, either the return of {@code M1} _happens-before_ the
      *                 invocation of {@code M2} or vice versa.
      *

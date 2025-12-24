@@ -2094,27 +2094,26 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     public void testGetClusterFormationStateDoesNotBlockOnMutex() {
         try (Cluster cluster = new Cluster(1)) {
+            cluster.runRandomly();
             cluster.stabilise();
             final Coordinator coordinator = cluster.getAnyNode().coordinator;
             final CountDownLatch mutexAcquired = new CountDownLatch(1);
             final CountDownLatch release = new CountDownLatch(1);
 
-            runInParallel(2, i -> {
-                if (i == 0) {
-                    // Thread 0: acquire mutex and block
-                    synchronized (coordinator.mutex) {
-                        mutexAcquired.countDown();
-                        safeAwait(release);
-                    }
-                } else {
-                    // Thread 1: expect getClusterFormationState to run without needing the mutex
-                    try {
-                        safeAwait(mutexAcquired);
-                        ClusterFormationFailureHelper.ClusterFormationState state = coordinator.getClusterFormationState();
-                        assertNotNull(state);
-                    } finally {
-                        release.countDown();
-                    }
+            runInParallel(() -> {
+                // Thread 0: acquire mutex and block
+                synchronized (coordinator.mutex) {
+                    mutexAcquired.countDown();
+                    safeAwait(release);
+                }
+            }, () -> {
+                // Thread 1: expect getClusterFormationState to run without needing the mutex
+                try {
+                    safeAwait(mutexAcquired);
+                    ClusterFormationFailureHelper.ClusterFormationState state = coordinator.getClusterFormationState();
+                    assertNotNull(state);
+                } finally {
+                    release.countDown();
                 }
             });
         }

@@ -20,19 +20,19 @@ public class TopNRowTests extends ESTestCase {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
 
     public void testRamBytesUsedEmpty() {
-        TopNOperator.Row row = new TopNOperator.Row(breaker, sortOrders(), 0, 0);
+        Row row = new Row(breaker, sortOrders(), 0, 0);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedSmall() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0);
+        Row row = new Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0);
         row.keys.append(randomByte());
         row.values.append(randomByte());
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedBig() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0);
+        Row row = new Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0);
         for (int i = 0; i < 10000; i++) {
             row.keys.append(randomByte());
             row.values.append(randomByte());
@@ -41,7 +41,7 @@ public class TopNRowTests extends ESTestCase {
     }
 
     public void testRamBytesUsedPreAllocated() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 64, 128);
+        Row row = new Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 64, 128);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
@@ -52,7 +52,7 @@ public class TopNRowTests extends ESTestCase {
         );
     }
 
-    private long expectedRamBytesUsed(TopNOperator.Row row) {
+    private long expectedRamBytesUsed(Row row) {
         long expected = RamUsageTester.ramUsed(row);
         if (row.values.bytes().length == 0) {
             // We double count the shared empty array for empty rows. This overcounting is *fine*, but throws off the test.

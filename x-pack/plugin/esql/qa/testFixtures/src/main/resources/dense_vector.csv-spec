@@ -105,3 +105,28 @@ row hex_str = "0102030405060708090a0b0c0d0e0f"
 vector:dense_vector
  [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
 ;
+
+// Test COALESCE with dense_vector
+query
+row a = [1.0, 2.0, 3.0], b = null
+| eval c = coalesce(b, a)
+| keep c
+;
+c:dense_vector
+[1.0, 2.0, 3.0]
+
+query
+row a = [1.0, 2.0, 3.0], b = null
+| eval c = coalesce(a, b)
+| keep c
+;
+c:dense_vector
+[1.0, 2.0, 3.0]
+
+query
+row a = [1.0, 2.0, 3.0], b = [4.0, 5.0, 6.0]
+| eval c = coalesce(a, b)
+| keep c
+;
+c:dense_vector
+[1.0, 2.0, 3.0]

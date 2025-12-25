@@ -94,8 +94,20 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     }
 
     @Override
-    public Model buildModelFromConfigAndSecrets(String inferenceEntityId, TaskType taskType, ModelConfigurations config, ModelSecrets secrets) {
-        return new TestServiceModel(inferenceEntityId, taskType, name(), config.getServiceSettings(), config.getTaskSettings(), (TestSecretSettings) secrets.getSecretSettings());
+    public Model buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        return new TestServiceModel(
+            inferenceEntityId,
+            taskType,
+            name(),
+            config.getServiceSettings(),
+            config.getTaskSettings(),
+            (TestSecretSettings) secrets.getSecretSettings()
+        );
     }
 
     @Override

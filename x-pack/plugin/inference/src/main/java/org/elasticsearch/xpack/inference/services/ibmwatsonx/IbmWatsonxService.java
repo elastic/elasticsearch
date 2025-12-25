@@ -44,11 +44,15 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -204,6 +208,47 @@ public class IbmWatsonxService extends SenderService {
             chunkingSettings,
             secretSettingsMap
         );
+    }
+
+    @Override
+    public IbmWatsonxModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> new IbmWatsonxEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (IbmWatsonxEmbeddingsServiceSettings) serviceSettings,
+                taskSettings,
+                chunkingSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case RERANK -> new IbmWatsonxRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (IbmWatsonxRerankServiceSettings) serviceSettings,
+                (IbmWatsonxRerankTaskSettings) taskSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case CHAT_COMPLETION, COMPLETION -> new IbmWatsonxChatCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (IbmWatsonxChatCompletionServiceSettings) serviceSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     @Override

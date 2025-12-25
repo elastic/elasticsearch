@@ -42,10 +42,14 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionCreator;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
+import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -207,6 +211,41 @@ public class CohereService extends SenderService implements RerankingInferenceSe
             chunkingSettings,
             secretSettingsMap
         );
+    }
+
+    @Override
+    public CohereModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
+                inferenceEntityId,
+                (CohereEmbeddingsServiceSettings) serviceSettings,
+                (CohereEmbeddingsTaskSettings) taskSettings,
+                chunkingSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case RERANK -> new CohereRerankModel(
+                inferenceEntityId,
+                (CohereRerankServiceSettings) serviceSettings,
+                (CohereRerankTaskSettings) taskSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case COMPLETION -> new CohereCompletionModel(
+                inferenceEntityId,
+                (CohereCompletionServiceSettings) serviceSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     @Override

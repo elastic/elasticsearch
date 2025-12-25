@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ai21.action.Ai21ActionCreator;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -206,6 +207,28 @@ public class Ai21Service extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         return createModelFromPersistent(modelId, taskType, serviceSettingsMap, secretSettingsMap);
+    }
+
+    @Override
+    public Ai21Model buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case CHAT_COMPLETION, COMPLETION -> new Ai21ChatCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (Ai21ChatCompletionServiceSettings) serviceSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     @Override

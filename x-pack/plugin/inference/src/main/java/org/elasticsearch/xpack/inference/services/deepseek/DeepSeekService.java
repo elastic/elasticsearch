@@ -166,6 +166,24 @@ public class DeepSeekService extends SenderService {
     }
 
     @Override
+    public Model buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return new DeepSeekChatCompletionModel(
+            (DeepSeekChatCompletionModel.DeepSeekServiceSettings) serviceSettings,
+            (DefaultSecretSettings) secretSettings,
+            config,
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    @Override
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         return DeepSeekChatCompletionModel.readFromStorage(modelId, taskType, NAME, serviceSettingsMap, null);

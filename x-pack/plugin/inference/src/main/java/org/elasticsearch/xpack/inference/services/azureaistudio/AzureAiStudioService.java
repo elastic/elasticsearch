@@ -44,10 +44,14 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionCreator;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -221,6 +225,50 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
             chunkingSettings,
             secretSettingsMap
         );
+    }
+
+    @Override
+    public AzureAiStudioModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        AzureAiStudioModel model;
+        switch (taskType) {
+            case TEXT_EMBEDDING -> model = new AzureAiStudioEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (AzureAiStudioEmbeddingsServiceSettings) serviceSettings,
+                (AzureAiStudioEmbeddingsTaskSettings) taskSettings,
+                chunkingSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case COMPLETION -> model = new AzureAiStudioChatCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (AzureAiStudioChatCompletionServiceSettings) serviceSettings,
+                (AzureAiStudioChatCompletionTaskSettings) taskSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case RERANK -> model = new AzureAiStudioRerankModel(
+                inferenceEntityId,
+                (AzureAiStudioRerankServiceSettings) serviceSettings,
+                (AzureAiStudioRerankTaskSettings) taskSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        }
+        final var azureAiStudioServiceSettings = (AzureAiStudioServiceSettings) model.getServiceSettings();
+        checkProviderAndEndpointTypeForTask(taskType, azureAiStudioServiceSettings.provider(), azureAiStudioServiceSettings.endpointType());
+        return model;
     }
 
     @Override

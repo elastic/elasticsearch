@@ -44,7 +44,10 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
+import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankTaskSettings;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -231,6 +234,38 @@ public class VoyageAIService extends SenderService implements RerankingInference
             chunkingSettings,
             secretSettingsMap
         );
+    }
+
+    @Override
+    public VoyageAIModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> new VoyageAIEmbeddingsModel(
+                inferenceEntityId,
+                NAME,
+                (VoyageAIEmbeddingsServiceSettings) serviceSettings,
+                (VoyageAIEmbeddingsTaskSettings) taskSettings,
+                chunkingSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case RERANK -> new VoyageAIRerankModel(
+                inferenceEntityId,
+                NAME,
+                (VoyageAIRerankServiceSettings) serviceSettings,
+                (VoyageAIRerankTaskSettings) taskSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     @Override

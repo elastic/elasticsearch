@@ -44,8 +44,11 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionCreator;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -219,6 +222,44 @@ public class AzureOpenAiService extends SenderService {
             chunkingSettings,
             secretSettingsMap
         );
+    }
+
+    @Override
+    public AzureOpenAiModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        switch (taskType) {
+            case TEXT_EMBEDDING -> {
+                return new AzureOpenAiEmbeddingsModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (AzureOpenAiEmbeddingsServiceSettings) serviceSettings,
+                    (AzureOpenAiEmbeddingsTaskSettings) taskSettings,
+                    chunkingSettings,
+                    (AzureOpenAiSecretSettings) secretSettings
+                );
+            }
+            case COMPLETION, CHAT_COMPLETION -> {
+                return new AzureOpenAiCompletionModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (AzureOpenAiCompletionServiceSettings) serviceSettings,
+                    (AzureOpenAiCompletionTaskSettings) taskSettings,
+                    (AzureOpenAiSecretSettings) secretSettings
+                );
+            }
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        }
     }
 
     @Override

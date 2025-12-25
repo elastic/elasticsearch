@@ -46,10 +46,13 @@ import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatComp
 import org.elasticsearch.xpack.inference.services.openshiftai.action.OpenShiftAiActionCreator;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openshiftai.request.completion.OpenShiftAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModel;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -254,6 +257,46 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
             taskSettingsMap,
             chunkingSettings
         );
+    }
+
+    @Override
+    public OpenShiftAiModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case CHAT_COMPLETION, COMPLETION -> new OpenShiftAiChatCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (OpenShiftAiChatCompletionServiceSettings) serviceSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case TEXT_EMBEDDING -> new OpenShiftAiEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (OpenShiftAiEmbeddingsServiceSettings) serviceSettings,
+                chunkingSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case RERANK -> new OpenShiftAiRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (OpenShiftAiRerankServiceSettings) serviceSettings,
+                (OpenShiftAiRerankTaskSettings) taskSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     @Override

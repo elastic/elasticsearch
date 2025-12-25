@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -195,6 +196,40 @@ public class GoogleAiStudioService extends SenderService {
             chunkingSettings,
             secretSettingsMap
         );
+    }
+
+    @Override
+    public GoogleAiStudioModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case COMPLETION -> new GoogleAiStudioCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (GoogleAiStudioCompletionServiceSettings) serviceSettings,
+                taskSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (GoogleAiStudioEmbeddingsServiceSettings) serviceSettings,
+                taskSettings,
+                chunkingSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     private static GoogleAiStudioModel createModelFromPersistent(

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mistral.action.MistralActionCreator;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
@@ -241,6 +242,40 @@ public class MistralService extends SenderService {
         }
 
         return createModelFromPersistent(modelId, taskType, serviceSettingsMap, chunkingSettings, secretSettingsMap);
+    }
+
+    @Override
+    public MistralModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        switch (taskType) {
+            case TEXT_EMBEDDING:
+                return new MistralEmbeddingsModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (MistralEmbeddingsServiceSettings) serviceSettings,
+                    chunkingSettings,
+                    (DefaultSecretSettings) secretSettings
+                );
+            case CHAT_COMPLETION, COMPLETION:
+                return new MistralChatCompletionModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (MistralChatCompletionServiceSettings) serviceSettings,
+                    (DefaultSecretSettings) secretSettings
+                );
+            default:
+                throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        }
     }
 
     @Override

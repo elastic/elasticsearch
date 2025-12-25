@@ -73,7 +73,8 @@ public class MultivalueDedupeTests extends ESTestCase {
                 ElementType.FLOAT,
                 ElementType.AGGREGATE_METRIC_DOUBLE,
                 ElementType.EXPONENTIAL_HISTOGRAM,
-                ElementType.TDIGEST
+                ElementType.TDIGEST,
+                ElementType.LONG_RANGE
             )) {
                 continue;
             }

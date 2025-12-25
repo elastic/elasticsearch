@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -347,7 +348,7 @@ public class ReadOnlyEngine extends Engine {
     public void syncTranslog() {}
 
     @Override
-    public Closeable acquireHistoryRetentionLock() {
+    public Releasable acquireHistoryRetentionLock() {
         return () -> {};
     }
 

@@ -31,8 +31,11 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -490,6 +493,88 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> secrets
     ) {
         return parsePersistedConfig(inferenceEntityId, taskType, config);
+    }
+
+    @Override
+    public Model buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+
+        String modelId = serviceSettings.modelId();
+        if (modelId == null) {
+            throw new IllegalArgumentException(
+                Strings.format("Error parsing request config, model id is missing for inference id: %s", inferenceEntityId)
+            );
+        }
+
+        if (MULTILINGUAL_E5_SMALL_VALID_IDS.contains(modelId)) {
+            return new MultilingualE5SmallModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (MultilingualE5SmallInternalServiceSettings) serviceSettings,
+                chunkingSettings
+            );
+        } else if (ElserModels.isValidModel(modelId)) {
+            return new ElserInternalModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (ElserInternalServiceSettings) serviceSettings,
+                ElserMlNodeTaskSettings.DEFAULT,
+                chunkingSettings
+            );
+        } else if (modelId.equals(RERANKER_ID)) {
+            return new ElasticRerankerModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (ElasticRerankerServiceSettings) serviceSettings,
+                (RerankTaskSettings) taskSettings
+            );
+        } else {
+            return createCustomElandModel(inferenceEntityId, taskType, serviceSettings, taskSettings, chunkingSettings);
+        }
+    }
+
+    private static CustomElandModel createCustomElandModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        ServiceSettings serviceSettings,
+        TaskSettings taskSettings,
+        ChunkingSettings chunkingSettings
+    ) {
+
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> new CustomElandEmbeddingModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (CustomElandInternalTextEmbeddingServiceSettings) serviceSettings,
+                chunkingSettings
+            );
+            case SPARSE_EMBEDDING -> new CustomElandModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (ElasticsearchInternalServiceSettings) serviceSettings,
+                chunkingSettings
+            );
+            case RERANK -> new CustomElandRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (CustomElandInternalServiceSettings) serviceSettings,
+                (RerankTaskSettings) taskSettings
+            );
+            default -> throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
+        };
     }
 
     @Override

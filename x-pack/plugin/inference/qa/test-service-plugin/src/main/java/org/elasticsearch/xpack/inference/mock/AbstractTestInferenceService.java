@@ -94,6 +94,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     }
 
     @Override
+    public Model buildModelFromConfigAndSecrets(String inferenceEntityId, TaskType taskType, ModelConfigurations config, ModelSecrets secrets) {
+        return new TestServiceModel(inferenceEntityId, taskType, name(), config.getServiceSettings(), config.getTaskSettings(), (TestSecretSettings) secrets.getSecretSettings());
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);

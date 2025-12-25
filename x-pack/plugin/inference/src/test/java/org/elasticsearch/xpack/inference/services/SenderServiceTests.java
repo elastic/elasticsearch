@@ -20,6 +20,8 @@ import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -359,6 +361,16 @@ public class SenderServiceTests extends ESTestCase {
             TaskType taskType,
             Map<String, Object> config,
             Map<String, Object> secrets
+        ) {
+            return null;
+        }
+
+        @Override
+        public Model buildModelFromConfigAndSecrets(
+            String inferenceEntityId,
+            TaskType taskType,
+            ModelConfigurations config,
+            ModelSecrets secrets
         ) {
             return null;
         }

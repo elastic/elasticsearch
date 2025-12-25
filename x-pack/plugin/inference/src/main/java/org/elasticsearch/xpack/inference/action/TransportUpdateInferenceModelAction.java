@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -237,7 +236,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     ) {
         ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
         TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
-        ChunkingSettings existingChunkingSettings = existingConfigs.getChunkingSettings();
 
         TaskSettings newTaskSettings = existingTaskSettings;
         ServiceSettings newServiceSettings = existingConfigs.getServiceSettings();
@@ -255,7 +253,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             serviceName,
             newServiceSettings,
             newTaskSettings,
-            existingChunkingSettings
+            existingConfigs.getChunkingSettings()
         );
     }
 

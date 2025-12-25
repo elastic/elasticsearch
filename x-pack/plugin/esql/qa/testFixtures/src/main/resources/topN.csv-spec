@@ -185,3 +185,161 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 1007                  | 2024-05-10T00:19:48.000Z | prod            | two
 1006                  | 2024-05-10T00:13:50.000Z | qa              | one
 ;
+
+
+redundantTopNBasic
+from employees 
+| sort emp_no 
+| limit 100 
+| sort emp_no 
+| limit 10 
+| keep emp_no, first_name
+;
+
+emp_no:integer|first_name:keyword
+10001         |Georgi        
+10002         |Bezalel       
+10003         |Parto         
+10004         |Chirstian     
+10005         |Kyoichi       
+10006         |Anneke        
+10007         |Tzvetan       
+10008         |Saniya        
+10009         |Sumant        
+10010         |Duangkaew
+;
+
+
+redundantTopNWithFilter
+from employees 
+| sort emp_no desc 
+| limit 50 
+| where gender == "M" 
+| sort emp_no desc 
+| limit 5 
+| keep emp_no, first_name, gender
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10097          | Remzi              | M
+10096          | Jayson             | M
+10095          | Hilari             | M
+10093          | Sailaja            | M
+10091          | Amabile            | M
+;
+
+
+redundantTopNWithProject
+from employees 
+| sort salary desc 
+| limit 20 
+| keep emp_no, first_name, salary 
+| sort salary desc 
+| limit 3
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | Otmar              | 74999
+10045          | Moss               | 74970
+10007          | Tzvetan            | 74572
+;
+
+
+redundantTopNWithEval
+from employees 
+| sort emp_no 
+| limit 15 
+| eval double_emp_no = emp_no * 2 
+| sort emp_no 
+| limit 5 
+| keep emp_no, first_name, double_emp_no
+;
+
+emp_no:integer|first_name:keyword|double_emp_no:integer
+10001         |Georgi            |20002                
+10002         |Bezalel           |20004                
+10003         |Parto             |20006                
+10004         |Chirstian         |20008                
+10005         |Kyoichi           |20010
+;
+
+
+redundantTopNWithRename
+from employees 
+| sort first_name 
+| limit 20 
+| rename first_name as name 
+| sort name 
+| limit 8 
+| keep emp_no, name
+;
+
+emp_no:integer | name:keyword
+10059          | Alejandro
+10091          | Amabile
+10006          | Anneke
+10062          | Anoosh
+10094          | Arumugam
+10049          | Basil
+10058          | Berhard
+10014          | Berni
+;
+
+
+nonRedundantTopNDifferentOrder
+from employees 
+| sort emp_no 
+| limit 10 
+| sort salary desc 
+| limit 5 
+| keep emp_no, first_name, salary
+;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | Tzvetan            | 74572
+10009          | Sumant             | 66174
+10005          | Kyoichi            | 63528
+10003          | Parto              | 61805
+10006          | Anneke             | 60335
+;
+
+
+redundantTopNMultipleFields
+from employees 
+| sort gender, emp_no 
+| limit 20 
+| where salary > 50000 
+| sort gender, emp_no 
+| limit 8 
+| keep emp_no, first_name, gender, salary
+;
+
+emp_no:integer | first_name:keyword | gender:keyword | salary:integer
+10002          | Bezalel            | F              | 56371
+10006          | Anneke             | F              | 60335
+10007          | Tzvetan            | F              | 74572
+10009          | Sumant             | F              | 66174
+10024          | Suzette            | F              | 64675
+10027          | Divier             | F              | 73851
+10032          | null               | F              | 62233
+10041          | Uri                | F              | 56415
+;
+
+
+redundantTopNWithStats
+from employees 
+| sort emp_no 
+| limit 10 
+| stats cnt = count(*) by emp_no, gender
+| sort emp_no
+| limit 5 
+| keep emp_no, gender, cnt
+;
+
+emp_no:integer | gender:keyword | cnt:long
+10001          | M              | 1
+10002          | F              | 1
+10003          | M              | 1
+10004          | M              | 1
+10005          | M              | 1
+;

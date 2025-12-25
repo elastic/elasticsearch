@@ -52,8 +52,7 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
         );
     }
 
-    // should only be used for testing
-    IbmWatsonxRerankModel(
+    public IbmWatsonxRerankModel(
         String modelId,
         TaskType taskType,
         String service,

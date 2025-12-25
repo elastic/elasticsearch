@@ -43,8 +43,7 @@ public class HuggingFaceRerankModel extends HuggingFaceModel {
         );
     }
 
-    // Should only be used directly for testing
-    HuggingFaceRerankModel(
+    public HuggingFaceRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

@@ -41,8 +41,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
         );
     }
 
-    // Should only be used directly for testing
-    HuggingFaceEmbeddingsModel(
+    public HuggingFaceEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

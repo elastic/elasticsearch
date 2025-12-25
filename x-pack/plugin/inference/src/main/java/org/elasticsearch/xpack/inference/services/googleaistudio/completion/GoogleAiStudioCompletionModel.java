@@ -46,8 +46,7 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         );
     }
 
-    // Should only be used directly for testing
-    GoogleAiStudioCompletionModel(
+    public GoogleAiStudioCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

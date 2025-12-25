@@ -47,8 +47,7 @@ public class AlibabaCloudSearchCompletionModel extends AlibabaCloudSearchModel {
         );
     }
 
-    // should only be used for testing
-    AlibabaCloudSearchCompletionModel(
+    public AlibabaCloudSearchCompletionModel(
         String modelId,
         TaskType taskType,
         String service,

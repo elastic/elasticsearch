@@ -50,8 +50,7 @@ public class AlibabaCloudSearchEmbeddingsModel extends AlibabaCloudSearchModel {
         );
     }
 
-    // should only be used for testing
-    AlibabaCloudSearchEmbeddingsModel(
+    public AlibabaCloudSearchEmbeddingsModel(
         String modelId,
         TaskType taskType,
         String service,

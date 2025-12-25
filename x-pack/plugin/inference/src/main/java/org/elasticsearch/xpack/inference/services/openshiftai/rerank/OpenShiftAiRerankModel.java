@@ -58,8 +58,7 @@ public class OpenShiftAiRerankModel extends OpenShiftAiModel {
         );
     }
 
-    // should only be used for testing
-    OpenShiftAiRerankModel(
+    public OpenShiftAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

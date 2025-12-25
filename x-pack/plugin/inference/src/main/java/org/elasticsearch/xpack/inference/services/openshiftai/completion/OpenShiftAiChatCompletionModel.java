@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.openshiftai.completion;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -66,7 +65,7 @@ public class OpenShiftAiChatCompletionModel extends OpenShiftAiModel {
         TaskType taskType,
         String service,
         OpenShiftAiChatCompletionServiceSettings serviceSettings,
-        SecretSettings secrets
+        DefaultSecretSettings secrets
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),

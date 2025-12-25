@@ -53,8 +53,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
-    GoogleVertexAiRerankModel(
+    public GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

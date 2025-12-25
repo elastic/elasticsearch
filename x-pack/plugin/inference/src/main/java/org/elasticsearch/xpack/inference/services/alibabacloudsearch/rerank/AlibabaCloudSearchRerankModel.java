@@ -47,8 +47,7 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
         );
     }
 
-    // should only be used for testing
-    AlibabaCloudSearchRerankModel(
+    public AlibabaCloudSearchRerankModel(
         String modelId,
         TaskType taskType,
         String service,

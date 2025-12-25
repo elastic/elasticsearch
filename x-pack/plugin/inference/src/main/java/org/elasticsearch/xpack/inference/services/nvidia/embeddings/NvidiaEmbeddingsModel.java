@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -112,7 +111,7 @@ public class NvidiaEmbeddingsModel extends NvidiaModel {
         NvidiaEmbeddingsServiceSettings serviceSettings,
         NvidiaEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        SecretSettings secrets
+        DefaultSecretSettings secrets
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),

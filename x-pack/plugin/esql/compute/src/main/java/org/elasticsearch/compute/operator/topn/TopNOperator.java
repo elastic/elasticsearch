@@ -84,8 +84,6 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    record KeyFactory(KeyExtractor extractor, boolean ascending) {}
-
     public record SortOrder(int channel, boolean asc, boolean nullsFirst) {
 
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SortOrder.class);
@@ -163,7 +161,7 @@ public class TopNOperator implements Operator, Accountable {
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
 
-    private Queue inputQueue;
+    private TopNQueue inputQueue;
     private Row spare;
     private int spareValuesPreAllocSize = 0;
     private int spareKeysPreAllocSize = 0;
@@ -211,6 +209,7 @@ public class TopNOperator implements Operator, Accountable {
         this.inputQueue = UngroupedQueue.build(breaker, topCount);
     }
 
+    // FIXME(gal, NOCOMMIT) move to a method on Row
     static int compareRows(Row r1, Row r2) {
         // This is similar to r1.key.compareTo(r2.key) but stopping somewhere in the middle so that
         // we check the byte that mismatched
@@ -282,19 +281,10 @@ public class TopNOperator implements Operator, Accountable {
                 spareKeysPreAllocSize = Math.max(spare.keys().length(), spareKeysPreAllocSize / 2);
 
                 // This is `inputQueue.insertWithOverflow` followed by filling in the value only if we inserted.
-                if (inputQueue.size() < inputQueue.topCount()) {
-                    // Heap not yet full, just add elements.
-                    rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = Math.max(spare.values().length(), spareValuesPreAllocSize / 2);
-                    inputQueue.add(spare);
-                    spare = null;
-                } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
-                    // Heap full AND this node fits in it.
-                    Row nextSpare = inputQueue.top();
-                    rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = Math.max(spare.values().length(), spareValuesPreAllocSize / 2);
-                    inputQueue.updateTop(spare);
-                    spare = nextSpare;
+                var result = inputQueue.add(rowFiller, i, spare, spareValuesPreAllocSize);
+                if (result != null) {
+                    spare = result.evictedRow();
+                    spareValuesPreAllocSize = result.spareValuesPreAllocSize();
                 }
             }
         } finally {

@@ -12,34 +12,28 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 
-class UngroupedQueue implements Queue {
+final class UngroupedQueue implements TopNQueue {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UngroupedQueue.class);
+
     private final PriorityQueue<Row> pq;
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
     private final CircuitBreaker breaker;
     private final int topCount;
 
-    /**
-     * Track memory usage in the breaker then build the {@link Queue}.
-     */
-    static Queue build(CircuitBreaker breaker, int topCount) {
+    static UngroupedQueue build(CircuitBreaker breaker, int topCount) {
         breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "esql engine topn");
         return new UngroupedQueue(breaker, topCount);
     }
 
     private UngroupedQueue(CircuitBreaker breaker, int topCount) {
+        // FIXME(gal, NOCOMMIT) Verify with Nik that composition over inheritance is fine here.
         this.pq = new PriorityQueue<>(topCount) {
             @Override
             protected boolean lessThan(Row r1, Row r2) {
-                return UngroupedQueue.this.lessThan(r1, r2);
+                return TopNOperator.compareRows(r1, r2) < 0;
             }
         };
         this.breaker = breaker;
         this.topCount = topCount;
-    }
-
-    @Override
-    public boolean lessThan(Row r1, Row r2) {
-        return TopNOperator.compareRows(r1, r2) < 0;
     }
 
     @Override
@@ -53,28 +47,32 @@ class UngroupedQueue implements Queue {
     }
 
     @Override
-    public Row add(Row element) {
-        return pq.add(element);
+    public AddResult add(RowFiller rowFiller, int i, Row row, int spareValuesPreAllocSize) {
+        if (size() < topCount) {
+            // Heap not yet full, just add the element.
+            rowFiller.writeValues(i, row);
+            int newSpareValuesPreAllocSize = newPreAllocSize(row, spareValuesPreAllocSize);
+            pq.add(row);
+            return new AddResult(null, newSpareValuesPreAllocSize);
+        } else if (TopNOperator.compareRows(pq.top(), row) < 0) {
+            // Heap full BUT this node fits in it.
+            Row nextSpare = pq.top();
+            rowFiller.writeValues(i, row);
+            int newSpareValuesPreAllocSize = newPreAllocSize(row, spareValuesPreAllocSize);
+            pq.updateTop(row);
+            return new AddResult(nextSpare, newSpareValuesPreAllocSize);
+        }
+        // Heap full AND this node does not fit in it.
+        return null;
     }
 
-    @Override
-    public int topCount() {
-        return topCount;
-    }
-
-    @Override
-    public Row updateTop(Row newTop) {
-        return pq.updateTop(newTop);
+    private static int newPreAllocSize(Row spare, int spareValuesPreAllocSize) {
+        return Math.max(spare.values().length(), spareValuesPreAllocSize / 2);
     }
 
     @Override
     public Row pop() {
         return pq.pop();
-    }
-
-    @Override
-    public Row top() {
-        return pq.top();
     }
 
     @Override
@@ -102,7 +100,7 @@ class UngroupedQueue implements Queue {
     private static long sizeOf(int topCount) {
         long total = SHALLOW_SIZE;
         total += RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * (topCount + 1L)
         );
         return total;
     }

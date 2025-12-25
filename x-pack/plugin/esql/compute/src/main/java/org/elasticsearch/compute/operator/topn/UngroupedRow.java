@@ -23,7 +23,7 @@ import java.util.List;
  * multivalues) to reference each position in each block of the Page.
  */
 final class UngroupedRow implements Row {
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UngroupedRow.class);
 
     private final CircuitBreaker breaker;
 
@@ -116,5 +116,9 @@ final class UngroupedRow implements Row {
         }
         this.shardRefCounter = shardRefCounted;
         this.shardRefCounter.mustIncRef();
+    }
+
+    public void writeGroupKey(int i) {
+        throw new AssertionError("TODO(gal) NOCOMMIT");
     }
 }

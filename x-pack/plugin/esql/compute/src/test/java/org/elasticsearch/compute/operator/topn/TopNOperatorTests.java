@@ -460,13 +460,13 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     private Row row(ElementType elementType, TopNEncoder encoder, int channel, boolean asc, boolean nullsFirst, Page page, int position) {
         final var sortOrders = List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst));
-        RowFiller rf = new RowFiller(
+        RowFiller rf = new UngroupedRowFiller(
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> elementType).toList(),
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> encoder).toList(),
             sortOrders,
             page
         );
-        Row row = new Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
+        Row row = new UngroupedRow(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
         rf.writeKey(position, row);
         rf.writeValues(position, row);
         return row;

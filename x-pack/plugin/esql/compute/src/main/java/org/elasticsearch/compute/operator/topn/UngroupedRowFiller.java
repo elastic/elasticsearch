@@ -14,7 +14,9 @@ import java.util.List;
 
 final class UngroupedRowFiller implements RowFiller {
     private final ValueExtractor[] valueExtractors;
-    private final TopNOperator.KeyFactory[] keyFactories;
+    private final KeyFactory[] keyFactories;
+
+    record KeyFactory(KeyExtractor extractor, boolean ascending) {}
 
     UngroupedRowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<TopNOperator.SortOrder> sortOrders, Page page) {
         valueExtractors = new ValueExtractor[page.getBlockCount()];
@@ -26,7 +28,7 @@ final class UngroupedRowFiller implements RowFiller {
                 page.getBlock(b)
             );
         }
-        keyFactories = new TopNOperator.KeyFactory[sortOrders.size()];
+        keyFactories = new KeyFactory[sortOrders.size()];
         for (int k = 0; k < keyFactories.length; k++) {
             TopNOperator.SortOrder so = sortOrders.get(k);
             KeyExtractor extractor = KeyExtractor.extractorFor(
@@ -37,7 +39,7 @@ final class UngroupedRowFiller implements RowFiller {
                 so.nonNul(),
                 page.getBlock(so.channel())
             );
-            keyFactories[k] = new TopNOperator.KeyFactory(extractor, so.asc());
+            keyFactories[k] = new KeyFactory(extractor, so.asc());
         }
     }
 

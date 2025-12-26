@@ -50,12 +50,7 @@ public class UriPartsExec extends CompoundOutputEvalExec {
     }
 
     @Override
-    public CompoundOutputEvalExec createNewInstance(
-        Source source,
-        PhysicalPlan child,
-        Expression input,
-        List<Attribute> outputFields
-    ) {
+    public CompoundOutputEvalExec createNewInstance(Source source, PhysicalPlan child, Expression input, List<Attribute> outputFields) {
         return new UriPartsExec(source, child, input, outputFields, function());
     }
 

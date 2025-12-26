@@ -64,13 +64,7 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         Attribute outputFieldPrefix,
         CompoundOutputFunction function
     ) {
-        this(
-            source,
-            child,
-            input,
-            computeOutputAttributes(function.getOutputColumns(), outputFieldPrefix.name(), source),
-            function
-        );
+        this(source, child, input, computeOutputAttributes(function.getOutputColumns(), outputFieldPrefix.name(), source), function);
     }
 
     /**
@@ -155,12 +149,7 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
      * Creates a new instance of the specific {@link CompoundOutputEval} subclass with the provided parameters.
      * Subclasses should call their corresponding constructor with the provided arguments and the concrete evaluator instance.
      */
-    public abstract T createNewInstance(
-        Source source,
-        LogicalPlan child,
-        Expression input,
-        List<Attribute> outputFields
-    );
+    public abstract T createNewInstance(Source source, LogicalPlan child, Expression input, List<Attribute> outputFields);
 
     public Expression getInput() {
         return input;

@@ -106,4 +106,3 @@ public final class SqlSecurityTestCluster {
             .configFile("test-node.jks", Resource.fromClasspath("test-node.jks"));
     }
 }
-

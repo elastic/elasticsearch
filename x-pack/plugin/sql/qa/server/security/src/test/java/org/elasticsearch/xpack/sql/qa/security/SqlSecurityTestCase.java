@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.ClassRule;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
@@ -27,6 +26,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -520,10 +520,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                     }
 
                     // Skip lines that were written before this test started
-                    List<String> testLines = allLines.subList(
-                        Math.min(auditLogLinesBeforeTestStart, allLines.size()),
-                        allLines.size()
-                    );
+                    List<String> testLines = allLines.subList(Math.min(auditLogLinesBeforeTestStart, allLines.size()), allLines.size());
 
                     List<Map<String, Object>> logs = new ArrayList<>();
                     for (String line : testLines) {

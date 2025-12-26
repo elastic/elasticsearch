@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -88,8 +89,10 @@ public class AllFirstAllLastTestingUtils {
                 BytesRef scratch = new BytesRef();
                 b.getBytesRef(vOffset, scratch);
                 valuesList.add(scratch);
+            } else if (values instanceof BooleanBlock b) {
+                valuesList.add(b.getBoolean(vOffset));
             } else {
-                throw new IllegalStateException("Unsupported block type");
+                throw new IllegalStateException("Unsupported block type: " + values.getClass());
             }
         }
 

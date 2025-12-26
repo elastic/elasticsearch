@@ -52,7 +52,7 @@ class GroupedQueue implements TopNQueue {
     @Override
     public AddResult add(RowFiller rowFiller, int i, Row row, int spareValuesPreAllocSize) {
         var groupedRow = (GroupedRow) row;
-        BytesRef key = ((GroupedRow) row).groupKey().bytesRefView();
+        BytesRef key = ((GroupedRow) row).groupKey().bytesRefView().clone();
         var queue = queuesByGroupKey.computeIfAbsent(key, unused -> UngroupedQueue.build(breaker, topCount));
         var result = queue.add(rowFiller, i, groupedRow, spareValuesPreAllocSize);
         if (result != null) {

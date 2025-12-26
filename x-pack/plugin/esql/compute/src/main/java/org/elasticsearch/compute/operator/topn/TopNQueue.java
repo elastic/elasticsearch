@@ -30,11 +30,17 @@ interface TopNQueue extends Accountable, Releasable {
     }
 
     // FIXME(gal, NOCOMMIT) The RowFiller should be part of the queue's state, not passed in
-    /** Returns {@code null} if the row wasn't added because the queue was full <b>and</b> the row didn't qualify to be added. */
+    /**
+     * Returns {@code null} if the row wasn't added because the queue was full <b>and</b> the row didn't qualify to be added. If the row
+     * wasn't added, the caller is in charge of cleaning it up.
+     */
     @Nullable
     AddResult add(RowFiller rowFiller, int i, Row row, int spareValuesPreAllocSize);
 
-    /** Removes and returns the top row in the queue, or {@code null} if the queue is empty. */
+    /**
+     * Removes and returns the <b>least</b> row in the queue, or {@code null} if the queue is empty. For an ascending order, the least row
+     * is the largest one, and vice versa.
+     */
     @Nullable
     Row pop();
 }

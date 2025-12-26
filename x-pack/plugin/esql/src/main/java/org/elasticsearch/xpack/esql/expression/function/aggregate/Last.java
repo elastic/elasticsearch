@@ -47,7 +47,7 @@ public class Last extends AggregateFunction implements ToAggregator {
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double", "keyword" },
         description = "Calculates the latest value of a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") },
         examples = @Example(file = "stats_last", tag = "last")
     )
     public Last(
@@ -59,11 +59,11 @@ public class Last extends AggregateFunction implements ToAggregator {
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
     ) {
-        this(source, field, Literal.TRUE, sort);
+        this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }
 
-    private Last(Source source, Expression field, Expression filter, Expression sort) {
-        super(source, field, filter, List.of(sort));
+    private Last(Source source, Expression field, Expression filter, Expression window, Expression sort) {
+        super(source, field, filter, window, List.of(sort));
         this.sort = sort;
     }
 
@@ -71,9 +71,10 @@ public class Last extends AggregateFunction implements ToAggregator {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
         List<Expression> params = in.readNamedWriteableCollectionAsList(Expression.class);
         Expression sort = params.getFirst();
-        return new Last(source, field, filter, sort);
+        return new Last(source, field, filter, window, sort);
     }
 
     @Override
@@ -88,12 +89,12 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @Override
     public Last replaceChildren(List<Expression> newChildren) {
-        return new Last(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Last(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Last withFilter(Expression filter) {
-        return new Last(source(), field(), filter, sort);
+        return new Last(source(), field(), filter, window(), sort);
     }
 
     public Expression sort() {

@@ -12,10 +12,19 @@ import org.apache.lucene.geo.XYEncodingUtils;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.impl.CoordinateArraySequence;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
+import org.locationtech.jts.io.WKTWriter;
 
 import java.nio.ByteOrder;
 
@@ -24,16 +33,24 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 
 public enum SpatialCoordinateTypes {
     GEO {
-        public Point longAsPoint(long encoded) {
-            return new Point(GeoEncodingUtils.decodeLongitude((int) encoded), GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)));
+        @Override
+        public double decodeX(long encoded) {
+            return GeoEncodingUtils.decodeLongitude((int) encoded);
         }
 
+        @Override
+        public double decodeY(long encoded) {
+            return GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32));
+        }
+
+        @Override
         public long pointAsLong(double x, double y) {
             int latitudeEncoded = encodeLatitude(y);
             int longitudeEncoded = encodeLongitude(x);
             return (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
         }
 
+        @Override
         public GeometryValidator validator() {
             // We validate the lat/lon values, and ignore any z values
             return GeographyValidator.instance(true);
@@ -44,10 +61,16 @@ public enum SpatialCoordinateTypes {
         private static final int MAX_VAL_ENCODED = XYEncodingUtils.encode((float) XYEncodingUtils.MAX_VAL_INCL);
         private static final int MIN_VAL_ENCODED = XYEncodingUtils.encode((float) XYEncodingUtils.MIN_VAL_INCL);
 
-        public Point longAsPoint(long encoded) {
+        @Override
+        public double decodeX(long encoded) {
             final int x = checkCoordinate((int) (encoded >>> 32));
+            return XYEncodingUtils.decode(x);
+        }
+
+        @Override
+        public double decodeY(long encoded) {
             final int y = checkCoordinate((int) (encoded & 0xFFFFFFFF));
-            return new Point(XYEncodingUtils.decode(x), XYEncodingUtils.decode(y));
+            return XYEncodingUtils.decode(y);
         }
 
         private int checkCoordinate(int i) {
@@ -57,6 +80,7 @@ public enum SpatialCoordinateTypes {
             return i;
         }
 
+        @Override
         public long pointAsLong(double x, double y) {
             final long xi = XYEncodingUtils.encode((float) x);
             final long yi = XYEncodingUtils.encode((float) y);
@@ -64,10 +88,17 @@ public enum SpatialCoordinateTypes {
         }
     },
     UNSPECIFIED {
-        public Point longAsPoint(long encoded) {
+        @Override
+        public double decodeX(long encoded) {
             throw new UnsupportedOperationException("Cannot convert long to point without specifying coordinate type");
         }
 
+        @Override
+        public double decodeY(long encoded) {
+            throw new UnsupportedOperationException("Cannot convert long to point without specifying coordinate type");
+        }
+
+        @Override
         public long pointAsLong(double x, double y) {
             throw new UnsupportedOperationException("Cannot convert point to long without specifying coordinate type");
         }
@@ -77,7 +108,13 @@ public enum SpatialCoordinateTypes {
         return GeometryValidator.NOOP;
     }
 
-    public abstract Point longAsPoint(long encoded);
+    public abstract double decodeX(long encoded);
+
+    public abstract double decodeY(long encoded);
+
+    public Point longAsPoint(long encoded) {
+        return new Point(decodeX(encoded), decodeY(encoded));
+    }
 
     public abstract long pointAsLong(double x, double y);
 
@@ -125,4 +162,31 @@ public enum SpatialCoordinateTypes {
     public Geometry wkbToGeometry(BytesRef wkb) {
         return WellKnownBinary.fromWKB(validator(), false, wkb.bytes, wkb.offset, wkb.length);
     }
+
+    public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException, IllegalArgumentException {
+        String wkt = wkbToWkt(wkb);
+        if (wkt.startsWith("BBOX")) {
+            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, true, wkb.bytes, wkb.offset, wkb.length);
+            if (geometry instanceof Rectangle rect) {
+                var bottomLeft = new Coordinate(rect.getMinX(), rect.getMinY());
+                var bottomRight = new Coordinate(rect.getMaxX(), rect.getMinY());
+                var topRight = new Coordinate(rect.getMaxX(), rect.getMaxY());
+                var topLeft = new Coordinate(rect.getMinX(), rect.getMaxY());
+
+                var coordinates = new Coordinate[] { bottomLeft, bottomRight, topRight, topLeft, bottomLeft };
+                var geomFactory = new GeometryFactory();
+                var linearRing = new LinearRing(new CoordinateArraySequence(coordinates), geomFactory);
+                return new Polygon(linearRing, null, geomFactory);
+            }
+        }
+        WKTReader reader = new WKTReader();
+        return reader.read(wkt);
+    }
+
+    public BytesRef jtsGeometryToWkb(org.locationtech.jts.geom.Geometry jtsGeometry) {
+        WKTWriter writer = new WKTWriter();
+        String wkt = writer.write(jtsGeometry);
+        return wktToWkb(wkt);
+    }
+
 }

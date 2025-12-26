@@ -237,8 +237,8 @@ public final class LastBytesRefByTimestampAggregatorFunction implements Aggregat
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    LastBytesRefByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef valuesScratch = new BytesRef();
+    LastBytesRefByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getBytesRef(0, valuesScratch), seen.getBoolean(0));
   }
 
   @Override

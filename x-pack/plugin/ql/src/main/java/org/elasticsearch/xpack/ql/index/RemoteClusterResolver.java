@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ql.index;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.LinkedProjectConfig;
 import org.elasticsearch.transport.LinkedProjectConfigService;
@@ -29,11 +30,12 @@ public final class RemoteClusterResolver extends RemoteClusterAware {
 
     @Override
     public void updateLinkedProject(LinkedProjectConfig config) {
-        if (config.isConnectionEnabled()) {
-            clusters.add(config.linkedProjectAlias());
-        } else {
-            clusters.remove(config.linkedProjectAlias());
-        }
+        clusters.add(config.linkedProjectAlias());
+    }
+
+    @Override
+    public void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
+        clusters.remove(linkedProjectAlias);
     }
 
     public Set<String> remoteClusters() {

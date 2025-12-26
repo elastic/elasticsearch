@@ -20,7 +20,7 @@ import java.io.IOException;
  * This class provides the structure for writing vectors in bulk, with specific
  * implementations for different bit sizes strategies.
  */
-public abstract class DiskBBQBulkWriter {
+public abstract sealed class DiskBBQBulkWriter {
     protected final int bulkSize;
     protected final IndexOutput out;
 
@@ -31,10 +31,25 @@ public abstract class DiskBBQBulkWriter {
 
     public abstract void writeVectors(QuantizedVectorValues qvv, CheckedIntConsumer<IOException> docsWriter) throws IOException;
 
-    public static class OneBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
+    /**
+     * Factory method to create a DiskBBQBulkWriter based on the bit size.
+     * @param bitSize the bit size of the quantized vectors
+     * @param bulkSize the number of vectors to write in bulk
+     * @param out the IndexOutput to write to
+     * @return a DiskBBQBulkWriter instance
+     */
+    public static DiskBBQBulkWriter fromBitSize(int bitSize, int bulkSize, IndexOutput out) {
+        return switch (bitSize) {
+            case 1, 2, 4 -> new SmallBitDiskBBQBulkWriter(bulkSize, out);
+            case 7 -> new LargeBitDiskBBQBulkWriter(bulkSize, out);
+            default -> throw new IllegalArgumentException("Unsupported bit size: " + bitSize);
+        };
+    }
+
+    private static final class SmallBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
-        public OneBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+        private SmallBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
             super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }
@@ -93,10 +108,10 @@ public abstract class DiskBBQBulkWriter {
         }
     }
 
-    public static class SevenBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
+    private static final class LargeBitDiskBBQBulkWriter extends DiskBBQBulkWriter {
         private final OptimizedScalarQuantizer.QuantizationResult[] corrections;
 
-        public SevenBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
+        private LargeBitDiskBBQBulkWriter(int bulkSize, IndexOutput out) {
             super(bulkSize, out);
             this.corrections = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
         }

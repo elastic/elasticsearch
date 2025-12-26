@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
@@ -38,16 +39,22 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction {
     public VarianceOverTime(
         Source source,
         @Param(
-            name = "number",
+            name = "field",
             type = { "double", "integer", "long" },
-            description = "Expression for which to calculate the variance over time."
-        ) Expression field
+            description = "the metric field to calculate the value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the variance over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public VarianceOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public VarianceOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     @Override
@@ -67,21 +74,21 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     protected NodeInfo<VarianceOverTime> info() {
-        return NodeInfo.create(this, VarianceOverTime::new, field(), filter());
+        return NodeInfo.create(this, VarianceOverTime::new, field(), filter(), window());
     }
 
     @Override
     public VarianceOverTime replaceChildren(List<Expression> newChildren) {
-        return new VarianceOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new VarianceOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public VarianceOverTime withFilter(Expression filter) {
-        return new VarianceOverTime(source(), field(), filter);
+        return new VarianceOverTime(source(), field(), filter, window());
     }
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        return new Variance(source(), field(), filter());
+        return new Variance(source(), field(), filter(), window());
     }
 }

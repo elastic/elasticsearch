@@ -109,7 +109,14 @@
       },
       "state": {
         "type": "list",
-        "description": "Filter snapshots by a comma-separated list of states. Valid state values are 'SUCCESS', 'IN_PROGRESS', 'FAILED', 'PARTIAL', or 'INCOMPATIBLE'."
+        "description": "Filter snapshots by a comma-separated list of states. Valid state values are 'SUCCESS', 'IN_PROGRESS', 'FAILED', 'PARTIAL', or 'INCOMPATIBLE'.",
+        "options": [
+          "IN_PROGRESS",
+          "SUCCESS",
+          "FAILED",
+          "PARTIAL",
+          "INCOMPATIBLE"
+        ]
       }
     }
   }

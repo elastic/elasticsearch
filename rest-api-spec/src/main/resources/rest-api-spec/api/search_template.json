@@ -45,6 +45,10 @@
         "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
       },
       "ignore_throttled": {
+        "deprecated": {
+          "version": "7.16.0",
+          "description": "This parameter is deprecated because frozen indices have been deprecated."
+        },
         "type": "boolean",
         "default": true,
         "description": "Whether specified concrete, expanded or aliased indices should be ignored when throttled"
@@ -55,7 +59,7 @@
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

@@ -69,6 +69,9 @@ public class TransportDeleteSampleConfigurationActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ActionFilters actionFilters = mock(ActionFilters.class);
         projectResolver = mock(ProjectResolver.class);
+        when(projectResolver.getProjectMetadata((ClusterState) any())).thenReturn(
+            ClusterState.EMPTY_STATE.projectState(ProjectId.DEFAULT).metadata()
+        );
         indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         samplingService = mock(SamplingService.class);
 
@@ -349,7 +352,7 @@ public class TransportDeleteSampleConfigurationActionTests extends ESTestCase {
         return new SamplingConfiguration(
             randomDoubleBetween(0.0, 1.0, true),
             randomBoolean() ? null : randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT),
-            randomBoolean() ? null : ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)),
+            randomBoolean() ? null : ByteSizeValue.ofMb(randomLongBetween(1, 100)),
             randomBoolean() ? null : TimeValue.timeValueDays(randomLongBetween(1, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS)),
             randomBoolean() ? null : randomAlphaOfLength(10)
         );

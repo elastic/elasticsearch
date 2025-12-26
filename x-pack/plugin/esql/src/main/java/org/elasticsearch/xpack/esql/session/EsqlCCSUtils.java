@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -27,7 +28,9 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
+import org.elasticsearch.xpack.esql.action.PlanningProfile;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -77,9 +80,9 @@ public class EsqlCCSUtils {
      */
     abstract static class CssPartialErrorsActionListener implements ActionListener<Versioned<LogicalPlan>> {
         private final EsqlExecutionInfo executionInfo;
-        private final ActionListener<Result> listener;
+        private final ActionListener<Versioned<Result>> listener;
 
-        CssPartialErrorsActionListener(EsqlExecutionInfo executionInfo, ActionListener<Result> listener) {
+        CssPartialErrorsActionListener(EsqlExecutionInfo executionInfo, ActionListener<Versioned<Result>> listener) {
             this.executionInfo = executionInfo;
             this.listener = listener;
         }
@@ -88,7 +91,12 @@ public class EsqlCCSUtils {
         public void onFailure(Exception e) {
             if (returnSuccessWithEmptyResult(executionInfo, e)) {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), DriverCompletionInfo.EMPTY, executionInfo));
+                listener.onResponse(
+                    new Versioned<>(
+                        new Result(Analyzer.NO_FIELDS, Collections.emptyList(), DriverCompletionInfo.EMPTY, executionInfo),
+                        TransportVersion.current()
+                    )
+                );
             } else {
                 listener.onFailure(e);
             }
@@ -290,14 +298,15 @@ public class EsqlCCSUtils {
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
-        execInfo.markEndPlanning();
-        if (execInfo.isCrossClusterSearch()) {
+        PlanningProfile.TimeSpanMarker planningProfile = execInfo.planningProfile().planning();
+        planningProfile.stop();
+        if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
                 if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                     execInfo.swapCluster(
                         clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.planningTookTime())
+                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(planningProfile.timeTook())
                             .setTotalShards(0)
                             .setSuccessfulShards(0)
                             .setSkippedShards(0)
@@ -325,38 +334,30 @@ public class EsqlCCSUtils {
             return;
         }
         try {
-            // TODO it is not safe to concat multiple index patterns in case any of them contains exclusion.
-            // This is going to be resolved in #136804
-            String[] indexExpressions = indexPatterns.stream()
-                .map(indexPattern -> Strings.splitStringByCommaToArray(indexPattern.indexPattern()))
-                .reduce((a, b) -> {
-                    String[] combined = new String[a.length + b.length];
-                    System.arraycopy(a, 0, combined, 0, a.length);
-                    System.arraycopy(b, 0, combined, a.length, b.length);
-                    return combined;
-                })
-                .get();
-            var groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, indexExpressions, false);
+            for (IndexPattern indexPattern : indexPatterns) {
+                var groupedIndices = indicesGrouper.groupIndices(
+                    IndicesOptions.DEFAULT,
+                    Strings.splitStringByCommaToArray(indexPattern.indexPattern()),
+                    false
+                );
 
-            executionInfo.clusterInfoInitializing(true);
-            // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
-            // so that the CCS telemetry handler can recognize that this error is CCS-related
-            try {
-                for (var entry : groupedIndices.entrySet()) {
-                    final String clusterAlias = entry.getKey();
-                    final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                        assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
+                executionInfo.clusterInfoInitializing(true);
+                // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
+                // so that the CCS telemetry handler can recognize that this error is CCS-related
+                try {
+                    groupedIndices.forEach((clusterAlias, indices) -> {
+                        executionInfo.initCluster(
+                            clusterAlias,
+                            EsqlExecutionInfo.LOCAL_CLUSTER_NAME_REPRESENTATION,
+                            Strings.arrayToCommaDelimitedString(indices.indices())
+                        );
                     });
+                } finally {
+                    executionInfo.clusterInfoInitializing(false);
                 }
-            } finally {
-                executionInfo.clusterInfoInitializing(false);
             }
 
-            if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
-                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-            }
+            validateCcsLicense(licenseState, executionInfo);
         } catch (NoSuchRemoteClusterException e) {
             if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
                 throw e;
@@ -364,6 +365,22 @@ public class EsqlCCSUtils {
                 throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
             }
         }
+    }
+
+    public static void validateCcsLicense(XPackLicenseState licenseState, EsqlExecutionInfo executionInfo) {
+        if (executionInfo.isCrossClusterSearch() && EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+            throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
+        }
+    }
+
+    public static void initCrossClusterState(EsIndex esIndex, EsqlExecutionInfo executionInfo) {
+        esIndex.originalIndices().forEach((clusterAlias, indices) -> {
+            executionInfo.initCluster(
+                clusterAlias,
+                EsqlExecutionInfo.ORIGIN_CLUSTER_NAME_REPRESENTATION,
+                Strings.collectionToCommaDelimitedString(indices)
+            );
+        });
     }
 
     /**

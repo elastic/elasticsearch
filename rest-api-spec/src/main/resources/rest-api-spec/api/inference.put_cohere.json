@@ -23,8 +23,13 @@
           ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "completion",
+                "rerank",
+                "text_embedding"
+              ]
             },
             "cohere_inference_id": {
               "type": "string",
@@ -37,6 +42,13 @@
     "body": {
       "description": "The inference endpoint's task and service settings",
       "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specifies the amount of time to wait for the inference endpoint to be created.",
+        "default": "30s"
+      }
     }
   }
 }

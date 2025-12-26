@@ -61,6 +61,11 @@ public class GetSampleStatsAction extends ActionType<GetSampleStatsAction.Respon
         }
 
         @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
         public ActionRequestValidationException validate() {
             if (this.indexName.contains("*")) {
                 return (ActionRequestValidationException) new ActionRequestValidationException().addValidationError(

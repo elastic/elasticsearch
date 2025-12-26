@@ -18,6 +18,8 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -51,12 +53,17 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_START = 1;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    private static final DirectIOCapableFlatVectorsFormat rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
-        rawVectorFormat.getName(),
-        rawVectorFormat
+        float32VectorFormat.getName(),
+        float32VectorFormat,
+        bfloat16VectorFormat.getName(),
+        bfloat16VectorFormat
     );
 
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
@@ -76,6 +83,65 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
                 ESVectorUtil.transposeHalfByte(quantized, destination);
+            }
+        },
+        TWO_BIT_4BIT_QUERY(1, (byte) 2, (byte) 4) {
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                ESVectorUtil.packDibit(quantized, destination);
+            }
+
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                ESVectorUtil.transposeHalfByte(quantized, destination);
+            }
+
+            @Override
+            public int discretizedDimensions(int dimensions) {
+                int queryDiscretized = (dimensions * 4 + 7) / 8 * 8 / 4;
+                // we want to force dibit packing to byte boundaries assuming single bit striping
+                // so we discretize to the same as single bit encoding
+                int docDiscretized = (dimensions + 7) / 8 * 8;
+                int maxDiscretized = Math.max(queryDiscretized, docDiscretized);
+                assert maxDiscretized % (8.0 / 4) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
+                assert maxDiscretized % (8.0 / 2) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
+                return maxDiscretized;
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                // discretized to single bit encoding, but we assume dibit packing (2 bits per value)
+                // so we need twice as many bytes as single bit encoding
+                int discretized = discretizedDimensions(dimensions);
+                return 2 * ((discretized + 7) / 8);
+            }
+        },
+        FOUR_BIT_SYMMETRIC(2, (byte) 4, (byte) 4) {
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                ESVectorUtil.transposeHalfByte(quantized, destination);
+            }
+
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                ESVectorUtil.transposeHalfByte(quantized, destination);
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                int discretized = discretizedDimensions(dimensions);
+                return 4 * ((discretized + 7) / 8);
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return getDocPackedLength(dimensions);
+            }
+
+            @Override
+            public int discretizedDimensions(int dimensions) {
+                int totalBits = dimensions * 4;
+                return (totalBits + 7) / 8 * 8 / 4;
             }
         };
 
@@ -146,19 +212,21 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
+    private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
     public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
-        this(quantEncoding, vectorPerCluster, centroidsPerParentCluster, false);
+        this(quantEncoding, vectorPerCluster, centroidsPerParentCluster, DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
     public ESNextDiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
         boolean useDirectIO
     ) {
         super(NAME);
@@ -185,6 +253,11 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = quantEncoding;
+        this.rawVectorFormat = switch (elementType) {
+            case FLOAT -> float32VectorFormat;
+            case BFLOAT16 -> bfloat16VectorFormat;
+            default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
+        };
         this.useDirectIO = useDirectIO;
     }
 

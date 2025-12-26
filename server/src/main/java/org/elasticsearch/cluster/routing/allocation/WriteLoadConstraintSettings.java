@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IndexingStats;
 
 /**
  * Settings definitions for the write load allocation decider and associated infrastructure
@@ -58,10 +59,32 @@ public class WriteLoadConstraintSettings {
         }
     }
 
+    /**
+     * Controls what type of shard-level write load estimate value the write load decider will use.
+     */
+    public enum WriteLoadDeciderShardWriteLoadType {
+        /** Max recent write load value seen for the life of the shard on a node */
+        PEAK,
+        /** The recent write load value */
+        RECENT;
+
+        public double getWriteLoad(IndexingStats indexingStats) {
+            return this == PEAK ? indexingStats.getTotal().getPeakWriteLoad() : indexingStats.getTotal().getRecentWriteLoad();
+        }
+    }
+
     public static final Setting<WriteLoadDeciderStatus> WRITE_LOAD_DECIDER_ENABLED_SETTING = Setting.enumSetting(
         WriteLoadDeciderStatus.class,
         SETTING_PREFIX + "enabled",
         WRITE_LOAD_DECIDER_FEATURE_FLAG.isEnabled() ? WriteLoadDeciderStatus.ENABLED : WriteLoadDeciderStatus.DISABLED,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<WriteLoadDeciderShardWriteLoadType> WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING = Setting.enumSetting(
+        WriteLoadDeciderShardWriteLoadType.class,
+        SETTING_PREFIX + "shard_write_load_type",
+        WriteLoadDeciderShardWriteLoadType.PEAK,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

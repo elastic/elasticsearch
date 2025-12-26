@@ -31,15 +31,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
-import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.xpack.core.ml.utils.SemanticTextInfoExtractor.extractIndexesReferencingInferenceEndpoints;
+import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsForResource;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.extractIndexesReferencingInferenceEndpoints;
 
 public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeAction<
     DeleteInferenceEndpointAction.Request,
@@ -195,12 +195,9 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
-        Set<String> pipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(request.getInferenceEndpointId()));
+        Set<String> pipelines = endpointIsReferencedInPipelines(state, request.getInferenceEndpointId());
 
-        Set<String> indexesReferencedBySemanticText = extractIndexesReferencingInferenceEndpoints(
-            state.getMetadata(),
-            Set.of(request.getInferenceEndpointId())
-        );
+        Set<String> indexesReferencedBySemanticText = endpointIsReferencedInIndex(state, request.getInferenceEndpointId());
 
         masterListener.onResponse(
             new DeleteInferenceEndpointAction.Response(
@@ -224,7 +221,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     }
 
     private boolean isInferenceIdReserved(String inferenceEndpointId) {
-        return modelRegistry.containsDefaultConfigId(inferenceEndpointId);
+        return modelRegistry.containsPreconfiguredInferenceEndpointId(inferenceEndpointId);
     }
 
     private static String buildErrorString(String inferenceEndpointId, Set<String> pipelines, Set<String> indexes) {
@@ -241,7 +238,10 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         }
 
         if (indexes.isEmpty() == false) {
-            errorString.append(" Inference endpoint ")
+            if (errorString.isEmpty() == false) {
+                errorString.append(" ");
+            }
+            errorString.append("Inference endpoint ")
                 .append(inferenceEndpointId)
                 .append(" is being used in the mapping for indexes: ")
                 .append(indexes)
@@ -258,7 +258,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     }
 
     private static Set<String> endpointIsReferencedInPipelines(final ClusterState state, final String inferenceEndpointId) {
-        return InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(inferenceEndpointId));
+        return pipelineIdsForResource(state.metadata(), Set.of(inferenceEndpointId));
     }
 
     @Override

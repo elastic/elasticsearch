@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -55,7 +54,7 @@ import java.util.function.Consumer;
 /**
  * Dispatches child field-caps requests to old/new data nodes in the local cluster that have shards of the requesting indices.
  */
-public final class RequestDispatcher {
+final class RequestDispatcher {
     static final Logger LOGGER = LogManager.getLogger(RequestDispatcher.class);
 
     private final TransportService transportService;
@@ -75,7 +74,7 @@ public final class RequestDispatcher {
     private final AtomicInteger executionRound = new AtomicInteger();
     private final Map<String, IndexSelector> indexSelectors;
 
-    public RequestDispatcher(
+    RequestDispatcher(
         ClusterService clusterService,
         TransportService transportService,
         ProjectResolver projectResolver,
@@ -128,7 +127,7 @@ public final class RequestDispatcher {
         }
     }
 
-    public void execute() {
+    void execute() {
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -271,18 +270,24 @@ public final class RequestDispatcher {
 
         IndexSelector(
             String clusterAlias,
-            List<SearchShardRouting> shardIts,
+            List<SearchShardRouting> shards,
             QueryBuilder indexFilter,
             long nowInMillis,
             CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
         ) {
-            for (ShardIterator shardIt : shardIts) {
+            for (SearchShardRouting searchShardRouting : shards) {
                 boolean canMatch = true;
-                final ShardId shardId = shardIt.shardId();
+                final ShardId shardId = searchShardRouting.shardId();
                 if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
                     var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
                     if (coordinatorRewriteContext != null) {
-                        var shardRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY, clusterAlias);
+                        var shardRequest = new ShardSearchRequest(
+                            shardId,
+                            nowInMillis,
+                            AliasFilter.EMPTY,
+                            clusterAlias,
+                            searchShardRouting.reshardSplitShardCountSummary()
+                        );
                         shardRequest.source(new SearchSourceBuilder().query(indexFilter));
                         try {
                             canMatch = SearchService.queryStillMatchesAfterRewrite(shardRequest, coordinatorRewriteContext);
@@ -292,7 +297,7 @@ public final class RequestDispatcher {
                     }
                 }
                 if (canMatch) {
-                    for (ShardRouting shard : shardIt) {
+                    for (ShardRouting shard : searchShardRouting) {
                         nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);
                     }
                 } else {

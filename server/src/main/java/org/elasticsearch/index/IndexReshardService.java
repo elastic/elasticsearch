@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 
@@ -20,6 +21,8 @@ import java.util.Set;
  * needed by other services.
  */
 public class IndexReshardService {
+    public static TransportVersion RESHARDING_SHARD_SUMMARY_IN_ESQL = TransportVersion.fromName("resharding_shard_summary_in_esql");
+
     /**
      * Returns the indices from the provided set that are currently being resharded.
      */

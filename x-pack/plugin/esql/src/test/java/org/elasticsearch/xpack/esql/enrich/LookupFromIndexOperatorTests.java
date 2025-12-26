@@ -300,7 +300,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             new EsField("lint", DataType.INTEGER, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         Expression lessThan = new LessThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.INTEGER));
-        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of());
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), List.of());
         Filter filter = new Filter(Source.EMPTY, esRelation, lessThan);
         return new FragmentExec(filter);
     }

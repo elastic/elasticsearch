@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.Before;
@@ -27,6 +29,10 @@ import static org.hamcrest.Matchers.hasEntry;
 
 @SuppressWarnings("unchecked")
 public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
+
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     @ClassRule()
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -35,7 +41,8 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         .module("mapper-extras")
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.otel_data.registry.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
@@ -53,6 +60,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
     }
 
     private RestClient client;
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
 
     public void testOverrideIndexSorting() throws IOException {
         var indexSortOverrideTemplate = """

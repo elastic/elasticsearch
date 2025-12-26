@@ -141,19 +141,18 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     ) {
         assert clusterState.nodes().isLocalNodeElectedMaster();
 
-        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
-
         // When we restore from a snapshot we remove the reserved cluster state for file settings,
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
         if (watching() && filesExists(watchedFile)) {
+            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
             }
-        } else if (fileSettingsMetadata != null) {
-            mdBuilder.removeReservedState(fileSettingsMetadata);
+        } else {
+            stateService.initEmpty(NAMESPACE, ActionListener.noop());
         }
     }
 
@@ -246,13 +245,13 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         if (e instanceof ExecutionException) {
             var cause = e.getCause();
             if (cause instanceof FailedToCommitClusterStateException) {
-                logger().error(Strings.format("Unable to commit cluster state while processing file [%s]", file), e);
+                logger().warn(Strings.format("Unable to commit cluster state while processing file [%s]", file), e);
                 return;
             } else if (cause instanceof XContentParseException) {
                 logger().error(Strings.format("Unable to parse settings from file [%s]", file), e);
                 return;
             } else if (cause instanceof NotMasterException) {
-                logger().error(Strings.format("Node is no longer master while processing file [%s]", file), e);
+                logger().warn(Strings.format("Node is no longer master while processing file [%s]", file), e);
                 return;
             }
         }

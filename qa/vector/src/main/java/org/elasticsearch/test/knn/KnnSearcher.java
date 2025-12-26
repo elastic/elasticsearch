@@ -37,6 +37,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FilterDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -111,6 +113,7 @@ class KnnSearcher {
     private final float overSamplingFactor;
     private final int searchThreads;
     private final int numSearchers;
+    private final boolean filterCached;
 
     KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, double visitPercentage) {
         this.docPath = cmdLineArgs.docVectors();
@@ -133,10 +136,13 @@ class KnnSearcher {
         this.numSearchers = cmdLineArgs.numSearchers();
         this.randomSeed = cmdLineArgs.seed();
         this.selectivity = cmdLineArgs.filterSelectivity();
+        this.filterCached = cmdLineArgs.filterCached();
     }
 
     void runSearch(KnnIndexTester.Results finalResults, boolean earlyTermination) throws IOException {
-        Query filterQuery = this.selectivity < 1f ? generateRandomQuery(new Random(randomSeed), indexPath, numDocs, selectivity) : null;
+        Query filterQuery = this.selectivity < 1f
+            ? generateRandomQuery(new Random(randomSeed), indexPath, numDocs, selectivity, filterCached)
+            : null;
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
@@ -301,9 +307,12 @@ class KnnSearcher {
         finalResults.averageVisited = (double) totalVisited / numQueryVectors;
         finalResults.netCpuTimeMS = (double) totalCpuTimeMS / numQueryVectors;
         finalResults.avgCpuCount = (double) totalCpuTimeMS / elapsed;
+        finalResults.filterCached = this.filterCached;
+        finalResults.overSamplingFactor = this.overSamplingFactor;
     }
 
-    private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity) throws IOException {
+    private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached)
+        throws IOException {
         FixedBitSet bitSet = new FixedBitSet(size);
         for (int i = 0; i < size; i++) {
             if (random.nextFloat() < selectivity) {
@@ -326,7 +335,7 @@ class KnnSearcher {
                 }
                 segmentDocs[leafContext.ord] = segmentBitSet;
             }
-            return new BitSetQuery(segmentDocs);
+            return new BitSetQuery(segmentDocs, filterCached);
         }
     }
 
@@ -653,9 +662,18 @@ class KnnSearcher {
 
     private static class BitSetQuery extends Query {
         private final BitSet[] segmentDocs;
+        private final int[] cardinalities;
+        private final int segmentHash;
+        private final boolean filterCached;
 
-        BitSetQuery(BitSet[] segmentDocs) {
+        BitSetQuery(BitSet[] segmentDocs, boolean filterCached) {
             this.segmentDocs = segmentDocs;
+            this.cardinalities = new int[segmentDocs.length];
+            for (int i = 0; i < segmentDocs.length; i++) {
+                cardinalities[i] = segmentDocs[i].cardinality();
+            }
+            this.segmentHash = Arrays.hashCode(cardinalities);
+            this.filterCached = filterCached;
         }
 
         @Override
@@ -663,8 +681,11 @@ class KnnSearcher {
             return new ConstantScoreWeight(this, boost) {
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     var bitSet = segmentDocs[context.ord];
-                    var cardinality = bitSet.cardinality();
-                    var scorer = new ConstantScoreScorer(score(), scoreMode, new BitSetIterator(bitSet, cardinality));
+                    var cardinality = cardinalities[context.ord];
+                    final DocIdSetIterator bitSetIterator = new BitSetIterator(bitSet, cardinality);
+                    final DocIdSetIterator iterator = filterCached ? bitSetIterator : new FilterDocIdSetIterator(bitSetIterator);
+
+                    var scorer = new ConstantScoreScorer(score(), scoreMode, iterator);
                     return new ScorerSupplier() {
                         @Override
                         public Scorer get(long leadCost) throws IOException {
@@ -700,7 +721,7 @@ class KnnSearcher {
 
         @Override
         public int hashCode() {
-            return 31 * classHash() + Arrays.hashCode(segmentDocs);
+            return 31 * classHash() + segmentHash;
         }
     }
 

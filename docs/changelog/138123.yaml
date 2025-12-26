@@ -1,0 +1,5 @@
+pr: 138123
+summary: ES|QL Update CHUNK to support `chunking_settings` as optional argument
+area: ES|QL
+type: enhancement
+issues: []

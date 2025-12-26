@@ -158,7 +158,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef hllScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -168,7 +168,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, scratch));
+        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
       }
     }
   }
@@ -223,7 +223,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef hllScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -233,7 +233,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, scratch));
+        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
       }
     }
   }
@@ -274,11 +274,11 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       return;
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    BytesRef hllScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, scratch));
+      CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
     }
   }
 

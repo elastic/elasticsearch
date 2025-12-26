@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 
 public final class WeightedTokensUtils {
+    private static final MatchNoDocsQuery EMPTY_FIELD = new MatchNoDocsQuery("query is against an empty field");
 
     private WeightedTokensUtils() {}
 
@@ -54,7 +55,7 @@ public final class WeightedTokensUtils {
         float bestWeight = tokens.stream().map(WeightedToken::weight).reduce(0f, Math::max);
         float averageTokenFreqRatio = getAverageTokenFreqRatio(fieldName, context.getIndexReader(), fieldDocCount);
         if (averageTokenFreqRatio == 0) {
-            return new MatchNoDocsQuery("query is against an empty field");
+            return EMPTY_FIELD;
         }
 
         for (var token : tokens) {

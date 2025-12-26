@@ -37,3 +37,40 @@
   - match: { _source.ip_location.country_name: "Sweden" }
   - match: { _source.ip_location.region_name: "Östergötland County" }
   - match: { _source.ip_location.continent_name: "Europe" }
+
+---
+"Test ip_location processor with a config directory database":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "ip_location" : {
+                  "field" : "field1",
+                  "database_file" : "asn.mmdb"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_2"
+        body: {field1: "5.104.168.0"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "5.104.168.0" }
+  - length: { _source.ip_location: 4 }
+  - match: { _source.ip_location.organization_name: "Telehouse EAD" }
+  - match: { _source.ip_location.asn: 57344 }
+  - match: { _source.ip_location.ip: "5.104.168.0" }
+  - match: { _source.ip_location.network: "5.104.168.0/23" }

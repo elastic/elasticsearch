@@ -116,6 +116,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                     var newData = testCase.getData().stream().map(td -> td.isMultiRow() ? td.withData(List.of()) : td).toList();
 
                     return new TestCaseSupplier.TestCase(
+                        testCase.getSource(),
+                        testCase.getConfiguration(),
                         newData,
                         testCase.evaluatorToString(),
                         testCase.expectedType(),
@@ -559,7 +561,10 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case IP -> "Ip";
             case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
             case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
+            case DATE_RANGE -> "LongRange";
+            case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
+            case TDIGEST -> "TDigest";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

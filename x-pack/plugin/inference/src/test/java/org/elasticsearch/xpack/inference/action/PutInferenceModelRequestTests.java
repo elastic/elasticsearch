@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
@@ -39,7 +42,20 @@ public class PutInferenceModelRequestTests extends AbstractBWCWireSerializationT
 
     @Override
     protected PutInferenceModelAction.Request mutateInstance(PutInferenceModelAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        TaskType taskType = instance.getTaskType();
+        String inferenceId = instance.getInferenceEntityId();
+        BytesReference content = instance.getContent();
+        XContentType contentType = instance.getContentType();
+        TimeValue timeout = instance.getTimeout();
+        switch (randomInt(4)) {
+            case 0 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
+            case 1 -> inferenceId = randomValueOtherThan(inferenceId, () -> randomAlphaOfLength(6));
+            case 2 -> content = randomValueOtherThan(content, () -> randomBytesReference(50));
+            case 3 -> contentType = randomValueOtherThan(contentType, () -> randomFrom(XContentType.values()));
+            case 4 -> timeout = randomValueOtherThan(timeout, ESTestCase::randomTimeValue);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutInferenceModelAction.Request(taskType, inferenceId, content, contentType, timeout);
     }
 
     @Override

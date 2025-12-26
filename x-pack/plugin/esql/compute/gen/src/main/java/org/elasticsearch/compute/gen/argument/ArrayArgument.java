@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.gen.argument;
 
 import com.squareup.javapoet.ArrayTypeName;
+import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
@@ -18,7 +19,6 @@ import java.util.List;
 import javax.lang.model.element.Modifier;
 
 import static org.elasticsearch.compute.gen.Methods.getMethod;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.RELEASABLE;
@@ -33,6 +33,11 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
             return ArrayTypeName.of(blockType(type));
         }
         return ArrayTypeName.of(vectorType(type));
+    }
+
+    @Override
+    public boolean supportsVectorReadAccess() {
+        return vectorType(type) != null;
     }
 
     @Override
@@ -105,10 +110,11 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
     @Override
     public void createScratch(MethodSpec.Builder builder) {
         builder.addStatement("$T[] $LValues = new $T[$L.length]", type, name, type, name);
-        if (isBytesRef()) {
-            builder.addStatement("$T[] $LScratch = new $T[$L.length]", type, name, type, name);
+        ClassName scratchType = scratchType();
+        if (scratchType != null) {
+            builder.addStatement("$T[] $LScratch = new $T[$L.length]", scratchType, name, scratchType, name);
             builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", name);
-            builder.addStatement("$LScratch[i] = new $T()", name, BYTES_REF);
+            builder.addStatement("$LScratch[i] = new $T()", name, scratchType);
             builder.endControlFlow();
         }
     }
@@ -136,8 +142,8 @@ public record ArrayArgument(TypeName type, String name) implements Argument {
         } else {
             lookupVar = "p";
         }
-        if (isBytesRef()) {
-            builder.addStatement("$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])", name, paramName(blockStyle), lookupVar, name);
+        if (scratchType() != null) {
+            builder.addStatement("$LValues[i] = $L[i].$L($L, $LScratch[i])", name, paramName(blockStyle), getMethod(type), lookupVar, name);
         } else {
             builder.addStatement("$LValues[i] = $L[i].$L($L)", name, paramName(blockStyle), getMethod(type), lookupVar);
         }

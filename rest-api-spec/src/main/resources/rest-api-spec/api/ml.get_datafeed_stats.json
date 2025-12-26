@@ -20,8 +20,8 @@
           ],
           "parts": {
             "datafeed_id": {
-              "type": "string",
-              "description": "The ID of the datafeeds stats to fetch"
+              "type": "list",
+              "description": "Comma-separated list of datafeed identifiers or wildcard expressions. If you do not specify one of these options, the API returns information about all datafeeds."
             }
           }
         },

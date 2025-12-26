@@ -1,5 +1,8 @@
 {
   "properties": {
+    "id": {
+      "type": "integer"
+    },
     "color": {
       "type": "text"
     },
@@ -12,6 +15,16 @@
     "rgb_vector": {
       "type": "dense_vector",
       "similarity": "l2_norm",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
+    },
+    "rgb_byte_vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "element_type": "byte",
       "index_options": {
         "type": "hnsw",
         "m": 16,

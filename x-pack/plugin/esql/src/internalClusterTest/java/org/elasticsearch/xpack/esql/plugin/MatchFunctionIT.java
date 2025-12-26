@@ -319,6 +319,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | rename id as id_left
             | LOOKUP JOIN test_lookup ON id_left == id and MATCH(lookup_content, "fox")
             | WHERE id > 0
+            | SORT id, id_left, content, lookup_content
             """;
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("content", "id_left", "id", "lookup_content"));

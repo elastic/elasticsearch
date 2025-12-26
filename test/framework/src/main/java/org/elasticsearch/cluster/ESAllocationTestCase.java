@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeight
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -211,7 +213,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             null,
             EMPTY_NODE_ALLOCATION_STATS,
             TEST_ONLY_EXPLAINER,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         ) {
             private RoutingAllocation lastAllocation;
 
@@ -399,6 +402,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         final var result = allocationService.reroute(clusterState, "test reroute", listener);
         safeGet(listener::result); // ensures it completed successfully
         return result;
+    }
+
+    public static void assertDecisionMatches(String description, Decision decision, Decision.Type type, String explanationPattern) {
+        assertEquals(description, type, decision.type());
+        if (explanationPattern == null) {
+            assertNull(decision.getExplanation());
+        } else {
+            assertTrue(
+                org.elasticsearch.common.Strings.format("Expected: \"%s\", got \"%s\"", explanationPattern, decision.getExplanation()),
+                Regex.simpleMatch(explanationPattern, decision.getExplanation())
+            );
+        }
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

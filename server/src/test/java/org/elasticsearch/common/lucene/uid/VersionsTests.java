@@ -200,7 +200,7 @@ public class VersionsTests extends ESTestCase {
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         String id = createTSDBId(1000L);
         assertThat(
-            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, randomBoolean()),
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, randomBoolean(), false),
             nullValue()
         );
 
@@ -222,11 +222,23 @@ public class VersionsTests extends ESTestCase {
         directoryReader = reopen(directoryReader);
 
         id = createTSDBId(randomLongBetween(1000, 10000));
-        assertThat(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, true), notNullValue());
-        assertThat(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("2"), id, true), notNullValue());
+        assertThat(
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, true, false),
+            notNullValue()
+        );
+        assertThat(
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("2"), id, true, false),
+            notNullValue()
+        );
         id = createTSDBId(randomBoolean() ? randomLongBetween(0, 999) : randomLongBetween(10001, Long.MAX_VALUE));
-        assertThat(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, true), nullValue());
-        assertThat(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("2"), id, true), nullValue());
+        assertThat(
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, true, false),
+            nullValue()
+        );
+        assertThat(
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("2"), id, true, false),
+            nullValue()
+        );
 
         directoryReader.close();
         writer.close();

@@ -11,6 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.aggregation.TDigestStates;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,9 +27,11 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.compute.aggregation.ExponentialHistogramStates.MAX_BUCKET_COUNT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercentileTests extends AbstractAggregationTestCase {
@@ -38,7 +46,9 @@ public class PercentileTests extends AbstractAggregationTestCase {
         var fieldCases = Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
+            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
         ).flatMap(List::stream).toList();
 
         var percentileCases = Stream.of(
@@ -71,20 +81,47 @@ public class PercentileTests extends AbstractAggregationTestCase {
 
             var percentile = ((Number) percentileTypedData.data()).doubleValue();
 
-            try (var digest = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), 1000)) {
-                for (var value : fieldTypedData.multiRowData()) {
-                    digest.add(((Number) value).doubleValue());
-                }
-
-                var expected = digest.size() == 0 ? null : digest.quantile(percentile / 100);
-
-                return new TestCaseSupplier.TestCase(
-                    List.of(fieldTypedData, percentileTypedData),
-                    standardAggregatorName("Percentile", fieldSupplier.type()),
-                    DataType.DOUBLE,
-                    equalTo(expected)
+            Double expected = switch (fieldTypedData.type()) {
+                case EXPONENTIAL_HISTOGRAM -> getExpectedPercentileForExponentialHistograms(
+                    Types.forciblyCast(fieldTypedData.multiRowData()),
+                    percentile
                 );
-            }
+                case TDIGEST -> getExpectedPercentileForTDigests(Types.forciblyCast(fieldTypedData.multiRowData()), percentile);
+                default -> getExpectedPercentileForNumbers(Types.forciblyCast(fieldTypedData.multiRowData()), percentile);
+            };
+
+            return new TestCaseSupplier.TestCase(
+                List.of(fieldTypedData, percentileTypedData),
+                standardAggregatorName("Percentile", fieldSupplier.type()),
+                DataType.DOUBLE,
+                equalTo(expected)
+            );
         });
+    }
+
+    private static Double getExpectedPercentileForNumbers(List<Number> values, double percentile) {
+        try (var digest = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), 1000)) {
+            for (var value : values) {
+                digest.add(value.doubleValue());
+            }
+            return digest.size() == 0 ? null : digest.quantile(percentile / 100);
+        }
+    }
+
+    public static Double getExpectedPercentileForExponentialHistograms(List<ExponentialHistogram> values, double percentile) {
+        ExponentialHistogram merged = ExponentialHistogram.merge(
+            MAX_BUCKET_COUNT,
+            ExponentialHistogramCircuitBreaker.noop(),
+            values.stream().filter(Objects::nonNull).toList().iterator()
+        );
+        double result = ExponentialHistogramQuantile.getQuantile(merged, percentile / 100.0);
+        return Double.isNaN(result) ? null : result;
+    }
+
+    private static Double getExpectedPercentileForTDigests(List<TDigestHolder> values, double percentile) {
+        TDigestState merged = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
+        values.stream().filter(Objects::nonNull).forEach(tDigestHolder -> tDigestHolder.addTo(merged));
+        double result = merged.quantile(percentile / 100.0);
+        return Double.isNaN(result) ? null : result;
     }
 }

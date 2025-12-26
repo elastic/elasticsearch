@@ -50,6 +50,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         }
         return switch (elementType) {
             case FLOAT -> new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
+            case BFLOAT16 -> new BFloat16DenseVectorFromBinary(docValues, dims, indexVersion);
             case BYTE -> new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
             case BIT -> new BitDenseVectorFromBinary(docValues, dims, indexVersion);
         };
@@ -129,6 +130,29 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         @Override
         public String toString() {
             return "FloatDenseVectorFromBinary.Bytes";
+        }
+    }
+
+    private static class BFloat16DenseVectorFromBinary extends AbstractDenseVectorFromBinary<float[]> {
+        BFloat16DenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion, new float[dims]);
+        }
+
+        @Override
+        protected void writeScratchToBuilder(float[] scratch, BlockLoader.FloatBuilder builder) {
+            for (float value : scratch) {
+                builder.appendFloat(value);
+            }
+        }
+
+        @Override
+        protected void decodeDenseVector(BytesRef bytesRef, float[] scratch) {
+            VectorEncoderDecoder.decodeBFloat16DenseVector(bytesRef, scratch);
+        }
+
+        @Override
+        public String toString() {
+            return "BFloat16DenseVectorFromBinary.Bytes";
         }
     }
 

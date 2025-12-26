@@ -2,8 +2,6 @@
 * [`AVG`](../../functions-operators/aggregation-functions.md#esql-avg)
 * [`COUNT`](../../functions-operators/aggregation-functions.md#esql-count)
 * [`COUNT_DISTINCT`](../../functions-operators/aggregation-functions.md#esql-count_distinct)
-* [`FIRST`](../../functions-operators/aggregation-functions.md#esql-first) {applies_to}`stack: ga 9.2`
-* [`LAST`](../../functions-operators/aggregation-functions.md#esql-last) {applies_to}`stack: ga 9.2`
 * [`MAX`](../../functions-operators/aggregation-functions.md#esql-max)
 * [`MEDIAN`](../../functions-operators/aggregation-functions.md#esql-median)
 * [`MEDIAN_ABSOLUTE_DEVIATION`](../../functions-operators/aggregation-functions.md#esql-median_absolute_deviation)

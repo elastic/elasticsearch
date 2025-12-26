@@ -7,19 +7,20 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.ZoneId;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigurationBuilder;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 
 public abstract class AbstractConfigurationFunctionTestCase extends AbstractScalarFunctionTestCase {
     protected abstract Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration);
@@ -32,34 +33,30 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
     public void testSerializationWithConfiguration() {
         assumeTrue("can't serialize function", canSerialize());
 
-        Configuration config = randomConfiguration();
+        Configuration config = randomConfiguration(testCase.getSource().text(), randomTables());
         Expression expr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), config);
 
         assertSerialization(expr, config);
 
-        Configuration differentConfig = randomValueOtherThan(config, AbstractConfigurationFunctionTestCase::randomConfiguration);
+        Configuration differentConfig = randomValueOtherThan(
+            config,
+            // The source must match the original (static) one, as function source serialization depends on it
+            () -> randomConfiguration(testCase.getSource().text(), randomTables())
+        );
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
         assertNotEquals(expr, differentExpr);
     }
 
-    private static Configuration randomConfiguration() {
-        // TODO: Randomize the query and maybe the pragmas.
-        return new Configuration(
-            randomZone(),
-            randomLocale(random()),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            QueryPragmas.EMPTY,
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            StringUtils.EMPTY,
-            randomBoolean(),
-            Map.of(),
-            System.nanoTime(),
-            randomBoolean(),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
-        );
+    protected static Configuration configurationForTimezone(ZoneId zoneId) {
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).zoneId(zoneId).build();
+    }
+
+    protected static Configuration configurationForLocale(Locale locale) {
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).locale(locale).build();
+    }
+
+    protected static Configuration configurationForTimezoneAndLocale(ZoneId zoneId, Locale locale) {
+        return randomConfigurationBuilder().query(TEST_SOURCE.text()).zoneId(zoneId).locale(locale).build();
     }
 }

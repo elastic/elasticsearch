@@ -9,12 +9,19 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -22,20 +29,25 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.Transport;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -94,7 +106,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            Mockito.mock(SearchResponseMetrics.class)
+            Mockito.mock(SearchResponseMetrics.class),
+            Map.of()
         ) {
             @Override
             protected SearchPhase getNextPhase() {
@@ -249,6 +262,152 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
+    public void testMaybeReEncode() {
+        String[] nodeIds = new String[] { "node1", "node2", "node3" };
+        AtomicInteger idGenerator = new AtomicInteger(0);
+        Map<ShardId, SearchContextIdForNode> originalShardIdMap = randomMap(
+            10,
+            20,
+            () -> new Tuple<>(
+                new ShardId("index", "index-uuid", idGenerator.getAndIncrement()),
+                new SearchContextIdForNode(
+                    null,
+                    randomFrom(nodeIds),
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), randomUUID())
+                )
+            )
+        );
+        PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(
+            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY)
+        );
+
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        Arrays.stream(nodeIds).forEach(id -> nodesBuilder.add(DiscoveryNodeUtils.create(id)));
+        DiscoveryNodes nodes = nodesBuilder.build();
+        final Set<ShardSearchContextId> freedContexts = new CopyOnWriteArraySet<>();
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+
+            @Override
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
+                freedContexts.add(contextId);
+            }
+
+            @Override
+            public Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                return new SearchAsyncActionTests.MockConnection(node);
+            }
+        };
+
+        {
+            // case 1, result shard ids are identical to original PIT ids
+            ArrayList<SearchPhaseResult> results = new ArrayList<>();
+            for (ShardId shardId : originalShardIdMap.keySet()) {
+                SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
+                results.add(
+                    new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
+                        new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
+                    )
+                );
+            }
+            BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
+                pointInTimeBuilder,
+                results,
+                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                TransportVersionUtils.randomCompatibleVersion(random()),
+                searchTransportService,
+                nodes,
+                logger
+            );
+            assertEquals(0, freedContexts.size());
+            assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
+        }
+        freedContexts.clear();
+        {
+            // case 2, some results are from different nodes but have same context Ids
+            ArrayList<SearchPhaseResult> results = new ArrayList<>();
+            Set<ShardId> shardsWithSwappedNodes = new HashSet<>();
+            for (ShardId shardId : originalShardIdMap.keySet()) {
+                SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
+                // only swap node for ids there have a non-null node id, i.e. those that didn't fail when opening a PIT
+                if (randomBoolean() && searchContextIdForNode.getNode() != null) {
+                    // swap to a different node
+                    PhaseResult otherNode = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
+                        new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias())
+                    );
+                    results.add(otherNode);
+                    shardsWithSwappedNodes.add(shardId);
+                } else {
+                    results.add(
+                        new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
+                            new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
+                        )
+                    );
+                }
+            }
+            BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
+                pointInTimeBuilder,
+                results,
+                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                TransportVersionUtils.randomCompatibleVersion(random()),
+                searchTransportService,
+                nodes,
+                logger
+            );
+            assertNotSame(reEncodedId, pointInTimeBuilder.getEncodedId());
+            SearchContextId reEncodedPit = SearchContextId.decode(
+                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                reEncodedId
+            );
+            assertEquals(originalShardIdMap.size(), reEncodedPit.shards().size());
+            for (ShardId shardId : originalShardIdMap.keySet()) {
+                SearchContextIdForNode original = originalShardIdMap.get(shardId);
+                SearchContextIdForNode reEncoded = reEncodedPit.shards().get(shardId);
+                assertNotNull(reEncoded);
+                if (shardsWithSwappedNodes.contains(shardId)) {
+                    assertNotEquals(original.getNode(), reEncoded.getNode());
+                    assertTrue(freedContexts.contains(reEncoded.getSearchContextId()));
+                } else {
+                    assertEquals(original.getNode(), reEncoded.getNode());
+                    assertFalse(freedContexts.contains(reEncoded.getSearchContextId()));
+                }
+                assertEquals(original.getSearchContextId(), reEncoded.getSearchContextId());
+            }
+        }
+        freedContexts.clear();
+        {
+            // case 3, result shard ids are identical to original PIT id but some are missing. Stay with original PIT id in this case
+            ArrayList<SearchPhaseResult> results = new ArrayList<>();
+            for (ShardId shardId : originalShardIdMap.keySet()) {
+                SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
+                if (randomBoolean()) {
+                    results.add(
+                        new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
+                            new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
+                        )
+                    );
+                }
+            }
+            BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
+                pointInTimeBuilder,
+                results,
+                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                TransportVersionUtils.randomCompatibleVersion(random()),
+                searchTransportService,
+                nodes,
+                logger
+            );
+            assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
+        }
+    }
+
+    private ShardSearchContextId randomSearchShardId() {
+        return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+    }
+
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(
         Set<ShardSearchContextId> contextIds,
         List<Tuple<String, String>> nodeLookups,
@@ -275,6 +434,12 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private static final class PhaseResult extends SearchPhaseResult {
         PhaseResult(ShardSearchContextId contextId) {
             this.contextId = contextId;
+        }
+
+        PhaseResult withShardTarget(SearchShardTarget shardTarget) {
+            PhaseResult phaseResult = new PhaseResult(contextId);
+            phaseResult.setSearchShardTarget(shardTarget);
+            return phaseResult;
         }
     }
 }

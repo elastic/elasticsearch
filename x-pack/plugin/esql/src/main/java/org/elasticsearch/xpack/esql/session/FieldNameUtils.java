@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -109,6 +111,7 @@ public class FieldNameUtils {
         var canRemoveAliases = new Holder<>(true);
 
         var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
+        Holder<LogicalPlan> lastSeenFork = new Holder<>(null);
         forEachDownProcessor.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
             if (p instanceof Fork fork) {
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
@@ -119,7 +122,14 @@ public class FieldNameUtils {
                     referencesBuilder.set(AttributeSet.builder());
                     var isNestedFork = forkBranch.forEachDownMayReturnEarly(forEachDownProcessor.get());
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.
-                    assert isNestedFork == false : "Nested FORKs are not yet supported";
+                    LogicalPlan lastFork = lastSeenFork.get();
+                    if (lastFork != null && fork instanceof UnionAll == false && lastFork instanceof UnionAll == false) {
+                        // UnionAll is a special case of FORK, fork inside subquery or fork after subquery or nested subqueries can
+                        // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
+                        // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
+                        // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
+                        assert isNestedFork == false : "Nested FORKs are not yet supported";
+                    }
                     // This is a safety measure for fork where the list of fields returned is empty.
                     // It can be empty for a branch that does need all the fields. For example "fork (where true) (where a is not null)"
                     // but it can also be empty for queries where NO fields are needed from ES,
@@ -128,6 +138,7 @@ public class FieldNameUtils {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
                         breakEarly.set(true);
+                        lastSeenFork.set(fork);
                         return;
                     }
                     forkRefsResult.addAll(referencesBuilder.get());
@@ -138,6 +149,7 @@ public class FieldNameUtils {
 
                 // Return early, we've already explored all fork branches.
                 breakEarly.set(true);
+                lastSeenFork.set(fork);
                 return;
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
@@ -151,6 +163,9 @@ public class FieldNameUtils {
                 referencesBuilder.get().addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 joinRefs.addAll(join.config().leftFields());
+                if (join.config().joinOnConditions() != null) {
+                    joinRefs.addAll(join.config().joinOnConditions().references());
+                }
                 if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
@@ -162,12 +177,12 @@ public class FieldNameUtils {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    referencesBuilder.get().add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.get().add(UnresolvedTimestamp.withSource(ur.source()));
                 }
 
                 p.forEachExpression(UnresolvedFunction.class, uf -> {
                     if (FUNCTIONS_REQUIRING_TIMESTAMP.contains(uf.name().toLowerCase(Locale.ROOT))) {
-                        referencesBuilder.get().add(new UnresolvedAttribute(uf.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                        referencesBuilder.get().add(UnresolvedTimestamp.withSource(uf.source()));
                     }
                 });
 

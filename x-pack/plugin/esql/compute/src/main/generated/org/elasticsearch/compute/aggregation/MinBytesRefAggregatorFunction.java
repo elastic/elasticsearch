@@ -156,8 +156,8 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MinBytesRefAggregator.combineIntermediate(state, min.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef minScratch = new BytesRef();
+    MinBytesRefAggregator.combineIntermediate(state, min.getBytesRef(0, minScratch), seen.getBoolean(0));
   }
 
   @Override

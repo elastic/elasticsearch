@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -112,7 +113,7 @@ public final class AnalyzerTestUtils {
         );
     }
 
-    private static Map<IndexPattern, IndexResolution> mergeIndexResolutions(
+    public static Map<IndexPattern, IndexResolution> mergeIndexResolutions(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Map<IndexPattern, IndexResolution> more
     ) {
@@ -149,11 +150,22 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, Analyzer analyzer) {
-        var plan = new EsqlParser().createStatement(query);
+        var plan = EsqlParser.INSTANCE.parseQuery(query);
         // System.out.println(plan);
         var analyzed = analyzer.analyze(plan);
         // System.out.println(analyzed);
         return analyzed;
+    }
+
+    public static LogicalPlan analyze(String query, TransportVersion transportVersion) {
+        Analyzer baseAnalyzer = expandedDefaultAnalyzer();
+        if (baseAnalyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
+                return analyze(query, baseAnalyzer);
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
     }
 
     private static final Pattern indexFromPattern = Pattern.compile("(?i)FROM\\s+([\\w-]+)");
@@ -172,7 +184,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, String index, String mapping, QueryParams params) {
-        var plan = new EsqlParser().createStatement(query, params);
+        var plan = EsqlParser.INSTANCE.parseQuery(query, params);
         var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, index), loadMapping(mapping, index));
         var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query));
         return analyzer.analyze(plan);
@@ -191,13 +203,13 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode));
-        return IndexResolution.valid(test);
+        return IndexResolution.valid(
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
+        );
     }
 
     public static IndexResolution loadMapping(String resource, String indexName) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, IndexMode.STANDARD));
-        return IndexResolution.valid(test);
+        return loadMapping(resource, indexName, IndexMode.STANDARD);
     }
 
     public static Map<IndexPattern, IndexResolution> analyzerDefaultMapping() {
@@ -309,7 +321,11 @@ public final class AnalyzerTestUtils {
             new IndexPattern(Source.EMPTY, "sample_data"),
             loadMapping("mapping-sample_data.json", "sample_data"),
             new IndexPattern(Source.EMPTY, "test_mixed_types"),
-            loadMapping("mapping-default-incompatible.json", "test_mixed_types")
+            loadMapping("mapping-default-incompatible.json", "test_mixed_types"),
+            new IndexPattern(Source.EMPTY, "k8s"),
+            loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES),
+            new IndexPattern(Source.EMPTY, "remote:missingIndex"),
+            IndexResolution.EMPTY_SUBQUERY
         );
     }
 
@@ -395,7 +411,10 @@ public final class AnalyzerTestUtils {
         EsIndex index = new EsIndex(
             "index*",
             Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
-            Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD)
+            Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
         );
         return IndexResolution.valid(index);
     }

@@ -69,7 +69,8 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected JinaAIRerankServiceSettings mutateInstance(JinaAIRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, JinaAIRerankServiceSettingsTests::createRandom);
+        JinaAIServiceSettings commonSettings = randomValueOtherThan(instance.getCommonSettings(), JinaAIServiceSettingsTests::createRandom);
+        return new JinaAIRerankServiceSettings(commonSettings);
     }
 
     @Override

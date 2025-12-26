@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -38,10 +37,10 @@ public class MultiFieldsSerializationTests extends ESTestCase {
         sortedNames.sort(Comparator.naturalOrder());
 
         for (String name : names) {
-            builder.add(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.current(), null));
+            builder.add(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, defaultIndexSettings()));
         }
 
-        Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, false, IndexVersion.current(), null);
+        Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, defaultIndexSettings());
         FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.root(false, false));
 
         String serialized = Strings.toString(multiFields);

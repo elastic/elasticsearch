@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -91,7 +94,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class VerifierTests extends ESTestCase {
 
-    private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer fullTextAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-full_text_search.json", "test"));
     private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
@@ -101,7 +103,7 @@ public class VerifierTests extends ESTestCase {
     {
         // Load Time Series mappings for these tests
         Map<String, EsField> mappingK8s = EsqlTestUtils.loadMapping("k8s-mappings.json");
-        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
+        EsIndex k8sIndex = EsIndexGenerator.esIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
         IndexResolution getIndexResult = IndexResolution.valid(k8sIndex);
         k8s = new Analyzer(
             testAnalyzerContext(
@@ -149,7 +151,7 @@ public class VerifierTests extends ESTestCase {
         // Also add an unsupported/multityped field under the names `int` and `double` so we can use `LOOKUP int_number_names ...` and
         // `LOOKUP double_number_names` without renaming the fields first.
         IndexResolution indexWithUnsupportedAndMultiTypedField = IndexResolution.valid(
-            new EsIndex(
+            EsIndexGenerator.esIndex(
                 "test*",
                 Map.of(unsupported, unsupportedField, multiTyped, multiTypedField, "int", unsupportedField, "double", multiTypedField)
             )
@@ -408,7 +410,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
+            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
+                + " exponential_histogram, tdigest or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -836,7 +839,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
+            "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
+                + " exponential_histogram, tdigest or numeric except unsigned_long or counter types],"
                 + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
@@ -1151,7 +1155,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [min(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double,"
+                    + " exponential_histogram, tdigest or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1160,7 +1165,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [max(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram,"
+                    + " tdigest or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1168,7 +1174,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
-                "1:19: argument of [count(network.bytes_out)] must be [any type except counter types or dense_vector],"
+                "1:19: argument of [count(network.bytes_out)] must be"
+                    + " [any type except counter types, dense_vector, tdigest, histogram, exponential_histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -1189,12 +1196,12 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithRate() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(rate(network.total_cost))", k8s),
-            equalTo("1:38: Rate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1204,12 +1211,12 @@ public class VerifierTests extends ESTestCase {
                 "TS k8s | RENAME @timestamp AS newTs | STATS max(last_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
                 k8s
             ),
-            equalTo("1:49: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [last_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(last_over_time(network.eth0.tx))", k8s),
-            equalTo("1:38: Last Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [last_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1219,72 +1226,72 @@ public class VerifierTests extends ESTestCase {
                 "TS k8s | RENAME @timestamp AS newTs | STATS max(first_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
                 k8s
             ),
-            equalTo("1:49: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [first_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(first_over_time(network.eth0.tx))", k8s),
-            equalTo("1:38: First Over Time aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [first_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIncrease() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(increase(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [increase(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(increase(network.eth0.tx))", k8s),
-            equalTo("1:38: Increase aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [increase(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIRate() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(irate(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [irate(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(irate(network.eth0.tx))", k8s),
-            equalTo("1:38: Irate aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [irate(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithDelta() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(delta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [delta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(delta(network.eth0.tx))", k8s),
-            equalTo("1:38: Delta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [delta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestmapWithIDelta() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(idelta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)", k8s),
-            equalTo("1:49: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:49: [idelta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(idelta(network.eth0.tx))", k8s),
-            equalTo("1:38: IDelta aggregation requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:38: [idelta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
     public void testRenameOrDropTimestampWithTBucket() {
         assertThat(
             error("TS k8s | RENAME @timestamp AS newTs | STATS max(max_over_time(network.eth0.tx))  BY tbucket = tbucket(1hour)", k8s),
-            equalTo("1:95: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:95: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         assertThat(
             error("TS k8s | DROP @timestamp | STATS max(max_over_time(network.eth0.tx)) BY tbucket = tbucket(1hour)", k8s),
-            equalTo("1:83: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:83: [tbucket(1hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
 
@@ -1332,28 +1339,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTimeseriesAggregate() {
-        assertThat(
-            error("TS test  | STATS rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used with the TS command "
-                    + "and inside another aggregate function"
-            )
-        );
-        assertThat(
-            error("TS test  | STATS avg_over_time(network.connections)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [avg_over_time(network.connections)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
-        assertThat(
-            error("TS test  | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:47: time-series aggregate function [rate(network.bytes_in)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
-
         assertThat(error("TS test  | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
             1:22: nested aggregations [avg(rate(network.bytes_in))] \
             not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
@@ -1366,13 +1351,6 @@ public class VerifierTests extends ESTestCase {
             line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
             inside over-time aggregation function [rate(network.bytes_in)]"""));
 
-        assertThat(
-            error("TS test  | STATS rate(network.bytes_in) BY bucket(@timestamp, 1 hour)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
         assertThat(
             error("TS test  | STATS COUNT(*)", tsdb),
             equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
@@ -1412,8 +1390,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchInsideEval() throws Exception {
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE and STATS commands"
-                + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+            "1:36: [:] operator is only supported in WHERE and STATS commands or in EVAL within score(.) function"
                 + "\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
@@ -1581,8 +1558,7 @@ public class VerifierTests extends ESTestCase {
                     + functionName
                     + "] "
                     + functionType
-                    + " is only supported in WHERE and STATS commands"
-                    + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                    + " is only supported in WHERE and STATS commands or in EVAL within score(.) function"
             )
         );
         assertThat(
@@ -1602,8 +1578,7 @@ public class VerifierTests extends ESTestCase {
                         + functionName
                         + "] "
                         + functionType
-                        + " is only supported in WHERE and STATS commands"
-                        + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                        + " is only supported in WHERE and STATS commands or in EVAL within score(.) function"
                 )
             );
         }
@@ -2590,17 +2565,17 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsNullArgs() throws Exception {
-        checkFullTextFunctionNullArgs("match(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match(title, null)", "second");
+        checkFullTextFunctionAcceptsNullField("match(null, \"test\")");
         checkFullTextFunctionNullArgs("qstr(null)", "");
         checkFullTextFunctionNullArgs("kql(null)", "");
-        checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
-        checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
+        checkFullTextFunctionAcceptsNullField("match_phrase(null, \"test\")");
         checkFullTextFunctionNullArgs("knn(vector, null)", "second");
+        checkFullTextFunctionAcceptsNullField("knn(null, [0, 1, 2])");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
+            checkFullTextFunctionAcceptsNullField("multi_match(\"test\", null)");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
@@ -2613,6 +2588,10 @@ public class VerifierTests extends ESTestCase {
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
         );
+    }
+
+    private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
+        fullTextAnalyzer.analyze(EsqlParser.INSTANCE.parseQuery("from test | where " + functionInvocation));
     }
 
     public void testInsistNotOnTopOfFrom() {
@@ -2636,9 +2615,7 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testDecayFunctionNullArgs() {
-        assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
+    public void testDecayArgs() {
         // First arg cannot be null
         assertEquals(
             "2:23: first argument of [decay(null, origin, scale, "
@@ -2668,6 +2645,49 @@ public class VerifierTests extends ESTestCase {
                     + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
             )
         );
+
+        // Offset value type
+        assertEquals(
+            "2:23: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:118: offset option has invalid type, expected [time_duration], found [keyword]",
+            error(
+                "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
+                    + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:110: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value =  TO_CARTESIANPOINT(\"POINT(10 0)\"), origin = TO_CARTESIANPOINT(\"POINT(0 0)\")"
+                    + "| eval decay_result = decay(value, origin, 10.0, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Type option value
+        assertEquals(
+            "2:23: Invalid option [type] in "
+                + "[decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})], allowed types [[KEYWORD]]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})"
+            )
+        );
+
+        assertEquals(
+            "2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})"
+            )
+        );
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {
@@ -2686,28 +2706,18 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_cosine(null, vector)");
-            checkVectorFunctionsNullArgs("v_cosine(vector, null)");
-        }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_dot_product(null, vector)");
-            checkVectorFunctionsNullArgs("v_dot_product(vector, null)");
-        }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_l1_norm(null, vector)");
-            checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
-        }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
-            checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
-        }
+        checkVectorFunctionsNullArgs("v_cosine(null, vector)");
+        checkVectorFunctionsNullArgs("v_cosine(vector, null)");
+        checkVectorFunctionsNullArgs("v_dot_product(null, vector)");
+        checkVectorFunctionsNullArgs("v_dot_product(vector, null)");
+        checkVectorFunctionsNullArgs("v_l1_norm(null, vector)");
+        checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
+        checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
+        checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
+        checkVectorFunctionsNullArgs("v_hamming(null, vector)");
+        checkVectorFunctionsNullArgs("v_hamming(vector, null)");
         if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
             checkVectorFunctionsNullArgs("v_magnitude(null)");
-        }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_hamming(null, vector)");
-            checkVectorFunctionsNullArgs("v_hamming(vector, null)");
         }
     }
 
@@ -2735,7 +2745,7 @@ public class VerifierTests extends ESTestCase {
     public void testInvalidTBucketCalls() {
         assertThat(
             error("from test | stats max(emp_no) by tbucket(1 hour)"),
-            equalTo("1:34: TBucket function requires @timestamp field, but @timestamp was renamed or dropped")
+            equalTo("1:34: [tbucket(1 hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
@@ -2761,7 +2771,7 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1 hour\")", oddSampleDataAnalyzer),
             equalTo(
-                "1:42: second argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
+                "1:42: implicit argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
             )
         );
         for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
@@ -3204,6 +3214,300 @@ public class VerifierTests extends ESTestCase {
             found value [1 hour] type [time_duration]"""));
     }
 
+    /**
+     * If there is explicit casting on fields with mix data types between subquery and main index {@code VerificationException} is thrown.
+     */
+    public void testMixedDataTypesInSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types | WHERE languages > 0)
+            | WHERE emp_no > 10000
+            | SORT is_rehired, still_hired
+            """);
+        assertThat(errorMessage, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
+        assertThat(errorMessage, containsString("Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]"));
+        assertThat(errorMessage, containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"));
+    }
+
+    // Fork inside subquery is tested in LogicalPlanOptimizerTests
+    public void testSubqueryInFromWithForkInMainQuery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no)
+            | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+            | KEEP emp_no
+            """);
+        assertThat(errorMessage, containsString("1:6: FORK after subquery is not supported"));
+    }
+
+    // InlineStats after subquery is not supported
+    public void testSubqueryInFromWithInlineStatsInMainQuery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no)
+            | INLINE STATS cnt = count(*)
+            | SORT emp_no
+            """);
+        assertThat(
+            errorMessage,
+            containsString(
+                "1:6: INLINE STATS after subquery is not supported, "
+                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
+            )
+        );
+        assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
+    }
+
+    // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
+    // FTF on the join(after subquery) on condition is not visible inside subquery yet. FTF after Fork fails with a similar error.
+    public void testSubqueryInFromWithLookupJoinOnFullTextFunction() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        String errorMessage = error("""
+            FROM test, (FROM test_mixed_types
+                                 | WHERE languages > 0
+                                 | EVAL emp_no = emp_no::int
+                                 | KEEP emp_no, languages)
+            | LOOKUP JOIN languages_lookup ON languages == language_code AND MATCH(language_name,"English")
+            | KEEP emp_no, languages, language_name
+            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+        assertThat(errorMessage, containsString("5:3: [MATCH] function cannot be used after test, (FROM test_mixed_types"));
+    }
+
+    public void testChunkFunctionInvalidInputs() {
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: invalid chunking_settings, found [null]")
+        );
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: Invalid chunkingStrategy invalid")
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 5})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, "
+                    + "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
+        );
+    }
+
+    public void testTopSnippetsFunctionInvalidInputs() {
+        // Null field allowed
+        query("from test | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
+
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(42, \"query\")", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: first argument of [TOP_SNIPPETS(42, \"query\")] must be [string], found value [42] type [integer]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, 42)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: second argument of [TOP_SNIPPETS(body, 42)] must be [string], found value [42] type [integer]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", null)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: third argument of [TOP_SNIPPETS(body, \"query\", null)] cannot be null, received [null]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", \"notamap\")", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: third argument of [TOP_SNIPPETS(body, \"query\", \"notamap\")] must be a map expression, received [\"notamap\"]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": null})",
+                fullTextAnalyzer,
+                ParsingException.class
+            ),
+            equalTo("1:57: Invalid named parameter [\"num_snippets\":null], NULL is not supported")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": null})",
+                fullTextAnalyzer,
+                ParsingException.class
+            ),
+            equalTo("1:57: Invalid named parameter [\"num_words\":null], NULL is not supported")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            startsWith("1:29: Invalid option [invalid] in [TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})], "
+                    + "cannot cast [foobar] to [integer]"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})], "
+                    + "cannot cast [foobar] to [integer]"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": -1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_snippets' option must be a positive integer, found [-1]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": 0})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_snippets' option must be a positive integer, found [0]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": -1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_words' option must be a positive integer, found [-1]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": 0})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_words' option must be a positive integer, found [0]")
+        );
+    }
+
+    public void testTimeSeriesWithUnsupportedDataType() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS.isEnabled());
+
+        // GroupByAll
+        assertThat(
+            error("TS k8s | STATS rate(network.eth0.tx)", k8s),
+            equalTo(
+                "1:16: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+
+        assertThat(
+            error("TS k8s | STATS rate(network.eth0.tx) by tbucket(1m)", k8s),
+            equalTo(
+                "1:16: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+
+        assertThat(
+            error("TS k8s | STATS avg(rate(network.eth0.tx))", k8s),
+            equalTo(
+                "1:20: first argument of [rate(network.eth0.tx)] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [network.eth0.tx] type [integer]"
+            )
+        );
+    }
+
+    public void testMvIntersectionValidatesDataTypesAreEqual() {
+        List<Tuple<String, String>> values = List.of(
+            new Tuple<>("[\"one\", \"two\", \"three\", \"four\", \"five\"]", "keyword"),
+            new Tuple<>("[1, 2, 3, 4, 5]", "integer"),
+            new Tuple<>("[1, 2, 3, 4, 5]::long", "long"),
+            new Tuple<>("[1.1, 2.2, 3.3, 4.4, 5.5]", "double"),
+            new Tuple<>("[false, true, true, false]", "boolean")
+        );
+        for (int i = 0; i < values.size(); i++) {
+            for (int j = 0; j < values.size(); j++) {
+                if (i == j) {
+                    continue;
+                }
+
+                String query = "ROW a = "
+                    + values.get(i).v1()
+                    + ", b = "
+                    + values.get(j).v1()
+                    + " | EVAL finalValue = MV_INTERSECTION(a, b)";
+                String expected = "second argument of [MV_INTERSECTION(a, b)] must be ["
+                    + values.get(i).v2()
+                    + "], found value [b] type ["
+                    + values.get(j).v2()
+                    + "]";
+                assertThat(error(query, tsdb), containsString(expected));
+            }
+        }
+    }
+
+    public void testMvUnionValidatesDataTypesAreEqual() {
+        List<Tuple<String, String>> values = List.of(
+            new Tuple<>("[\"one\", \"two\", \"three\", \"four\", \"five\"]", "keyword"),
+            new Tuple<>("[1, 2, 3, 4, 5]", "integer"),
+            new Tuple<>("[1, 2, 3, 4, 5]::long", "long"),
+            new Tuple<>("[1.1, 2.2, 3.3, 4.4, 5.5]", "double"),
+            new Tuple<>("[false, true, true, false]", "boolean")
+        );
+
+        for (int i = 0; i < values.size(); i++) {
+            for (int j = 0; j < values.size(); j++) {
+                if (i == j) {
+                    continue;
+                }
+                String query = "ROW a = " + values.get(i).v1() + ", b = " + values.get(j).v1() + " | EVAL finalValue = MV_UNION(a, b)";
+                String expected = "second argument of [MV_UNION(a, b)] must be ["
+                    + values.get(i).v2()
+                    + "], found value [b] type ["
+                    + values.get(j).v2()
+                    + "]";
+                assertThat(error(query, tsdb), containsString(expected));
+            }
+        }
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
@@ -3213,7 +3517,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query));
+        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
     }
 
     private String error(String query) {
@@ -3224,7 +3528,7 @@ public class VerifierTests extends ESTestCase {
         return error(query, defaultAnalyzer, VerificationException.class, params);
     }
 
-    private String error(String query, Analyzer analyzer, Object... params) {
+    public static String error(String query, Analyzer analyzer, Object... params) {
         return error(query, analyzer, VerificationException.class, params);
     }
 
@@ -3232,7 +3536,7 @@ public class VerifierTests extends ESTestCase {
         return error(query, transportVersion, VerificationException.class, params);
     }
 
-    private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
+    public static String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
@@ -3248,7 +3552,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, new QueryParams(parameters)))
         );
         assertThat(e, instanceOf(exception));
 

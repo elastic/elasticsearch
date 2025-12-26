@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -366,6 +367,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (enabled) {
+                BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
+                if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS) {
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext);
+                }
                 return new SourceFieldBlockLoader();
             }
             return BlockLoader.CONSTANT_NULLS;
@@ -557,6 +562,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return mode == Mode.SYNTHETIC;
     }
 
+    /**
+     * Caution: this function is not aware of the legacy "mappings._source.mode" parameter that some legacy indices might use. You should
+     * prefer to get information about synthetic source from {@link MapperBuilderContext}.
+     */
     public static boolean isSynthetic(IndexSettings indexSettings) {
         return IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC;
     }

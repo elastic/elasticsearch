@@ -44,6 +44,10 @@ public abstract class AbstractBaseReindexRestHandler<
         // Build the internal request
         Request internal = setCommonOptions(request, buildRequest(request));
 
+        // Only requests supporting remote indices can have IndicesOptions allowing cross-project index expressions
+        assert internal.supportsRemoteIndicesSearch()
+            || internal.getSearchRequest().indicesOptions().resolveCrossProjectIndexExpression() == false;
+
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
             Map<String, String> params = new HashMap<>();

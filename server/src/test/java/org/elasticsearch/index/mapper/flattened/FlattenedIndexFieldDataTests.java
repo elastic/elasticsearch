@@ -72,7 +72,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("test", "_na_", 1));
 
         // Load global field data for subfield 'key'.
-        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, FieldDataContext.noRuntimeFields("test", "test"));
         assertTrue(ifd1 instanceof KeyedFlattenedFieldData);
 
         KeyedFlattenedFieldData fieldData1 = (KeyedFlattenedFieldData) ifd1;
@@ -82,7 +82,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
 
         // Load global field data for the subfield 'other_key'.
         MappedFieldType fieldType2 = fieldMapper.fieldType().getChildFieldType("other_key");
-        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, FieldDataContext.noRuntimeFields("test", "test"));
         assertTrue(ifd2 instanceof KeyedFlattenedFieldData);
 
         KeyedFlattenedFieldData fieldData2 = (KeyedFlattenedFieldData) ifd2;

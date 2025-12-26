@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -164,21 +163,24 @@ public class LearningToRankRescorer implements Rescorer {
         List<FeatureExtractor> featureExtractors = ltrContext.buildFeatureExtractors(searcher);
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
 
-        Map<String, Object> features = Maps.newMapWithExpectedSize(featureSize);
+        Map<String, Object> extractedFeatures = Maps.newMapWithExpectedSize(featureSize);
 
         for (FeatureExtractor featureExtractor : featureExtractors) {
             featureExtractor.setNextReader(currentSegment);
-            featureExtractor.addFeatures(features, targetDoc);
+            featureExtractor.addFeatures(extractedFeatures, targetDoc);
         }
 
         // Predicting the value
-        var ltrScore = ((Number) localModelDefinition.inferLtr(features, ltrContext.learningToRankConfig).predictedValue()).floatValue();
+        var ltrScore = ((Number) localModelDefinition.inferLtr(extractedFeatures, ltrContext.learningToRankConfig).predictedValue())
+            .floatValue();
 
         List<Explanation> featureExplanations = new ArrayList<>();
-        for (String featureName : features.keySet()) {
-            Number featureValue = Objects.requireNonNullElse((Number) features.get(featureName), 0);
-            featureExplanations.add(Explanation.match(featureValue, "feature value for [" + featureName + "]"));
-        }
+        ltrContext.learningToRankConfig.getFeatureExtractorBuilders().forEach(featureExtractor -> {
+            String featureName = featureExtractor.featureName();
+            if (extractedFeatures.containsKey(featureName) && extractedFeatures.get(featureName) instanceof Number featureValue) {
+                featureExplanations.add(Explanation.match(featureValue, "feature value for [" + featureName + "]"));
+            }
+        });
 
         return Explanation.match(
             ltrScore,

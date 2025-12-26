@@ -17,6 +17,8 @@ FORK ( <processing_commands> ) ( <processing_commands> ) ... ( <processing_comma
 The `FORK` processing command creates multiple execution branches to operate
 on the same input data and combines the results in a single output table. A discriminator column (`_fork`) is added to identify which branch each row came from.
 
+Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) command, `FORK` enables hybrid search to combine and score results from multiple queries. To learn more about using {{esql}} for search, refer to [ES|QL for search](docs-content://solutions/search/esql-for-search.md).
+
 **Branch identification:**
 - The `_fork` column identifies each branch with values like `fork1`, `fork2`, `fork3`
 - Values correspond to the order branches are defined
@@ -24,7 +26,7 @@ on the same input data and combines the results in a single output table. A disc
 
 **Column handling:**
 - `FORK` branches can output different columns
-- Columns with the same name must have the same data type across all branches  
+- Columns with the same name must have the same data type across all branches
 - Missing columns are filled with `null` values
 
 **Row ordering:**
@@ -39,7 +41,7 @@ on the same input data and combines the results in a single output table. A disc
 **Limitations**
 
 - `FORK` supports at most 8 execution branches.
-- Using remote cluster references and `FORK` is not supported.
+- In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
 - Using more than one `FORK` command in a query is not supported.
 
 **Examples**

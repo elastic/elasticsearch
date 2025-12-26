@@ -27,8 +27,17 @@
     },
     "params": {
       "format": {
-        "type": "string",
-        "description": "a short version of the Accept header, e.g. json, yaml"
+        "type": "enum",
+        "description": "The format for the response.\nYou can also specify a format using the `Accept` HTTP header.\nIf you specify both this parameter and the `Accept` HTTP header, this parameter takes precedence.",
+        "options": [
+          "csv",
+          "json",
+          "tsv",
+          "txt",
+          "yaml",
+          "cbor",
+          "smile"
+        ]
       },
       "project_routing": {
         "type": "string",

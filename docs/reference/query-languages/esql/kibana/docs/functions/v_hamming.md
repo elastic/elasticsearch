@@ -4,7 +4,7 @@
 Calculates the Hamming distance between two dense vectors.
 
 ```esql
- from colors
- | eval similarity = v_hamming(rgb_vector, [0, 255, 255])
- | sort similarity desc, color asc
+from colors
+| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127])
+| sort similarity desc, color asc
 ```

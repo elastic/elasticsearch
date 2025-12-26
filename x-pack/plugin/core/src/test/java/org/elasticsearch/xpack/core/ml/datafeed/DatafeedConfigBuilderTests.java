@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -30,6 +32,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.randomStringList;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<DatafeedConfig.Builder> {
 
@@ -145,6 +148,19 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
     @Override
     protected Writeable.Reader<DatafeedConfig.Builder> instanceReader() {
         return DatafeedConfig.Builder::new;
+    }
+
+    public void testResolveCrossProjectIsDisabled() {
+        var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);
+        datafeedBuilder = datafeedBuilder.setIndicesOptions(
+            IndicesOptions.builder(datafeedBuilder.getIndicesOptions())
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build()
+        );
+
+        var actualException = assertThrows(ElasticsearchStatusException.class, datafeedBuilder::build);
+        assertThat(actualException.getMessage(), equalTo("Cross-project search is not enabled for Datafeeds"));
+        assertThat(actualException.status(), equalTo(RestStatus.FORBIDDEN));
     }
 
 }

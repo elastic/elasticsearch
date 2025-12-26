@@ -1,0 +1,6 @@
+pr: 136632
+summary: Field caps transport changes to return for each original expression what
+  it was resolved to
+area: Search
+type: enhancement
+issues: []

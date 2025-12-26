@@ -122,6 +122,11 @@ public class SamlResponseBuilder {
         return this;
     }
 
+    public SamlResponseBuilder inResponseTo(String requestId) {
+        this.inResponseTo = requestId;
+        return this;
+    }
+
     public SamlResponseBuilder sign(Path certPath, Path keyPath, char[] keyPassword) throws GeneralSecurityException, IOException {
         var privateKey = PemUtils.readPrivateKey(keyPath, () -> keyPassword);
         var certificates = PemUtils.readCertificates(List.of(certPath));

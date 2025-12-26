@@ -30,6 +30,38 @@ bytes_in:long | cluster:keyword | time_bucket:datetime
 6             | qa              | 2024-05-10T00:20:00.000Z
 ;
 
+count_over_time_with_window
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+
+TS k8s 
+| STATS bytes_in = sum(count_over_time(network.bytes_in, 10 minute)) BY cluster, time_bucket = tbucket(2minute) 
+| SORT time_bucket, cluster
+| LIMIT 20;
+
+bytes_in:long | cluster:keyword | time_bucket:datetime
+23            | prod            | 2024-05-10T00:00:00.000Z
+37            | qa              | 2024-05-10T00:00:00.000Z
+24            | staging         | 2024-05-10T00:00:00.000Z
+21            | prod            | 2024-05-10T00:02:00.000Z
+43            | qa              | 2024-05-10T00:02:00.000Z
+24            | staging         | 2024-05-10T00:02:00.000Z
+22            | prod            | 2024-05-10T00:04:00.000Z
+42            | qa              | 2024-05-10T00:04:00.000Z
+25            | staging         | 2024-05-10T00:04:00.000Z
+25            | prod            | 2024-05-10T00:06:00.000Z
+41            | qa              | 2024-05-10T00:06:00.000Z
+30            | staging         | 2024-05-10T00:06:00.000Z
+32            | prod            | 2024-05-10T00:08:00.000Z
+41            | qa              | 2024-05-10T00:08:00.000Z
+30            | staging         | 2024-05-10T00:08:00.000Z
+31            | prod            | 2024-05-10T00:10:00.000Z
+39            | qa              | 2024-05-10T00:10:00.000Z
+23            | staging         | 2024-05-10T00:10:00.000Z
+33            | prod            | 2024-05-10T00:12:00.000Z
+35            | qa              | 2024-05-10T00:12:00.000Z
+;
+
 count_over_time_of_boolean
 required_capability: ts_command_v0
 TS k8s | STATS eth0_up = min(count_over_time(network.eth0.up)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT time_bucket, cluster | LIMIT 10;

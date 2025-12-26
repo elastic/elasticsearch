@@ -50,7 +50,6 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             plan.source(),
             plan.indexPattern(),
             plan.indexMode(),
-            plan.indexNameWithModes(),
             attributes,
             null,
             null,

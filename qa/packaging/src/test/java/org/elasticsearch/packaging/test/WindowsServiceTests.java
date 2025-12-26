@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
@@ -44,13 +45,48 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     @After
     public void uninstallService() {
-        sh.runIgnoreExitCode(serviceScript + " remove");
+        sh.runIgnoreExitCode(deleteCommand(DEFAULT_ID));
+    }
+
+    private static String startCommand(String serviceId) {
+        return "\"sc.exe start " + serviceId + "\"";
+    }
+
+    private static String stopCommand(String serviceId) {
+        return "\"sc.exe stop " + serviceId + "\"";
+    }
+
+    private static String deleteCommand(String serviceId) {
+        return "\"sc.exe delete " + serviceId + "\"";
     }
 
     private void assertService(String id, String status) {
         Result result = sh.run("Get-Service " + id + " | Format-List -Property Name, Status, DisplayName");
         assertThat(result.stdout(), containsString("Name        : " + id));
         assertThat(result.stdout(), containsString("Status      : " + status));
+    }
+
+    private void waitForStop(String id, Duration timeout) {
+        var stopped = false;
+        var start = System.currentTimeMillis();
+        while (stopped == false) {
+            Result result = sh.run("(Get-Service  " + id + " ).\"Status\"");
+            if (result.exitCode() != 0) {
+                logger.warn("Cannot get status for {}: stdout:[{}], stderr:[{}]", id, result.stdout(), result.stderr());
+                break;
+            }
+            stopped = "Stopped".equalsIgnoreCase(result.stdout());
+            Duration elapsed = Duration.ofMillis(System.currentTimeMillis() - start);
+            if (elapsed.compareTo(timeout) > 0) {
+                logger.warn("Timeout waiting for stop {}: stdout:[{}], stderr:[{}]", id, result.stdout(), result.stderr());
+                break;
+            }
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                break;
+            }
+        }
     }
 
     // runs the service command, dumping all log files on failure
@@ -108,12 +144,12 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test12InstallService() {
         sh.run(serviceScript + " install");
         assertService(DEFAULT_ID, "Stopped");
-        sh.run(serviceScript + " remove");
+        sh.run(deleteCommand(DEFAULT_ID));
     }
 
     public void test15RemoveNotInstalled() {
-        Result result = assertFailure(serviceScript + " remove", 1);
-        assertThat(result.stderr(), containsString("Failed removing '" + DEFAULT_ID + "' service"));
+        Result result = assertFailure(deleteCommand(DEFAULT_ID), 1);
+        assertThat(result.stdout(), containsString("The specified service does not exist as an installed service"));
     }
 
     public void test16InstallSpecialCharactersInJdkPath() throws IOException {
@@ -126,17 +162,20 @@ public class WindowsServiceTests extends PackagingTestCase {
             Result result = sh.run(serviceScript + " install");
             assertThat(result.stdout(), containsString("The service 'elasticsearch-service-x64' has been installed"));
         } finally {
-            sh.runIgnoreExitCode(serviceScript + " remove");
+            sh.runIgnoreExitCode(deleteCommand(DEFAULT_ID));
             mv(relocatedJdk, installation.bundledJdk);
         }
     }
 
     public void test20CustomizeServiceId() {
         String serviceId = "my-es-service";
-        sh.getEnv().put("SERVICE_ID", serviceId);
-        sh.run(serviceScript + " install");
-        assertService(serviceId, "Stopped");
-        sh.run(serviceScript + " remove");
+        try {
+            sh.getEnv().put("SERVICE_ID", serviceId);
+            sh.run(serviceScript + " install");
+            assertService(serviceId, "Stopped");
+        } finally {
+            sh.run(deleteCommand(serviceId));
+        }
     }
 
     public void test21CustomizeServiceDisplayName() {
@@ -144,7 +183,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         sh.getEnv().put("SERVICE_DISPLAY_NAME", displayName);
         sh.run(serviceScript + " install");
         assertService(DEFAULT_ID, "Stopped");
-        sh.run(serviceScript + " remove");
+        sh.run(deleteCommand(DEFAULT_ID));
     }
 
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
@@ -152,7 +191,8 @@ public class WindowsServiceTests extends PackagingTestCase {
         ServerUtils.waitForElasticsearch(installation);
         runElasticsearchTests();
 
-        assertCommand(serviceScript + " stop");
+        assertCommand(stopCommand(DEFAULT_ID));
+        waitForStop(DEFAULT_ID, Duration.ofMinutes(1));
         assertService(DEFAULT_ID, "Stopped");
         // the process is stopped async, and can become a zombie process, so we poll for the process actually being gone
         assertCommand(
@@ -170,36 +210,25 @@ public class WindowsServiceTests extends PackagingTestCase {
                 + "} while ($i -lt 300);"
                 + "exit 9;"
         );
-
-        assertCommand(serviceScript + " remove");
-        assertCommand(
-            "$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;"
-                + "echo \"$p\";"
-                + "if ($p -eq $Null) {"
-                + "  exit 0;"
-                + "} else {"
-                + "  exit 1;"
-                + "}"
-        );
     }
 
     public void test30StartStop() throws Exception {
         sh.run(serviceScript + " install");
-        assertCommand(serviceScript + " start");
+        assertCommand(startCommand(DEFAULT_ID));
         assertStartedAndStop();
     }
 
     public void test31StartNotInstalled() throws IOException {
-        Result result = sh.runIgnoreExitCode(serviceScript + " start");
+        Result result = sh.runIgnoreExitCode(startCommand(DEFAULT_ID));
         assertThat(result.stderr(), result.exitCode(), equalTo(1));
         dumpServiceLogs();
-        assertThat(result.stderr(), containsString("Failed starting '" + DEFAULT_ID + "' service"));
+        assertThat(result.stdout(), containsString("The specified service does not exist as an installed service"));
     }
 
     public void test32StopNotStarted() throws IOException {
         sh.run(serviceScript + " install");
-        Result result = sh.run(serviceScript + " stop"); // stop is ok when not started
-        assertThat(result.stdout(), containsString("The service '" + DEFAULT_ID + "' has been stopped"));
+        Result result = sh.runIgnoreExitCode(stopCommand(DEFAULT_ID));
+        assertThat(result.stdout(), containsString("The service has not been started"));
     }
 
     public void test33JavaChanged() throws Exception {
@@ -210,7 +239,7 @@ public class WindowsServiceTests extends PackagingTestCase {
             sh.getEnv().put("ES_JAVA_HOME", alternateJdk.toString());
             assertCommand(serviceScript + " install");
             sh.getEnv().remove("ES_JAVA_HOME");
-            assertCommand(serviceScript + " start");
+            assertCommand(startCommand(DEFAULT_ID));
             assertStartedAndStop();
         } finally {
             FileUtils.rm(alternateJdk);
@@ -220,7 +249,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test80JavaOptsInEnvVar() throws Exception {
         sh.getEnv().put("ES_JAVA_OPTS", "-Xmx2g -Xms2g");
         sh.run(serviceScript + " install");
-        assertCommand(serviceScript + " start");
+        assertCommand(startCommand(DEFAULT_ID));
         assertStartedAndStop();
         sh.getEnv().remove("ES_JAVA_OPTS");
     }
@@ -230,7 +259,7 @@ public class WindowsServiceTests extends PackagingTestCase {
             append(tempConf.resolve("jvm.options"), "-Xmx2g" + System.lineSeparator());
             append(tempConf.resolve("jvm.options"), "-Xms2g" + System.lineSeparator());
             sh.run(serviceScript + " install");
-            assertCommand(serviceScript + " start");
+            assertCommand(startCommand(DEFAULT_ID));
             assertStartedAndStop();
         });
     }

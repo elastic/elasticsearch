@@ -553,4 +553,9 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     protected boolean supportsBulkLongBlockReading() {
         return true;
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.indices.TermsLookup;
@@ -140,7 +141,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                     terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).toList()
                 );
             } else {
-                expected = new MatchNoDocsQuery();
+                expected = Queries.NO_DOCS_INSTANCE;
             }
             assertEquals(expected, query);
         }

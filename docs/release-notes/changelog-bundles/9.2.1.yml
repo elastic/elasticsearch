@@ -1,0 +1,212 @@
+version: 9.2.1
+released: true
+generated: 2025-11-12T09:34:48.318619163Z
+changelogs:
+  - pr: 132455
+    summary: "Make equals include ids for Alias, `TypedAttribute`"
+    area: ES|QL
+    type: bug
+    issues:
+      - 131509
+      - 132634
+  - pr: 134223
+    summary: Improve concurrency design of `EnterpriseGeoIpDownloader`
+    area: Ingest Node
+    type: bug
+    issues:
+      - 126124
+  - pr: 134359
+    summary: Make `MutableSearchResponse` ref-counted to prevent use-after-close in async search
+    area: Search
+    type: bug
+    issues: []
+  - pr: 135795
+    summary: Grants `kibana_system` the ability to forcemerge certain indices
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 136147
+    summary: Fixed geo point block loader slowness
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 136231
+    summary: Return a better error message when Timestamp is renamed in TS queries
+    area: ES|QL
+    type: bug
+    issues:
+      - 134994
+  - pr: 136327
+    summary: Enable new data types with created version
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 136467
+    summary: "ESQL: Fix double release in inline stats when `LocalRelation` is reused"
+    area: ES|QL
+    type: bug
+    issues:
+      - 135679
+  - pr: 136720
+    summary: Use Suppliers To Get Inference Results In Semantic Queries
+    area: Vector Search
+    type: bug
+    issues:
+      - 136621
+  - pr: 136729
+    summary: Start readiness service after http is started
+    area: Infra/Node Lifecycle
+    type: bug
+    issues: []
+  - pr: 136773
+    summary: Return `ConstNullBlock` in `FromAggMetricDouble`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 136818
+    summary: "ESQL: Fix lookup join filter pushdown to use semantic equality"
+    area: ES|QL
+    type: bug
+    issues:
+      - 136599
+  - pr: 136881
+    summary: "Disallow `max_inner_product`, swap `dot_product` for `cosine` for int8_hnsw GPU type"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 136889
+    summary: Remove early phase failure in batched
+    area: Search
+    type: bug
+    issues:
+      - 134151
+  - pr: 136929
+    summary: Handle indices with zero/missing uptime correctly in write-load calculation
+    area: Allocation
+    type: bug
+    issues: []
+  - pr: 136961
+    summary: Fix `ignore_unmapped` setting when using `geo_shape` query with a pre-indexed shape
+    area: Geo
+    type: bug
+    issues:
+      - 136954
+  - pr: 136963
+    summary: Upgrade ASM to 9.9
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 137025
+    summary: Fix `ReplaceAliasingEvalWithProject` in case of shadowing
+    area: ES|QL
+    type: bug
+    issues:
+      - 137019
+  - pr: 137032
+    summary: Fix handling equality with MV constants properly
+    area: ES|QL
+    type: bug
+    issues:
+      - 136998
+      - 136939
+  - pr: 137047
+    summary: Reject invalid `reverse_nested` aggs
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 137055
+    summary: Do not create inference endpoint if ID is used in existing mappings
+    area: Machine Learning
+    type: bug
+    issues:
+      - 124272
+  - pr: 137074
+    summary: Adjust GPU graph building params
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 137077
+    summary: Catch exceptions from `mapperService` in `StoreRecovery.recoverFromLocalShards`
+    area: Recovery
+    type: bug
+    issues: []
+  - pr: 137096
+    summary: Fix mapping conflicts in clone/split/shrink APIs
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 137111
+    summary: Remove `auto_expand_replicas` setting during index clone in `searchable_snapshot`
+    area: ILM+SLM
+    type: bug
+    issues: []
+  - pr: 137219
+    summary: Perform query field validation for rerank task type
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 137222
+    summary: "[Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the threat event data stream."
+    area: Authorization
+    type: enhancement
+    issues:
+      - 240901
+  - pr: 137275
+    summary: "Reindex-from-remote: Fail on manual slicing param"
+    area: Indices APIs
+    type: bug
+    issues:
+      - 136269
+  - pr: 137325
+    summary: "Enable `_otlp` usage with `create_doc`, `auto_configure` privileges"
+    area: TSDB
+    type: bug
+    issues: []
+  - pr: 137375
+    summary: Allow opting out of force-merging on a cloned index in ILM's searchable snapshot action
+    area: ILM+SLM
+    type: enhancement
+    issues: []
+  - pr: 137387
+    summary: Extends constant MVs handling with warnings to general binary comparisons
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 137394
+    summary: Fix dropped ignore above fields
+    area: Mapping
+    type: bug
+    issues:
+      - 137360
+  - pr: 137398
+    summary: Error if installed plugin is inside plugins folder
+    area: Infra/Plugins
+    type: enhancement
+    issues:
+      - 27401
+  - pr: 137399
+    summary: Allow allocating clones over low watermark
+    area: Allocation
+    type: bug
+    issues: []
+  - pr: 137407
+    summary: Taking additional settings providers into account for data stream effective settings
+    area: Data streams
+    type: bug
+    issues:
+      - 137381
+  - pr: 137442
+    summary: Handle ._original stored fields with fls
+    area: Authorization
+    type: bug
+    issues: []
+  - pr: 137479
+    summary: "Fix illegal_access_exception: class com.maxmind.db.Decoder from `ip_location` processor"
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 137640
+    summary: Update bundled JDK to Java 25.0.1+8
+    area: Packaging
+    type: upgrade
+    issues: []

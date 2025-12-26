@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.search.lookup.SourceFilter;
 
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -289,7 +292,8 @@ public final class MappingLookup {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
-        checkNestedLimit(settings.getMappingNestedFieldsLimit());
+        checkNestedFieldsLimit(settings.getMappingNestedFieldsLimit());
+        checkNestedParentsLimit(settings.getMappingNestedParentsLimit());
         checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }
 
@@ -361,15 +365,23 @@ public final class MappingLookup {
         }
     }
 
-    private void checkNestedLimit(long limit) {
-        long actualNestedFields = 0;
-        for (ObjectMapper objectMapper : objectMappers.values()) {
-            if (objectMapper.isNested()) {
-                actualNestedFields++;
-            }
-        }
-        if (actualNestedFields > limit) {
+    private void checkNestedFieldsLimit(long limit) {
+        if (nestedLookup.getNestedMappers().size() > limit) {
             throw new IllegalArgumentException("Limit of nested fields [" + limit + "] has been exceeded");
+        }
+    }
+
+    private void checkNestedParentsLimit(long limit) {
+        if (nestedLookup.getNestedMappers().size() < limit) {
+            return;
+        }
+
+        Set<Query> nestedPaths = new HashSet<>();
+        for (var nested : nestedLookup.getNestedMappers().values()) {
+            nestedPaths.add(nested.parentTypeFilter());
+        }
+        if (nestedPaths.size() > limit) {
+            throw new IllegalArgumentException("Limit of nested parents [" + limit + "] has been exceeded");
         }
     }
 
@@ -530,19 +542,18 @@ public final class MappingLookup {
     }
 
     /**
-     * Returns if this mapping contains a timestamp field that is of type date, has doc values, and is either indexed or uses a doc values
-     * skipper.
-     * @return {@code true} if contains a timestamp field of type date that has doc values and is either indexed or uses a doc values
-     * skipper, {@code false} otherwise.
+     * If this mapping contains a timestamp field that is of type date, has doc values, and is either indexed or uses a doc values
+     * skipper, this returns the field type for it.
      */
-    public boolean hasTimestampField() {
+    public @Nullable DateFieldType getTimestampFieldType() {
         final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateMappedFieldType) {
+        if (mappedFieldType instanceof DateFieldType dateMappedFieldType) {
             IndexType indexType = dateMappedFieldType.indexType();
-            return indexType.hasPoints() || indexType.hasDocValuesSkipper();
-        } else {
-            return false;
+            if (indexType.hasPoints() || indexType.hasDocValuesSkipper()) {
+                return dateMappedFieldType;
+            }
         }
+        return null;
     }
 
     /**

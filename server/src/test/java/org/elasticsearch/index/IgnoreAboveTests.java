@@ -25,6 +25,7 @@ public class IgnoreAboveTests extends ESTestCase {
         // when/then
         assertEquals(123, ignoreAbove.get());
         assertTrue(ignoreAbove.isSet());
+        assertTrue(ignoreAbove.valuesPotentiallyIgnored());
     }
 
     public void test_ignore_above_with_value_only() {
@@ -34,6 +35,7 @@ public class IgnoreAboveTests extends ESTestCase {
         // when/then
         assertEquals(123, ignoreAbove.get());
         assertTrue(ignoreAbove.isSet());
+        assertTrue(ignoreAbove.valuesPotentiallyIgnored());
     }
 
     public void test_ignore_above_with_null_value_should_throw() {
@@ -52,6 +54,7 @@ public class IgnoreAboveTests extends ESTestCase {
         // when/then
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE, ignoreAbove.get());
         assertFalse(ignoreAbove.isSet());
+        assertFalse(ignoreAbove.valuesPotentiallyIgnored());
     }
 
     public void test_ignore_above_with_null_value_and_logsdb_index_mode() {
@@ -61,6 +64,7 @@ public class IgnoreAboveTests extends ESTestCase {
         // when/then
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, ignoreAbove.get());
         assertFalse(ignoreAbove.isSet());
+        assertTrue(ignoreAbove.valuesPotentiallyIgnored());
     }
 
     public void test_ignore_above_with_null_everything() {
@@ -70,6 +74,7 @@ public class IgnoreAboveTests extends ESTestCase {
         // when/then
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE, ignoreAbove.get());
         assertFalse(ignoreAbove.isSet());
+        assertFalse(ignoreAbove.valuesPotentiallyIgnored());
     }
 
     public void test_ignore_above_default_for_standard_indices() {
@@ -79,6 +84,7 @@ public class IgnoreAboveTests extends ESTestCase {
         // when/then
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE, ignoreAbove.get());
         assertFalse(ignoreAbove.isSet());
+        assertFalse(ignoreAbove.valuesPotentiallyIgnored());
     }
 
     public void test_ignore_above_default_for_logsdb_indices() {
@@ -88,6 +94,7 @@ public class IgnoreAboveTests extends ESTestCase {
         // when/then
         assertEquals(Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES, ignoreAbove.get());
         assertFalse(ignoreAbove.isSet());
+        assertTrue(ignoreAbove.valuesPotentiallyIgnored());
     }
 
     public void test_string_isIgnored() {

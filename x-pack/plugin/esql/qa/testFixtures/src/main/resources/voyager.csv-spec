@@ -1,0 +1,101 @@
+# ----------------------------------------------------------------------------------------------------------------------
+t1
+# ----------------------------------------------------------------------------------------------------------------------
+required_capability: all_first
+required_capability: all_last
+
+FROM voyager
+| LIMIT 10
+| KEEP row_no, @timestamp, distance, active_instruments, collision_risk, ack_station_ip, low_power_mode, status, notes
+;
+
+row_no:integer | @timestamp:datetime                                                            | distance:long              | active_instruments:integer | collision_risk:double | ack_station_ip:ip          | low_power_mode:boolean | status:keyword | notes:text
+1              | null                                                                           | 21190910703                | [3, 4]                     | 0.0011                | 173.21.3.13                | false                  | yellow         | everything's fine
+2              | 2025-12-25T00:00:20.000Z                                                       | 21190910704                | 6                          | 0.0012                | 173.21.3.14                | false                  | green          | all clear
+3              | [2025-12-25T00:00:15.000Z, 2025-12-25T00:00:25.000Z]                           | 21190910705                | null                       | 0.0013                | 173.21.3.15                | false                  | green          | aliens inspecting the golden record
+4              | [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | [21190910701, 21190910702] | [4, 4, 5]                  | [1.0E-4, 2.0E-4]      | [173.21.3.11, 173.21.3.12] | [false, true]          | [OK, green]    | [all clear, nothing to report]
+5              | 2025-12-25T00:00:20.000Z                                                       | 21190910706                | 7                          | 0.0014                | 173.21.3.16                | false                  | red            | something's out there!!
+6              | null                                                                           | null                       | null                       | null                  | null                       | null                   | null           | null
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+Test that ALL_FIRST/ALL_LAST work with multi-values
+# ----------------------------------------------------------------------------------------------------------------------
+required_capability: all_first
+required_capability: all_last
+
+FROM voyager
+| STATS 
+    # ALL_FIRST
+    f_distance = ALL_FIRST(distance, @timestamp),
+    f_active_instruments = ALL_FIRST(active_instruments, @timestamp),
+    f_collision_risk = ALL_FIRST(collision_risk, @timestamp),
+    f_ack_station_ip = ALL_FIRST(ack_station_ip, @timestamp),
+    f_low_power_mode = ALL_FIRST(low_power_mode, @timestamp),
+    f_status = ALL_FIRST(status, @timestamp),
+    f_notes = ALL_FIRST(notes, @timestamp),
+    
+    # ALL_LAST
+    l_distance = ALL_LAST(distance, @timestamp),
+    l_active_instruments = ALL_LAST(active_instruments, @timestamp),
+    l_collision_risk = ALL_LAST(collision_risk, @timestamp),
+    l_ack_station_ip = ALL_LAST(ack_station_ip, @timestamp),
+    l_low_power_mode = ALL_LAST(low_power_mode, @timestamp),
+    l_status = ALL_LAST(status, @timestamp),
+    l_notes = ALL_LAST(notes, @timestamp)
+;
+
+f_distance:long            | f_active_instruments:integer | f_collision_risk:double | f_ack_station_ip:ip        | f_low_power_mode:boolean | f_status:keyword | f_notes:keyword                | l_distance:long            | l_active_instruments:integer | l_collision_risk:double | l_ack_station_ip:ip        | l_low_power_mode:boolean | l_status:keyword | l_notes:keyword
+[21190910701, 21190910702] | [4, 4, 5]                    | [1.0E-4, 2.0E-4]        | [173.21.3.11, 173.21.3.12] | [false, true]            | [OK, green]      | [all clear, nothing to report] | [21190910701, 21190910702] | [4, 4, 5]                    | [1.0E-4, 2.0E-4]        | [173.21.3.11, 173.21.3.12] | [false, true]            | [OK, green]      | [all clear, nothing to report]
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+Test that ALL_FIRST/ALL_LAST work with nulls
+# ----------------------------------------------------------------------------------------------------------------------
+required_capability: all_first
+required_capability: all_last
+
+FROM voyager
+# limit the data to the row with null values, and a non-existing row
+| WHERE row_no IN (6, -1)
+| STATS 
+    # ALL_FIRST
+    f_distance = ALL_FIRST(distance, @timestamp),
+    f_active_instruments = ALL_FIRST(active_instruments, @timestamp),
+    f_collision_risk = ALL_FIRST(collision_risk, @timestamp),
+    f_ack_station_ip = ALL_FIRST(ack_station_ip, @timestamp),
+    f_status = ALL_FIRST(status, @timestamp),
+    f_notes = ALL_FIRST(notes, @timestamp),
+    
+    # ALL_LAST
+    l_distance = ALL_LAST(distance, @timestamp),
+    l_active_instruments = ALL_LAST(active_instruments, @timestamp),
+    l_collision_risk = ALL_LAST(collision_risk, @timestamp),
+    l_ack_station_ip = ALL_LAST(ack_station_ip, @timestamp),
+    l_status = ALL_LAST(status, @timestamp),
+    l_notes = ALL_LAST(notes, @timestamp)
+;
+
+f_distance:long | f_active_instruments:integer | f_collision_risk:double | f_ack_station_ip:ip | f_status:keyword | f_notes:keyword | l_distance:long | l_active_instruments:integer | l_collision_risk:double | l_ack_station_ip:ip | l_status:keyword | l_notes:keyword
+null            | null                         | null                    | null                | null             | null            | null            | null                         | null                    | null                | null             | null
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+Test that ALL_FIRST/ALL_LAST work with groups
+# ----------------------------------------------------------------------------------------------------------------------
+required_capability: all_first
+required_capability: all_last
+
+FROM voyager
+# limit the data to the row with null values, and a non-existing row
+| STATS distance = ALL_FIRST(distance, @timestamp) BY status
+| SORT status ASC
+;
+
+distance:long              | status:keyword
+[21190910701, 21190910702] | OK
+[21190910701, 21190910702] | green
+21190910706                | red
+21190910703                | yellow
+null                       | null
+;

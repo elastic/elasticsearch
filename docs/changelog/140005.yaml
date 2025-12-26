@@ -1,0 +1,6 @@
+pr: 140005
+summary: Add dense_vector equality and inequality support in ES|QL
+area: ES|QL
+type: enhancement
+issues:
+  - 139929

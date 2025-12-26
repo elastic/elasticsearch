@@ -56,10 +56,11 @@ public class InlineJoin extends Join implements SortPreserving {
     );
 
     /**
-     * Replaces the source of the target plan with a stub preserving the output of the source plan.
+     * Replaces the source of the {@code destination} plan with a stub, preserving the output from the {@code target} plan, which
+     * the stub substitutes (or theoretically points to).
      */
-    public static LogicalPlan stubSource(UnaryPlan sourcePlan, LogicalPlan target) {
-        return sourcePlan.replaceChild(new StubRelation(sourcePlan.source(), StubRelation.computeOutput(sourcePlan, target)));
+    public static LogicalPlan stubSource(UnaryPlan destination, LogicalPlan target) {
+        return destination.replaceChild(StubRelation.of(destination, target));
     }
 
     /**

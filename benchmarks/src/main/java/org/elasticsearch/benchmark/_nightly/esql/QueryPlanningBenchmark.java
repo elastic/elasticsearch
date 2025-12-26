@@ -50,6 +50,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -80,6 +81,7 @@ public class QueryPlanningBenchmark {
     public void setup() {
         this.config = new Configuration(
             DateUtils.UTC,
+            Instant.now(),
             Locale.US,
             null,
             null,

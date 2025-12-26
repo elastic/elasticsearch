@@ -86,6 +86,10 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -214,10 +218,12 @@ public class EsqlSession {
         EsqlStatement statement = parse(request);
         parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
+        ZoneId timeZone = request.timeZone() == null
+            ? statement.setting(QuerySettings.TIME_ZONE)
+            : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
         Configuration configuration = new Configuration(
-            request.timeZone() == null
-                ? statement.setting(QuerySettings.TIME_ZONE)
-                : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone()),
+            timeZone,
+            Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
             null,

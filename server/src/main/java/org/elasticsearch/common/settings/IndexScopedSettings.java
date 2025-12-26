@@ -244,6 +244,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
                 IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
                 IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+                IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
+                SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
                 Store.FORCE_RAM_TERM_DICT
             )
         );

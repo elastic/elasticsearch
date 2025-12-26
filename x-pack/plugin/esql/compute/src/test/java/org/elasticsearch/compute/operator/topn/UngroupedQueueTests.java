@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -79,8 +80,7 @@ public class UngroupedQueueTests extends ESTestCase {
     }
 
     public void testAddWhenHeapFullAndRowDoesNotQualify() {
-        int topCount = 3;
-        try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
+        try (UngroupedQueue queue = UngroupedQueue.build(breaker, 3)) {
             addRows(queue, SORT_ORDER, 30, 40, 50);
 
             Row row = createRow(breaker, SORT_ORDER, 60);
@@ -90,6 +90,38 @@ public class UngroupedQueueTests extends ESTestCase {
             Releasables.close(result);
             assertQueueContents(queue, List.of(50, 40, 30));
         }
+    }
+
+    public void testRamBytesUsedEmpty() {
+        try (UngroupedQueue queue = UngroupedQueue.build(breaker, 5)) {
+            long actual = queue.ramBytesUsed();
+            assertThat(actual, equalTo(expectedRamBytesUsed(queue)));
+        }
+    }
+
+    public void testRamBytesUsedPartiallyFilled() {
+        try (UngroupedQueue queue = UngroupedQueue.build(breaker, 5)) {
+            addRows(queue, SORT_ORDER, 10, 20, 30);
+            long actual = queue.ramBytesUsed();
+            assertThat(actual, equalTo(expectedRamBytesUsed(queue)));
+        }
+    }
+
+    public void testRamBytesUsedAtCapacity() {
+        try (UngroupedQueue queue = UngroupedQueue.build(breaker, 5)) {
+            addRows(queue, SORT_ORDER, 10, 20, 30, 40, 50);
+            long actual = queue.ramBytesUsed();
+            assertThat(actual, equalTo(expectedRamBytesUsed(queue)));
+        }
+    }
+
+    public void testCloseReleasesAllMemory() {
+        UngroupedQueue queue = UngroupedQueue.build(breaker, 5);
+        addRows(queue, SORT_ORDER, 10, 20, 30, 40, 50);
+        long ramBytesUsed = queue.ramBytesUsed();
+        long usedBefore = breaker.getUsed();
+        queue.close();
+        assertThat("Memory should be released after close", breaker.getUsed(), equalTo(usedBefore - ramBytesUsed));
     }
 
     private Row createRow(CircuitBreaker breaker, TopNOperator.SortOrder sortOrder, int value) {
@@ -105,14 +137,12 @@ public class UngroupedQueueTests extends ESTestCase {
         return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
     }
 
-    private Row addRow(UngroupedQueue queue, TopNOperator.SortOrder sortOrder, int value) {
+    private void addRow(UngroupedQueue queue, TopNOperator.SortOrder sortOrder, int value) {
         Row row = createRow(breaker, sortOrder, value);
         Row result = queue.add(row);
         if (result == row) {
             row.close();
-            return null;
         }
-        return result;
     }
 
     private void fillQueueToCapacity(UngroupedQueue queue, TopNOperator.SortOrder sortOrder, int capacity) {
@@ -137,5 +167,9 @@ public class UngroupedQueueTests extends ESTestCase {
             }
         }
         assertThat(actual, equalTo(expected));
+    }
+
+    private static long expectedRamBytesUsed(UngroupedQueue queue) {
+        return RamUsageTester.ramUsed(queue);
     }
 }

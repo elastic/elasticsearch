@@ -104,6 +104,10 @@ class GroupedQueue implements TopNQueue {
     }
 
     private static long sizeOf(int topCount) {
-        throw new AssertionError("TODO(gal) NOCOMMIT");
+        long total = SHALLOW_SIZE;
+        total += RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * (topCount + 1L)
+        );
+        return total;
     }
 }

@@ -155,6 +155,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
+import org.elasticsearch.indices.IndicesServiceTests;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -2771,7 +2772,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
-                        usageService
+                        usageService,
+                        new IndicesServiceTests.TestSlowLogFieldProvider()
                     )
                 );
                 actions.put(

@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -28,15 +27,11 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -49,16 +44,29 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
 
     private DataType dataType;
 
-    private static final Map<DataType, Function<ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map.of(
-        DataType.BOOLEAN, factories -> new GreatestBooleanEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DOUBLE, factories -> new GreatestDoubleEvaluator.Factory(Source.EMPTY, factories),
-        DataType.INTEGER, factories -> new GreatestIntEvaluator.Factory(Source.EMPTY, factories),
-        DataType.LONG, factories -> new GreatestLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DATETIME, factories -> new GreatestLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DATE_NANOS, factories -> new GreatestLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.IP, factories -> new GreatestBytesRefEvaluator.Factory(Source.EMPTY, factories),
-        DataType.VERSION, factories -> new GreatestBytesRefEvaluator.Factory(Source.EMPTY, factories)
-    );
+    private static final Map<DataType, BiFunction<Source, ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map
+        .of(
+            DataType.BOOLEAN,
+            GreatestBooleanEvaluator.Factory::new,
+            DataType.DOUBLE,
+            GreatestDoubleEvaluator.Factory::new,
+            DataType.INTEGER,
+            GreatestIntEvaluator.Factory::new,
+            DataType.LONG,
+            GreatestLongEvaluator.Factory::new,
+            DataType.DATETIME,
+            GreatestLongEvaluator.Factory::new,
+            DataType.DATE_NANOS,
+            GreatestLongEvaluator.Factory::new,
+            DataType.IP,
+            GreatestBytesRefEvaluator.Factory::new,
+            DataType.VERSION,
+            GreatestBytesRefEvaluator.Factory::new,
+            DataType.KEYWORD,
+            GreatestBytesRefEvaluator.Factory::new,
+            DataType.TEXT,
+            GreatestBytesRefEvaluator.Factory::new
+        );
 
     @FunctionInfo(
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
@@ -171,16 +179,14 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
             .map(e -> toEvaluator.apply(new MvMax(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
 
-        if (DataType.isString(dataType)) {
-            return new GreatestBytesRefEvaluator.Factory(source(), factories);
-        }
+
 
         var evaluatorFactory = EVALUATOR_MAP.get(dataType);
         if (evaluatorFactory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(dataType);
         }
 
-        return evaluatorFactory.apply(factories);
+        return evaluatorFactory.apply(source(), factories);
     }
 
     @Evaluator(extraName = "Boolean")

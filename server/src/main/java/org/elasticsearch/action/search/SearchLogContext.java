@@ -15,18 +15,18 @@ import org.elasticsearch.common.logging.action.ActionLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
-public class SearchActionContext extends ActionLoggerContext {
+public class SearchLogContext extends ActionLoggerContext {
     private static final String TYPE = "search";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
 
-    public SearchActionContext(Task task, SearchRequest request, SearchResponse response) {
+    public SearchLogContext(Task task, SearchRequest request, SearchResponse response) {
         super(task, TYPE, response.getTook().nanos());
         this.request = request;
         this.response = response;
     }
 
-    SearchActionContext(Task task, SearchRequest request, Exception error) {
+    SearchLogContext(Task task, SearchRequest request, Exception error) {
         super(task, TYPE, error);
         this.request = request;
         this.response = null;

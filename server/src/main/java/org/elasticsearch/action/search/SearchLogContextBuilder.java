@@ -12,23 +12,23 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.logging.action.ActionLoggerContextBuilder;
 import org.elasticsearch.tasks.Task;
 
-public class SearchActionContextBuilder implements ActionLoggerContextBuilder<SearchActionContext, SearchResponse> {
+public class SearchLogContextBuilder implements ActionLoggerContextBuilder<SearchLogContext, SearchResponse> {
 
     private final SearchRequest request;
     private final Task task;
 
-    public SearchActionContextBuilder(Task task, SearchRequest request) {
+    public SearchLogContextBuilder(Task task, SearchRequest request) {
         this.request = request;
         this.task = task;
     }
 
     @Override
-    public SearchActionContext build(SearchResponse response) {
-        return new SearchActionContext(task, request, response);
+    public SearchLogContext build(SearchResponse response) {
+        return new SearchLogContext(task, request, response);
     }
 
     @Override
-    public SearchActionContext build(Exception e) {
-        return new SearchActionContext(task, request, e);
+    public SearchLogContext build(Exception e) {
+        return new SearchLogContext(task, request, e);
     }
 }

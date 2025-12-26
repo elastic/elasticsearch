@@ -59,8 +59,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
-import org.elasticsearch.xpack.esql.querylog.EsqlLoggerContext;
-import org.elasticsearch.xpack.esql.querylog.EsqlLoggerContextBuilder;
+import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
+import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -92,7 +92,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
     private final TransportActionServices services;
-    private final ActionLogger<EsqlLoggerContext> actionLog;
+    private final ActionLogger<EsqlLogContext> actionLog;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -195,7 +195,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
 
         this.actionLog = new ActionLogger<>(
-            EsqlLoggerContext.TYPE,
+            EsqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EsqlLogProducer(),
             new LoggerActionWriter(EsqlLogProducer.LOGGER_NAME),
@@ -274,7 +274,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planTimeProfile,
             resultListener
         );
-        final var loggingListener = this.actionLog.wrap(listener, new EsqlLoggerContextBuilder(task, request));
+        final var loggingListener = this.actionLog.wrap(listener, new EsqlLogContextBuilder(task, request));
         planExecutor.esql(
             request,
             sessionId,

@@ -13,18 +13,18 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
-public class EsqlLoggerContext extends ActionLoggerContext {
+public class EsqlLogContext extends ActionLoggerContext {
     public static final String TYPE = "esql";
     private final EsqlQueryRequest request;
     private final @Nullable EsqlQueryResponse response;
 
-    EsqlLoggerContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
+    EsqlLogContext(Task task, EsqlQueryRequest request, EsqlQueryResponse response) {
         super(task, TYPE, response.getExecutionInfo().overallTook().nanos());
         this.request = request;
         this.response = response;
     }
 
-    EsqlLoggerContext(Task task, EsqlQueryRequest request, Exception error) {
+    EsqlLogContext(Task task, EsqlQueryRequest request, Exception error) {
         super(task, TYPE, error);
         this.request = request;
         this.response = null;

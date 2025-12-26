@@ -14,16 +14,16 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.action.ActionLoggerProducer;
 import org.elasticsearch.index.SlowLogFields;
 
-public class SearchActionLogProducer implements ActionLoggerProducer<SearchActionContext> {
+public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext> {
 
     @Override
-    public ESLogMessage produce(SearchActionContext context, SlowLogFields additionalFields) {
+    public ESLogMessage produce(SearchLogContext context, SlowLogFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
         return msg.with("query", context.getQuery()).with("indices", context.getIndices()).with("hits", context.getHits());
     }
 
     @Override
-    public Level logLevel(SearchActionContext context) {
+    public Level logLevel(SearchLogContext context) {
         return Level.INFO;
     }
 }

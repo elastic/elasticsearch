@@ -12,23 +12,23 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
-public class EsqlLoggerContextBuilder implements ActionLoggerContextBuilder<EsqlLoggerContext, EsqlQueryResponse> {
+public class EsqlLogContextBuilder implements ActionLoggerContextBuilder<EsqlLogContext, EsqlQueryResponse> {
 
     private final EsqlQueryRequest request;
     private final Task task;
 
-    public EsqlLoggerContextBuilder(Task task, EsqlQueryRequest request) {
+    public EsqlLogContextBuilder(Task task, EsqlQueryRequest request) {
         this.request = request;
         this.task = task;
     }
 
     @Override
-    public EsqlLoggerContext build(EsqlQueryResponse response) {
-        return new EsqlLoggerContext(task, request, response);
+    public EsqlLogContext build(EsqlQueryResponse response) {
+        return new EsqlLogContext(task, request, response);
     }
 
     @Override
-    public EsqlLoggerContext build(Exception e) {
-        return new EsqlLoggerContext(task, request, e);
+    public EsqlLogContext build(Exception e) {
+        return new EsqlLogContext(task, request, e);
     }
 }

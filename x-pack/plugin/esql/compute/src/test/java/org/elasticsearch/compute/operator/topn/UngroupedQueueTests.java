@@ -9,14 +9,17 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.topn.TopNQueue.AddResult;
-import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,19 +27,18 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UngroupedQueueTests extends ESTestCase {
-    private final CircuitBreaker breaker = new NoneCircuitBreakerService().getBreaker("test");
-    private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+    private final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1));
+    private final CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+    private final BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
 
-    private static List<TopNOperator.SortOrder> ascendingSortOrder() {
-        return List.of(new TopNOperator.SortOrder(0, true, false));
-    }
-
-    private static List<TopNOperator.SortOrder> descendingSortOrder() {
-        return List.of(new TopNOperator.SortOrder(0, false, false));
+    @After
+    public void allMemoryReleased() throws Exception {
+        MockBigArrays.ensureAllArraysAreReleased();
+        assertThat("Not all memory was released", breaker.getUsed(), equalTo(0L));
+        assertThat("Not all blocks were released", blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     public void testAddWhenHeapNotFull() {
@@ -48,7 +50,7 @@ public class UngroupedQueueTests extends ESTestCase {
 
             for (int i = 0; i < topCount; i++) {
                 AddResult result = addRow(queue, sortOrders, i * 10);
-                assertThat(result.evictedRow(), is(nullValue()));
+                assertThat(result.evictedRow(), nullValue());
                 assertThat(queue.size(), equalTo(i + 1));
             }
         }
@@ -61,12 +63,11 @@ public class UngroupedQueueTests extends ESTestCase {
             fillQueueToCapacity(queue, sortOrders, topCount);
 
             Row topBefore = queue.pop();
-            RowFiller rowFillerTop = createRowFiller(sortOrders, extractIntValue(topBefore, sortOrders));
+            RowFiller rowFillerTop = createRowFiller(sortOrders, extractIntValue(topBefore));
             queue.add(rowFillerTop, 0, topBefore, 0);
-            topBefore.close();
 
             AddResult result = addRow(queue, sortOrders, 5);
-            assertThat(extractIntValue(result.evictedRow(), sortOrders), equalTo(20));
+            assertThat(extractIntValue(result.evictedRow()), equalTo(20));
             assertThat(queue.size(), equalTo(topCount));
             result.evictedRow().close();
         }
@@ -79,7 +80,7 @@ public class UngroupedQueueTests extends ESTestCase {
             addRows(queue, sortOrders, 30, 40, 50);
 
             AddResult result = addRow(queue, sortOrders, 60);
-            assertThat(result, is(nullValue()));
+            assertThat(result, nullValue());
             assertThat(queue.size(), equalTo(topCount));
         }
     }
@@ -89,14 +90,13 @@ public class UngroupedQueueTests extends ESTestCase {
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
             List<TopNOperator.SortOrder> sortOrders = descendingSortOrder();
             addRows(queue, sortOrders, 50, 40, 30);
-            assertThat(queue.size(), equalTo(topCount));
 
             AddResult result = addRow(queue, sortOrders, 60);
-            assertThat(extractIntValue(result.evictedRow(), sortOrders), equalTo(30));
+            assertThat(extractIntValue(result.evictedRow()), equalTo(30));
             result.evictedRow().close();
 
             AddResult result2 = addRow(queue, sortOrders, 5);
-            assertThat(result2, is(nullValue()));
+            assertThat(result2, nullValue());
         }
     }
 
@@ -156,7 +156,7 @@ public class UngroupedQueueTests extends ESTestCase {
             List<Integer> poppedValues = new ArrayList<>();
             while (queue.size() > 0) {
                 Row popped = queue.pop();
-                poppedValues.add(extractIntValue(popped, sortOrders));
+                poppedValues.add(extractIntValue(popped));
                 popped.close();
             }
 
@@ -205,14 +205,18 @@ public class UngroupedQueueTests extends ESTestCase {
         return row;
     }
 
-    private static int extractIntValue(Row row, List<TopNOperator.SortOrder> sortOrders) {
+    private static int extractIntValue(Row row) {
         BytesRef keys = row.keys().bytesRefView();
         return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
     }
 
     private AddResult addRow(UngroupedQueue queue, List<TopNOperator.SortOrder> sortOrders, int value) {
         Row row = createRow(breaker, sortOrders, value);
-        return queue.add(createRowFiller(sortOrders, value), 0, row, 0);
+        AddResult result = queue.add(createRowFiller(sortOrders, value), 0, row, 0);
+        if (result == null) {
+            row.close();
+        }
+        return result;
     }
 
     private void fillQueueToCapacity(UngroupedQueue queue, List<TopNOperator.SortOrder> sortOrders, int capacity) {
@@ -224,5 +228,13 @@ public class UngroupedQueueTests extends ESTestCase {
             addRow(queue, sortOrders, value);
         }
         assertThat(queue.size(), equalTo(values.length));
+    }
+
+    private static List<TopNOperator.SortOrder> ascendingSortOrder() {
+        return List.of(new TopNOperator.SortOrder(0, true, false));
+    }
+
+    private static List<TopNOperator.SortOrder> descendingSortOrder() {
+        return List.of(new TopNOperator.SortOrder(0, false, false));
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 interface TopNQueue extends Accountable, Releasable {
     /** The current number of rows in the queue. */
@@ -21,7 +22,12 @@ interface TopNQueue extends Accountable, Releasable {
      * @param evictedRow the row that was evicted from the queue, or {@code null} if no row was evicted.
      * @param spareValuesPreAllocSize the new pre-allocation size for the spare row's values.
      */
-    record AddResult(@Nullable Row evictedRow, int spareValuesPreAllocSize) {}
+    record AddResult(@Nullable Row evictedRow, int spareValuesPreAllocSize) implements Releasable {
+        @Override
+        public void close() {
+            Releasables.close(evictedRow);
+        }
+    }
 
     // FIXME(gal, NOCOMMIT) The RowFiller should be part of the queue's state, not passed in
     /** Returns {@code null} if the row wasn't added because the queue was full <b>and</b> the row didn't qualify to be added. */

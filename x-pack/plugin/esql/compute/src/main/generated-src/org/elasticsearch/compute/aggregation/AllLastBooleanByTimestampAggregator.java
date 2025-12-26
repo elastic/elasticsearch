@@ -76,7 +76,7 @@ public class AllLastBooleanByTimestampAggregator {
             int offset = values.getFirstValueIndex(position);
             ByteArray a = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
             for (int i = 0; i < count; ++i) {
-                a.set(i, (byte)(values.getBoolean(offset + i) ? 1 : 0));
+                a.set(i, (byte) (values.getBoolean(offset + i) ? 1 : 0));
             }
             current.v2(a);
         }

@@ -27,6 +27,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -57,6 +59,7 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AggregatorFactoriesTests extends ESTestCase {
     private NamedXContentRegistry xContentRegistry;
@@ -313,6 +316,15 @@ public class AggregatorFactoriesTests extends ESTestCase {
         builder.addAggregator(AggregationBuilders.avg("real").field("target"));
         PipelineTree tree = builder.buildPipelineTree();
         assertThat(tree.aggregators().stream().map(PipelineAggregator::name).collect(toList()), equalTo(List.of("foo", "bar")));
+    }
+
+    public void testBuildPipelineTreeEmpty() {
+        AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+        builder.addAggregator(
+            new TermsAggregationBuilder("t").field("kwd").subAggregation(new AvgAggregationBuilder("real").field("target"))
+        );
+        PipelineTree tree = builder.buildPipelineTree();
+        assertThat(tree, sameInstance(PipelineTree.EMPTY));
     }
 
     public void testSupportsParallelCollection() {

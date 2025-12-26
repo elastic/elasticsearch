@@ -487,7 +487,9 @@ public class InferencePlugin extends Plugin
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
             services.threadPool(),
-            ccmAuthApplierFactory
+            ccmAuthApplierFactory,
+            ccmFeature,
+            ccmService
         );
 
         var authTaskExecutor = AuthorizationTaskExecutor.create(

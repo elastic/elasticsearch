@@ -158,7 +158,7 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
             delegate.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
         });
 
-        eisAuthorizationRequestHandler.getAuthorization(disabledServiceListener, sender);
+        eisAuthorizationRequestHandler.getAuthorizationSkippingIfCcmNotConfigured(disabledServiceListener, sender);
     }
 
     private List<InferenceServiceConfiguration> getServiceConfigurationsForServices(

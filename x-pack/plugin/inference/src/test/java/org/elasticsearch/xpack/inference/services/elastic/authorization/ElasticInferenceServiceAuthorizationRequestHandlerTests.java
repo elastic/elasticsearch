@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -51,11 +53,13 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,7 +89,14 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     public void testDoesNotAttempt_ToRetrieveAuthorization_IfBaseUrlIsNull() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(null, threadPool, logger, createNoopApplierFactory());
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            null,
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            createMockCcmFeature(false),
+            createMockCcmService(false)
+        );
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -107,7 +118,14 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     public void testDoesNotAttempt_ToRetrieveAuthorization_IfBaseUrlIsEmpty() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("", threadPool, logger, createNoopApplierFactory());
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            "",
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            createMockCcmFeature(false),
+            createMockCcmService(false)
+        );
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -134,7 +152,9 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             eisGatewayUrl,
             threadPool,
             logger,
-            createNoopApplierFactory()
+            createNoopApplierFactory(),
+            createMockCcmFeature(false),
+            createMockCcmService(false)
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -185,11 +205,16 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
         var logger = mock(Logger.class);
+        var mockCcmFeature = createMockCcmFeature(false);
+        var mockCcmService = createMockCcmService(false);
+
         var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             eisGatewayUrl,
             threadPool,
             logger,
-            createNoopApplierFactory()
+            createNoopApplierFactory(),
+            mockCcmFeature,
+            mockCcmService
         );
 
         try (var sender = senderFactory.createSender()) {
@@ -227,12 +252,210 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             assertThat(message, is("Retrieving authorization information from the Elastic Inference Service."));
 
             assertNoAuthHeader(webServer.requests());
+
+            authHandler.waitForAuthRequestCompletion(TimeValue.THIRTY_SECONDS);
+
+            // It should never check if the CCM environment is supported since getAuthorization does not attempt to skip the authorization
+            // check
+            verify(mockCcmFeature, never()).isCcmSupportedEnvironment();
+            verify(mockCcmService, never()).isEnabled(any());
         }
     }
 
     private static void assertNoAuthHeader(List<MockRequest> requests) {
         assertThat(requests.size(), is(1));
         assertNull(requests.get(0).getHeader(HttpHeaders.AUTHORIZATION));
+    }
+
+    public void testGetAuthorizationSkippingIfCcmNotConfigured_ReturnsFailure_WhenExceptionThrown() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+
+        var exceptionToThrow = new IllegalStateException("exception");
+        var mockCcmFeature = mock(CCMFeature.class);
+        when(mockCcmFeature.isCcmSupportedEnvironment()).thenThrow(exceptionToThrow);
+        var mockCcmService = createMockCcmService(false);
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            mockCcmFeature,
+            mockCcmService
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var responseData = getEisAuthorizationResponseWithMultipleEndpoints(eisGatewayUrl);
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorizationSkippingIfCcmNotConfigured(listener, sender);
+
+            var exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception, is(exceptionToThrow));
+
+            // There should be no requests made to EIS because it is not configured
+            assertThat(webServer.requests().size(), is(0));
+
+            authHandler.waitForAuthRequestCompletion(TimeValue.THIRTY_SECONDS);
+
+            verify(mockCcmFeature, times(1)).isCcmSupportedEnvironment();
+            verify(mockCcmService, never()).isEnabled(any());
+        }
+    }
+
+    public void testGetAuthorizationSkipIfCcmNotConfigured_ReturnsAValidResponse_WhenNotCcmSupportedEnvironment() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+
+        var mockCcmFeature = createMockCcmFeature(false);
+        var mockCcmService = createMockCcmService(false);
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            mockCcmFeature,
+            mockCcmService
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var responseData = getEisAuthorizationResponseWithMultipleEndpoints(eisGatewayUrl);
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorizationSkippingIfCcmNotConfigured(listener, sender);
+
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertThat(
+                authResponse.getTaskTypes(),
+                is(
+                    EnumSet.of(
+                        TaskType.CHAT_COMPLETION,
+                        TaskType.SPARSE_EMBEDDING,
+                        TaskType.TEXT_EMBEDDING,
+                        TaskType.RERANK,
+                        TaskType.COMPLETION
+                    )
+                )
+            );
+            assertThat(authResponse.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
+            assertTrue(authResponse.isAuthorized());
+            assertThat(
+                authResponse.getEndpoints(responseData.inferenceIds()),
+                containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
+            );
+
+            assertNoAuthHeader(webServer.requests());
+
+            authHandler.waitForAuthRequestCompletion(TimeValue.THIRTY_SECONDS);
+
+            verify(mockCcmFeature, times(1)).isCcmSupportedEnvironment();
+            verify(mockCcmService, never()).isEnabled(any());
+        }
+    }
+
+    public void testGetAuthorizationSkipIfCcmNotConfigured_ReturnsAValidResponse_WhenCcmSupportedEnvironmentAndConfigured()
+        throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+
+        var mockCcmFeature = createMockCcmFeature(true);
+        var mockCcmService = createMockCcmService(true);
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            mockCcmFeature,
+            mockCcmService
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var responseData = getEisAuthorizationResponseWithMultipleEndpoints(eisGatewayUrl);
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorizationSkippingIfCcmNotConfigured(listener, sender);
+
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertThat(
+                authResponse.getTaskTypes(),
+                is(
+                    EnumSet.of(
+                        TaskType.CHAT_COMPLETION,
+                        TaskType.SPARSE_EMBEDDING,
+                        TaskType.TEXT_EMBEDDING,
+                        TaskType.RERANK,
+                        TaskType.COMPLETION
+                    )
+                )
+            );
+            assertThat(authResponse.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
+            assertTrue(authResponse.isAuthorized());
+            assertThat(
+                authResponse.getEndpoints(responseData.inferenceIds()),
+                containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
+            );
+
+            assertNoAuthHeader(webServer.requests());
+
+            authHandler.waitForAuthRequestCompletion(TimeValue.THIRTY_SECONDS);
+
+            verify(mockCcmFeature, times(1)).isCcmSupportedEnvironment();
+            verify(mockCcmService, times(1)).isEnabled(any());
+        }
+    }
+
+    public void testGetAuthorizationSkipIfCcmNotConfigured_ReturnsUnauthorized_WhenCcmSupportedEnvironmentAndNotConfigured()
+        throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+        var logger = mock(Logger.class);
+
+        var mockCcmFeature = createMockCcmFeature(true);
+        var mockCcmService = createMockCcmService(false);
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            eisGatewayUrl,
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            mockCcmFeature,
+            mockCcmService
+        );
+
+        try (var sender = senderFactory.createSender()) {
+            var responseData = getEisAuthorizationResponseWithMultipleEndpoints(eisGatewayUrl);
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseData.responseJson()));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorizationSkippingIfCcmNotConfigured(listener, sender);
+
+            var authResponse = listener.actionGet(TIMEOUT);
+            assertThat(authResponse.getTaskTypes(), is(EnumSet.noneOf(TaskType.class)));
+            assertThat(authResponse.getEndpointIds(), empty());
+            assertFalse(authResponse.isAuthorized());
+            assertThat(authResponse.getEndpoints(responseData.inferenceIds()), empty());
+
+            // There should be no requests made to EIS because it is not configured
+            assertThat(webServer.requests().size(), is(0));
+
+            authHandler.waitForAuthRequestCompletion(TimeValue.THIRTY_SECONDS);
+
+            verify(mockCcmFeature, times(1)).isCcmSupportedEnvironment();
+            verify(mockCcmService, times(1)).isEnabled(any());
+        }
     }
 
     public void testGetAuthorization_ReturnsAValidResponse_WithAuthHeader() throws IOException {
@@ -245,7 +468,9 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             eisGatewayUrl,
             threadPool,
             logger,
-            createApplierFactory(secret)
+            createApplierFactory(secret),
+            createMockCcmFeature(false),
+            createMockCcmService(false)
         );
 
         var elserResponseBody = getEisElserAuthorizationResponse(eisGatewayUrl).responseJson();
@@ -285,7 +510,9 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             eisGatewayUrl,
             threadPool,
             logger,
-            createNoopApplierFactory()
+            createNoopApplierFactory(),
+            createMockCcmFeature(false),
+            createMockCcmService(false)
         );
 
         PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -325,7 +552,14 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
         }).when(senderMock).sendWithoutQueuing(any(), any(), any(), any(), any());
 
         var logger = mock(Logger.class);
-        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler("abc", threadPool, logger, createNoopApplierFactory());
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            "abc",
+            threadPool,
+            logger,
+            createNoopApplierFactory(),
+            createMockCcmFeature(false),
+            createMockCcmService(false)
+        );
 
         try (var sender = senderFactory.createSender()) {
             PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
@@ -340,5 +574,21 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var message = loggerArgsCaptor.getValue();
             assertThat(message, containsString("Failed to retrieve the authorization information from the Elastic Inference Service."));
         }
+    }
+
+    private static CCMFeature createMockCcmFeature(boolean isCcmSupportedEnvironment) {
+        var ccmFeature = mock(CCMFeature.class);
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(isCcmSupportedEnvironment);
+        return ccmFeature;
+    }
+
+    private static CCMService createMockCcmService(boolean isEnabled) {
+        var ccmService = mock(CCMService.class);
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = invocation.getArgument(0);
+            listener.onResponse(isEnabled);
+            return Void.TYPE;
+        }).when(ccmService).isEnabled(any());
+        return ccmService;
     }
 }

@@ -26,6 +26,7 @@ interface TopNQueue extends Accountable, Releasable {
      */
     Row add(Row row);
 
+    // FIXME(gal, NOCOMMIT) Just have a single method that returns and removes all the rows.
     /**
      * Removes and returns the <b>least</b> row in the queue, or {@code null} if the queue is empty. For an ascending order, the least row
      * is the largest one, and vice versa.

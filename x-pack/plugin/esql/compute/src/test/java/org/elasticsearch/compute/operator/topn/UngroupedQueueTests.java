@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -23,6 +24,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class UngroupedQueueTests extends ESTestCase {
     private final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1));
@@ -42,10 +44,8 @@ public class UngroupedQueueTests extends ESTestCase {
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
             assertThat(queue.size(), equalTo(0));
 
-            List<TopNOperator.SortOrder> sortOrders = ascendingSortOrder();
-
             for (int i = 0; i < topCount * 2; i++) {
-                addRow(queue, sortOrders, i * 10);
+                addRow(queue, SORT_ORDER, i * 10);
             }
         }
     }
@@ -53,12 +53,9 @@ public class UngroupedQueueTests extends ESTestCase {
     public void testAddWhenHeapNotFull() {
         int topCount = 5;
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
-            List<TopNOperator.SortOrder> sortOrders = ascendingSortOrder();
-
             for (int i = 0; i < topCount; i++) {
-                Row row = createRow(breaker, sortOrders, i * 10);
-                queue.add(createRowFiller(sortOrders, i * 10), 0, row, 0);
-                assertThat(result.nextSpare(), nullValue());
+                Row result = queue.add(createRow(breaker, SORT_ORDER, i * 10));
+                assertThat(result, nullValue());
                 assertThat(queue.size(), equalTo(i + 1));
             }
             assertQueueContents(queue, List.of(40, 30, 20, 10, 0));
@@ -68,16 +65,15 @@ public class UngroupedQueueTests extends ESTestCase {
     public void testAddWhenHeapFullAndRowQualifies() {
         int topCount = 3;
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
-            List<TopNOperator.SortOrder> sortOrders = ascendingSortOrder();
-            fillQueueToCapacity(queue, sortOrders, topCount);
+            TopNOperator.SortOrder sortOrder = SORT_ORDER;
+            fillQueueToCapacity(queue, sortOrder, topCount);
 
-            Row topBefore = queue.pop();
-            RowFiller rowFillerTop = createRowFiller(sortOrders, extractIntValue(topBefore));
-            queue.add(rowFillerTop, 0, topBefore, 0);
+            Row result = queue.add(queue.pop());
+            assertThat(result, nullValue());
 
-            try (AddResult result = addRow(queue, sortOrders, 5)) {
-                assertThat(extractIntValue(result.nextSpare()), equalTo(20));
-            }
+            Row evicted = queue.add(createRow(breaker, sortOrder, 5));
+            assertThat(extractIntValue(evicted), equalTo(20));
+            Releasables.close(evicted);
             assertQueueContents(queue, List.of(10, 5, 0));
         }
     }
@@ -85,60 +81,22 @@ public class UngroupedQueueTests extends ESTestCase {
     public void testAddWhenHeapFullAndRowDoesNotQualify() {
         int topCount = 3;
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
-            List<TopNOperator.SortOrder> sortOrders = ascendingSortOrder();
-            addRows(queue, sortOrders, 30, 40, 50);
+            addRows(queue, SORT_ORDER, 30, 40, 50);
 
-            AddResult result = addRow(queue, sortOrders, 60);
-            assertThat(result, nullValue());
+            Row row = createRow(breaker, SORT_ORDER, 60);
+            Row result = queue.add(row);
+            assertThat(result, sameInstance(row));
+            assertThat(extractIntValue(result), equalTo(60));
+            Releasables.close(result);
             assertQueueContents(queue, List.of(50, 40, 30));
         }
     }
 
-    public void testAddSpareValuesPreAllocSize() {
-        int topCount = 2;
-        try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
-            var sortOrders = ascendingSortOrder();
-
-            Row row1 = createRow(breaker, sortOrders, 10);
-            for (int i = 0; i < 3; i++) {
-                row1.values().append(randomByte());
-            }
-            RowFiller rowFiller1 = createRowFiller(sortOrders, 10);
-            AddResult result1 = queue.add(rowFiller1, 0, row1, 0);
-            int valuesLengthAfterAdd = row1.values().length();
-            assertThat(result1.spareValuesPreAllocSize(), equalTo(Math.max(valuesLengthAfterAdd, 0)));
-
-            Row row2 = createRow(breaker, sortOrders, 20);
-            for (int i = 0; i < 3; i++) {
-                row2.values().append(randomByte());
-            }
-            int valuesLength2 = row2.values().length();
-            RowFiller rowFiller2 = createRowFiller(sortOrders, 20);
-            AddResult result2 = queue.add(rowFiller2, 0, row2, 100);
-            assertThat(result2.spareValuesPreAllocSize(), equalTo(Math.max(valuesLength2, 50)));
-
-            Row row3 = createRow(breaker, sortOrders, 30);
-            RowFiller rowFiller3 = createRowFiller(sortOrders, 30);
-            queue.add(rowFiller3, 0, row3, 0);
-
-            try (var betterRow = createRow(breaker, sortOrders, 5)) {
-                betterRow.values().append(randomByte());
-                int betterValuesLength = betterRow.values().length();
-                RowFiller rowFillerBetter = createRowFiller(sortOrders, 5);
-                try (AddResult result3 = queue.add(rowFillerBetter, 0, betterRow, 200)) {
-                    assertThat(result3.spareValuesPreAllocSize(), equalTo(Math.max(betterValuesLength, 100)));
-                }
-            }
-        }
-    }
-
-    private RowFiller createRowFiller(List<TopNOperator.SortOrder> sortOrders, int value) {}
-
-    private Row createRow(CircuitBreaker breaker, List<TopNOperator.SortOrder> sortOrders, int value) {
-        RowFiller rowFiller = createRowFiller(sortOrders, value);
-        Row row = new UngroupedRow(breaker, sortOrders, 0, 0);
-        rowFiller.writeKey(0, row);
-        rowFiller.writeValues(0, row);
+    private Row createRow(CircuitBreaker breaker, TopNOperator.SortOrder sortOrder, int value) {
+        Row row = new UngroupedRow(breaker, List.of(sortOrder), 0, 0);
+        row.keys().append(sortOrder.nonNul());
+        TopNEncoder.DEFAULT_SORTABLE.encodeInt(value, row.keys());
+        row.bytesOrder().endOffsets[0] = row.keys().length() - 1;
         return row;
     }
 
@@ -147,33 +105,28 @@ public class UngroupedQueueTests extends ESTestCase {
         return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
     }
 
-    private AddResult addRow(UngroupedQueue queue, List<TopNOperator.SortOrder> sortOrders, int value) {
-        Row row = createRow(breaker, sortOrders, value);
-        AddResult result = queue.add(createRowFiller(sortOrders, value), 0, row, 0);
-        if (result.nextSpare() == row) {
+    private Row addRow(UngroupedQueue queue, TopNOperator.SortOrder sortOrder, int value) {
+        Row row = createRow(breaker, sortOrder, value);
+        Row result = queue.add(row);
+        if (result == row) {
             row.close();
+            return null;
         }
         return result;
     }
 
-    private void fillQueueToCapacity(UngroupedQueue queue, List<TopNOperator.SortOrder> sortOrders, int capacity) {
-        addRows(queue, sortOrders, IntStream.range(0, capacity).map(i -> i * 10).toArray());
+    private void fillQueueToCapacity(UngroupedQueue queue, TopNOperator.SortOrder sortOrder, int capacity) {
+        addRows(queue, sortOrder, IntStream.range(0, capacity).map(i -> i * 10).toArray());
     }
 
-    private void addRows(UngroupedQueue queue, List<TopNOperator.SortOrder> sortOrders, int... values) {
+    private void addRows(UngroupedQueue queue, TopNOperator.SortOrder sortOrder, int... values) {
         for (int value : values) {
-            addRow(queue, sortOrders, value);
+            addRow(queue, sortOrder, value);
         }
         assertThat(queue.size(), equalTo(values.length));
     }
 
-    private static List<TopNOperator.SortOrder> ascendingSortOrder() {
-        return List.of(new TopNOperator.SortOrder(0, true, false));
-    }
-
-    private static List<TopNOperator.SortOrder> descendingSortOrder() {
-        return List.of(new TopNOperator.SortOrder(0, false, false));
-    }
+    private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(0, true, false);
 
     private static void assertQueueContents(UngroupedQueue queue, List<Integer> expected) {
         assertThat(queue.size(), equalTo(expected.size()));

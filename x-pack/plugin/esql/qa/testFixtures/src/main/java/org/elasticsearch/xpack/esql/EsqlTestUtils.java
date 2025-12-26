@@ -42,6 +42,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -190,6 +191,7 @@ import java.util.zip.ZipEntry;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.fail;
@@ -1090,6 +1092,11 @@ public final class EsqlTestUtils {
                 randomDouble(),
                 randomInt()
             );
+            case DATE_RANGE -> {
+                var from = randomMillisUpToYear9999();
+                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
             case NULL -> null;
             case SOURCE -> {
                 try {
@@ -1409,6 +1416,46 @@ public final class EsqlTestUtils {
 
     private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
 
+    /**
+     * Checks if a query contains any of the specified indices in its source command.
+     * This is useful for determining if a query uses indices that are loaded into both clusters
+     * (like enrich source indices or lookup indices), which may require special handling.
+     *
+     * @param query The ESQL query to check
+     * @param indicesToCheck Set of index names to check for (case-insensitive)
+     * @return true if the query contains any of the specified indices, false otherwise
+     */
+    public static boolean queryContainsIndices(String query, Set<String> indicesToCheck) {
+        String[] commands = query.split("\\|");
+        // remove subqueries
+        String first = commands[0].split(",\\s+\\(")[0].trim();
+        // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        int lastSetDelimiterPosition = -1;
+        if (setMatcher.find()) {
+            lastSetDelimiterPosition = setMatcher.end();
+        }
+        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
+        // Split "FROM a, b, c" into "FROM" and "a, b, c"
+        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+        String command = commandParts[0].trim();
+        if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
+            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
+                .collect(UnresolvedRelation.class)
+                .getFirst()
+                .indexPattern()
+                .indexPattern()
+                .split(",");
+            for (String index : indices) {
+                String indexName = index.trim().toLowerCase(Locale.ROOT);
+                if (indicesToCheck.contains(indexName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
         String[] commands = query.split("\\|");
         // remove subqueries
@@ -1439,7 +1486,7 @@ public final class EsqlTestUtils {
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
-                if (Arrays.stream(indices).anyMatch(i -> lookupIndices.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                if (queryContainsIndices(query, lookupIndices)) {
                     // If the query contains lookup indices, use only remotes to avoid duplication
                     onlyRemotes = true;
                 }

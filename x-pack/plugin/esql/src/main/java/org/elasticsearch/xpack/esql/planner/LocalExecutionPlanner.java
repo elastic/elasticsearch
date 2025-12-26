@@ -47,6 +47,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -91,7 +92,10 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
+import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -224,7 +228,8 @@ public class LocalExecutionPlanner {
             foldCtx,
             plannerSettings,
             timeSeries,
-            shardContexts
+            shardContexts,
+            DriverContext.WarningsMode.COLLECT
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -246,7 +251,8 @@ public class LocalExecutionPlanner {
                     context.shardContexts,
                     physicalOperation,
                     statusInterval,
-                    settings
+                    settings,
+                    context.warningsMode
                 ),
                 context.driverParallelism().get()
             )
@@ -286,6 +292,8 @@ public class LocalExecutionPlanner {
             return planCompletion(completion, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
+        } else if (node instanceof CompoundOutputEvalExec coe) {
+            return planCompoundOutputEval(coe, context);
         }
 
         // source nodes
@@ -318,6 +326,39 @@ public class LocalExecutionPlanner {
         }
 
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
+    }
+
+    private PhysicalOperation planCompoundOutputEval(CompoundOutputEvalExec coe, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(coe.child(), context);
+        Layout.Builder layoutBuilder = source.layout.builder();
+        layoutBuilder.append(coe.outputFields());
+
+        ElementType[] types = new ElementType[coe.outputFields().size()];
+        for (int i = 0; i < coe.outputFields().size(); i++) {
+            types[i] = PlannerUtils.toElementType(coe.outputFields().get(i).dataType());
+        }
+
+        Layout layout = layoutBuilder.build();
+
+        final CompoundOutputFunction function = coe.function();
+        final DataType inputType = coe.input().dataType();
+        final Warnings warnings = Warnings.createWarnings(
+            context.warningsMode,
+            coe.source().source().getLineNumber(),
+            coe.source().source().getColumnNumber(),
+            coe.source().text()
+        );
+
+        source = source.with(
+            new ColumnExtractOperator.Factory(
+                types,
+                EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout),
+                // The supplier creates our existing CompoundOutputEvaluator
+                () -> new CompoundOutputEvaluator(function, inputType, warnings)
+            ),
+            layout
+        );
+        return source;
     }
 
     private PhysicalOperation planCompletion(CompletionExec completion, LocalExecutionPlannerContext context) {
@@ -1056,7 +1097,8 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         boolean timeSeries,
-        IndexedByShardId<? extends ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        DriverContext.WarningsMode warningsMode
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -1097,7 +1139,8 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
-        Settings settings
+        Settings settings,
+        DriverContext.WarningsMode warningsMode
     ) implements Function<String, Driver>, Describable {
         @Override
         public Driver apply(String sessionId) {
@@ -1111,7 +1154,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), description);
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), description, warningsMode);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

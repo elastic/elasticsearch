@@ -355,6 +355,38 @@ EXPORT f32_t vec_dotf32_2(const f32_t *a, const f32_t *b, const int32_t elementC
     return result;
 }
 
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void dotf32_inner_bulk(
+    const f32_t *a,
+    const f32_t *b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t *offsets,
+    const int32_t count,
+    f32_t *results
+) {
+    int32_t vec_size = pitch / sizeof(f32_t);
+    for (size_t c = 0; c < count; c++) {
+        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
+        results[c] = vec_dotf32_2(a0, b, dims);
+    }
+}
+
+EXPORT void vec_dotf32_bulk_2(const f32_t *a, const f32_t *b, const int32_t dims, const int32_t count, f32_t *results) {
+    dotf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+}
+
+EXPORT void vec_dotf32_bulk_offsets_2(
+    const f32_t *a,
+    const f32_t *b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t *offsets,
+    const int32_t count,
+    f32_t *results) {
+    dotf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
 // const f32_t *a  pointer to the first float vector
 // const f32_t *b  pointer to the second float vector
 // const int32_t elementCount  the number of floating point elements
@@ -389,6 +421,38 @@ EXPORT f32_t vec_sqrf32_2(const f32_t *a, const f32_t *b, const int32_t elementC
     }
 
     return result;
+}
+
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void sqrf32_inner_bulk(
+    const f32_t *a,
+    const f32_t *b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t *offsets,
+    const int32_t count,
+    f32_t *results
+) {
+    int32_t vec_size = pitch / sizeof(f32_t);
+    for (size_t c = 0; c < count; c++) {
+        const f32_t *a0 = a + mapper(c, offsets) * vec_size;
+        results[c] = vec_sqrf32_2(a0, b, dims);
+    }
+}
+
+EXPORT void vec_sqrf32_bulk_2(const f32_t *a, const f32_t *b, const int32_t dims, const int32_t count, f32_t *results) {
+    sqrf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+}
+
+EXPORT void vec_sqrf32_bulk_offsets_2(
+    const f32_t *a,
+    const f32_t *b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t *offsets,
+    const int32_t count,
+    f32_t *results) {
+    sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

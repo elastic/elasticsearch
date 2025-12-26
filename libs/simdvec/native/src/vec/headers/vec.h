@@ -63,6 +63,28 @@ EXPORT void vec_sqr7u_bulk_offsets(
     const int32_t count,
     f32_t* results);
 
-EXPORT f32_t vec_dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount);
+EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCount);
 
-EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount);
+EXPORT void vec_dotf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results);
+
+EXPORT void vec_dotf32_bulk_offsets(
+    const f32_t* a,
+    const f32_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results);
+
+EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCount);
+
+EXPORT void vec_sqrf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results);
+
+EXPORT void vec_sqrf32_bulk_offsets(
+    const f32_t* a,
+    const f32_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results);

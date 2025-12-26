@@ -274,18 +274,17 @@ public class TopNOperator implements Operator, Accountable {
                     spare.clear();
                 }
                 rowFiller.writeKey(i, spare);
-
                 // When rows are very long, appending the values one by one can lead to lots of allocations.
                 // To avoid this, pre-allocate at least as much size as in the last seen row.
                 // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
-                spareKeysPreAllocSize = Math.max(spare.keys().length(), spareKeysPreAllocSize / 2);
+                spareKeysPreAllocSize = newPreAllocSize(spare, spareKeysPreAllocSize);
 
-                // This is `inputQueue.insertWithOverflow` followed by filling in the value only if we inserted.
-                var result = inputQueue.add(rowFiller, i, spare, spareValuesPreAllocSize);
-                if (result != null) {
-                    spare = result.evictedRow();
-                    spareValuesPreAllocSize = result.spareValuesPreAllocSize();
+                var nextSpare = inputQueue.add(spare);
+                if (nextSpare != spare) {
+                    rowFiller.writeValues(i, spare);
+                    spareValuesPreAllocSize = newPreAllocSize(spare, spareValuesPreAllocSize);
                 }
+                spare = nextSpare;
             }
         } finally {
             page.releaseBlocks();
@@ -293,6 +292,10 @@ public class TopNOperator implements Operator, Accountable {
             rowsReceived += page.getPositionCount();
             receiveNanos += System.nanoTime() - start;
         }
+    }
+
+    private static int newPreAllocSize(Row spare, int spareValuesPreAllocSize) {
+        return Math.max(spare.values().length(), spareValuesPreAllocSize / 2);
     }
 
     @Override

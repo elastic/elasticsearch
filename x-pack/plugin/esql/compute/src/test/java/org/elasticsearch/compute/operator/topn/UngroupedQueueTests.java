@@ -14,10 +14,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.topn.TopNQueue.AddResult;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -60,8 +56,9 @@ public class UngroupedQueueTests extends ESTestCase {
             List<TopNOperator.SortOrder> sortOrders = ascendingSortOrder();
 
             for (int i = 0; i < topCount; i++) {
-                AddResult result = addRow(queue, sortOrders, i * 10);
-                assertThat(result.evictedRow(), nullValue());
+                Row row = createRow(breaker, sortOrders, i * 10);
+                queue.add(createRowFiller(sortOrders, i * 10), 0, row, 0);
+                assertThat(result.nextSpare(), nullValue());
                 assertThat(queue.size(), equalTo(i + 1));
             }
             assertQueueContents(queue, List.of(40, 30, 20, 10, 0));
@@ -79,7 +76,7 @@ public class UngroupedQueueTests extends ESTestCase {
             queue.add(rowFillerTop, 0, topBefore, 0);
 
             try (AddResult result = addRow(queue, sortOrders, 5)) {
-                assertThat(extractIntValue(result.evictedRow()), equalTo(20));
+                assertThat(extractIntValue(result.nextSpare()), equalTo(20));
             }
             assertQueueContents(queue, List.of(10, 5, 0));
         }
@@ -135,11 +132,7 @@ public class UngroupedQueueTests extends ESTestCase {
         }
     }
 
-    private RowFiller createRowFiller(List<TopNOperator.SortOrder> sortOrders, int value) {
-        try (IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(value).build()) {
-            return new UngroupedRowFiller(List.of(ElementType.INT), List.of(TopNEncoder.DEFAULT_SORTABLE), sortOrders, new Page(keyBlock));
-        }
-    }
+    private RowFiller createRowFiller(List<TopNOperator.SortOrder> sortOrders, int value) {}
 
     private Row createRow(CircuitBreaker breaker, List<TopNOperator.SortOrder> sortOrders, int value) {
         RowFiller rowFiller = createRowFiller(sortOrders, value);
@@ -157,7 +150,7 @@ public class UngroupedQueueTests extends ESTestCase {
     private AddResult addRow(UngroupedQueue queue, List<TopNOperator.SortOrder> sortOrders, int value) {
         Row row = createRow(breaker, sortOrders, value);
         AddResult result = queue.add(createRowFiller(sortOrders, value), 0, row, 0);
-        if (result == null) {
+        if (result.nextSpare() == row) {
             row.close();
         }
         return result;

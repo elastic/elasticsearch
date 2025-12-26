@@ -47,27 +47,19 @@ final class UngroupedQueue implements TopNQueue {
     }
 
     @Override
-    public AddResult add(RowFiller rowFiller, int i, Row row, int spareValuesPreAllocSize) {
+    public Row add(Row row) {
         if (size() < topCount) {
             // Heap not yet full, just add the element.
-            rowFiller.writeValues(i, row);
-            int newSpareValuesPreAllocSize = newPreAllocSize(row, spareValuesPreAllocSize);
             pq.add(row);
-            return new AddResult(null, newSpareValuesPreAllocSize);
+            return null;
         } else if (TopNOperator.compareRows(pq.top(), row) < 0) {
             // Heap full BUT this node fits in it.
-            Row nextSpare = pq.top();
-            rowFiller.writeValues(i, row);
-            int newSpareValuesPreAllocSize = newPreAllocSize(row, spareValuesPreAllocSize);
+            Row evicted = pq.top();
             pq.updateTop(row);
-            return new AddResult(nextSpare, newSpareValuesPreAllocSize);
+            return evicted;
         }
         // Heap full AND this node does not fit in it.
-        return null;
-    }
-
-    private static int newPreAllocSize(Row spare, int spareValuesPreAllocSize) {
-        return Math.max(spare.values().length(), spareValuesPreAllocSize / 2);
+        return row;
     }
 
     @Override

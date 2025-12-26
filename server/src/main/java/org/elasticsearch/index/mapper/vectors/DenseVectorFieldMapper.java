@@ -96,6 +96,7 @@ import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -1039,7 +1040,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public double computeSquaredMagnitude(VectorData vectorData) {
-            return VectorUtil.dotProduct(vectorData.asFloatVector(), vectorData.asFloatVector());
+            return ESVectorUtil.dotProduct(vectorData.asFloatVector(), vectorData.asFloatVector());
         }
 
         @Override
@@ -2680,7 +2681,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
                 if (isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
                     float length = (float) Math.sqrt(squaredMagnitude);
@@ -2876,7 +2877,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
                 if (isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
                     float length = (float) Math.sqrt(squaredMagnitude);

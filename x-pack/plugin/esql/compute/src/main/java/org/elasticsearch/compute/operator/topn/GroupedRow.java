@@ -7,26 +7,31 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasables;
 
 // FIXME(gal, NOCOMMIT) document
 final class GroupedRow implements Row {
-    private final CircuitBreaker breaker;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(GroupedRow.class);
     private final UngroupedRow row;
     private final BreakingBytesRefBuilder groupKey;
 
     GroupedRow(UngroupedRow row, CircuitBreaker breaker, int preAllocatedGroupKeySize) {
-        this.breaker = breaker;
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
         this.row = row;
-        this.groupKey = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedGroupKeySize);
+        boolean success = false;
+        try {
+            this.groupKey = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedGroupKeySize);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
-
-    // GroupedRow(UngroupedRow row, CircuitBreaker breaker, BreakingBytesRefBuilder groupKey) {
-    // this.row = row;
-    // this.groupKey = groupKey;
-    // }
 
     public BreakingBytesRefBuilder groupKey() {
         return groupKey;
@@ -60,12 +65,16 @@ final class GroupedRow implements Row {
 
     @Override
     public long ramBytesUsed() {
-        return row.ramBytesUsed() + groupKey.ramBytesUsed();
+        return SHALLOW_SIZE + row.ramBytesUsed() + groupKey.ramBytesUsed() + 16;
     }
 
     @Override
     public void close() {
         row.close();
-        groupKey.close();
+        Releasables.closeExpectNoException(groupKey);
+    }
+
+    public void writeGroupKey(int i, Row row) {
+        throw new AssertionError("TODO(gal) NOCOMMIT");
     }
 }

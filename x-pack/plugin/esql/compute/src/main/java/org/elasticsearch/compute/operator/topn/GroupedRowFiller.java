@@ -22,7 +22,7 @@ final class GroupedRowFiller implements RowFiller {
     @Override
     public void writeKey(int i, Row row) {
         ungroupedRowFiller.writeKey(i, row);
-        ((UngroupedRow) row).writeGroupKey(i);
+        ((GroupedRow) row).writeGroupKey(i, row);
     }
 
     @Override

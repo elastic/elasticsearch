@@ -16,23 +16,24 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UngroupedRowTests extends ESTestCase {
+// FIXME(gal, NOCOMMIT) reduce duplication with UngroupedRowTests
+public class GroupedRowTests extends ESTestCase {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
 
     public void testRamBytesUsedEmpty() {
-        Row row = new UngroupedRow(breaker, sortOrders(), 0, 0);
+        var row = new GroupedRow(new UngroupedRow(breaker, sortOrders(), 0, 0), breaker, 0);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedSmall() {
-        Row row = new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0);
+        var row = new GroupedRow(new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0), breaker, 0);
         row.keys().append(randomByte());
         row.values().append(randomByte());
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedBig() {
-        Row row = new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0);
+        var row = new GroupedRow(new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0), breaker, 0);
         for (int i = 0; i < 10000; i++) {
             row.keys().append(randomByte());
             row.values().append(randomByte());
@@ -41,7 +42,7 @@ public class UngroupedRowTests extends ESTestCase {
     }
 
     public void testRamBytesUsedPreAllocated() {
-        Row row = new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 64, 128);
+        var row = new GroupedRow(new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 64, 128), breaker, 16);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
@@ -52,10 +53,14 @@ public class UngroupedRowTests extends ESTestCase {
         );
     }
 
-    private long expectedRamBytesUsed(Row row) {
+    private long expectedRamBytesUsed(GroupedRow row) {
         long expected = RamUsageTester.ramUsed(row);
         if (row.values().bytes().length == 0) {
             // We double count the shared empty array for empty rows. This overcounting is *fine*, but throws off the test.
+            expected += RamUsageTester.ramUsed(new byte[0]);
+        }
+        if (row.groupKey().bytes().length == 0) {
+            // We double count the shared empty array for empty group keys. This overcounting is *fine*, but throws off the test.
             expected += RamUsageTester.ramUsed(new byte[0]);
         }
         // The breaker is shared infrastructure so we don't count it but RamUsageTester does

@@ -117,8 +117,4 @@ final class UngroupedRow implements Row {
         this.shardRefCounter = shardRefCounted;
         this.shardRefCounter.mustIncRef();
     }
-
-    public void writeGroupKey(int i) {
-        throw new AssertionError("TODO(gal) NOCOMMIT");
-    }
 }

@@ -1822,6 +1822,8 @@ public class EsqlCapabilities {
          */
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
+        DATE_TIME_EXCEPTIONS_HANDLED,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

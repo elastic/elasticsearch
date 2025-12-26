@@ -146,27 +146,25 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withLocation(Source source) {
-        return Objects.equals(source(), source) ? this : clone(source, qualifier(), name(), safeDataType(), nullable(), id(), synthetic());
+        return Objects.equals(source(), source) ? this : clone(source, qualifier(), name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier, qualifier)
-            ? this
-            : clone(source(), qualifier, name(), safeDataType(), nullable(), id(), synthetic());
+        return Objects.equals(qualifier, qualifier) ? this : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
-        return Objects.equals(name(), name) ? this : clone(source(), qualifier(), name, safeDataType(), nullable(), id(), synthetic());
+        return Objects.equals(name(), name) ? this : clone(source(), qualifier(), name, dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withNullability(Nullability nullability) {
         return Objects.equals(nullable(), nullability)
             ? this
-            : clone(source(), qualifier(), name(), safeDataType(), nullability, id(), synthetic());
+            : clone(source(), qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
     public Attribute withId(NameId id) {
-        return clone(source(), qualifier(), name(), safeDataType(), nullable(), id, synthetic());
+        return clone(source(), qualifier(), name(), dataType(), nullable(), id, synthetic());
     }
 
     public Attribute withDataType(DataType type) {
@@ -182,10 +180,6 @@ public abstract class Attribute extends NamedExpression {
         NameId id,
         boolean synthetic
     );
-
-    private DataType safeDataType() {
-        return resolved() ? dataType() : null;
-    }
 
     @Override
     public Attribute toAttribute() {

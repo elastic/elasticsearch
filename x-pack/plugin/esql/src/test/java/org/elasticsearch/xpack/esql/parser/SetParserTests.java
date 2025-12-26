@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -181,10 +180,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     public void testSetUnmappedFieldsWrongValue() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         var mode = randomValueOtherThanMany(
-            v -> Arrays.stream(UnmappedResolution.values())
-                .map(x -> x.name().toLowerCase(Locale.ROOT))
-                .toList()
-                .contains(v.toLowerCase(Locale.ROOT)),
+            v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)
         );
         expectValidationError(

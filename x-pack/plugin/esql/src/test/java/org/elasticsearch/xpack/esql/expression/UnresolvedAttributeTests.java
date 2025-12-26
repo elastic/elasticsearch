@@ -69,7 +69,7 @@ public class UnresolvedAttributeTests extends AbstractNamedExpressionSerializati
 
     @Override
     protected UnresolvedAttribute mutateNameId(UnresolvedAttribute instance) {
-        return (UnresolvedAttribute) instance.withId(new NameId());
+        return instance.withId(new NameId());
     }
 
     @Override

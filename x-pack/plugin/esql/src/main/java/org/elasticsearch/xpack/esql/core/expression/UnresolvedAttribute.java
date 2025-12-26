@@ -97,18 +97,14 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         NameId id,
         boolean synthetic
     ) {
-        // assertions, "should never happen"
-        if (dataType != null) {
-            throw new UnresolvedException("clone() with data type [" + dataType + "]", this);
-        }
-        if (nullability != nullable()) {
-            throw new UnresolvedException("clone() with nullability [" + nullability + "]", this);
-        }
-        if (synthetic != synthetic()) {
-            throw new UnresolvedException("clone() with synthetic [" + synthetic + "]", this);
-        }
+        // TODO: This looks like a bug; making clones should allow for changes.
+        return this;
+    }
 
-        return new UnresolvedAttribute(source, qualifier, name, id, unresolvedMsg);
+    // Cannot just use the super method because that requires a data type.
+    @Override
+    public UnresolvedAttribute withId(NameId id) {
+        return new UnresolvedAttribute(source(), qualifier(), name(), id, unresolvedMessage());
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {

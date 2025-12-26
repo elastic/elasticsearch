@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -41,10 +42,8 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -133,7 +132,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -591,7 +589,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            boolean groupingsResolved = groupings.size() == resolvedGroupings.size(); // _all_ groupings resolved?
+            boolean groupingsResolved = groupings.size() == resolvedGroupings.size(); // meaning: are _all_ groupings resolved?
             if (groupingsResolved == false || Resolvables.resolved(aggregates) == false) {
                 Holder<Boolean> changed = new Holder<>(false);
                 List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, childrenOutput);
@@ -1297,8 +1295,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Other rules (like {@link ResolveUnmapped}) will further resolve attributes that this rule will not, in a first pass.
-         * This method will then further resolve unresolved attributes.
+         * This rule will turn a {@link Keep} into an {@link EsqlProject}, even if its references aren't resolved.
+         * This method will reattempt the resolution of the {@link EsqlProject}.
          */
         private LogicalPlan resolveProject(Project p, List<Attribute> childOutput) {
             LinkedHashMap<String, NamedExpression> resolvedProjections = new LinkedHashMap<>(p.projections().size());
@@ -2212,130 +2210,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveUnmapped extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            return switch (context.unmappedResolution()) {
-                case UnmappedResolution.FAIL -> plan;
-                case UnmappedResolution.NULLIFY -> nullify(plan);
-                case UnmappedResolution.LOAD -> throw new IllegalArgumentException("unmapped fields resolution not yet supported");
-            };
-        }
-
-        private LogicalPlan nullify(LogicalPlan plan) {
-            List<UnresolvedAttribute> nullifiedUnresolved = new ArrayList<>();
-            List<UnresolvedAttribute> unresolved = new ArrayList<>();
-            Holder<Boolean> unresolvable = new Holder<>(false);
-            var resolved = plan.transformDown(p -> unresolvable.get() ? p : switch (p) {
-                case Aggregate agg -> {
-                    unresolved.clear(); // an UA past a STATS remains unknown
-                    collectUnresolved(agg, unresolved);
-                    removeGroupingAliases(agg, unresolved);
-                    yield p; // unchanged
-                }
-                case Project project -> { // TODO: redo handling of `KEEP *`, `KEEP foo* | EVAL foo_does_not_exist + 1`, `RENAME ` etc.
-                    if (hasUnresolvedNamedExpression(project)) {
-                        unresolvable.set(true); // `UnresolvedNamedExpression`s need to be turned into attributes first
-                        yield p; // give up
-                    }
-                    // if an attribute gets dropped by Project (DROP, KEEP), report it as unknown followingly
-                    unresolved.removeIf(u -> project.outputSet().contains(u) == false);
-                    collectUnresolved(project, unresolved);
-                    yield p; // unchanged
-                }
-
-                case Row row -> evalUnresolved(row, unresolved, nullifiedUnresolved);
-                case EsRelation relation -> evalUnresolved(relation, unresolved, nullifiedUnresolved);
-                // each subquery aliases its own unresolved attributes "internally" (before UnionAll)
-                case Fork fork -> {
-                    if (fork.output().isEmpty()) {
-                        unresolvable.set(true); // if the Fork is not yet resolved, wait until it gets so.
-                        yield p; // give up
-                    }
-                    yield evalUnresolved(fork, unresolved, nullifiedUnresolved);
-                }
-
-                default -> {
-                    collectUnresolved(p, unresolved);
-                    yield p; // unchanged
-                }
-            });
-
-            // These UAs hadn't been resolved, so they're marked as unresolvable with a custom message. This needs to be removed for
-            // ResolveRefs to attempt again to wire them to the newly added aliases.
-            return unresolvable.get() ? plan : resolved.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
-                if (nullifiedUnresolved.contains(ua)) {
-                    nullifiedUnresolved.remove(ua);
-                    // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
-                    // (A `new UnresolvedAttribute(ua.source(), ua.name())` would save an allocation, but is problematic with subtypes.)
-                    ua = ((UnresolvedAttribute) ua.withId(new NameId())).withUnresolvedMessage(null);
-                }
-                return ua;
-            });
-        }
-
-        private static LogicalPlan evalUnresolved(
-            LogicalPlan p,
-            List<UnresolvedAttribute> unresolved,
-            List<UnresolvedAttribute> nullifiedUnresolved
-        ) {
-            if (unresolved.isEmpty()) {
-                return p; // unchanged
-            }
-
-            Map<String, Alias> aliasesMap = new LinkedHashMap<>(unresolved.size());
-            for (var u : unresolved) {
-                if (aliasesMap.containsKey(u.name()) == false) {
-                    aliasesMap.put(u.name(), new Alias(u.source(), u.name(), Literal.NULL));
-                }
-            }
-            nullifiedUnresolved.addAll(unresolved);
-            unresolved.clear(); // cleaning since the plan might be n-ary, with multiple sources
-            return new Eval(p.source(), p, List.copyOf(aliasesMap.values()));
-        }
-
-        private static void collectUnresolved(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
-            // if the plan's references or output contain any of the UAs, remove these: they'll either be resolved later or have been
-            // already, as requested by the current plan/node
-            unresolved.removeIf(ua -> plan.references().names().contains(ua.name()) || plan.outputSet().names().contains(ua.name()));
-
-            // collect all UAs in the plan
-            plan.forEachExpression(UnresolvedAttribute.class, ua -> {
-                if ((ua instanceof UnresolvedPattern || ua instanceof UnresolvedTimestamp) == false) {
-                    unresolved.add(ua);
-                }
-            });
-        }
-
-        /**
-         * Consider this: {@code | STATS sum = SUM(some_field) + d GROUP BY d = does_not_exist, some_other_field}.
-         * <p>
-         * In case the aggs side of the Aggregate uses aliases from the groupings, and these in turn are unresolved, the alias will remain
-         * unresolved after a first {@link ResolveRefs} pass. These unresolved aliases in aggs expressions need to be removed from the
-         * unresolved list here, so that no null-aliasing is generated for them.
-         * <p>
-         * A null-aliasing will be generated for any unmapped field in the grouping, which the alias in the aggs expression will eventually
-         * reference to.
-         */
-        private static void removeGroupingAliases(Aggregate agg, List<UnresolvedAttribute> unresolved) {
-            for (var g : agg.groupings()) {
-                if (g instanceof Alias a) {
-                    unresolved.removeIf(ua -> ua.name().equals(a.name()));
-                }
-            }
-        }
-
-        private static boolean hasUnresolvedNamedExpression(Project project) {
-            for (var e : project.projections()) {
-                if (e instanceof UnresolvedNamedExpression) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
     /**
      * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
      * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
@@ -2634,10 +2508,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * Handle union types in UnionAll:
-     * 1. Push down explicit conversion functions into the UnionAll branches
-     * 2. Replace the explicit conversion functions with the corresponding attributes in the UnionAll output
-     * 3. Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
-     * 4. Update the attributes referencing the updated UnionAll output
+     * <ol>
+     * <li>Push down explicit conversion functions into the UnionAll branches</li>
+     * <li>Replace the explicit conversion functions with the corresponding attributes in the UnionAll output</li>
+     * <li>Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only</li>
+     * <li>Update the attributes referencing the updated UnionAll output</li>
+     * </ol>
      */
     private static class ResolveUnionTypesInUnionAll extends Rule<LogicalPlan, LogicalPlan> {
 

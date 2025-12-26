@@ -213,16 +213,14 @@ public final class AnalyzerTestUtils {
     private static final Map<String, EsField> MAPPING_BASIC_RESOLUTION = EsqlTestUtils.loadMapping("mapping-basic.json");
 
     private static Map<IndexPattern, IndexResolution> indexResolutions(@Nullable String indexName) {
-        Map<IndexPattern, IndexResolution> indexResolutions;
         if (indexName == null) {
-            indexResolutions = Map.of();
-        } else {
-            var indexResolution = IndexResolution.valid(
-                new EsIndex(indexName, MAPPING_BASIC_RESOLUTION, Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of(), Set.of())
-            );
-            indexResolutions = Map.of(new IndexPattern(Source.EMPTY, indexName), indexResolution);
+            return Map.of();
         }
-        return indexResolutions;
+
+        var indexResolution = IndexResolution.valid(
+            new EsIndex(indexName, MAPPING_BASIC_RESOLUTION, Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of(), Set.of())
+        );
+        return Map.of(new IndexPattern(Source.EMPTY, indexName), indexResolution);
     }
 
     private static final Pattern INDEX_FROM_PATTERN = Pattern.compile("(?i)FROM\\s+([\\w-]+)");

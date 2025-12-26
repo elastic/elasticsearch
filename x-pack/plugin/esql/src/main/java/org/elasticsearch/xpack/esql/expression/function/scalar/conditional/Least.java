@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -32,9 +31,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -47,16 +44,25 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
 
     private DataType dataType;
 
-    private static final Map<DataType, Function<ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map.of(
-        DataType.BOOLEAN, factories -> new LeastBooleanEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DOUBLE, factories -> new LeastDoubleEvaluator.Factory(Source.EMPTY, factories),
-        DataType.INTEGER, factories -> new LeastIntEvaluator.Factory(Source.EMPTY, factories),
-        DataType.LONG, factories -> new LeastLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DATETIME, factories -> new LeastLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.DATE_NANOS, factories -> new LeastLongEvaluator.Factory(Source.EMPTY, factories),
-        DataType.IP, factories -> new LeastBytesRefEvaluator.Factory(Source.EMPTY, factories),
-        DataType.VERSION, factories -> new LeastBytesRefEvaluator.Factory(Source.EMPTY, factories)
-    );
+    private static final Map<DataType, BiFunction<Source, ExpressionEvaluator.Factory[], ExpressionEvaluator.Factory>> EVALUATOR_MAP = Map
+        .of(
+            DataType.BOOLEAN,
+            LeastBooleanEvaluator.Factory::new,
+            DataType.DOUBLE,
+            LeastDoubleEvaluator.Factory::new,
+            DataType.INTEGER,
+            LeastIntEvaluator.Factory::new,
+            DataType.LONG,
+            LeastLongEvaluator.Factory::new,
+            DataType.DATETIME,
+            LeastLongEvaluator.Factory::new,
+            DataType.DATE_NANOS,
+            LeastLongEvaluator.Factory::new,
+            DataType.IP,
+            LeastBytesRefEvaluator.Factory::new,
+            DataType.VERSION,
+            LeastBytesRefEvaluator.Factory::new
+        );
 
     @FunctionInfo(
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
@@ -176,7 +182,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
             throw EsqlIllegalArgumentException.illegalDataType(dataType);
         }
 
-        return evaluatorFactory.apply(factories);
+        return evaluatorFactory.apply(source(), factories);
     }
 
     @Evaluator(extraName = "Boolean")

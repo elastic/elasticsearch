@@ -480,8 +480,8 @@ public class ComputeService {
                             flags,
                             configuration,
                             dataNodePlan,
+                            localOriginalIndices.indices(),
                             Set.of(localConcreteIndices.indices()),
-                            localOriginalIndices,
                             exchangeSource,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {

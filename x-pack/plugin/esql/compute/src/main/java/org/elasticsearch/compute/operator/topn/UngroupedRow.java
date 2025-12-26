@@ -25,7 +25,7 @@ import java.util.List;
 final class UngroupedRow implements Row {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UngroupedRow.class);
 
-    private final CircuitBreaker breaker;
+    final CircuitBreaker breaker;
 
     /**
      * The sort key.

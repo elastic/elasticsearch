@@ -36,7 +36,6 @@ class GroupedTopNProcessor implements TopNProcessor {
         int preAllocatedGroupKeySize = 42; // FIXME(gal, NOCOMMIT)
         return new GroupedRow(
             new UngroupedRow(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize),
-            breaker,
             preAllocatedGroupKeySize
         );
     }

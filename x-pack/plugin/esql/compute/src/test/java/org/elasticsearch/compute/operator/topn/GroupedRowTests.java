@@ -21,28 +21,30 @@ public class GroupedRowTests extends ESTestCase {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
 
     public void testRamBytesUsedEmpty() {
-        var row = new GroupedRow(new UngroupedRow(breaker, sortOrders(), 0, 0), breaker, 0);
+        var row = new GroupedRow(new UngroupedRow(breaker, sortOrders(), 0, 0), 0);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedSmall() {
-        var row = new GroupedRow(new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0), breaker, 0);
+        var row = new GroupedRow(new UngroupedRow(breaker, sortOrders(), 0, 0), 0);
         row.keys().append(randomByte());
         row.values().append(randomByte());
+        row.groupKey().append(randomByte());
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedBig() {
-        var row = new GroupedRow(new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 0, 0), breaker, 0);
+        var row = new GroupedRow(new UngroupedRow(breaker, sortOrders(), 0, 0), 0);
         for (int i = 0; i < 10000; i++) {
             row.keys().append(randomByte());
             row.values().append(randomByte());
+            row.groupKey().append(randomByte());
         }
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedPreAllocated() {
-        var row = new GroupedRow(new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 64, 128), breaker, 16);
+        var row = new GroupedRow(new UngroupedRow(breaker, sortOrders(), 64, 128), 16);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 

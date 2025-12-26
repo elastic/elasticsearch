@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
@@ -19,12 +18,12 @@ final class GroupedRow implements Row {
     private final UngroupedRow row;
     private final BreakingBytesRefBuilder groupKey;
 
-    GroupedRow(UngroupedRow row, CircuitBreaker breaker, int preAllocatedGroupKeySize) {
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
+    GroupedRow(UngroupedRow row, int preAllocatedGroupKeySize) {
+        row.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
         this.row = row;
         boolean success = false;
         try {
-            this.groupKey = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedGroupKeySize);
+            this.groupKey = new BreakingBytesRefBuilder(row.breaker, "topn", preAllocatedGroupKeySize);
             success = true;
         } finally {
             if (success == false) {
@@ -65,7 +64,7 @@ final class GroupedRow implements Row {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + row.ramBytesUsed() + groupKey.ramBytesUsed() + 16;
+        return SHALLOW_SIZE + row.ramBytesUsed() + groupKey.ramBytesUsed();
     }
 
     @Override

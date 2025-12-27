@@ -12,9 +12,10 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 
+import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
+
 final class UngroupedQueue implements TopNQueue {
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UngroupedQueue.class) + RamUsageEstimator
-        .shallowSizeOfInstance(PriorityQueue.class);
+    private static final long SHALLOW_SIZE = shallowSizeOfInstance(UngroupedQueue.class) + shallowSizeOfInstance(PriorityQueue.class);
 
     private final PriorityQueue<Row> pq;
     private final CircuitBreaker breaker;

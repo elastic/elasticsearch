@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
@@ -26,6 +27,9 @@ import java.io.IOException;
 public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
+
+    private transient long circuitBreakerBytes = 0L;
+
     // client side counter
     private transient int counter;
 
@@ -81,6 +85,21 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public SearchHits hits() {
         assert hasReferences();
         return hits;
+    }
+
+    public void setCircuitBreakerBytes(long bytes) {
+        this.circuitBreakerBytes = bytes;
+    }
+
+    public long getCircuitBreakerBytes() {
+        return circuitBreakerBytes;
+    }
+
+    public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
+        if (circuitBreakerBytes > 0L) {
+            circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+            circuitBreakerBytes = 0L;
+        }
     }
 
     public FetchSearchResult initCounter() {

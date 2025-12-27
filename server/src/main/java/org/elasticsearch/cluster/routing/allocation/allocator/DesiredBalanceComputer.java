@@ -94,6 +94,7 @@ public class DesiredBalanceComputer {
     private boolean lastComputeRunConverged;
     private Level convergenceLogMsgLevel;
     private ShardRouting lastTrackedUnassignedShard;
+    private ClusterSettings clusterSettings;
 
     public DesiredBalanceComputer(
         ClusterSettings clusterSettings,
@@ -112,6 +113,7 @@ public class DesiredBalanceComputer {
         // starts counting timing on the first run
         this.lastComputeRunConverged = true;
         this.convergenceLogMsgLevel = Level.DEBUG;
+        this.clusterSettings = clusterSettings;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
@@ -144,7 +146,7 @@ public class DesiredBalanceComputer {
         final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
-        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
+        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation, clusterSettings);
         DesiredBalance.ComputationFinishReason finishReason = DesiredBalance.ComputationFinishReason.CONVERGED;
 
         if (routingNodes.size() == 0) {

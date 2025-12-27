@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
@@ -342,7 +343,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertEquals(1, routingAllocation.routingNodes().node(overloadedNode.getId()).numberOfOwningShards());
         assertEquals(3, routingAllocation.routingNodes().node(otherNode.getId()).numberOfOwningShards());
 
-        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
+        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation, clusterSettings);
         final var movedShards = new HashSet<ShardRouting>();
         for (RoutingNode routingNode : routingAllocation.routingNodes()) {
             movedShards.addAll(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).collect(Collectors.toSet()));
@@ -367,6 +368,77 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
         assertEquals(1, routingAllocation.routingNodes().node(overloadedNode.getId()).numberOfOwningShards());
         assertEquals(3, routingAllocation.routingNodes().node(otherNode.getId()).numberOfOwningShards());
+    }
+
+    public void testWriteLoadDeciderShouldNotPreferAllocationDuringHotspot() {
+        final var indexName = randomIdentifier();
+        final int numThreads = randomIntBetween(1, 10);
+        final float highUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
+        final long highLatencyThreshold = randomLongBetween(1000, 10000);
+        final var settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(), highUtilizationThreshold)
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(highLatencyThreshold)
+            )
+            .build();
+
+        final var state = ClusterStateCreationUtils.state(2, new String[] { indexName }, 4);
+        final var overloadedNode = randomFrom(state.nodes().getAllNodes());
+        final var otherNode = state.nodes().stream().filter(node -> node != overloadedNode).findFirst().orElseThrow();
+        final var clusterInfo = ClusterInfo.builder()
+            .nodeUsageStatsForThreadPools(
+                Map.of(
+                    overloadedNode.getId(),
+                    new NodeUsageStatsForThreadPools(
+                        overloadedNode.getId(),
+                        Map.of(
+                            ThreadPool.Names.WRITE,
+                            new ThreadPoolUsageStats(
+                                numThreads,
+                                randomFloatBetween(0.0f, highUtilizationThreshold, false),
+                                randomLongBetween(highLatencyThreshold, highLatencyThreshold * 2),
+                                true
+                            )
+                        )
+                    )
+                )
+            )
+            .build();
+
+        final var clusterSettings = createBuiltInClusterSettings(settings);
+        final var writeLoadConstraintDecider = new WriteLoadConstraintDecider(clusterSettings);
+        final var routingAllocation = new RoutingAllocation(
+            new AllocationDeciders(List.of(writeLoadConstraintDecider)),
+            state.getRoutingNodes().mutableCopy(),
+            state,
+            clusterInfo,
+            SnapshotShardSizeInfo.EMPTY,
+            randomLong()
+        );
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        var overloadedRoutingNode = routingAllocation.routingNodes().node(overloadedNode.getId());
+        var shardRouting = routingAllocation.routingNodes()
+            .node(otherNode.getId())
+            .shardsWithState(ShardRoutingState.STARTED)
+            .findFirst()
+            .orElseThrow();
+        Decision decision = writeLoadConstraintDecider.canAllocate(shardRouting, overloadedRoutingNode, routingAllocation);
+        assertEquals(decision.type(), Decision.NOT_PREFERRED.type());
+        assertThat(
+            decision.getExplanation(),
+            equalTo(
+                "Node ["
+                    + overloadedNode.getId()
+                    + "] is currently hotspotting and in a waiting "
+                    + "period, and does not prefer shards moved onto it"
+            )
+        );
     }
 
     /**

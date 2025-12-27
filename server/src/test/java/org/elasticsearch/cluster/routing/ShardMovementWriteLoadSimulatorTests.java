@@ -15,10 +15,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -40,6 +45,55 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
     private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
     };
     private static final String[] INDICES = { "indexOne", "indexTwo", "indexThree" };
+    private static final ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+    private static final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
+
+    public void testThreadPoolUsageStatsConstructionWithoutHotspot() {
+        long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
+        ClusterSettings localClusterSettings = createClusterSettingsWithQueueLatency(queueLatencyThresholdMillis);
+
+        var threadPoolUsageStats = createThreadPoolUsageStatsWithQueueLatency(
+            Map.of("test_node", randomLongBetween(0, queueLatencyThresholdMillis - 1))
+        );
+        RoutingAllocation routingAllocation = createRoutingAllocationWithThreadPoolStats(localClusterSettings, threadPoolUsageStats);
+
+        var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(routingAllocation, localClusterSettings);
+        assert getThreadPoolWriteStats(shardMovementWriteLoadSimulator, "test_node").isHotspotting() == false
+            : "Hotspotting flag should be unset";
+    }
+
+    public void testThreadPoolUsageStatsConstructionWithHotspot() {
+        long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
+        ClusterSettings localClusterSettings = createClusterSettingsWithQueueLatency(queueLatencyThresholdMillis);
+
+        var threadPoolUsageStats = createThreadPoolUsageStatsWithQueueLatency(
+            Map.of("test_node", randomLongBetween(queueLatencyThresholdMillis, 20_000))
+        );
+        RoutingAllocation routingAllocation = createRoutingAllocationWithThreadPoolStats(localClusterSettings, threadPoolUsageStats);
+
+        var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(routingAllocation, localClusterSettings);
+        assert getThreadPoolWriteStats(shardMovementWriteLoadSimulator, "test_node").isHotspotting() : "Hotspotting flag should be set";
+    }
+
+    public void testThreadPoolUsageStatsConstructionMixedHotspot() {
+        long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
+        ClusterSettings localClusterSettings = createClusterSettingsWithQueueLatency(queueLatencyThresholdMillis);
+
+        var threadPoolUsageStats = createThreadPoolUsageStatsWithQueueLatency(
+            Map.of(
+                "test_node_hot",
+                randomLongBetween(queueLatencyThresholdMillis, 20_000),
+                "test_node_cool",
+                randomLongBetween(0, queueLatencyThresholdMillis - 1)
+            )
+        );
+        RoutingAllocation routingAllocation = createRoutingAllocationWithThreadPoolStats(localClusterSettings, threadPoolUsageStats);
+
+        var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(routingAllocation, localClusterSettings);
+        assert getThreadPoolWriteStats(shardMovementWriteLoadSimulator, "test_node_hot").isHotspotting() : "Hotspotting flag should be set";
+        assert getThreadPoolWriteStats(shardMovementWriteLoadSimulator, "test_node_cool").isHotspotting() == false
+            : "Hotspotting flag should be unset";
+    }
 
     /**
      * We should not adjust the values if there's no movement
@@ -53,7 +107,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             originalNode1ThreadPoolStats
         );
 
-        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
+        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation, clusterSettings);
         final var calculatedNodeUsageStates = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
         assertThat(calculatedNodeUsageStates, Matchers.aMapWithSize(2));
         assertThat(
@@ -76,7 +130,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             originalNode1ThreadPoolStats,
             originalNode2ThreadPoolStats
         );
-        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
+        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation, clusterSettings);
 
         // Relocate a random shard from node_0 to node_1
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
@@ -158,7 +212,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             originalNode0ThreadPoolStats,
             originalNode1ThreadPoolStats
         );
-        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
+        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation, clusterSettings);
 
         // Relocate a random shard from node_0 to node_1
         final var expectedShardSize = randomNonNegativeLong();
@@ -181,7 +235,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             randomThreadPoolUsageStats(),
             randomThreadPoolUsageStats()
         );
-        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
+        final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation, clusterSettings);
 
         // Relocate a random shard from node_0 to node_1
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
@@ -217,22 +271,30 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
     }
 
     private float getAverageWritePoolUtilization(ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator, String nodeId) {
-        final var generatedNodeUsageStates = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
-        final var node0WritePoolStats = generatedNodeUsageStates.get(nodeId).threadPoolUsageStatsMap().get("write");
-        return node0WritePoolStats.averageThreadPoolUtilization();
+        return getThreadPoolWriteStats(shardMovementWriteLoadSimulator, nodeId).averageThreadPoolUtilization();
     }
 
     private long getMaxThreadPoolQueueLatency(ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator, String nodeId) {
-        final var generatedNodeUsageStates = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
-        final var writePoolStats = generatedNodeUsageStates.get(nodeId).threadPoolUsageStatsMap().get("write");
-        return writePoolStats.maxThreadPoolQueueLatencyMillis();
+        return getThreadPoolWriteStats(shardMovementWriteLoadSimulator, nodeId).maxThreadPoolQueueLatencyMillis();
+    }
+
+    private NodeUsageStatsForThreadPools.ThreadPoolUsageStats getThreadPoolWriteStats(
+        ShardMovementWriteLoadSimulator simulator,
+        String nodeId
+    ) {
+        final var generatedNodeUsageStates = simulator.simulatedNodeUsageStatsForThreadPools();
+        final var writePoolStats = generatedNodeUsageStates.get(nodeId).threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+        return writePoolStats;
     }
 
     private NodeUsageStatsForThreadPools.ThreadPoolUsageStats randomThreadPoolUsageStats() {
+        long queueLatency = randomLongBetween(0, 60_000);
+        boolean isHotspotting = queueLatency >= writeLoadConstraintSettings.getQueueLatencyThreshold().millis();
         return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
             randomIntBetween(4, 16),
             randomBoolean() ? 0.0f : randomFloatBetween(0.1f, 1.0f, true),
-            randomLongBetween(0, 60_000)
+            queueLatency,
+            isHotspotting
         );
     }
 
@@ -285,6 +347,60 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime()
         ).mutableCloneForSimulation();
+    }
+
+    private RoutingAllocation createRoutingAllocationWithThreadPoolStats(
+        ClusterSettings clusterSettings,
+        Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> threadPoolUsageTable
+    ) {
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = new HashMap<>(threadPoolUsageTable.size());
+        for (var threadPoolUsageStatsEntry : threadPoolUsageTable.entrySet()) {
+            nodeUsageStatsForThreadPools.put(
+                threadPoolUsageStatsEntry.getKey(),
+                new NodeUsageStatsForThreadPools(
+                    threadPoolUsageStatsEntry.getKey(),
+                    Map.of(ThreadPool.Names.WRITE, threadPoolUsageStatsEntry.getValue())
+                )
+            );
+        }
+
+        ClusterInfo clusterInfo = ClusterInfo.builder().nodeUsageStatsForThreadPools(nodeUsageStatsForThreadPools).build();
+
+        return new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            createClusterState(),
+            clusterInfo,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        ).mutableCloneForSimulation();
+    }
+
+    private ClusterSettings createClusterSettingsWithQueueLatency(long queueLatency) {
+        return ClusterSettings.createBuiltInClusterSettings(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
+                    TimeValue.timeValueMillis(queueLatency)
+                )
+                .build()
+        );
+    }
+
+    private Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> createThreadPoolUsageStatsWithQueueLatency(
+        Map<String, Long> queueLatencies
+    ) {
+        Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> nodeUsageMap = new HashMap<>(queueLatencies.size());
+        for (var latencyEntry : queueLatencies.entrySet()) {
+            nodeUsageMap.put(
+                latencyEntry.getKey(),
+                new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
+                    randomNonNegativeInt(),
+                    randomFloatBetween(0f, 1.0f, true),
+                    latencyEntry.getValue()
+                )
+            );
+        }
+        return nodeUsageMap;
     }
 
     private ClusterState createClusterState() {

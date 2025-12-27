@@ -11,6 +11,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -28,6 +29,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -155,7 +157,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableFloatVectorValues(vectorValues, queryCancellation) : vectorValues;
+            return queryCancellation.isEnabled() ? exitableFloatVectorValues(vectorValues, queryCancellation) : vectorValues;
         }
 
         @Override
@@ -516,6 +518,14 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
+    static FloatVectorValues exitableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
+        if (vectorValues instanceof HasIndexSlice) {
+            return new ExitableSliceableFloatVectorValues(vectorValues, queryCancellation);
+        } else {
+            return new ExitableFloatVectorValues(vectorValues, queryCancellation);
+        }
+    }
+
     private static class ExitableFloatVectorValues extends FilterFloatVectorValues {
         private final QueryCancellation queryCancellation;
 
@@ -701,5 +711,20 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             return in.size();
         }
 
+    }
+
+    static class ExitableSliceableFloatVectorValues extends ExitableFloatVectorValues implements HasIndexSlice {
+
+        HasIndexSlice delegate;
+
+        protected ExitableSliceableFloatVectorValues(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
+            super(vectorValues, queryCancellation);
+            delegate = (HasIndexSlice) in;
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return delegate.getSlice();
+        }
     }
 }

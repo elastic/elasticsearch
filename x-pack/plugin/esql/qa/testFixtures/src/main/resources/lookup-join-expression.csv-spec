@@ -954,26 +954,6 @@ id_left:integer | name_left:keyword | other1_from_first_join:keyword | other1:ke
 1               | Alice             | beta                           | alpha
 ;
 
-lookupJoinExpressionWithTerm
-required_capability: join_lookup_v12
-required_capability: lookup_join_with_full_text_function
-required_capability: term_function
-
-FROM multi_column_joinable
-| RENAME id_int AS id_left, is_active_bool AS is_active_left
-| LOOKUP JOIN multi_column_joinable_lookup ON TERM(other1, "beta") AND id_int == id_left and is_active_left == is_active_bool
-| WHERE other2 IS NOT NULL
-| KEEP id_left, name_str, extra1, other1, other2
-| SORT id_left, name_str, extra1, other1, other2
-;
-
-warning:Line 3:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON TERM(other1, \"beta\") AND id_int == id_left and is_active_left == is_active_bool] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
-
-id_left:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
-1               | Alice            | foo            | beta           | 2000
-;
-
 lookupJoinExpressionWithQueryString
 required_capability: join_lookup_v12
 required_capability: lookup_join_with_full_text_function

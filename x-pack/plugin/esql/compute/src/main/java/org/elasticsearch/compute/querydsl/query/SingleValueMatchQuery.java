@@ -40,6 +40,8 @@ import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.index.fielddata.SortedBinaryDocValues.ValueMode;
+
 /**
  * Finds all fields with a single-value. If a field has a multi-value, it emits
  * a {@link Warnings warning}.
@@ -121,6 +123,11 @@ public final class SingleValueMatchQuery extends Query {
                     if (DocValues.unwrapSingleton(o.getOrdinalsValues()) != null) {
                         return true;
                     }
+                } else {
+                    var sortedBinaryDocValues = lfd.getBytesValues();
+                    if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
+                        return true;
+                    }
                 }
                 // don't cache so we can emit warnings
                 return false;
@@ -183,7 +190,8 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) {
                 final int maxDoc = context.reader().maxDoc();
-                if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null) {
+                if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null
+                    || sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
                     return new PredicateScorerSupplier(
                         boost,
                         scoreMode,
@@ -245,6 +253,11 @@ public final class SingleValueMatchQuery extends Query {
                 }
                 return super.rewrite(indexSearcher);
             } else {
+                var sortedBinaryDocValues = lfd.getBytesValues();
+                if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED
+                    && sortedBinaryDocValues.getSparsity() == SortedBinaryDocValues.Sparsity.DENSE) {
+                    continue;
+                }
                 return super.rewrite(indexSearcher);
             }
         }

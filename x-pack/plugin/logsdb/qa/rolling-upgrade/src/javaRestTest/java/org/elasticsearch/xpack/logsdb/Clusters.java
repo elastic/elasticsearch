@@ -18,7 +18,6 @@ public class Clusters {
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
             .setting("xpack.security.enabled", "true")
             .user(user, pass)
             .keystore("bootstrap.password", pass)

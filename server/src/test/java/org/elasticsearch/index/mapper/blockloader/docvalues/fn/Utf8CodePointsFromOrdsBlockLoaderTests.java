@@ -82,7 +82,7 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
 
     private Matcher<Object> readerMatcher() {
         if (lowCardinality == false) {
-            return hasToString("Utf8CodePointsFromOrds.Immediate");
+            return multiValues ? hasToString("Utf8CodePointsFromOrds.Immediate") : hasToString("Utf8CodePointsFromOrds.SingletonImmediate");
         }
         if (multiValues) {
             return hasToString("Utf8CodePointsFromOrds.SortedSet");

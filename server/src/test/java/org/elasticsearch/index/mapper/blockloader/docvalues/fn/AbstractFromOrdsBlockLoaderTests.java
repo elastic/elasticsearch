@@ -12,11 +12,16 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -60,7 +65,16 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
 
     public void test() throws IOException {
         int mvCount = 0;
-        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        // TODO: include this as a test scenario:
+        if (lowCardinality && blockAtATime && multiValues == false && missingValues == false) {
+            if (randomBoolean()) {
+                iwc.setIndexSort(new Sort(new SortedSetSortField("field", false)));
+            }
+            var docValuesCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+            iwc.setCodec(docValuesCodec);
+        }
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             int docCount = 10_000;
             int cardinality = lowCardinality ? between(1, LOW_CARDINALITY) : between(LOW_CARDINALITY + 1, LOW_CARDINALITY * 2);
             for (int i = 0; i < docCount; i++) {

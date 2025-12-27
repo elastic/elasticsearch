@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -450,6 +451,10 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             }
 
             expression = surrogate;
+        }
+
+        if (Expressions.anyMatch(expression.children(), Expressions::isGuaranteedNull)) {
+            return new Literal(expression.source(), null, expression.dataType());
         }
 
         return expression;

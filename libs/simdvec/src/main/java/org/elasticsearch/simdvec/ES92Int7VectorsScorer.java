@@ -122,12 +122,37 @@ public class ES92Int7VectorsScorer {
         float centroidDp,
         float[] scores
     ) throws IOException {
-        int7DotProductBulk(q, BULK_SIZE, scores);
-        in.readFloats(lowerIntervals, 0, BULK_SIZE);
-        in.readFloats(upperIntervals, 0, BULK_SIZE);
-        in.readInts(targetComponentSums, 0, BULK_SIZE);
-        in.readFloats(additionalCorrections, 0, BULK_SIZE);
-        for (int i = 0; i < BULK_SIZE; i++) {
+        scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            BULK_SIZE
+        );
+    }
+
+    public void scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
+        assert bulkSize <= BULK_SIZE : "bulkSize must be <= " + BULK_SIZE;
+        int7DotProductBulk(q, bulkSize, scores);
+        in.readFloats(lowerIntervals, 0, bulkSize);
+        in.readFloats(upperIntervals, 0, bulkSize);
+        in.readInts(targetComponentSums, 0, bulkSize);
+        in.readFloats(additionalCorrections, 0, bulkSize);
+        for (int i = 0; i < bulkSize; i++) {
             scores[i] = applyCorrections(
                 queryLowerInterval,
                 queryUpperInterval,

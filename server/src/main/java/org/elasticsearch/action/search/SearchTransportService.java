@@ -282,7 +282,7 @@ public class SearchTransportService {
         );
     }
 
-    public void sendExecuteFetch (
+    public void sendExecuteFetch(
         Transport.Connection connection,
         ShardFetchSearchRequest shardFetchRequest,
         AbstractSearchAsyncAction<?> context,
@@ -320,10 +320,7 @@ public class SearchTransportService {
             client.execute(
                 TransportFetchPhaseCoordinationAction.TYPE,
                 new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),
-                ActionListener.wrap(
-                    response -> listener.onResponse(response.getResult()),
-                    listener::onFailure
-                )
+                ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
             );
         } else {
             sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, shardFetchRequest, task, listener);

@@ -236,6 +236,24 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // 1. Create the vector test cases separately
+        List<TestCaseSupplier> vectorTests = TestCaseSupplier.forBinaryNotCasting(
+            "EqualsDenseVectorsEvaluator",
+            "lhs",
+            "rhs",
+            (l, r) -> l.equals(r), // Oracle: BytesRef equality
+            DataType.BOOLEAN,
+            TestCaseSupplier.denseVectorCases(),
+            TestCaseSupplier.denseVectorCases(),
+            List.of(),
+            false
+        );
+
+        // 2. Add them to the main list, but disable the Block Evaluator
+        suppliers.addAll(
+            TestCaseSupplier.mapTestCases(vectorTests, TestCaseSupplier.TestCase::withoutEvaluator)
+        );
+
         for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
             suppliers.addAll(
                 TestCaseSupplier.forBinaryNotCasting(

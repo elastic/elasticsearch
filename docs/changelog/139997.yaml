@@ -1,0 +1,3 @@
+description: "Add support for `dense_vector` equality and inequality in ES|QL."
+type: enhancement
+schema_version: 1.0

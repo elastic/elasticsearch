@@ -47,7 +47,8 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.KEYWORD, NotEqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, NotEqualsKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.IP, NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorsEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -79,7 +80,8 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "dense_vector" },
             description = "An expression."
         ) Expression left,
         @Param(
@@ -101,7 +103,8 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "long",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "dense_vector" },
             description = "An expression."
         ) Expression right
     ) {
@@ -197,5 +200,14 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     @Override
     public EsqlBinaryComparison negate() {
         return new Equals(source(), left(), right(), zoneId());
+    }
+
+    /**
+     * Evaluator for dense_vector equality.
+     */
+    @Evaluator(extraName = "DenseVectors")
+    static boolean processDenseVectors(BytesRef lhs, BytesRef rhs) {
+        // STYLE RULE: Do not use !lhs.equals(rhs)
+        return false == lhs.equals(rhs);
     }
 }

@@ -201,7 +201,15 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public Swap(long total, long free) {
             assert total >= 0 : "expected total swap to be positive, got: " + total;
-            assert free >= 0 : "expected free swap to be positive, got: " + total;
+            assert free >= 0 : "expected free swap to be positive, got: " + free;
+            if (total < 0) {
+                logger.error("negative total swap [{}] found in swap stats", total);
+                total = 0;
+            }
+            if (free < 0) {
+                logger.error("negative free swap [{}] found in swap stats", free);
+                free = 0;
+            }
             this.total = total;
             this.free = free;
         }
@@ -210,7 +218,7 @@ public class OsStats implements Writeable, ToXContentFragment {
             this.total = in.readLong();
             assert this.total >= 0 : "expected total swap to be positive, got: " + total;
             this.free = in.readLong();
-            assert this.free >= 0 : "expected free swap to be positive, got: " + total;
+            assert this.free >= 0 : "expected free swap to be positive, got: " + free;
         }
 
         @Override
@@ -273,11 +281,11 @@ public class OsStats implements Writeable, ToXContentFragment {
                 total = 0;
             }
             if (adjustedTotal < 0) {
-                logger.error("negative adjusted total memory [{}] found in memory stats", total);
+                logger.error("negative adjusted total memory [{}] found in memory stats", adjustedTotal);
                 adjustedTotal = 0;
             }
             if (free < 0) {
-                logger.error("negative free memory [{}] found in memory stats", total);
+                logger.error("negative free memory [{}] found in memory stats", free);
                 free = 0;
             }
             this.total = total;

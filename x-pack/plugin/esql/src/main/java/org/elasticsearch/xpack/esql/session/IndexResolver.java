@@ -228,7 +228,6 @@ public class IndexResolver {
                 responseMinimumVersion,
                 indexPattern
             );
-
             l.onResponse(new Versioned<>(mergedMappings(indexPattern, info, originalIndexExtractor), info.minTransportVersion()));
         }));
     }
@@ -426,12 +425,13 @@ public class IndexResolver {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
-        boolean typeSupported = type.supportedVersion().supportedOn(fieldsInfo.minTransportVersion(), fieldsInfo.currentBuildIsSnapshot)
-            || switch (type) {
-                case AGGREGATE_METRIC_DOUBLE -> fieldsInfo.useAggregateMetricDoubleWhenNotSupported;
-                case DENSE_VECTOR -> fieldsInfo.useDenseVectorWhenNotSupported;
-                default -> false;
-            };
+        boolean typeSupported = dataTypeSupported(
+            type,
+            fieldsInfo.minTransportVersion(),
+            fieldsInfo.currentBuildIsSnapshot,
+            fieldsInfo.useAggregateMetricDoubleWhenNotSupported,
+            fieldsInfo.useDenseVectorWhenNotSupported
+        );
         if (false == typeSupported) {
             type = UNSUPPORTED;
         }
@@ -545,4 +545,18 @@ public class IndexResolver {
     }
 
     public static final OriginalIndexExtractor DO_NOT_GROUP = (indexPattern, fieldCapabilitiesResponse) -> Map.of();
+
+    public static boolean dataTypeSupported(
+        DataType dataType,
+        TransportVersion minTransportVersion,
+        boolean currentBuildIsSnapshot,
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        boolean useDenseVectorWhenNotSupported
+    ) {
+        return dataType.supportedVersion().supportedOn(minTransportVersion, currentBuildIsSnapshot) || switch (dataType) {
+            case AGGREGATE_METRIC_DOUBLE -> useAggregateMetricDoubleWhenNotSupported;
+            case DENSE_VECTOR -> useDenseVectorWhenNotSupported;
+            default -> false;
+        };
+    }
 }

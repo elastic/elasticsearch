@@ -9,24 +9,35 @@ package org.elasticsearch.xpack.inference.services.voyageai.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIMultimodalEmbeddingsRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests.createModel;
+import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
+
+    /**
+     * Helper method to create InferenceStringGroups from text strings.
+     */
+    private static List<InferenceStringGroup> toInferenceStringGroups(String... texts) {
+        return java.util.Arrays.stream(texts).map(InferenceStringGroup::new).toList();
+    }
+
     public void testFromResponse_CreatesResultsForASingleItem() throws IOException {
         String responseJson = """
             {
@@ -438,6 +449,139 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                     new DenseEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
                 )
             )
+        );
+    }
+
+    public void testFromResponse_HandlesMultimodalRequest_WithFloatEmbeddings() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": [
+                          0.014539449,
+                          -0.015288644
+                      ]
+                  }
+              ],
+              "model": "voyage-multimodal-3",
+              "usage": {
+                  "total_tokens": 8
+              }
+            }
+            """;
+
+        VoyageAIMultimodalEmbeddingsRequest request = new VoyageAIMultimodalEmbeddingsRequest(
+            toInferenceStringGroups("abc", "def"),
+            InputTypeTests.randomSearchAndIngestWithNull(),
+            org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+                .VoyageAIMultimodalEmbeddingsModelTests.createModel(
+                    "url",
+                    "api_key",
+                    null,
+                    "voyage-multimodal-3"
+                )
+        );
+
+        InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, instanceOf(DenseEmbeddingFloatResults.class));
+        assertThat(
+            ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
+            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
+        );
+    }
+
+    public void testFromResponse_HandlesMultimodalRequest_WithInt8Embeddings() throws IOException {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": [
+                          100,
+                          -50
+                      ]
+                  }
+              ],
+              "model": "voyage-multimodal-3",
+              "usage": {
+                  "total_tokens": 8
+              }
+            }
+            """;
+
+        var multimodalModel = org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+            .VoyageAIMultimodalEmbeddingsModelTests.createModel("url", "api_key", null, "voyage-multimodal-3");
+        // Create a model with INT8 embedding type
+        var modelWithInt8 = new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+            .VoyageAIMultimodalEmbeddingsModel(
+                multimodalModel,
+                new org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+                    .VoyageAIMultimodalEmbeddingsServiceSettings(
+                        multimodalModel.getServiceSettings().getCommonSettings(),
+                        org.elasticsearch.xpack.inference.services.voyageai.embeddings.multimodal
+                            .VoyageAIMultimodalEmbeddingType.INT8,
+                        multimodalModel.getServiceSettings().similarity(),
+                        multimodalModel.getServiceSettings().dimensions(),
+                        multimodalModel.getServiceSettings().maxInputTokens(),
+                        false
+                    )
+            );
+
+        VoyageAIMultimodalEmbeddingsRequest request = new VoyageAIMultimodalEmbeddingsRequest(
+            toInferenceStringGroups("abc"),
+            InputTypeTests.randomSearchAndIngestWithNull(),
+            modelWithInt8
+        );
+
+        InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
+            request,
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(parsedResults, instanceOf(DenseEmbeddingByteResults.class));
+        assertThat(
+            ((DenseEmbeddingByteResults) parsedResults).embeddings(),
+            is(List.of(DenseEmbeddingByteResults.Embedding.of(List.of((byte) 100, (byte) -50))))
+        );
+    }
+
+    public void testFromResponse_ThrowsException_ForUnsupportedRequestType() {
+        String responseJson = """
+            {
+              "object": "list",
+              "data": [],
+              "model": "voyage-3-large",
+              "usage": {
+                  "total_tokens": 0
+              }
+            }
+            """;
+
+        // Create a mock request that's not VoyageAIEmbeddingsRequest or VoyageAIMultimodalEmbeddingsRequest
+        org.elasticsearch.xpack.inference.external.request.Request unsupportedRequest = mock(
+            org.elasticsearch.xpack.inference.external.request.Request.class
+        );
+
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> VoyageAIEmbeddingsResponseEntity.fromResponse(
+                unsupportedRequest,
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Unsupported request type")
         );
     }
 }

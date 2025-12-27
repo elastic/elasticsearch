@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
+package org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
@@ -23,26 +23,24 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService.VALID_INPUT_TYPE_VALUES;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceFields.TRUNCATION;
 
 /**
- * Defines the task settings for the voyageai text embeddings service.
+ * Defines the task settings for the voyageai contextualized embeddings service.
  *
  * <p>
- * <a href="https://docs.voyageai.com/docs/embeddings">See api docs for details.</a>
+ * <a href="https://docs.voyageai.com/reference/contextualized-embeddings-api">See api docs for details.</a>
  * </p>
  */
-public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
+public class VoyageAIContextualEmbeddingsTaskSettings implements TaskSettings {
 
-    public static final String NAME = "voyageai_embeddings_task_settings";
-    public static final VoyageAIEmbeddingsTaskSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsTaskSettings(null, null);
+    public static final String NAME = "voyageai_contextual_embeddings_task_settings";
+    public static final VoyageAIContextualEmbeddingsTaskSettings EMPTY_SETTINGS = new VoyageAIContextualEmbeddingsTaskSettings((InputType) null);
     static final String INPUT_TYPE = "input_type";
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
-    public static VoyageAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
+    public static VoyageAIContextualEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
@@ -57,38 +55,31 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
             VALID_INPUT_TYPE_VALUES,
             validationException
         );
-        Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new VoyageAIEmbeddingsTaskSettings(inputType, truncation);
+        return new VoyageAIContextualEmbeddingsTaskSettings(inputType);
     }
 
     /**
-     * Creates a new {@link VoyageAIEmbeddingsTaskSettings} by preferring non-null fields from the provided parameters.
-     * For the input type, preference is given to requestInputType if it is not null and not UNSPECIFIED.
-     * Then preference is given to the requestTaskSettings and finally to originalSettings even if the value is null.
-     * Similarly, for the truncation field preference is given to requestTaskSettings if it is not null and then to
-     * originalSettings.
+     * Creates a new {@link VoyageAIContextualEmbeddingsTaskSettings} by preferring non-null fields from the provided parameters.
      * @param originalSettings the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
-     * @return a constructed {@link VoyageAIEmbeddingsTaskSettings}
+     * @return a constructed {@link VoyageAIContextualEmbeddingsTaskSettings}
      */
-    public static VoyageAIEmbeddingsTaskSettings of(
-        VoyageAIEmbeddingsTaskSettings originalSettings,
-        VoyageAIEmbeddingsTaskSettings requestTaskSettings
+    public static VoyageAIContextualEmbeddingsTaskSettings of(
+        VoyageAIContextualEmbeddingsTaskSettings originalSettings,
+        VoyageAIContextualEmbeddingsTaskSettings requestTaskSettings
     ) {
         var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
-        var truncationToUse = getValidTruncation(originalSettings, requestTaskSettings);
-
-        return new VoyageAIEmbeddingsTaskSettings(inputTypeToUse, truncationToUse);
+        return new VoyageAIContextualEmbeddingsTaskSettings(inputTypeToUse);
     }
 
     private static InputType getValidInputType(
-        VoyageAIEmbeddingsTaskSettings originalSettings,
-        VoyageAIEmbeddingsTaskSettings requestTaskSettings
+        VoyageAIContextualEmbeddingsTaskSettings originalSettings,
+        VoyageAIContextualEmbeddingsTaskSettings requestTaskSettings
     ) {
         InputType inputTypeToUse = originalSettings.inputType;
 
@@ -99,24 +90,15 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
         return inputTypeToUse;
     }
 
-    private static Boolean getValidTruncation(
-        VoyageAIEmbeddingsTaskSettings originalSettings,
-        VoyageAIEmbeddingsTaskSettings requestTaskSettings
-    ) {
-        return requestTaskSettings.getTruncation() == null ? originalSettings.truncation : requestTaskSettings.getTruncation();
-    }
-
     private final InputType inputType;
-    private final Boolean truncation;
 
-    public VoyageAIEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class), in.readOptionalBoolean());
+    public VoyageAIContextualEmbeddingsTaskSettings(StreamInput in) throws IOException {
+        this(in.readOptionalEnum(InputType.class));
     }
 
-    public VoyageAIEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable Boolean truncation) {
+    public VoyageAIContextualEmbeddingsTaskSettings(@Nullable InputType inputType) {
         validateInputType(inputType);
         this.inputType = inputType;
-        this.truncation = truncation;
     }
 
     private static void validateInputType(InputType inputType) {
@@ -129,7 +111,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public boolean isEmpty() {
-        return inputType == null && truncation == null;
+        return inputType == null;
     }
 
     @Override
@@ -138,21 +120,12 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
         if (inputType != null) {
             builder.field(INPUT_TYPE, inputType);
         }
-
-        if (truncation != null) {
-            builder.field(TRUNCATION, truncation);
-        }
-
         builder.endObject();
         return builder;
     }
 
     public InputType getInputType() {
         return inputType;
-    }
-
-    public Boolean getTruncation() {
-        return truncation;
     }
 
     @Override
@@ -174,25 +147,24 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalEnum(inputType);
-        out.writeOptionalBoolean(truncation);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        VoyageAIEmbeddingsTaskSettings that = (VoyageAIEmbeddingsTaskSettings) o;
-        return Objects.equals(inputType, that.inputType) && Objects.equals(truncation, that.truncation);
+        VoyageAIContextualEmbeddingsTaskSettings that = (VoyageAIContextualEmbeddingsTaskSettings) o;
+        return Objects.equals(inputType, that.inputType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inputType, truncation);
+        return Objects.hash(inputType);
     }
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        VoyageAIEmbeddingsTaskSettings updatedSettings = VoyageAIEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
+        VoyageAIContextualEmbeddingsTaskSettings updatedSettings = VoyageAIContextualEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
         return of(this, updatedSettings);
     }
 }

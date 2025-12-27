@@ -10,18 +10,11 @@ package org.elasticsearch.xpack.inference.services.voyageai.action;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIResponseHandler;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIRerankRequest;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
 import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.services.voyageai.response.VoyageAIRerankResponseEntity;
 
 import java.util.Map;
 import java.util.Objects;
@@ -29,16 +22,15 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 /**
- * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the voyageai model type.
+ * Factory for creating {@link ExecutableAction} instances for VoyageAI models.
+ * Uses the factory pattern with strategy delegation to handle different model types.
  */
-public class VoyageAIActionCreator implements VoyageAIActionVisitor {
+public class VoyageAIActionCreator {
+    
+    // Response handlers - kept for backward compatibility with tests
     public static final ResponseHandler EMBEDDINGS_HANDLER = new VoyageAIResponseHandler(
         "voyageai text embedding",
         VoyageAIEmbeddingsResponseEntity::fromResponse
-    );
-    static final ResponseHandler RERANK_HANDLER = new VoyageAIResponseHandler(
-        "voyageai rerank",
-        (request, response) -> VoyageAIRerankResponseEntity.fromResponse(response)
     );
 
     private final Sender sender;
@@ -49,43 +41,27 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
-    @Override
-    public ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, taskSettings);
-        var manager = new GenericRequestManager<>(
-            serviceComponents.threadPool(),
-            overriddenModel,
-            EMBEDDINGS_HANDLER,
-            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(
-                embeddingsInput.getTextInputs(),
-                embeddingsInput.getInputType(),
-                overriddenModel
-            ),
-            EmbeddingsInput.class
-        );
-
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI embeddings");
-        return new SenderExecutableAction(sender, manager, failedToSendRequestErrorMessage);
-    }
-
-    @Override
-    public ExecutableAction create(VoyageAIRerankModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = VoyageAIRerankModel.of(model, taskSettings);
-        var manager = new GenericRequestManager<>(
-            serviceComponents.threadPool(),
-            overriddenModel,
-            RERANK_HANDLER,
-            (rerankInput) -> new VoyageAIRerankRequest(
-                rerankInput.getQuery(),
-                rerankInput.getChunks(),
-                rerankInput.getReturnDocuments(),
-                rerankInput.getTopN(),
-                model
-            ),
-            QueryAndDocsInputs.class
-        );
-
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI rerank");
-        return new SenderExecutableAction(sender, manager, failedToSendRequestErrorMessage);
+    /**
+     * Creates an ExecutableAction for any VoyageAI model type using the factory pattern.
+     * This single method replaces the multiple overloaded create methods by delegating
+     * to model-specific strategies.
+     * 
+     * @param model the VoyageAI model
+     * @param taskSettings task-specific settings to override model defaults
+     * @return an ExecutableAction configured for the specific model type
+     */
+    public <T extends VoyageAIModel> ExecutableAction create(T model, Map<String, Object> taskSettings) {
+        Objects.requireNonNull(model, "Model cannot be null");
+        Objects.requireNonNull(taskSettings, "Task settings cannot be null");
+        
+        // Get the appropriate strategy for this model type
+        VoyageAIModelStrategy<T> strategy = VoyageAIModelStrategyFactory.getStrategy(model);
+        
+        // Use the strategy to create the overridden model and request manager
+        T overriddenModel = strategy.createOverriddenModel(model, taskSettings);
+        var requestManager = strategy.createRequestManager(overriddenModel, serviceComponents.threadPool());
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(strategy.getServiceName());
+        
+        return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 }

@@ -13,12 +13,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
 
 import java.net.URI;
 import java.util.Collections;
@@ -34,7 +32,9 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
         Map<String, String> tempMap = new HashMap<>();
         tempMap.put("voyage-3.5", "embed_medium");
         tempMap.put("voyage-3.5-lite", "embed_small");
+        tempMap.put("voyage-context-3", "embed_context");
         tempMap.put("voyage-multimodal-3", "embed_multimodal");
+        tempMap.put("voyage-multimodal-3.5", "embed_multimodal");
         tempMap.put("voyage-3-large", "embed_large");
         tempMap.put("voyage-code-3", "embed_large");
         tempMap.put("voyage-3", "embed_medium");
@@ -101,5 +101,4 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
         return uri;
     }
 
-    public abstract ExecutableAction accept(VoyageAIActionVisitor creator, Map<String, Object> taskSettings);
 }

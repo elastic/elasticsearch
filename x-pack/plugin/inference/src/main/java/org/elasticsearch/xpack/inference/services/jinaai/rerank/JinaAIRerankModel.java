@@ -43,8 +43,7 @@ public class JinaAIRerankModel extends JinaAIModel {
         );
     }
 
-    // should only be used for testing
-    JinaAIRerankModel(
+    public JinaAIRerankModel(
         String modelId,
         String service,
         JinaAIRerankServiceSettings serviceSettings,

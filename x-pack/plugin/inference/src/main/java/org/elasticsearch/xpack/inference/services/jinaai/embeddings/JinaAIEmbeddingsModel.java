@@ -46,8 +46,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         );
     }
 
-    // should only be used for testing
-    JinaAIEmbeddingsModel(
+    public JinaAIEmbeddingsModel(
         String modelId,
         String service,
         JinaAIEmbeddingsServiceSettings serviceSettings,

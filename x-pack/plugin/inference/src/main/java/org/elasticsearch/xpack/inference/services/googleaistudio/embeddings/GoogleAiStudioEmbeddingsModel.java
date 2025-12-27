@@ -55,8 +55,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
-    GoogleAiStudioEmbeddingsModel(
+    public GoogleAiStudioEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

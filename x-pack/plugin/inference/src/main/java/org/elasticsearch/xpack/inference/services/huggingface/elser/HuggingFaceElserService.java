@@ -21,6 +21,8 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
@@ -73,6 +76,28 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public HuggingFaceModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (HuggingFaceElserServiceSettings) serviceSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        };
     }
 
     @Override

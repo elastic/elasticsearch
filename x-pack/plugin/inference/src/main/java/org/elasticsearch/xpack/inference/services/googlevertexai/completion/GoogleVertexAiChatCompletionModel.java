@@ -51,7 +51,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         );
     }
 
-    GoogleVertexAiChatCompletionModel(
+    public GoogleVertexAiChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

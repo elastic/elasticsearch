@@ -76,7 +76,7 @@ public class GroqChatCompletionModel extends GroqModel {
         );
     }
 
-    GroqChatCompletionModel(
+    public GroqChatCompletionModel(
         String modelId,
         TaskType taskType,
         String service,

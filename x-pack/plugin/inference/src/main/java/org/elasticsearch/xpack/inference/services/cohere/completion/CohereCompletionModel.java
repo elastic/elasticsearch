@@ -30,23 +30,16 @@ public class CohereCompletionModel extends CohereModel {
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
-        this(
-            modelId,
-            CohereCompletionServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets)
-        );
+        this(modelId, CohereCompletionServiceSettings.fromMap(serviceSettings, context), DefaultSecretSettings.fromMap(secrets));
     }
 
-    // should only be used for testing
-    CohereCompletionModel(
+    public CohereCompletionModel(
         String modelId,
         CohereCompletionServiceSettings serviceSettings,
-        TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
-            new ModelConfigurations(modelId, TaskType.COMPLETION, CohereService.NAME, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, TaskType.COMPLETION, CohereService.NAME, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings

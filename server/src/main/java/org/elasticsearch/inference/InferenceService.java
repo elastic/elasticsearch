@@ -66,6 +66,16 @@ public interface InferenceService extends Closeable {
     Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
 
     /**
+     * Create a new model from {@link ModelConfigurations} and {@link ModelSecrets} objects with the given inference ID and task type.
+     * @param inferenceEntityId The inference entity ID
+     * @param taskType The model task type
+     * @param config The model configurations
+     * @param secrets The model secrets
+     * @return The created model
+     */
+    Model buildModelFromConfigAndSecrets(String inferenceEntityId, TaskType taskType, ModelConfigurations config, ModelSecrets secrets);
+
+    /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
      * This function modifies {@code config map}, fields are removed from the map as they are read.
      *

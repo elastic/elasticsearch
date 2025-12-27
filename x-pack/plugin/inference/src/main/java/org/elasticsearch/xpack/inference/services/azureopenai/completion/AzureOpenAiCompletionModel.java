@@ -51,8 +51,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         );
     }
 
-    // Should only be used directly for testing
-    AzureOpenAiCompletionModel(
+    public AzureOpenAiCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

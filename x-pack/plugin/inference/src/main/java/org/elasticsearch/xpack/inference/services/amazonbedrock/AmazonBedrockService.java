@@ -46,8 +46,11 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.action.AmazonBedrockActionCreator;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -247,6 +250,50 @@ public class AmazonBedrockService extends SenderService {
             secretSettingsMap,
             ConfigurationParseContext.PERSISTENT
         );
+    }
+
+    @Override
+    public AmazonBedrockModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        switch (taskType) {
+            case TEXT_EMBEDDING -> {
+                var model = new AmazonBedrockEmbeddingsModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (AmazonBedrockEmbeddingsServiceSettings) serviceSettings,
+                    (AmazonBedrockEmbeddingsTaskSettings) taskSettings,
+                    chunkingSettings,
+                    (AwsSecretSettings) secretSettings
+                );
+                checkProviderForTask(TaskType.TEXT_EMBEDDING, model.provider());
+                checkTaskSettingsForTextEmbeddingModel(model);
+                return model;
+            }
+            case COMPLETION -> {
+                var model = new AmazonBedrockChatCompletionModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (AmazonBedrockChatCompletionServiceSettings) serviceSettings,
+                    (AmazonBedrockChatCompletionTaskSettings) taskSettings,
+                    (AwsSecretSettings) secretSettings
+                );
+                checkProviderForTask(TaskType.COMPLETION, model.provider());
+                checkChatCompletionProviderForTopKParameter(model);
+                return model;
+            }
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        }
     }
 
     @Override

@@ -241,6 +241,32 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         );
     }
 
+    @Override
+    public CustomModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        if (supportedTaskTypes.contains(taskType) == false) {
+            throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
+        }
+        return new CustomModel(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            (CustomServiceSettings) serviceSettings,
+            (CustomTaskSettings) taskSettings,
+            (CustomSecretSettings) secretSettings,
+            chunkingSettings
+        );
+    }
+
     private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {
         if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
             /*

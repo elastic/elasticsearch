@@ -11,7 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -69,7 +68,7 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
         TaskType taskType,
         String service,
         NvidiaChatCompletionServiceSettings serviceSettings,
-        SecretSettings secrets
+        DefaultSecretSettings secrets
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),

@@ -126,7 +126,7 @@ public class DeepSeekChatCompletionModel extends Model {
         return new DeepSeekChatCompletionModel(serviceSettings, secretSettings, modelConfigurations, new ModelSecrets(secretSettings));
     }
 
-    private DeepSeekChatCompletionModel(
+    public DeepSeekChatCompletionModel(
         DeepSeekServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings,
         ModelConfigurations configurations,
@@ -157,11 +157,11 @@ public class DeepSeekChatCompletionModel extends Model {
         return RATE_LIMIT_SETTINGS;
     }
 
-    private record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
+    public record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
         private static final String NAME = "deep_seek_service_settings";
         private static final TransportVersion ML_INFERENCE_DEEPSEEK = TransportVersion.fromName("ml_inference_deepseek");
 
-        DeepSeekServiceSettings {
+        public DeepSeekServiceSettings {
             Objects.requireNonNull(modelId);
         }
 

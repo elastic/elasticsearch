@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionCreator;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequest;
@@ -154,6 +155,40 @@ public class LlamaService extends SenderService {
                 return new LlamaChatCompletionModel(inferenceId, taskType, NAME, serviceSettings, secretSettings, context);
             default:
                 throw createInvalidTaskTypeException(inferenceId, NAME, taskType, context);
+        }
+    }
+
+    @Override
+    public LlamaModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        switch (taskType) {
+            case TEXT_EMBEDDING:
+                return new LlamaEmbeddingsModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (LlamaEmbeddingsServiceSettings) serviceSettings,
+                    chunkingSettings,
+                    secretSettings
+                );
+            case CHAT_COMPLETION, COMPLETION:
+                return new LlamaChatCompletionModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    (LlamaChatCompletionServiceSettings) serviceSettings,
+                    secretSettings
+                );
+            default:
+                throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         }
     }
 

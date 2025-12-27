@@ -19,6 +19,8 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -31,14 +33,19 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -123,6 +130,53 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
                 params.context()
             );
             default -> throw createInvalidTaskTypeException(params.inferenceEntityId(), NAME, params.taskType(), params.context());
+        };
+    }
+
+    @Override
+    public HuggingFaceModel buildModelFromConfigAndSecrets(
+        String inferenceEntityId,
+        TaskType taskType,
+        ModelConfigurations config,
+        ModelSecrets secrets
+    ) {
+        var serviceSettings = config.getServiceSettings();
+        var taskSettings = config.getTaskSettings();
+        var chunkingSettings = config.getChunkingSettings();
+        var secretSettings = secrets.getSecretSettings();
+
+        return switch (taskType) {
+            case RERANK -> new HuggingFaceRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (HuggingFaceRerankServiceSettings) serviceSettings,
+                (HuggingFaceRerankTaskSettings) taskSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (HuggingFaceServiceSettings) serviceSettings,
+                chunkingSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (HuggingFaceElserServiceSettings) serviceSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            case CHAT_COMPLETION, COMPLETION -> new HuggingFaceChatCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                (HuggingFaceChatCompletionServiceSettings) serviceSettings,
+                (DefaultSecretSettings) secretSettings
+            );
+            default -> throw createInvalidTaskTypeException(inferenceEntityId, NAME, taskType, ConfigurationParseContext.PERSISTENT);
         };
     }
 

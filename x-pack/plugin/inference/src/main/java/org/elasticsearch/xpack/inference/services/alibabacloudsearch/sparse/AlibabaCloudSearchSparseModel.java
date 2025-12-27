@@ -50,8 +50,7 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
         );
     }
 
-    // should only be used for testing
-    AlibabaCloudSearchSparseModel(
+    public AlibabaCloudSearchSparseModel(
         String modelId,
         TaskType taskType,
         String service,

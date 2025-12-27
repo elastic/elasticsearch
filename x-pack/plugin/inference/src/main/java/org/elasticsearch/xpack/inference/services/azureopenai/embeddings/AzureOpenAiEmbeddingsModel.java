@@ -54,8 +54,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         );
     }
 
-    // Should only be used directly for testing
-    AzureOpenAiEmbeddingsModel(
+    public AzureOpenAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

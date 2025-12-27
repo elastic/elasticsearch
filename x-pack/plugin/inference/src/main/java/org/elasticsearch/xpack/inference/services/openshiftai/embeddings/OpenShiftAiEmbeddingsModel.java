@@ -11,7 +11,6 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -66,7 +65,7 @@ public class OpenShiftAiEmbeddingsModel extends OpenShiftAiModel {
         String service,
         OpenShiftAiEmbeddingsServiceSettings serviceSettings,
         ChunkingSettings chunkingSettings,
-        SecretSettings secrets
+        DefaultSecretSettings secrets
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings),

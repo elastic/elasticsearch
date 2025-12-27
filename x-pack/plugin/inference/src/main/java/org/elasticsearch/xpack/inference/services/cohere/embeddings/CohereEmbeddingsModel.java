@@ -45,8 +45,7 @@ public class CohereEmbeddingsModel extends CohereModel {
         );
     }
 
-    // should only be used for testing
-    CohereEmbeddingsModel(
+    public CohereEmbeddingsModel(
         String modelId,
         CohereEmbeddingsServiceSettings serviceSettings,
         CohereEmbeddingsTaskSettings taskSettings,

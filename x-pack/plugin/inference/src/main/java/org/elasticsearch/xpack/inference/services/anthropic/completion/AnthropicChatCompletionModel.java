@@ -57,7 +57,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         );
     }
 
-    AnthropicChatCompletionModel(
+    public AnthropicChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

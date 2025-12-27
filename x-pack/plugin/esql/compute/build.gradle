@@ -960,6 +960,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForBoolean.java"
   }
+  template {
+    it.properties = floatProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForFloat.java"
+  }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs
   def generateTimestampAggregatorClasses = { inputFilename, prefix = "" ->

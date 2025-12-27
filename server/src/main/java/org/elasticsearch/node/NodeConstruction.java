@@ -1284,6 +1284,7 @@ class NodeConstruction {
             telemetryProvider.getTracer(),
             onlinePrewarmingService
         );
+        searchTransportService.setSearchService(searchService);
 
         final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, taskManager, terminationHandler);
 

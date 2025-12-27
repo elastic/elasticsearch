@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -44,10 +46,12 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -56,7 +60,8 @@ import static org.elasticsearch.index.get.ShardGetService.shouldExcludeInference
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
- * after reducing all of the matches returned by the query phase
+ * after reducing all the matches returned by the query phase
+ * Supports both traditional mode (all results in memory) and streaming mode (results sent in chunks).
  */
 public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
@@ -68,18 +73,51 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
+    /**
+     * Executes the fetch phase without memory checking or streaming.
+     *
+     * @param context the search context
+     * @param docIdsToLoad document IDs to fetch
+     * @param rankDocs ranking information
+     */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
-        execute(context, docIdsToLoad, rankDocs, null);
+        execute(context, docIdsToLoad, rankDocs, null, null);
     }
 
     /**
+     * Executes the fetch phase with optional memory checking.
      *
-     * @param context
-     * @param docIdsToLoad
-     * @param rankDocs
-     * @param memoryChecker if not provided, the fetch phase will use the circuit breaker to check memory usage
+     * @param context the search context
+     * @param docIdsToLoad document IDs to fetch
+     * @param rankDocs ranking information
+     * @param memoryChecker optional callback for memory tracking, may be null
      */
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
+        execute(context, docIdsToLoad, rankDocs, memoryChecker, null);
+    }
+
+    /**
+     * Executes the fetch phase with optional memory checking and streaming support.
+     *
+     * When {@code writer} is null, all results are accumulated and returned at once.
+     * When {@code writer} is provided, results are sent in chunks to reduce memory usage.
+     *
+     * @param context the search context
+     * @param docIdsToLoad document IDs to fetch
+     * @param rankDocs ranking information
+     * @param memoryChecker optional callback for memory tracking, may be null
+     * @param writer optional chunk writer for streaming mode, may be null
+     *
+     * @throws TaskCancelledException if the task is cancelled
+     * @throws RuntimeException if streaming fails
+     */
+    public void execute(
+        SearchContext context,
+        int[] docIdsToLoad,
+        RankDocShardInfo rankDocs,
+        @Nullable IntConsumer memoryChecker,
+        @Nullable FetchPhaseResponseChunk.Writer writer
+    ) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -95,26 +133,51 @@ public final class FetchPhase {
             return;
         }
 
-        Profiler profiler = context.getProfilers() == null
+        final Profiler profiler = context.getProfilers() == null
             || (context.request().source() != null && context.request().source().rankBuilder() != null)
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
+
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+            // Collect all pending chunk futures
+            final int maxInFlightChunks = 3; // TODO make configurable
+            final ArrayDeque<PlainActionFuture<Void>> pendingChunks = new ArrayDeque<>();
+            final AtomicReference<Throwable> sendFailure = new AtomicReference<>();
+            hits = buildSearchHits(
+                context,
+                docIdsToLoad,
+                profiler,
+                rankDocs,
+                memoryChecker,
+                writer,
+                pendingChunks,
+                maxInFlightChunks,
+                sendFailure
+            );
+
+            // Wait for all chunks to be ACKed before setting final result
+            if (writer != null && pendingChunks.isEmpty() == false) {
+                try {
+                    // Wait for all pending chunks sequentially
+                    for (PlainActionFuture<Void> future : pendingChunks) {
+                        future.actionGet();
+                    }
+                } catch (Exception e) {
+                    if (hits != null) {
+                        hits.decRef();
+                        hits = null;
+                    }
+                    throw new RuntimeException("Failed to send fetch chunks", e);
+                }
+            }
+
+            ProfileResult profileResult = profiler.finish();
+            context.fetchResult().shardResult(hits, profileResult);
+            hits = null;
         } finally {
-            try {
-                // Always finish profiling
-                ProfileResult profileResult = profiler.finish();
-                // Only set the shardResults if building search hits was successful
-                if (hits != null) {
-                    context.fetchResult().shardResult(hits, profileResult);
-                    hits = null;
-                }
-            } finally {
-                if (hits != null) {
-                    hits.decRef();
-                }
+            if (hits != null) {
+                hits.decRef();
             }
         }
     }
@@ -134,7 +197,12 @@ public final class FetchPhase {
         int[] docIdsToLoad,
         Profiler profiler,
         RankDocShardInfo rankDocs,
-        IntConsumer memoryChecker
+        IntConsumer memoryChecker,
+        FetchPhaseResponseChunk.Writer writer,
+        ArrayDeque<PlainActionFuture<Void>> pendingChunks,
+        int maxInFlightChunks,
+        AtomicReference<Throwable> sendFailure
+
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -201,7 +269,7 @@ public final class FetchPhase {
 
             IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
                 locallyAccumulatedBytes[0] += bytes;
-                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                if (writer == null && context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
                     addRequestBreakerBytes(locallyAccumulatedBytes[0]);
                     locallyAccumulatedBytes[0] = 0;
                 }
@@ -246,6 +314,7 @@ public final class FetchPhase {
                     leafIdLoader,
                     rankDocs == null ? null : rankDocs.get(doc)
                 );
+
                 boolean success = false;
                 try {
                     sourceProvider.source = hit.source();
@@ -271,28 +340,72 @@ public final class FetchPhase {
         };
 
         try {
-            SearchHit[] hits = docsIterator.iterate(
+            FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
                 context.request().allowPartialSearchResults(),
-                context.queryResult()
+                context.queryResult(),
+                writer,
+                5, // TODO set a proper number
+                pendingChunks,
+                maxInFlightChunks,
+                sendFailure,
+                context.getTotalHits(),
+                context.getMaxScore()
             );
 
             if (context.isCancelled()) {
-                for (SearchHit hit : hits) {
-                    // release all hits that would otherwise become owned and eventually released by SearchHits below
-                    hit.decRef();
+                // Clean up hits array
+                for (SearchHit hit : result.hits) {
+                    if (hit != null) {
+                        hit.decRef();
+                    }
+                }
+                // Clean up last chunk if present
+                if (result.lastChunk != null) {
+                    result.lastChunk.decRef();
                 }
                 throw new TaskCancelledException("cancelled");
             }
 
             TotalHits totalHits = context.getTotalHits();
-            return new SearchHits(hits, totalHits, context.getMaxScore());
+
+            if (writer == null) {
+                // Non-streaming mode: return all hits
+                return new SearchHits(result.hits, totalHits, context.getMaxScore());
+            } else {
+                // Streaming mode: return last chunk (may be empty)
+                // Clean up the hits array
+                for (SearchHit hit : result.hits) {
+                    if (hit != null) {
+                        hit.decRef();
+                    }
+                }
+
+                // Store sequence info in the context result for coordinator
+                if (result.lastChunk != null && result.lastChunkSequenceStart >= 0) {
+                    context.fetchResult().setLastChunkSequenceStart(result.lastChunkSequenceStart);
+                }
+
+                // Return last chunk or empty
+                if (result.lastChunk != null) {
+                    return result.lastChunk;
+                } else {
+                    return SearchHits.empty(totalHits, context.getMaxScore());
+                }
+            }
         } finally {
             long bytes = docsIterator.getRequestBreakerBytes();
-            if (bytes > 0L) {
+            if (writer == null && bytes > 0L) {
                 context.circuitBreaker().addWithoutBreaking(-bytes);
+                LOGGER.info(
+                    "[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
+                    bytes,
+                    context.getSearchExecutionContext().getShardId(),
+                    context.circuitBreaker().getUsed()
+                );
+
             }
         }
     }

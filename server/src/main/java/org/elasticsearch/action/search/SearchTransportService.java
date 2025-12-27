@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -33,12 +34,16 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -66,6 +71,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
 /**
  * An encapsulation of {@link SearchService} operations exposed through
@@ -109,6 +116,7 @@ public class SearchTransportService {
         Transport.Connection,
         ActionListener<? super SearchPhaseResult>,
         ActionListener<? super SearchPhaseResult>> responseWrapper;
+    private SearchService searchService;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchTransportService(
@@ -122,6 +130,10 @@ public class SearchTransportService {
         this.transportService = transportService;
         this.client = client;
         this.responseWrapper = responseWrapper;
+    }
+
+    public void setSearchService(SearchService searchService) {
+        this.searchService = searchService;
     }
 
     public TransportService transportService() {
@@ -188,6 +200,12 @@ public class SearchTransportService {
         SearchTask task,
         final ActionListener<SearchPhaseResult> listener
     ) {
+
+        // Set coordinator node so data node can detect chunked fetch scenarios
+        if (request.getCoordinatingNode() == null) {
+            request.setCoordinatingNode(transportService.getLocalNode());
+        }
+
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1
@@ -266,11 +284,48 @@ public class SearchTransportService {
 
     public void sendExecuteFetch(
         Transport.Connection connection,
-        final ShardFetchSearchRequest request,
-        SearchTask task,
-        final ActionListener<FetchSearchResult> listener
+        ShardFetchSearchRequest shardFetchRequest,
+        AbstractSearchAsyncAction<?> context,
+        SearchShardTarget shardTarget,
+        ActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
+        SearchTask task = context.getTask();
+
+        final TransportVersion dataNodeVersion = connection.getTransportVersion();
+        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
+        boolean isCCSQuery = shardTarget.getClusterAlias() != null;
+        boolean isScrollOrReindex = context.getRequest().scroll() != null
+            || (shardFetchRequest.getShardSearchRequest() != null && shardFetchRequest.getShardSearchRequest().scroll() != null);
+
+        if (logger.isTraceEnabled()) {
+            logger.info(
+                "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
+                    + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
+                    + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
+                shardTarget.getShardId().getId(),
+                searchService.fetchPhaseChunked(),
+                dataNodeSupports,
+                dataNodeVersion.id(),
+                CHUNKED_FETCH_PHASE.id(),
+                connection.getNode(),
+                isCCSQuery,
+                isScrollOrReindex
+            );
+        }
+
+        if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
+            shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
+            shardFetchRequest.setCoordinatingTaskId(task.getId());
+
+            client.execute(
+                TransportFetchPhaseCoordinationAction.TYPE,
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),
+                ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
+            );
+        } else {
+            sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, shardFetchRequest, task, listener);
+        }
+
     }
 
     public void sendExecuteFetchScroll(
@@ -540,8 +595,65 @@ public class SearchTransportService {
             namedWriteableRegistry
         );
 
-        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
+            boolean fetchedPhaseChunkedEnabled = searchService.fetchPhaseChunked();
+            boolean hasCoordinator = request instanceof ShardFetchSearchRequest fetchSearchReq
+                && fetchSearchReq.getCoordinatingNode() != null;
+
+            TransportVersion channelVersion = channel.getVersion();
+            boolean versionSupported = channelVersion.supports(CHUNKED_FETCH_PHASE);
+
+            // Check if we can connect to the coordinator (CCS detection)
+            boolean canConnectToCoordinator = false;
+            if (hasCoordinator) {
+                ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                DiscoveryNode coordinatorNode = fetchSearchReq.getCoordinatingNode();
+                // In CCS, the remote data node won't have a connection to the local coordinator
+                canConnectToCoordinator = transportService.nodeConnected(coordinatorNode);
+            }
+
+            if (logger.isTraceEnabled()) {
+                logger.info(
+                    "CHUNKED_FETCH decision: enabled={}, versionSupported={}, hasCoordinator={}, "
+                        + "canConnectToCoordinator={}, channelVersion={}, request_from={}",
+                    fetchedPhaseChunkedEnabled,
+                    versionSupported,
+                    hasCoordinator,
+                    canConnectToCoordinator,
+                    channelVersion,
+                    hasCoordinator ? request.getCoordinatingNode() : "N/A"
+                );
+            }
+
+            FetchPhaseResponseChunk.Writer chunkWriter = null;
+
+            // Only use chunked fetch if we can actually connect back to the coordinator
+            if (fetchedPhaseChunkedEnabled && versionSupported && canConnectToCoordinator) {
+                ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                logger.info("Using CHUNKED fetch path");
+
+                chunkWriter = (responseChunk, listener) -> {
+                    try {
+                        transportService.sendChildRequest(
+                            transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
+                            TransportFetchPhaseResponseChunkAction.TYPE.name(),
+                            new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
+                            task,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(
+                                listener.map(ignored -> null),
+                                in -> ActionResponse.Empty.INSTANCE,
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                            )
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                };
+            }
+            searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, new ChannelActionListener<>(channel));
+        };
+
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,

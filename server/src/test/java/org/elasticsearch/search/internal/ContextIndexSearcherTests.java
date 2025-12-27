@@ -651,8 +651,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     terminate(executor);
                 }
             }
-        } finally {
-            terminate(executor);
         }
     }
 

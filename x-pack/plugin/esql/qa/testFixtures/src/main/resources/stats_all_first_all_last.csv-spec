@@ -1,3 +1,4 @@
+# -------------------------------------------------------------------------
 first nullable value by timestamp
 required_capability: all_first
 required_capability: all_last
@@ -20,7 +21,8 @@ ROW row = [
        v1 = TO_LONG(number),
        v2 = v1::integer,
        v3 = v1::double,
-       v4 = v1::keyword
+       v4 = v1::keyword,
+       v5 = v1::text
        
 | STATS first_l = ALL_FIRST(v1, @timestamp),
         first_i = ALL_FIRST(v2, @timestamp),
@@ -29,16 +31,17 @@ ROW row = [
         last_l = ALL_LAST(v1, @timestamp),
         last_i = ALL_LAST(v2, @timestamp),
         last_d = ALL_LAST(v3, @timestamp),
-        last_k = ALL_LAST(v4, @timestamp)
+        last_k = ALL_LAST(v4, @timestamp),
+        last_t = ALL_LAST(v5, @timestamp)
 ;
 
 warning:Line 15:6: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 15:6: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
 
 first_l:long | first_i:integer | first_d:double | first_k:keyword | last_l:long | last_i:integer | last_d:double | last_k:keyword
-null         | null            | null           | null            | null        | null           | null          | null 
+null         | null            | null           | null            | null        | null           | null          | null
 ;
-
+# -------------------------------------------------------------------------
 first nullable value by timestamp on group
 required_capability: all_first
 required_capability: all_last
@@ -83,7 +86,7 @@ null         | null            | null           | null            | 5           
 6            | 6               | 6.0            | 6               | 6           | 6              | 6.0           | 6              | charlie
 null         | null            | null           | null            | null        | null           | null          | null           | delta
 ;
-
+# -------------------------------------------------------------------------
 all_first_long_by_date
 required_capability: all_first
 // tag::all_first[]
@@ -115,7 +118,7 @@ first_val:long
 null 
 // end::all_first-result[]
 ;
-
+# -------------------------------------------------------------------------
 all_last_long_by_date
 required_capability: all_last
 // tag::all_last[]
@@ -150,3 +153,5 @@ last_val:long | name:keyword
 null          | delta
 // end::all_last-result[]
 ;
+# -------------------------------------------------------------------------
+

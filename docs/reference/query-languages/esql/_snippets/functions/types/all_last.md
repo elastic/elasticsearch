@@ -4,6 +4,8 @@
 
 | value | sort | result |
 | --- | --- | --- |
+| boolean | date | boolean |
+| boolean | date_nanos | boolean |
 | double | date | double |
 | double | date_nanos | double |
 | integer | date | integer |

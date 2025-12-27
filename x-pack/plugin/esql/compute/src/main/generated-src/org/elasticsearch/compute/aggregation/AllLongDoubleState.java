@@ -9,7 +9,9 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -21,21 +23,24 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class AllLongDoubleState implements AggregatorState {
-    // the timestamp
+    // Whether an observation was recorded in this state
+    private boolean observed;
+
+    // The timestamp
     private long v1;
 
-    // the value
-    private double v2;
+    // Tells whether the observed timestamp was null
+    private boolean v1Seen;
 
-    // whether we've seen a first/last timestamp
-    private boolean seen;
+    // The value can be null, single valued of multivalued.
+    private DoubleArray v2;
 
-    // because we might observe a first/last timestamp without observing a value (e.g.: value was null)
-    private boolean v2Seen;
+    boolean observed() {
+        return observed;
+    }
 
-    AllLongDoubleState(long v1, double v2) {
-        this.v1 = v1;
-        this.v2 = v2;
+    void observed(boolean observed) {
+        this.observed = observed;
     }
 
     long v1() {
@@ -46,40 +51,47 @@ final class AllLongDoubleState implements AggregatorState {
         this.v1 = v1;
     }
 
-    double v2() {
+    boolean v1Seen() {
+        return v1Seen;
+    }
+
+    void v1Seen(boolean v1Seen) {
+        this.v1Seen = v1Seen;
+    }
+
+    DoubleArray v2() {
         return v2;
     }
 
-    void v2(double v2) {
+    void v2(DoubleArray v2) {
         this.v2 = v2;
-    }
-
-    boolean seen() {
-        return seen;
-    }
-
-    void seen(boolean seen) {
-        this.seen = seen;
-    }
-
-    boolean v2Seen() {
-        return v2Seen;
-    }
-
-    void v2Seen(boolean v2Seen) {
-        this.v2Seen = v2Seen;
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
     public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         assert blocks.length >= offset + 4;
-        blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(v1, 1);
-        blocks[offset + 1] = driverContext.blockFactory().newConstantDoubleBlockWith(v2, 1);
-        blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
-        blocks[offset + 3] = driverContext.blockFactory().newConstantBooleanBlockWith(v2Seen, 1);
+        blocks[offset + 0] = driverContext.blockFactory().newConstantBooleanBlockWith(observed, 1);
+        blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(v1Seen, 1);
+        blocks[offset + 2] = driverContext.blockFactory().newConstantLongBlockWith(v1, 1);
+        blocks[offset + 3] = intermediateValuesBlockBuilder(driverContext);
+    }
+
+    public Block intermediateValuesBlockBuilder(DriverContext driverContext) {
+        if (v2 == null) {
+            return driverContext.blockFactory().newConstantNullBlock(1);
+        }
+
+        int size = (int) v2.size();
+        double[] values = new double[size];
+        for (int i = 0; i < size; ++i) {
+            values[i] = v2.get(i);
+        }
+        return driverContext.blockFactory().newDoubleArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        Releasables.close(v2);
+    }
 }

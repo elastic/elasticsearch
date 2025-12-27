@@ -62,7 +62,7 @@ public class KeywordRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgr
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return Arrays.asList(new Object[][] { { TEMPLATE, "basic" }, { TEMPLATE_WITH_IGNORE_ABOVE, "with-ignore-above" }});
+        return Arrays.asList(new Object[][] { { TEMPLATE, "basic" }, { TEMPLATE_WITH_IGNORE_ABOVE, "with-ignore-above" } });
     }
 
 }

@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -87,7 +88,11 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        if (type.equals("string")) {
+        if (type.equals("keyword_high_cardinality")) {
+            fieldType = new KeywordFieldMapper.Builder(fieldName, defaultIndexSettings()).docValues(Cardinality.HIGH)
+                .build(context)
+                .fieldType();
+        } else if (type.equals("string")) {
             if (docValues) {
                 fieldType = new KeywordFieldMapper.Builder(fieldName, defaultIndexSettings()).build(context).fieldType();
             } else {

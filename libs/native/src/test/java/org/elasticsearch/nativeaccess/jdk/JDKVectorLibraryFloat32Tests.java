@@ -9,8 +9,6 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -25,12 +23,12 @@ import static org.hamcrest.Matchers.containsString;
 
 public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests {
 
-    static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+    static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     final double delta;
 
-    public JDKVectorLibraryFloat32Tests(int size) {
-        super(size);
+    public JDKVectorLibraryFloat32Tests(SimilarityFunction function, int size) {
+        super(function, size);
         this.delta = 1e-5 * size; // scale the delta with the size
     }
 
@@ -42,11 +40,6 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
     @AfterClass
     public static void afterClass() {
         VectorSimilarityFunctionsTests.cleanup();
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        return VectorSimilarityFunctionsTests.parametersFactory();
     }
 
     public void testAllZeroValues() {
@@ -76,39 +69,15 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
             var nativeSeg1 = segment.asSlice((long) first * dims * Float.BYTES, (long) dims * Float.BYTES);
             var nativeSeg2 = segment.asSlice((long) second * dims * Float.BYTES, (long) dims * Float.BYTES);
 
-            // cosine
-            float expected = cosineFloat32Scalar(values[first], values[second]);
-            assertEquals(expected, cosineFloat32(nativeSeg1, nativeSeg2, dims), delta);
+            float expected = scalarSimilarity(values[first], values[second]);
+            assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), delta);
             if (supportsHeapSegments()) {
                 var heapSeg1 = MemorySegment.ofArray(values[first]);
                 var heapSeg2 = MemorySegment.ofArray(values[second]);
-                assertEquals(expected, cosineFloat32(heapSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, cosineFloat32(nativeSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, cosineFloat32(heapSeg1, nativeSeg2, dims), delta);
+                assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), delta);
+                assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), delta);
+                assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), delta);
             }
-
-            // dot product
-            expected = dotProductFloat32Scalar(values[first], values[second]);
-            assertEquals(expected, dotProductFloat32(nativeSeg1, nativeSeg2, dims), delta);
-            if (supportsHeapSegments()) {
-                var heapSeg1 = MemorySegment.ofArray(values[first]);
-                var heapSeg2 = MemorySegment.ofArray(values[second]);
-                assertEquals(expected, dotProductFloat32(heapSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, dotProductFloat32(nativeSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, dotProductFloat32(heapSeg1, nativeSeg2, dims), delta);
-            }
-
-            // square distance
-            expected = squareDistanceFloat32Scalar(values[first], values[second]);
-            assertEquals(expected, squareDistanceFloat32(nativeSeg1, nativeSeg2, dims), delta);
-            if (supportsHeapSegments()) {
-                var heapSeg1 = MemorySegment.ofArray(values[first]);
-                var heapSeg2 = MemorySegment.ofArray(values[second]);
-                assertEquals(expected, squareDistanceFloat32(heapSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, squareDistanceFloat32(nativeSeg1, heapSeg2, dims), delta);
-                assertEquals(expected, squareDistanceFloat32(heapSeg1, nativeSeg2, dims), delta);
-            }
-
         }
     }
 
@@ -116,68 +85,14 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3 * Float.BYTES);
 
-        var e1 = expectThrows(IAE, () -> cosineFloat32(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(e1.getMessage(), containsString("dimensions differ"));
-        e1 = expectThrows(IAE, () -> dotProductFloat32(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(e1.getMessage(), containsString("dimensions differ"));
-        e1 = expectThrows(IAE, () -> squareDistanceFloat32(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(e1.getMessage(), containsString("dimensions differ"));
+        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
+        assertThat(ex.getMessage(), containsString("dimensions differ"));
 
-        var e2 = expectThrows(IOOBE, () -> cosineFloat32(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
-        assertThat(e2.getMessage(), containsString("out of bounds for length"));
-        e2 = expectThrows(IOOBE, () -> dotProductFloat32(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
-        assertThat(e2.getMessage(), containsString("out of bounds for length"));
-        e2 = expectThrows(IOOBE, () -> squareDistanceFloat32(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
-        assertThat(e2.getMessage(), containsString("out of bounds for length"));
+        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
-        e2 = expectThrows(IOOBE, () -> cosineFloat32(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
-        assertThat(e2.getMessage(), containsString("out of bounds for length"));
-        e2 = expectThrows(IOOBE, () -> dotProductFloat32(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
-        assertThat(e2.getMessage(), containsString("out of bounds for length"));
-        e2 = expectThrows(IOOBE, () -> squareDistanceFloat32(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
-        assertThat(e2.getMessage(), containsString("out of bounds for length"));
-    }
-
-    float cosineFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) getVectorDistance().cosineHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            if (e instanceof Error err) {
-                throw err;
-            } else if (e instanceof RuntimeException re) {
-                throw re;
-            } else {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    float dotProductFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) getVectorDistance().dotProductHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            if (e instanceof Error err) {
-                throw err;
-            } else if (e instanceof RuntimeException re) {
-                throw re;
-            } else {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    float squareDistanceFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) getVectorDistance().squareDistanceHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            if (e instanceof Error err) {
-                throw err;
-            } else if (e instanceof RuntimeException re) {
-                throw re;
-            } else {
-                throw new RuntimeException(e);
-            }
-        }
+        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
     static float[] randomFloatArray(int length) {
@@ -188,20 +103,22 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         return fa;
     }
 
-    /** Computes the cosine of the given vectors a and b. */
-    static float cosineFloat32Scalar(float[] a, float[] b) {
-        float dot = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.length; i++) {
-            dot += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
+    float similarity(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return switch (function) {
+                case DOT_PRODUCT -> (float) getVectorDistance().dotProductHandleFloat32().invokeExact(a, b, length);
+                case SQUARE_DISTANCE -> (float) getVectorDistance().squareDistanceHandleFloat32().invokeExact(a, b, length);
+            };
+        } catch (Throwable t) {
+            throw rethrow(t);
         }
-        double normAA = Math.sqrt(normA);
-        double normBB = Math.sqrt(normB);
-        if (normAA == 0.0f || normBB == 0.0f) {
-            return 0.0f;
-        }
-        return (float) (dot / (normAA * normBB));
+    }
+
+    float scalarSimilarity(float[] a, float[] b) {
+        return switch (function) {
+            case DOT_PRODUCT -> dotProductFloat32Scalar(a, b);
+            case SQUARE_DISTANCE -> squareDistanceFloat32Scalar(a, b);
+        };
     }
 
     /** Computes the dot product of the given vectors a and b. */

@@ -51,7 +51,8 @@ public class SumOverTime extends TimeSeriesAggregateFunction implements Optional
         Source source,
         @Param(
             name = "field",
-            type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram", "tdigest" }
+            type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram", "tdigest" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

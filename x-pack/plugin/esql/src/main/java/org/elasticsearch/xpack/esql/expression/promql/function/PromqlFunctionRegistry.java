@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Variance;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 
 import java.util.HashMap;
 import java.util.List;
@@ -67,7 +68,7 @@ public class PromqlFunctionRegistry {
                 withinSeries("idelta", Idelta::new),
                 withinSeries("increase", Increase::new),
                 withinSeries("irate", Irate::new),
-                withinSeries("rate", Rate::new) },
+                withinSeriesWithQuerySettings("rate", Rate::new) },
             // Aggregation range functions
             new FunctionDefinition[] {
                 withinSeriesOverTimeWithWindow("avg_over_time", AvgOverTime::new),
@@ -173,6 +174,11 @@ public class PromqlFunctionRegistry {
     }
 
     @FunctionalInterface
+    protected interface WithinSeriesWindowWithQuerySettings<T extends TimeSeriesAggregateFunction> {
+        T build(Source source, Expression field, Expression window, Expression timestamp, List<QuerySetting> querySettings);
+    }
+
+    @FunctionalInterface
     protected interface OverTimeWithinSeries<T extends TimeSeriesAggregateFunction> {
         T build(Source source, Expression valueField);
     }
@@ -233,6 +239,15 @@ public class PromqlFunctionRegistry {
             Expression valueField = params.get(0);
             Expression timestampField = params.get(1);
             return builder.build(source, valueField, AggregateFunction.NO_WINDOW, timestampField);
+        });
+    }
+
+    private static FunctionDefinition withinSeriesWithQuerySettings(String name, WithinSeriesWindowWithQuerySettings<?> builder) {
+        return new FunctionDefinition(name, FunctionType.WITHIN_SERIES_AGGREGATION, Arity.ONE, (source, params) -> {
+            Expression valueField = params.get(0);
+            Expression timestampField = params.get(1);
+            // For now, we do not pass any query settings from PromQL functions
+            return builder.build(source, valueField, AggregateFunction.NO_WINDOW, timestampField, List.of());
         });
     }
 

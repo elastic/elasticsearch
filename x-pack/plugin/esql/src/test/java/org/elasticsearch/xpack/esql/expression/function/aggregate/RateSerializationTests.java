@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 
 import java.io.IOException;
+import java.util.List;
 
 public class RateSerializationTests extends AbstractExpressionSerializationTests<Rate> {
     @Override
@@ -21,7 +22,7 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
         Expression filter = randomChild();
         Expression window = randomChild();
         Expression timestamp = randomChild();
-        return new Rate(source, field, filter, window, timestamp);
+        return new Rate(source, field, filter, window, timestamp, List.of());
     }
 
     @Override
@@ -38,6 +39,6 @@ public class RateSerializationTests extends AbstractExpressionSerializationTests
             case 3 -> window = randomValueOtherThan(window, AbstractExpressionSerializationTests::randomChild);
             default -> throw new AssertionError("unexpected value");
         }
-        return new Rate(source, field, filter, window, timestamp);
+        return new Rate(source, field, filter, window, timestamp, List.of());
     }
 }

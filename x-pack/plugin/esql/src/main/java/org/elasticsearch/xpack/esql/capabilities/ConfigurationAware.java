@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -34,7 +35,8 @@ public interface ConfigurationAware {
         false,
         0,
         0,
-        null
+        null,
+        List.of()
     );
 
     Configuration configuration();

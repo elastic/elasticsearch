@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
@@ -81,7 +82,8 @@ public class ConfigurationTestUtils {
             false,
             tsTruncation,
             defaultTsTruncation,
-            null
+            null,
+            List.of()
         );
     }
 

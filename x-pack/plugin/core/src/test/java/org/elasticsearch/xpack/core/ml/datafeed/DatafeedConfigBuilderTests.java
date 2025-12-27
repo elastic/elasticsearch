@@ -6,14 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -150,7 +148,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         return DatafeedConfig.Builder::new;
     }
 
-    public void testResolveCrossProjectIsDisabled() {
+    public void testCrossProjectModeOptionsAllowed() {
         var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);
         datafeedBuilder = datafeedBuilder.setIndicesOptions(
             IndicesOptions.builder(datafeedBuilder.getIndicesOptions())
@@ -158,9 +156,9 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
                 .build()
         );
 
-        var actualException = assertThrows(ElasticsearchStatusException.class, datafeedBuilder::build);
-        assertThat(actualException.getMessage(), equalTo("Cross-project search is not enabled for Datafeeds"));
-        assertThat(actualException.status(), equalTo(RestStatus.FORBIDDEN));
+        // CPS mode is now allowed for datafeeds - should not throw
+        DatafeedConfig config = datafeedBuilder.build();
+        assertThat(config.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
 }

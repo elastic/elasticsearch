@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -30,6 +32,12 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDatafeedAction extends BaseRestHandler {
 
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestPutDatafeedAction(Settings settings) {
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(PUT, BASE_PATH + "datafeeds/{" + ID + "}"));
@@ -44,9 +52,10 @@ public class RestPutDatafeedAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        boolean enableCps = crossProjectModeDecider.crossProjectEnabled();
         PutDatafeedAction.Request putDatafeedRequest;
         try (XContentParser parser = restRequest.contentParser()) {
-            putDatafeedRequest = PutDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
+            putDatafeedRequest = PutDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, enableCps, parser);
         }
         putDatafeedRequest.ackTimeout(getAckTimeout(restRequest));
         putDatafeedRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));

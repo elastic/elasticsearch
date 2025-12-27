@@ -2036,9 +2036,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchResponseMetrics,
-                        searchRequestAttributes,
-                        fetchPhaseCoordinationAction,
-                        searchService.fetchPhaseChunked()
+                        searchRequestAttributes
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -2061,9 +2059,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         client,
                         searchService.batchQueryPhase(),
                         searchResponseMetrics,
-                        searchRequestAttributes,
-                        fetchPhaseCoordinationAction,
-                        searchService.fetchPhaseChunked()
+                        searchRequestAttributes
                     );
                 }
                 success = true;

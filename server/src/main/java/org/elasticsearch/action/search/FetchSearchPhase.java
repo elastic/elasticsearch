@@ -10,8 +10,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
@@ -20,7 +18,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
@@ -30,8 +27,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -49,16 +44,12 @@ class FetchSearchPhase extends SearchPhase {
     @Nullable
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
-    private final TransportFetchPhaseCoordinationAction fetchCoordinationAction;
-    private final boolean fetchPhaseChunked;
 
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
         AbstractSearchAsyncAction<?> context,
-        @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
-        TransportFetchPhaseCoordinationAction fetchCoordinationAction,
-        boolean fetchPhaseChunked
+        @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         super(NAME);
         if (context.getNumShards() != resultConsumer.getNumShards()) {
@@ -76,8 +67,6 @@ class FetchSearchPhase extends SearchPhase {
         this.progressListener = context.getTask().getProgressListener();
         this.reducedQueryPhase = reducedQueryPhase;
         this.resultConsumer = reducedQueryPhase == null ? resultConsumer : null;
-        this.fetchCoordinationAction = fetchCoordinationAction;
-        this.fetchPhaseChunked = fetchPhaseChunked;
     }
 
     // protected for tests
@@ -250,58 +239,30 @@ class FetchSearchPhase extends SearchPhase {
         };
 
         final Transport.Connection connection;
-        final TransportVersion dataNodeVersion;
         try {
             connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-            dataNodeVersion = connection.getTransportVersion();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
 
-        final ShardFetchSearchRequest shardFetchRequest = new ShardFetchSearchRequest(
-            context.getOriginalIndices(shardPhaseResult.getShardIndex()),
-            contextId,
-            shardPhaseResult.getShardSearchRequest(),
-            entry,
-            rankDocs,
-            lastEmittedDocForShard,
-            shardPhaseResult.getRescoreDocIds(),
-            aggregatedDfs
-        );
-
-        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
-        boolean isCCSQuery = shardTarget.getClusterAlias() != null;
-        boolean isScrollOrReindex = context.getRequest().scroll() != null
-            || (shardFetchRequest.getShardSearchRequest() != null && shardFetchRequest.getShardSearchRequest().scroll() != null);
-
-        if (logger.isTraceEnabled()) {
-            logger.info(
-                "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
-                    + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
-                    + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
-                shardIndex,
-                fetchPhaseChunked,
-                dataNodeSupports,
-                dataNodeVersion.id(),
-                CHUNKED_FETCH_PHASE.id(),
-                connection.getNode(),
-                isCCSQuery,
-                isScrollOrReindex
+        context.getSearchTransport()
+            .sendExecuteFetch(
+                connection,
+                new ShardFetchSearchRequest(
+                    context.getOriginalIndices(shardPhaseResult.getShardIndex()),
+                    contextId,
+                    shardPhaseResult.getShardSearchRequest(),
+                    entry,
+                    rankDocs,
+                    lastEmittedDocForShard,
+                    shardPhaseResult.getRescoreDocIds(),
+                    aggregatedDfs
+                ),
+                context,
+                shardTarget,
+                listener
             );
-        }
-
-        if (fetchPhaseChunked && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
-            shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
-            shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
-            fetchCoordinationAction.execute(
-                context.getTask(),
-                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),
-                ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
-            );
-        } else {
-            context.getSearchTransport().sendExecuteFetch(connection, shardFetchRequest, context.getTask(), listener);
-        }
     }
 
     private void moveToNextPhase(

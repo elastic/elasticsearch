@@ -18,7 +18,6 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
 
@@ -32,8 +31,6 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer;
     private final SearchProgressListener progressListener;
     private final Client client;
-    private final TransportFetchPhaseCoordinationAction fetchCoordinationAction;
-    private final boolean fetchPhaseChunked;
 
     SearchDfsQueryThenFetchAsyncAction(
         Logger logger,
@@ -53,9 +50,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         SearchResponse.Clusters clusters,
         Client client,
         SearchResponseMetrics searchResponseMetrics,
-        Map<String, Object> searchRequestAttributes,
-        TransportFetchPhaseCoordinationAction fetchCoordinationAction,
-        boolean fetchPhaseChunked
+        Map<String, Object> searchRequestAttributes
     ) {
         super(
             "dfs",
@@ -86,8 +81,6 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             notifyListShards(progressListener, clusters, request, shardsIts);
         }
         this.client = client;
-        this.fetchCoordinationAction = fetchCoordinationAction;
-        this.fetchPhaseChunked = fetchPhaseChunked;
     }
 
     @Override
@@ -101,7 +94,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
 
     @Override
     protected SearchPhase getNextPhase() {
-        return new DfsQueryPhase(queryPhaseResultConsumer, client, this, fetchCoordinationAction, fetchPhaseChunked);
+        return new DfsQueryPhase(queryPhaseResultConsumer, client, this);
     }
 
     @Override

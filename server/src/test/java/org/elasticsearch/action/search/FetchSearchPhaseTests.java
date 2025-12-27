@@ -238,7 +238,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -349,7 +350,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     if (request.contextId().getId() == 321) {
@@ -452,7 +454,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     new Thread(() -> {
@@ -474,7 +477,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             };
             CountDownLatch latch = new CountDownLatch(1);
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-            FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase, null, false) {
+            FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
                 @Override
                 protected SearchPhase nextPhase(
                     SearchResponseSections searchResponseSections,
@@ -590,7 +593,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
@@ -635,7 +639,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         MockSearchPhaseContext mockSearchPhaseContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        return new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase, null, false) {
+        return new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
             @Override
             protected SearchPhase nextPhase(
                 SearchResponseSections searchResponseSections,
@@ -705,7 +709,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 public void sendExecuteFetch(
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
-                    SearchTask task,
+                    AbstractSearchAsyncAction<?> context,
+                    SearchShardTarget shardTarget,
                     ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();

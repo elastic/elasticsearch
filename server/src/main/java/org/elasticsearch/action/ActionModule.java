@@ -424,6 +424,7 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.tasks.Task;
@@ -763,6 +764,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportMultiSearchAction.TYPE, TransportMultiSearchAction.class);
         actions.register(TransportExplainAction.TYPE, TransportExplainAction.class);
         actions.register(TransportClearScrollAction.TYPE, TransportClearScrollAction.class);
+        actions.register(TransportFetchPhaseCoordinationAction.TYPE, TransportFetchPhaseCoordinationAction.class);
         actions.register(TransportFetchPhaseResponseChunkAction.TYPE, TransportFetchPhaseResponseChunkAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         actions.register(TransportNodesReloadSecureSettingsAction.TYPE, TransportNodesReloadSecureSettingsAction.class);

@@ -1174,6 +1174,7 @@ class NodeConstruction {
             projectResolver
         );
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
+
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
             client,
@@ -1284,6 +1285,7 @@ class NodeConstruction {
             telemetryProvider.getTracer(),
             onlinePrewarmingService
         );
+        searchTransportService.setSearchService(searchService);
 
         final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, taskManager, terminationHandler);
 

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.fetch.chunk;// package org.elasticsearch.action.search;
+package org.elasticsearch.search.fetch.chunk;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;

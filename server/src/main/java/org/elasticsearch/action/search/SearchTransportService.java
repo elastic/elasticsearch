@@ -34,6 +34,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -41,6 +42,7 @@ import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -114,6 +116,7 @@ public class SearchTransportService {
         Transport.Connection,
         ActionListener<? super SearchPhaseResult>,
         ActionListener<? super SearchPhaseResult>> responseWrapper;
+    private SearchService searchService;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchTransportService(
@@ -127,6 +130,10 @@ public class SearchTransportService {
         this.transportService = transportService;
         this.client = client;
         this.responseWrapper = responseWrapper;
+    }
+
+    public void setSearchService(SearchService searchService) {
+        this.searchService = searchService;
     }
 
     public TransportService transportService() {
@@ -275,13 +282,53 @@ public class SearchTransportService {
         );
     }
 
-    public void sendExecuteFetch(
+    public void sendExecuteFetch (
         Transport.Connection connection,
-        final ShardFetchSearchRequest request,
-        SearchTask task,
-        final ActionListener<FetchSearchResult> listener
+        ShardFetchSearchRequest shardFetchRequest,
+        AbstractSearchAsyncAction<?> context,
+        SearchShardTarget shardTarget,
+        ActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
+        SearchTask task = context.getTask();
+
+        final TransportVersion dataNodeVersion = connection.getTransportVersion();
+        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
+        boolean isCCSQuery = shardTarget.getClusterAlias() != null;
+        boolean isScrollOrReindex = context.getRequest().scroll() != null
+            || (shardFetchRequest.getShardSearchRequest() != null && shardFetchRequest.getShardSearchRequest().scroll() != null);
+
+        if (logger.isTraceEnabled()) {
+            logger.info(
+                "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
+                    + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
+                    + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
+                shardTarget.getShardId().getId(),
+                searchService.fetchPhaseChunked(),
+                dataNodeSupports,
+                dataNodeVersion.id(),
+                CHUNKED_FETCH_PHASE.id(),
+                connection.getNode(),
+                isCCSQuery,
+                isScrollOrReindex
+            );
+        }
+
+        if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
+            shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
+            shardFetchRequest.setCoordinatingTaskId(task.getId());
+
+            client.execute(
+                TransportFetchPhaseCoordinationAction.TYPE,
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),
+                ActionListener.wrap(
+                    response -> listener.onResponse(response.getResult()),
+                    listener::onFailure
+                )
+            );
+        } else {
+            sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, shardFetchRequest, task, listener);
+        }
+
     }
 
     public void sendExecuteFetchScroll(

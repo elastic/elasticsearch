@@ -155,7 +155,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
     // Creates and registers a response stream for the coordinating task
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    public void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final long coordinatingTaskId = task.getId();
 
         // Set coordinator information on the request

@@ -1077,7 +1077,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
         }
 
-        private static FieldAttribute insistKeyword(Attribute attribute) {
+        public static FieldAttribute insistKeyword(Attribute attribute) {
             return new FieldAttribute(
                 attribute.source(),
                 null,

@@ -7,20 +7,25 @@
 
 package org.elasticsearch.xpack.esql.analysis.rules;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -34,8 +39,12 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
 
 /**
  * The rule handles fields that don't show up in the index mapping, but are used within the query. These fields can either be missing
@@ -51,6 +60,8 @@ import java.util.Map;
  * remain unresolved and fail the verification. The language remains semantically consistent.
  */
 public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+    private static final Literal NULLIFIED = Literal.NULL; // TODO? new Literal(Source.EMPTY, null, DataType.KEYWORD)
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
@@ -83,10 +94,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static LogicalPlan nullify(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
         var nullAliases = nullAliases(unresolved);
 
+        // insert an Eval on top of every LeafPlan, if there's a UnaryPlan atop it
         var transformed = plan.transformUp(
             n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan,
             p -> evalUnresolved((UnaryPlan) p, nullAliases)
         );
+        // insert an Eval on top of those LeafPlan that are children of n-ary plans (could happen with UnionAll)
         transformed = transformed.transformUp(
             n -> n instanceof UnaryPlan == false && n instanceof LeafPlan == false,
             nAry -> evalUnresolved(nAry, nullAliases)
@@ -95,8 +108,35 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return transformed.transformUp(Fork.class, f -> patchFork(f, Expressions.asAttributes(nullAliases)));
     }
 
+    /**
+     * This method introduces field extractors - via "insisted", {@link PotentiallyUnmappedKeywordEsField} wrapped in
+     * {@link FieldAttribute} - for every attribute in {@code unresolved}, within the {@link EsRelation}s in the plan accessible from
+     * the given {@code plan}.
+     * <p>
+     * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
+     */
     private static LogicalPlan load(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
-        throw new EsqlIllegalArgumentException("unmapped fields loading not yet supported");
+        // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't extraction from specific sources
+        var transformed = plan.transformUp(n -> n instanceof EsRelation esr && esr.indexMode() != IndexMode.LOOKUP, n -> {
+            EsRelation esr = (EsRelation) n;
+            List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, esr.outputSet().names());
+            return fieldsToLoad.isEmpty() ? esr : esr.withAttributes(NamedExpressions.mergeOutputAttributes(fieldsToLoad, esr.output()));
+        });
+
+        return transformed.transformUp(Fork.class, f -> patchFork(f, Expressions.asAttributes(fieldsToLoad(unresolved, Set.of()))));
+    }
+
+    private static List<FieldAttribute> fieldsToLoad(List<UnresolvedAttribute> unresolved, Set<String> exclude) {
+        List<FieldAttribute> insisted = new ArrayList<>(unresolved.size());
+        Set<String> names = new LinkedHashSet<>(unresolved.size());
+        for (var ua : unresolved) {
+            // some plans may reference the same UA multiple times (Aggregate groupings in aggregates, Eval)
+            if (names.contains(ua.name()) == false && exclude.contains(ua.name()) == false) {
+                insisted.add(insistKeyword(ua));
+                names.add(ua.name());
+            }
+        }
+        return insisted;
     }
 
     // TODO: would an alternative to this be to drop the current Fork and have ResolveRefs#resolveFork re-resolve it. We might need
@@ -146,7 +186,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         List<Alias> nullAliases = new ArrayList<>(aliasAttributes.size());
         for (var attribute : aliasAttributes) {
             if (descendantOutputsAttribute(project, attribute) == false) {
-                nullAliases.add(new Alias(attribute.source(), attribute.name(), Literal.NULL));
+                nullAliases.add(nullAlias(attribute));
             }
         }
         return nullAliases.isEmpty() ? project : project.replaceChild(new Eval(project.source(), project.child(), nullAliases));
@@ -165,9 +205,11 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         throw new EsqlIllegalArgumentException("unexpected node type [{}]", plan); // assert
     }
 
+    /**
+     * The UAs that haven't been resolved are marked as unresolvable with a custom message. This needs to be removed for
+     * {@link Analyzer.ResolveRefs} to attempt again to wire them to the newly added aliases. That's what this method does.
+     */
     private static LogicalPlan refreshUnresolved(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
-        // These UAs haven't been resolved, so they're marked as unresolvable with a custom message. This needs to be removed for
-        // ResolveRefs to attempt again to wire them to the newly added aliases.
         return plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
             if (unresolved.contains(ua)) {
                 unresolved.remove(ua);
@@ -179,6 +221,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         });
     }
 
+    /**
+     * Inserts an Eval atop each child of the given {@code nAry}, if the child is a LeafPlan.
+     */
     private static LogicalPlan evalUnresolved(LogicalPlan nAry, List<Alias> nullAliases) {
         List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
         boolean changed = false;
@@ -193,6 +238,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return changed ? nAry.replaceChildren(newChildren) : nAry;
     }
 
+    /**
+     * Inserts an Eval atop the given {@code unaryAtopSource}, if this isn't an Eval already. Otherwise it merges the nullAliases into it.
+     */
     private static LogicalPlan evalUnresolved(UnaryPlan unaryAtopSource, List<Alias> nullAliases) {
         assertSourceType(unaryAtopSource.child());
         if (unaryAtopSource instanceof Eval eval && eval.resolved()) { // if this Eval isn't resolved, insert a new (resolved) one
@@ -235,10 +283,14 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         Map<String, Alias> aliasesMap = new LinkedHashMap<>(unresolved.size());
         for (var u : unresolved) {
             if (aliasesMap.containsKey(u.name()) == false) {
-                aliasesMap.put(u.name(), new Alias(u.source(), u.name(), Literal.NULL));
+                aliasesMap.put(u.name(), nullAlias(u));
             }
         }
         return new ArrayList<>(aliasesMap.values());
+    }
+
+    private static Alias nullAlias(Attribute attribute) {
+        return new Alias(attribute.source(), attribute.name(), NULLIFIED);
     }
 
     // collect all UAs in the node

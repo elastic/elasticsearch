@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -124,10 +127,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailKeepAndNonMatchingStar() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | KEEP does_not_exist_field*
-            """), "No matches found for pattern [does_not_exist_field*]");
+            """;
+        var failure = "No matches found for pattern [does_not_exist_field*]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     /*
@@ -195,35 +201,47 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailKeepAndMatchingAndNonMatchingStar() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | KEEP emp_*, does_not_exist_field*
-            """), "No matches found for pattern [does_not_exist_field*]");
+            """;
+        var failure = "No matches found for pattern [does_not_exist_field*]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     public void testFailAfterKeep() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | KEEP emp_*
             | EVAL x = does_not_exist_field + 1
-            """), "Unknown column [does_not_exist_field]");
+            """;
+        var failure = "Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     public void testFailAfterKeepStar() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | KEEP *
             | EVAL x = emp_no + 1
             | EVAL does_not_exist_field
-            """), "Unknown column [does_not_exist_field]");
+            """;
+        var failure = "Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     public void testFailAfterRename() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | RENAME emp_no AS employee_number
             | EVAL does_not_exist_field
-            """), "Unknown column [does_not_exist_field]");
+            """;
+        var failure = "Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     /*
@@ -268,10 +286,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailDropWithNonMatchingStar() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | DROP does_not_exist_field*
-            """), "No matches found for pattern [does_not_exist_field*]");
+            """;
+        var failure = "No matches found for pattern [does_not_exist_field*]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     /*
@@ -314,10 +335,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailDropWithMatchingAndNonMatchingStar() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | DROP emp_*, does_not_exist_field*
-            """), "No matches found for pattern [does_not_exist_field*]");
+            """;
+        var failure = "No matches found for pattern [does_not_exist_field*]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     /*
@@ -600,46 +624,61 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailDropThenKeep() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | DROP does_not_exist_field
             | KEEP does_not_exist_field
-            """), "line 3:8: Unknown column [does_not_exist_field]");
+            """;
+        var failure = "line 3:8: Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     public void testFailDropThenEval() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | DROP does_not_exist_field
             | EVAL does_not_exist_field + 2
-            """), "line 3:8: Unknown column [does_not_exist_field]");
+            """;
+        var failure = "line 3:8: Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     public void testFailEvalThenDropThenEval() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | KEEP does_not_exist_field
-            | EVAL x = does_not_exist_field + 1
+            | EVAL x = does_not_exist_field::LONG + 1
             | WHERE x IS NULL
             | DROP does_not_exist_field
-            | EVAL does_not_exist_field + 2
-            """), "line 6:8: Unknown column [does_not_exist_field]");
+            | EVAL does_not_exist_field::LONG + 2
+            """;
+        var failure = "line 6:8: Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     public void testFailStatsThenKeep() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | STATS cnd = COUNT(*)
             | KEEP does_not_exist_field
-            """), "line 3:8: Unknown column [does_not_exist_field]");
+            """;
+        var failure = "line 3:8: Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     public void testFailStatsThenEval() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | STATS cnt = COUNT(*)
             | EVAL x = does_not_exist_field + cnt
-            """), "line 3:12: Unknown column [does_not_exist_field]");
+            """;
+        var failure = "line 3:12: Unknown column [does_not_exist_field]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     /*
@@ -1878,12 +1917,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailAfterUnionAllOfStats() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM
                 (FROM employees
                  | STATS c = COUNT(*))
             | SORT does_not_exist
-            """), "line 4:8: Unknown column [does_not_exist]");
+            """;
+        var failure = "line 4:8: Unknown column [does_not_exist]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     /*
@@ -2128,7 +2170,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      *                       \_Eval[[null[NULL] AS does_not_exist1#106, null[NULL] AS does_not_exist2#119]]
      *                         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#56, language_name{f}#57]
      */
-    public void testSubquerysMixAndLookupJoin() {
+    public void testSubquerysMixAndLookupJoinNullify() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
         var plan = analyzeStatement(setUnmappedNullify("""
@@ -2151,17 +2193,86 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.names(plan.output()), is(List.of("count(*)", "empNo", "languageCode", "does_not_exist2")));
     }
 
-    public void testFailSubquerysWithNoMainAndStatsOnly() {
+    // same tree as above, except for the source nodes
+    public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        verificationFailure(setUnmappedNullify("""
+        var plan = analyzeStatement(setUnmappedLoad("""
+            FROM test,
+                (FROM languages
+                 | WHERE language_code > 10
+                 | RENAME language_name as languageName),
+                (FROM sample_data
+                | STATS max(@timestamp)),
+                (FROM test
+                | EVAL language_code = languages
+                | LOOKUP JOIN languages_lookup ON language_code)
+            | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
+            | STATS count(*) BY emp_no, language_code, does_not_exist2
+            | RENAME emp_no AS empNo, language_code AS languageCode
+            | MV_EXPAND languageCode
+            """));
+
+        // TODO: golden testing
+        assertThat(Expressions.names(plan.output()), is(List.of("count(*)", "empNo", "languageCode", "does_not_exist2")));
+
+        List<EsRelation> esRelations = plan.collect(EsRelation.class);
+        assertThat(
+            esRelations.stream().map(EsRelation::indexPattern).toList(),
+            is(
+                List.of(
+                    "test", // FROM
+                    "languages",
+                    "sample_data",
+                    "test", // LOOKUP JOIN
+                    "languages_lookup"
+                )
+            )
+        );
+        for (var esr : esRelations) {
+            if (esr.indexMode() != IndexMode.LOOKUP) {
+                var dne = esr.output().stream().filter(a -> a.name().startsWith("does_not_exist")).toList();
+                assertThat(dne.size(), is(2));
+                var dne1 = as(dne.getFirst(), FieldAttribute.class);
+                var dne2 = as(dne.getLast(), FieldAttribute.class);
+                var pukesf1 = as(dne1.field(), PotentiallyUnmappedKeywordEsField.class);
+                var pukesf2 = as(dne2.field(), PotentiallyUnmappedKeywordEsField.class);
+                assertThat(pukesf1.getName(), is("does_not_exist1"));
+                assertThat(pukesf2.getName(), is("does_not_exist2"));
+            }
+        }
+    }
+
+    public void testFailSubquerysWithNoMainAndStatsOnlyNullify() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        var query = """
             FROM
                 (FROM languages
                  | STATS c = COUNT(*) BY emp_no, does_not_exist1),
                 (FROM languages
-                 | STATS a = AVG(salary))
+                 | STATS a = AVG(salary::LONG))
             | WHERE does_not_exist2::LONG < 10
-            """), "line 6:9: Unknown column [does_not_exist2], did you mean [does_not_exist1]?");
+            """;
+        var failure = "line 6:9: Unknown column [does_not_exist2], did you mean [does_not_exist1]?";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    public void testFailSubquerysWithNoMainAndStatsOnlyLoad() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        var query = """
+            FROM
+                (FROM languages
+                 | STATS c = COUNT(*) BY emp_no, does_not_exist1),
+                (FROM languages
+                 | STATS a = AVG(salary::LONG))
+            | WHERE does_not_exist2::LONG < 10
+            """;
+        var failure = "line 6:9: Unknown column [does_not_exist2], did you mean [does_not_exist1]?";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     /*
@@ -2573,7 +2684,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFailAfterForkOfStats() {
-        verificationFailure(setUnmappedNullify("""
+        var query = """
             FROM test
             | WHERE does_not_exist1 IS NULL
             | FORK (STATS c = COUNT(*))
@@ -2581,7 +2692,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                    (DISSECT hire_date::KEYWORD "%{year}-%{month}-%{day}T"
                     | STATS x = MIN(year::LONG), y = MAX(month::LONG) WHERE year::LONG > 1000 + does_not_exist2::DOUBLE)
             | EVAL e = does_not_exist3 + 1
-            """), "line 7:12: Unknown column [does_not_exist3]");
+            """;
+        var failure = "line 7:12: Unknown column [does_not_exist3]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
     }
 
     /*
@@ -2795,6 +2909,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     private static String setUnmappedNullify(String query) {
         return "SET unmapped_fields=\"nullify\"; " + query;
+    }
+
+    private static String setUnmappedLoad(String query) {
+        return "SET unmapped_fields=\"load\"; " + query;
     }
 
     @Override

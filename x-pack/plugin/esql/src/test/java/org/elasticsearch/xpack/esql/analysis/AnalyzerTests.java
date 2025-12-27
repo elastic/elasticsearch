@@ -3158,6 +3158,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3184,6 +3185,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3211,6 +3213,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3238,6 +3241,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3262,6 +3266,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3290,6 +3295,7 @@ public class AnalyzerTests extends ESTestCase {
 
         IndexResolution resolution = IndexResolver.mergedMappings(
             "foo,bar",
+            false,
             fieldsInfoOnCurrentVersion(
                 new FieldCapabilitiesResponse(
                     List.of(
@@ -3322,6 +3328,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
+                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3332,6 +3339,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
+                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3355,6 +3363,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
+                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3368,6 +3377,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
+                false,
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3821,7 +3831,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, IndexResolver.DO_NOT_GROUP);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", false, caps, IndexResolver.DO_NOT_GROUP);
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

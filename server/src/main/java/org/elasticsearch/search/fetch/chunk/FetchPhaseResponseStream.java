@@ -101,17 +101,17 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
                 }
             }
 
-            //if (logger.isTraceEnabled()) {
-                logger.info(
-                    "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                    chunk.hits() == null ? 0 : chunk.hits().getHits().length,
-                    shardIndex,
-                    queue.size(),
-                    expectedDocs,
-                    totalBreakerBytes.get(),
-                    circuitBreaker.getUsed()
-                );
-            //}
+            // if (logger.isTraceEnabled()) {
+            logger.info(
+                "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
+                chunk.hits() == null ? 0 : chunk.hits().getHits().length,
+                shardIndex,
+                queue.size(),
+                expectedDocs,
+                totalBreakerBytes.get(),
+                circuitBreaker.getUsed()
+            );
+            // }
             success = true;
         } finally {
             if (success) {
@@ -199,14 +199,14 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
      */
     @Override
     protected void closeInternal() {
-        //if (logger.isTraceEnabled()) {
-            logger.info(
-                "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
-                shardIndex,
-                queue.size(),
-                totalBreakerBytes.get()
-            );
-        //}
+        // if (logger.isTraceEnabled()) {
+        logger.info(
+            "Closing response stream for shard [{}], releasing [{}] hits, [{}] breaker bytes",
+            shardIndex,
+            queue.size(),
+            totalBreakerBytes.get()
+        );
+        // }
 
         if (ownershipTransferred == false) {
             for (SequencedHit sequencedHit : queue) {

@@ -138,12 +138,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 provideSearchTransportWithChunkedFetch(mockSearchPhaseContext, mockTransportService, threadPool, fetchCoordinationAction);
 
                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-                FetchSearchPhase phase = new FetchSearchPhase(
-                    results,
-                    null,
-                    mockSearchPhaseContext,
-                    reducedQueryPhase
-                ) {
+                FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
                     @Override
                     protected SearchPhase nextPhase(
                         SearchResponseSections searchResponseSections,
@@ -211,12 +206,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 );
 
                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-                FetchSearchPhase phase = new FetchSearchPhase(
-                    results,
-                    null,
-                    mockSearchPhaseContext,
-                    reducedQueryPhase
-                ) {
+                FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
                     @Override
                     protected SearchPhase nextPhase(
                         SearchResponseSections searchResponseSections,
@@ -289,12 +279,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 queryResults.set(0, results.getAtomicArray().get(0));
                 queryResults.set(1, results.getAtomicArray().get(1));
 
-                FetchSearchPhase phase = new FetchSearchPhase(
-                    results,
-                    null,
-                    mockSearchPhaseContext,
-                    reducedQueryPhase
-                ) {
+                FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
                     @Override
                     protected SearchPhase nextPhase(
                         SearchResponseSections searchResponseSections,
@@ -373,12 +358,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                 );
 
                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
-                FetchSearchPhase phase = new FetchSearchPhase(
-                    results,
-                    null,
-                    mockSearchPhaseContext,
-                    reducedQueryPhase
-                ) {
+                FetchSearchPhase phase = new FetchSearchPhase(results, null, mockSearchPhaseContext, reducedQueryPhase) {
                     @Override
                     protected SearchPhase nextPhase(
                         SearchResponseSections searchResponseSections,
@@ -437,8 +417,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
         Transport.Connection mockConnection = new Transport.Connection() {
             @Override
-            public void incRef() {
-            }
+            public void incRef() {}
 
             @Override
             public boolean tryIncRef() {
@@ -482,8 +461,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
             public void close() {}
 
             @Override
-            public void onRemoved() {
-            }
+            public void onRemoved() {}
 
             @Override
             public void addRemovedListener(ActionListener<Void> listener) {}
@@ -512,7 +490,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
         StubSearchService(boolean chunkedEnabled, ClusterService clusterService, ThreadPool threadPool) {
             super(
-               clusterService,
+                clusterService,
                 null, // indicesService
                 threadPool,
                 null, // scriptService
@@ -532,16 +510,13 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
         }
 
         @Override
-        protected void doStart() {
-        }
+        protected void doStart() {}
 
         @Override
-        protected void doStop() {
-        }
+        protected void doStop() {}
 
         @Override
-        protected void doClose() {
-        }
+        protected void doClose() {}
     }
 
     private void provideSearchTransport(

@@ -1579,6 +1579,11 @@ public class EsqlCapabilities {
         DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION,
 
         /**
+         * Support for dense_vector equality and inequality operators (==, !=).
+         */
+        DENSE_VECTOR_EQUALITY,
+
+        /**
          * FUSE L2_NORM score normalization support
          */
         FUSE_L2_NORM(Build.current().isSnapshot()),

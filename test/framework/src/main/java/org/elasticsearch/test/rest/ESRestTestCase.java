@@ -971,6 +971,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeAllIndices(preserveSecurityIndicesUponCompletion());
         }
 
+        wipeAllViews();
+
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
             if (hasXPack()) {
@@ -1308,6 +1310,43 @@ public abstract class ESRestTestCase extends ESTestCase {
                     return;
                 } else if (statusCode < 404 || statusCode > 405) {
                     throw ee;
+                }
+            }
+        }
+    }
+
+    protected void wipeAllViews() throws IOException {
+        // retrieves all views
+        final Request request = new Request("GET", "_query/view");
+
+        final Response response;
+        try {
+            response = cleanupClient().performRequest(request);
+        } catch (ResponseException e) {
+            String err = EntityUtils.toString(e.getResponse().getEntity());
+            if (err.contains("no handler found for uri [_query/view]") || err.contains("Incorrect HTTP method for uri [_query/view]")) {
+                // Views are not supported, don't worry about wiping them
+                return;
+            }
+            throw e;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Object> views = (List<Object>) XContentMapValues.extractValue("views", entityAsMap(response));
+        if (views != null) {
+            for (Object view : views) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> viewMap = (Map<String, String>) view;
+                    String viewName = viewMap.get("name");
+                    assertAcked(
+                        "Failed to delete view [" + viewName + ']',
+                        cleanupClient().performRequest(new Request("DELETE", "_query/view/" + viewName))
+                    );
+                } catch (ResponseException e) {
+                    if (isNotFoundResponseException(e) == false) {
+                        throw e;
+                    }
                 }
             }
         }

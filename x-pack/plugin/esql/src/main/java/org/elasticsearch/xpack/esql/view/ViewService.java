@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
@@ -115,6 +117,10 @@ public class ViewService {
         return getMetadata(clusterService.state().metadata().getProject(projectId));
     }
 
+    protected Map<String, IndexAbstraction> getIndicesLookup(ProjectMetadata projectMetadata) {
+        return projectMetadata.getIndicesLookup();
+    }
+
     /**
      * Adds or modifies a view by name.
      */
@@ -152,7 +158,7 @@ public class ViewService {
                 validatePutView(metadata, view);
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
                 updatedViews.put(view.name(), view);
-                var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(updatedViews));
+                var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         };
@@ -188,7 +194,7 @@ public class ViewService {
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
                 final View existingView = updatedViews.remove(name);
                 assert existingView != null : "we should have short-circuited if removing a view that already didn't exist";
-                var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(updatedViews));
+                var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         };
@@ -209,6 +215,20 @@ public class ViewService {
         if (existing == null && views.views().size() >= this.maxViewsCount) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
+
+        final Map<String, IndexAbstraction> indicesLookup = getIndicesLookup(metadata);
+        indicesLookup.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().equals(view.name()))
+            .filter(entry -> entry.getValue().getType() != IndexAbstraction.Type.VIEW)
+            .findFirst()
+            .ifPresent(entry -> {
+                throw new ResourceAlreadyExistsException(
+                    "view [{}] cannot be created, an existing {} with that name is present",
+                    view.name(),
+                    entry.getValue().getType().getDisplayName()
+                );
+            });
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
         EsqlParser.INSTANCE.parseQuery(view.query(), new QueryParams(), telemetry, EMPTY_INFERENCE_SETTINGS);
     }

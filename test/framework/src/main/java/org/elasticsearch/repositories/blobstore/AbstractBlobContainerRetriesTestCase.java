@@ -248,7 +248,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     public void testReadBlobWithReadTimeouts() {
         final int maxRetries = randomInt(5);
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
-        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).readTimeout(readTimeout).build();
+        final ByteSizeValue bufferSize = ByteSizeValue.ofMb(between(10, 100));
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries)
+            .bufferSize(bufferSize)
+            .readTimeout(readTimeout)
+            .build();
 
         // HTTP server does not send a response
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_unresponsive"), exchange -> {});
@@ -260,15 +264,19 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
         assertThat(exception.getCause(), instanceOf(SocketTimeoutException.class));
 
+        // RetryingInputStream allows more retries when stream able to read meaningful amount of bytes, typically 1% of bufferSize
+        // here we limit total number of bytes in incompleteContent to be less than meaningful amount
+        final int meaningfulProgressSize = (int) (bufferSize.getBytes() / 100L);
+        final byte[] bytesPerRetry = randomByteArrayOfLength(meaningfulProgressSize / maxRetries);
+
         // HTTP server sends a partial response
-        final byte[] bytes = randomBlobContent();
         httpServer.createContext(
             downloadStorageEndpoint(blobContainer, "read_blob_incomplete"),
-            exchange -> sendIncompleteContent(exchange, bytes)
+            exchange -> sendIncompleteContent(exchange, bytesPerRetry)
         );
 
-        final int position = randomIntBetween(0, bytes.length - 1);
-        final int length = randomIntBetween(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
+        final int position = randomIntBetween(0, bytesPerRetry.length - 1);
+        final int length = randomIntBetween(1, randomBoolean() ? bytesPerRetry.length : Integer.MAX_VALUE);
         exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()

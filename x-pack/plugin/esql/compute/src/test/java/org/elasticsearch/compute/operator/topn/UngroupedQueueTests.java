@@ -169,7 +169,10 @@ public class UngroupedQueueTests extends ESTestCase {
         assertThat(actual, equalTo(expected));
     }
 
-    private static long expectedRamBytesUsed(UngroupedQueue queue) {
-        return RamUsageTester.ramUsed(queue);
+    private long expectedRamBytesUsed(UngroupedQueue queue) {
+        long expected = RamUsageTester.ramUsed(queue);
+        // The breaker is shared infrastructure so we don't count it but RamUsageTester does.
+        expected -= RamUsageTester.ramUsed(breaker);
+        return expected;
     }
 }

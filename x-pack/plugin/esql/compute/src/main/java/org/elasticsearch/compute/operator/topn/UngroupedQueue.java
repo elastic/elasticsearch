@@ -13,14 +13,15 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 
 final class UngroupedQueue implements TopNQueue {
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UngroupedQueue.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UngroupedQueue.class) + RamUsageEstimator
+        .shallowSizeOfInstance(PriorityQueue.class);
 
     private final PriorityQueue<Row> pq;
     private final CircuitBreaker breaker;
     private final int topCount;
 
     static UngroupedQueue build(CircuitBreaker breaker, int topCount) {
-        breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "esql engine topn");
+        breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "topn");
         return new UngroupedQueue(breaker, topCount);
     }
 

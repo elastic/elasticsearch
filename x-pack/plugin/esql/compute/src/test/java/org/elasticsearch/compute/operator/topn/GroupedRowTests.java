@@ -65,10 +65,10 @@ public class GroupedRowTests extends ESTestCase {
             // We double count the shared empty array for empty group keys. This overcounting is *fine*, but throws off the test.
             expected += RamUsageTester.ramUsed(new byte[0]);
         }
-        // The breaker is shared infrastructure so we don't count it but RamUsageTester does
+        // The breaker is shared infrastructure so we don't count it but RamUsageTester does.
         expected -= RamUsageTester.ramUsed(breaker);
         expected -= RamUsageTester.ramUsed("topn");
-        // the sort orders are shared
+        // the sort orders are shared too.
         expected -= RamUsageTester.ramUsed(sortOrders());
         return expected;
     }

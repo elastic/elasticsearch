@@ -110,13 +110,13 @@ import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.ActionLogFieldProvider;
+import org.elasticsearch.index.ActionLogFields;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
@@ -868,16 +868,16 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
-        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
+        List<? extends ActionLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(ActionLogFieldProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
-        SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
-            public SlowLogFields create() {
-                final List<SlowLogFields> fields = new ArrayList<>();
+        ActionLogFieldProvider actionLogFieldProvider = new ActionLogFieldProvider() {
+            public ActionLogFields create() {
+                final List<ActionLogFields> fields = new ArrayList<>();
                 for (var provider : slowLogFieldProviders) {
                     fields.add(provider.create());
                 }
-                return new SlowLogFields() {
+                return new ActionLogFields() {
                     @Override
                     public Map<String, String> indexFields() {
                         return fields.stream()
@@ -901,12 +901,12 @@ class NodeConstruction {
                 };
             }
 
-            public SlowLogFields create(IndexSettings indexSettings) {
-                final List<SlowLogFields> fields = new ArrayList<>();
+            public ActionLogFields create(IndexSettings indexSettings) {
+                final List<ActionLogFields> fields = new ArrayList<>();
                 for (var provider : slowLogFieldProviders) {
                     fields.add(provider.create(indexSettings));
                 }
-                return new SlowLogFields() {
+                return new ActionLogFields() {
                     @Override
                     public Map<String, String> indexFields() {
                         return fields.stream()
@@ -954,7 +954,7 @@ class NodeConstruction {
             .mapperMetrics(mapperMetrics)
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
-            .slowLogFieldProvider(slowLogFieldProvider)
+            .slowLogFieldProvider(actionLogFieldProvider)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -1046,7 +1046,7 @@ class NodeConstruction {
             documentParsingProvider,
             taskManager,
             projectResolver,
-            slowLogFieldProvider,
+            actionLogFieldProvider,
             indexingLimits,
             linkedProjectConfigService,
             projectRoutingResolver

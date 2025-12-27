@@ -10,18 +10,18 @@
 package org.elasticsearch.index;
 
 /**
- * Interface for providing additional fields to the slow log from a plugin.
+ * Interface for providing additional fields to the action log from a plugin.
  * Intended to be loaded through SPI.
  */
-public interface SlowLogFieldProvider {
+public interface ActionLogFieldProvider {
     /**
      * Create a field provider with index level settings to be able to listen for updates and set initial values
      * @param indexSettings settings for the index
      */
-    SlowLogFields create(IndexSettings indexSettings);
+    ActionLogFields create(IndexSettings indexSettings);
 
     /**
      * Create a field provider without index level settings
      */
-    SlowLogFields create();
+    ActionLogFields create();
 }

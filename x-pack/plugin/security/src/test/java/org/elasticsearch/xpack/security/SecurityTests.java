@@ -38,10 +38,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.ActionLogFieldProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -477,7 +477,7 @@ public class SecurityTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLogFieldProvider.class),
             MapperMetrics.NOOP,
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),

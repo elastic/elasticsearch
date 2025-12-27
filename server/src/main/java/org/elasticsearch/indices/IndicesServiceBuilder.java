@@ -22,9 +22,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
+import org.elasticsearch.index.ActionLogFieldProvider;
+import org.elasticsearch.index.ActionLogFields;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -83,10 +83,10 @@ public class IndicesServiceBuilder {
     MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
-    SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
+    ActionLogFieldProvider slowLogFieldProvider = new ActionLogFieldProvider() {
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public ActionLogFields create() {
+            return new ActionLogFields() {
                 @Override
                 public Map<String, String> indexFields() {
                     return Map.of();
@@ -100,7 +100,7 @@ public class IndicesServiceBuilder {
         }
 
         @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
+        public ActionLogFields create(IndexSettings indexSettings) {
             return create();
         }
 
@@ -222,8 +222,8 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder slowLogFieldProvider(SlowLogFieldProvider slowLogFieldProvider) {
-        this.slowLogFieldProvider = slowLogFieldProvider;
+    public IndicesServiceBuilder slowLogFieldProvider(ActionLogFieldProvider actionLogFieldProvider) {
+        this.slowLogFieldProvider = actionLogFieldProvider;
         return this;
     }
 

@@ -19,10 +19,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.ActionLogFieldProvider;
+import org.elasticsearch.index.ActionLogFields;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -103,15 +103,15 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 )
             )
         );
-        return new EsqlQueryLog(clusterSettings, new SlowLogFieldProvider() {
+        return new EsqlQueryLog(clusterSettings, new ActionLogFieldProvider() {
             @Override
-            public SlowLogFields create(IndexSettings indexSettings) {
+            public ActionLogFields create(IndexSettings indexSettings) {
                 return create();
             }
 
             @Override
-            public SlowLogFields create() {
-                return new SlowLogFields() {
+            public ActionLogFields create() {
+                return new ActionLogFields() {
                     @Override
                     public Map<String, String> indexFields() {
                         return Map.of();

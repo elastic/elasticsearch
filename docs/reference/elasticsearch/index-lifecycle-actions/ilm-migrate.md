@@ -9,6 +9,10 @@ Phases allowed: warm, cold.
 
 Moves the index to the [data tier](docs-content://manage-data/lifecycle/data-tiers.md) that corresponds to the current phase by updating the `index.routing.allocation.include._tier_preference` index setting. {{ilm-init}} automatically injects the migrate action in the warm and cold phases. To prevent automatic migration, you can explicitly include the migrate action and set the enabled option to `false`.
 
+::::{important}
+The migrate action **does not reindex data**. It only updates the index's allocation settings, causing Elasticsearch to relocate the existing shards to nodes in the target data tier. The data itself remains unchanged during the migration process.
+::::
+
 If the `cold` phase defines a [searchable snapshot action](/reference/elasticsearch/index-lifecycle-actions/ilm-searchable-snapshot.md) the `migrate` action will not be injected automatically in the `cold` phase because the managed index will be mounted directly on the target tier using the same `_tier_preference` infrastructure the `migrate` actions configures.
 
 In the warm phase, the `migrate` action sets [`index.routing.allocation.include._tier_preference`](/reference/elasticsearch/index-settings/data-tier-allocation.md#tier-preference-allocation-filter) to `data_warm,data_hot`. This moves the index to nodes in the [warm tier](docs-content://manage-data/lifecycle/data-tiers.md#warm-tier). If there are no nodes in the warm tier,  it falls back to the [hot tier](docs-content://manage-data/lifecycle/data-tiers.md#hot-tier).

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.HexLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser.LabelListContext;
@@ -53,11 +56,43 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     private static final long MIN_DURATION_SECONDS = -9223372037L;
 
     private final Literal start, end;
+    private final QueryParams params;
 
-    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn) {
+    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         super(startLine, startColumn);
         this.start = start;
         this.end = end;
+        this.params = params;
+    }
+
+    private String resolveParamValue(TerminalNode node) {
+        if (node == null || params == null) {
+            return null;
+        }
+
+        String text = node.getText();
+        String nameOrPosition = text.substring(1); // Remove leading '?'
+        Source source = source(node);
+
+        QueryParam param;
+        try {
+            int position = Integer.parseInt(nameOrPosition);
+            param = params.get(position);
+            if (param == null) {
+                throw new ParsingException(source, "No parameter is defined for position [{}]", position);
+            }
+        } catch (NumberFormatException e) {
+            if (params.contains(nameOrPosition) == false) {
+                throw new ParsingException(source, "Unknown query parameter [{}]", nameOrPosition);
+            }
+            param = params.get(nameOrPosition);
+        }
+
+        if (param == null || param.value() == null) {
+            throw new ParsingException(source, "Parameter [{}] has no value", text);
+        }
+
+        return param.value().toString();
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -198,6 +233,12 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
 
     @Override
     public Duration visitTimeValue(TimeValueContext ctx) {
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            String paramValue = resolveParamValue(ctx.NAMED_OR_POSITIONAL_PARAM());
+            Source source = source(ctx.NAMED_OR_POSITIONAL_PARAM());
+            return parseTimeValue(source, paramValue);
+        }
+
         if (ctx.number() != null) {
             var literal = typedParsing(this, ctx.number(), Literal.class);
             Number number = (Number) literal.value();

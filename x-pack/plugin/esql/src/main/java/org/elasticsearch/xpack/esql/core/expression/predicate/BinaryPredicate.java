@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalar
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Binary operator. Operators act as _special_ functions in that they have a symbol
@@ -66,6 +67,15 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
 
     @Override
     public String nodeString() {
-        return left().nodeString() + " " + symbol() + " " + right().nodeString();
+        return nodeString(Expression::nodeString);
+    }
+
+    @Override
+    public String goldenTestNodeString() {
+        return nodeString(Expression::goldenTestNodeString);
+    }
+
+    private String nodeString(Function<Expression, String> nodeStringHelper) {
+        return nodeStringHelper.apply(left()) + " " + symbol() + " " + nodeStringHelper.apply(right());
     }
 }

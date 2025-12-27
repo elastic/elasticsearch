@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
@@ -367,31 +368,36 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     public String nodeString() {
+        return nodeString(propertiesToString(true /* skipIfChild */));
+    }
+
+    /**
+     * Like the above, but ensures consistent tree rendering for golden tests. Overrides of this method should avoid adding information
+     * that can change between repeated test runs, such as object identities or pseudo-random generated names.
+     */
+    public String goldenTestNodeString() {
+        return nodeString(goldenTestPropertiesToString(true /* skipIfChild */));
+    }
+
+    private String nodeString(String propertiesToString) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append("[");
-        sb.append(propertiesToString(true));
+        sb.append(propertiesToString);
         sb.append("]");
         return sb.toString();
     }
 
     @Override
     public String toString() {
-        return treeString(new StringBuilder(), 0, new BitSet()).toString();
+        return treeString(new StringBuilder(), 0, new BitSet(), Node::nodeString).toString();
     }
 
-    /**
-     * Render this {@link Node} as a tree like
-     * <pre>
-     * {@code
-     * Project[[i{f}#0]]
-     * \_Filter[i{f}#1]
-     *   \_SubQueryAlias[test]
-     *     \_EsRelation[test][i{f}#2]
-     * }
-     * </pre>
-     */
-    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth) {
+    public String goldenTestToString() {
+        return treeString(new StringBuilder(), 0, new BitSet(), Node::goldenTestNodeString).toString();
+    }
+
+    StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth, Function<Node<?>, String> nodeToString) {
         if (depth > 0) {
             // draw children
             for (int column = 0; column < depth; column++) {
@@ -410,7 +416,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             sb.append("_");
         }
 
-        sb.append(nodeString());
+        sb.append(nodeToString.apply(this));
 
         @SuppressWarnings("HiddenField")
         List<T> children = children();
@@ -420,7 +426,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         for (int i = 0; i < children.size(); i++) {
             T t = children.get(i);
             hasParentPerDepth.set(depth, i < children.size() - 1);
-            t.treeString(sb, depth + 1, hasParentPerDepth);
+            t.treeString(sb, depth + 1, hasParentPerDepth, nodeToString);
             if (i < children.size() - 1) {
                 sb.append("\n");
             }
@@ -431,20 +437,35 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     /**
      * Render the properties of this {@link Node} one by
      * one like {@code foo bar baz}. These go inside the
-     * {@code [} and {@code ]} of the output of {@link #treeString}.
+     * {@code [} and {@code ]} of the output of {@link #toString}.
      */
-    public String propertiesToString(boolean skipIfChild) {
+    protected String propertiesToString(boolean skipIfChild) {
+        return propertiesToString(skipIfChild, Node::toString, TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH);
+    }
+
+    /**
+     * Like the above, but ensures consistent tree rendering for golden tests. Overrides of this method should avoid adding information
+     * that can change between repeated test runs, such as object identities or pseudo-random generated names.
+     */
+    protected String goldenTestPropertiesToString(boolean skipIfChild) {
+        return propertiesToString(skipIfChild, Node::goldenTestToString, Integer.MAX_VALUE, Integer.MAX_VALUE);
+    }
+
+    private String propertiesToString(boolean skipIfChild, Function<Object, String> toStringHelper, int maxProperties, int maxWidth) {
         StringBuilder sb = new StringBuilder();
 
         @SuppressWarnings("HiddenField")
         List<?> children = children();
         // eliminate children (they are rendered as part of the tree)
-        int remainingProperties = TO_STRING_MAX_PROP;
-        int maxWidth = 0;
+        int remainingProperties = maxProperties;
+        int width = 0;
         boolean needsComma = false;
 
         List<Object> props = nodeProperties();
         for (Object prop : props) {
+            if (prop instanceof NameId) {
+                continue;
+            }
             // consider a property if it is not ignored AND
             // it's not a child (optional)
             if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
@@ -457,17 +478,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                     sb.append(",");
                 }
 
-                String stringValue = toString(prop);
+                String stringValue = toStringHelper.apply(prop);
 
                 // : Objects.toString(prop);
-                if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
-                    int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
+                if (width + stringValue.length() > maxWidth) {
+                    int cutoff = Math.max(0, maxWidth - width);
                     sb.append(stringValue.substring(0, cutoff));
                     sb.append("\n");
                     stringValue = stringValue.substring(cutoff);
-                    maxWidth = 0;
+                    width = 0;
                 }
-                maxWidth += stringValue.length();
+                width += stringValue.length();
                 sb.append(stringValue);
 
                 needsComma = true;
@@ -483,21 +504,42 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return sb.toString();
     }
 
+    // Like the above, but ensures consistent tree rendering for tests.
+    private static String goldenTestToString(Object obj) {
+        StringBuilder sb = new StringBuilder();
+        goldenTestToString(sb, obj);
+        return sb.toString();
+    }
+
     private static void toString(StringBuilder sb, Object obj) {
-        if (obj instanceof Iterable) {
+        toString(sb, obj, Node::nodeString, Node::toString);
+    }
+
+    // Like the above, but ensures consistent tree rendering for tests.
+    private static void goldenTestToString(StringBuilder sb, Object obj) {
+        toString(sb, obj, Node::goldenTestNodeString, Node::goldenTestToString);
+    }
+
+    private static void toString(
+        StringBuilder sb,
+        Object obj,
+        Function<Node<?>, String> nodeStringHelper,
+        BiConsumer<StringBuilder, Object> toStringHelper
+    ) {
+        if (obj instanceof Iterable<?> iterable) {
             sb.append("[");
-            for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
+            for (Iterator<?> it = iterable.iterator(); it.hasNext();) {
                 Object o = it.next();
-                toString(sb, o);
+                toStringHelper.accept(sb, o);
                 if (it.hasNext()) {
                     sb.append(", ");
                 }
             }
             sb.append("]");
-        } else if (obj instanceof Node<?>) {
-            sb.append(((Node<?>) obj).nodeString());
+        } else if (obj instanceof Node<?> node) {
+            sb.append(nodeStringHelper.apply(node));
         } else {
-            sb.append(Objects.toString(obj));
+            sb.append(obj);
         }
     }
 

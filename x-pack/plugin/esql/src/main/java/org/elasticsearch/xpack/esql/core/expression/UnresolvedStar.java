@@ -82,7 +82,17 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     @Override
+    public String goldenTestNodeString() {
+        return goldenTestToString();
+    }
+
+    @Override
     public String toString() {
         return UNRESOLVED_PREFIX + message();
+    }
+
+    @Override
+    public String goldenTestToString() {
+        return toString();
     }
 }

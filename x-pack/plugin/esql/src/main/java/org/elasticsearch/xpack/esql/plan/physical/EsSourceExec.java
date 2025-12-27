@@ -127,6 +127,15 @@ public class EsSourceExec extends LeafExec {
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + indexPattern + "]" + NodeUtils.limitedToString(attributes);
+        return nodeString(NodeUtils.limitedToString(attributes));
+    }
+
+    @Override
+    public String goldenTestNodeString() {
+        return nodeString(NodeUtils.unlimitedToString(attributes));
+    }
+
+    private String nodeString(String attrsToString) {
+        return nodeName() + "[" + indexPattern + "]" + attrsToString;
     }
 }

@@ -1,0 +1,81 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],long{f} > 10[INTEGER],PT0S[TIME_DURATION]) AS count(*) where long > 10, x{r}],FINAL,[x{r}, $$count(*) where long > 10$count{r}, $$count(*) where long > 10$seen{r}],null]
+  \_ExchangeExec[[x{r}, $$count(*) where long > 10$count{r}, $$count(*) where long > 10$seen{r}],true]
+    \_AggregateExec[[x{r}],[COUNT(*[KEYWORD],long{f} > 10[INTEGER],PT0S[TIME_DURATION]) AS count(*) where long > 10, x{r}],INITIAL,[x{r}, $$count(*) where long > 10$count{r}, $$count(*) where long > 10$seen{r}],16]
+      \_FieldExtractExec[long{f}]<[],[]>
+        \_EvalExec[[$$date$round_to$datetime{f} AS x]]
+          \_EsQueryExec[test], indexMode[standard], [_doc{f}, $$date$round_to$datetime{f}], limit[], sort[] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "lt" : "2023-10-21T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date_trunc(1 day, date)@2:41"
+  }
+}, tags=[1697760000000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-21T00:00:00.000Z",
+          "lt" : "2023-10-22T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date_trunc(1 day, date)@2:41"
+  }
+}, tags=[1697846400000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-22T00:00:00.000Z",
+          "lt" : "2023-10-23T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date_trunc(1 day, date)@2:41"
+  }
+}, tags=[1697932800000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-23T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date_trunc(1 day, date)@2:41"
+  }
+}, tags=[1698019200000]], QueryBuilderAndTags[query={
+  "bool" : {
+    "must_not" : [
+      {
+        "exists" : {
+          "field" : "date",
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[null]]]]

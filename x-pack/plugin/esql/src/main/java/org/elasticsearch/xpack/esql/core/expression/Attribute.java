@@ -220,8 +220,18 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
+    public String goldenTestToString() {
+        return name() + "{" + label() + (synthetic() ? "$" : "") + "}";
+    }
+
+    @Override
     public String nodeString() {
         return toString();
+    }
+
+    @Override
+    public String goldenTestNodeString() {
+        return goldenTestToString();
     }
 
     protected abstract String label();

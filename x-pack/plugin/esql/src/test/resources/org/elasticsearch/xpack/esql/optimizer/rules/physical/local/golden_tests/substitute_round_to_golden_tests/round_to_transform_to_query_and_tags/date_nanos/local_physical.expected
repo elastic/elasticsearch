@@ -1,0 +1,79 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
+  \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
+    \_FilterExec[$$count(*)$count{r} > 0[LONG]]
+      \_EsStatsQueryExec[test,null,null,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date_nanos",
+    "next" : {
+      "range" : {
+        "date_nanos" : {
+          "lt" : "2023-10-21T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time_nanos",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(date_nanos, \"2023-10-20\"::date_nanos,\"2023-10-21\"::date_nanos,\"2023-10-22\"::date_nanos,\"2023-10-23\"::date_nanos)@2:25"
+  }
+}, tags=[1697760000000000000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date_nanos",
+    "next" : {
+      "range" : {
+        "date_nanos" : {
+          "gte" : "2023-10-21T00:00:00.000Z",
+          "lt" : "2023-10-22T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time_nanos",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(date_nanos, \"2023-10-20\"::date_nanos,\"2023-10-21\"::date_nanos,\"2023-10-22\"::date_nanos,\"2023-10-23\"::date_nanos)@2:25"
+  }
+}, tags=[1697846400000000000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date_nanos",
+    "next" : {
+      "range" : {
+        "date_nanos" : {
+          "gte" : "2023-10-22T00:00:00.000Z",
+          "lt" : "2023-10-23T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time_nanos",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(date_nanos, \"2023-10-20\"::date_nanos,\"2023-10-21\"::date_nanos,\"2023-10-22\"::date_nanos,\"2023-10-23\"::date_nanos)@2:25"
+  }
+}, tags=[1697932800000000000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date_nanos",
+    "next" : {
+      "range" : {
+        "date_nanos" : {
+          "gte" : "2023-10-23T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time_nanos",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(date_nanos, \"2023-10-20\"::date_nanos,\"2023-10-21\"::date_nanos,\"2023-10-22\"::date_nanos,\"2023-10-23\"::date_nanos)@2:25"
+  }
+}, tags=[1698019200000000000]], QueryBuilderAndTags[query={
+  "bool" : {
+    "must_not" : [
+      {
+        "exists" : {
+          "field" : "date_nanos",
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[null]]]}]

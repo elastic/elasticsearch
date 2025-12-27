@@ -1,0 +1,155 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
+  \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
+    \_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],INITIAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],16]
+      \_EvalExec[[$$date$round_to$datetime{f} AS x]]
+        \_EsQueryExec[test], indexMode[standard], [_doc{f}, $$date$round_to$datetime{f}], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "filter" : [
+      {
+        "match" : {
+          "keyword" : {
+            "query" : "keyword",
+            "lenient" : true
+          }
+        }
+      },
+      {
+        "esql_single_value" : {
+          "field" : "date",
+          "next" : {
+            "range" : {
+              "date" : {
+                "lt" : "2023-10-21T00:00:00.000Z",
+                "time_zone" : "Z",
+                "format" : "strict_date_optional_time",
+                "boost" : 0.0
+              }
+            }
+          },
+          "source" : "round_to(date, \"2023-10-20\", \"2023-10-21\", \"2023-10-22\", \"2023-10-23\")@3:25"
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[1697760000000]], QueryBuilderAndTags[query={
+  "bool" : {
+    "filter" : [
+      {
+        "match" : {
+          "keyword" : {
+            "query" : "keyword",
+            "lenient" : true
+          }
+        }
+      },
+      {
+        "esql_single_value" : {
+          "field" : "date",
+          "next" : {
+            "range" : {
+              "date" : {
+                "gte" : "2023-10-21T00:00:00.000Z",
+                "lt" : "2023-10-22T00:00:00.000Z",
+                "time_zone" : "Z",
+                "format" : "strict_date_optional_time",
+                "boost" : 0.0
+              }
+            }
+          },
+          "source" : "round_to(date, \"2023-10-20\", \"2023-10-21\", \"2023-10-22\", \"2023-10-23\")@3:25"
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[1697846400000]], QueryBuilderAndTags[query={
+  "bool" : {
+    "filter" : [
+      {
+        "match" : {
+          "keyword" : {
+            "query" : "keyword",
+            "lenient" : true
+          }
+        }
+      },
+      {
+        "esql_single_value" : {
+          "field" : "date",
+          "next" : {
+            "range" : {
+              "date" : {
+                "gte" : "2023-10-22T00:00:00.000Z",
+                "lt" : "2023-10-23T00:00:00.000Z",
+                "time_zone" : "Z",
+                "format" : "strict_date_optional_time",
+                "boost" : 0.0
+              }
+            }
+          },
+          "source" : "round_to(date, \"2023-10-20\", \"2023-10-21\", \"2023-10-22\", \"2023-10-23\")@3:25"
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[1697932800000]], QueryBuilderAndTags[query={
+  "bool" : {
+    "filter" : [
+      {
+        "match" : {
+          "keyword" : {
+            "query" : "keyword",
+            "lenient" : true
+          }
+        }
+      },
+      {
+        "esql_single_value" : {
+          "field" : "date",
+          "next" : {
+            "range" : {
+              "date" : {
+                "gte" : "2023-10-23T00:00:00.000Z",
+                "time_zone" : "Z",
+                "format" : "strict_date_optional_time",
+                "boost" : 0.0
+              }
+            }
+          },
+          "source" : "round_to(date, \"2023-10-20\", \"2023-10-21\", \"2023-10-22\", \"2023-10-23\")@3:25"
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[1698019200000]], QueryBuilderAndTags[query={
+  "bool" : {
+    "filter" : [
+      {
+        "match" : {
+          "keyword" : {
+            "query" : "keyword",
+            "lenient" : true
+          }
+        }
+      },
+      {
+        "bool" : {
+          "must_not" : [
+            {
+              "exists" : {
+                "field" : "date",
+                "boost" : 0.0
+              }
+            }
+          ],
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[null]]]]

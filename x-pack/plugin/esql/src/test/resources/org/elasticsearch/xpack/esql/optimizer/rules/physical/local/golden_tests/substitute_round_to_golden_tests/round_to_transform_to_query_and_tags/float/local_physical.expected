@@ -1,0 +1,71 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
+  \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
+    \_FilterExec[$$count(*)$count{r} > 0[LONG]]
+      \_EsStatsQueryExec[test,null,null,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "float",
+    "next" : {
+      "range" : {
+        "float" : {
+          "lt" : 2.0,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(float, 3.0,2.0,1.0,4.0)@2:25"
+  }
+}, tags=[1.0]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "float",
+    "next" : {
+      "range" : {
+        "float" : {
+          "gte" : 2.0,
+          "lt" : 3.0,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(float, 3.0,2.0,1.0,4.0)@2:25"
+  }
+}, tags=[2.0]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "float",
+    "next" : {
+      "range" : {
+        "float" : {
+          "gte" : 3.0,
+          "lt" : 4.0,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(float, 3.0,2.0,1.0,4.0)@2:25"
+  }
+}, tags=[3.0]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "float",
+    "next" : {
+      "range" : {
+        "float" : {
+          "gte" : 4.0,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(float, 3.0,2.0,1.0,4.0)@2:25"
+  }
+}, tags=[4.0]], QueryBuilderAndTags[query={
+  "bool" : {
+    "must_not" : [
+      {
+        "exists" : {
+          "field" : "float",
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[null]]]}]

@@ -207,12 +207,16 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public String nodeString() {
-        return Strings.format(
-            "%s<%s,%s>",
-            nodeName() + NodeUtils.limitedToString(attributesToExtract),
-            docValuesAttributes,
-            boundsAttributes
-        );
+        return nodeString(NodeUtils.limitedToString(attributesToExtract));
+    }
+
+    @Override
+    public String goldenTestNodeString() {
+        return nodeString(NodeUtils.unlimitedToString(attributesToExtract));
+    }
+
+    private String nodeString(String attrsToString) {
+        return Strings.format("%s<%s,%s>", nodeName() + attrsToString, docValuesAttributes, boundsAttributes);
     }
 
     public MappedFieldType.FieldExtractPreference fieldExtractPreference(Attribute attr) {

@@ -1,0 +1,71 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
+  \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
+    \_FilterExec[$$count(*)$count{r} > 0[LONG]]
+      \_EsStatsQueryExec[test,null,null,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "integer",
+    "next" : {
+      "range" : {
+        "integer" : {
+          "lt" : 2,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(integer, 1,2,3,4)@2:25"
+  }
+}, tags=[1]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "integer",
+    "next" : {
+      "range" : {
+        "integer" : {
+          "gte" : 2,
+          "lt" : 3,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(integer, 1,2,3,4)@2:25"
+  }
+}, tags=[2]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "integer",
+    "next" : {
+      "range" : {
+        "integer" : {
+          "gte" : 3,
+          "lt" : 4,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(integer, 1,2,3,4)@2:25"
+  }
+}, tags=[3]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "integer",
+    "next" : {
+      "range" : {
+        "integer" : {
+          "gte" : 4,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "round_to(integer, 1,2,3,4)@2:25"
+  }
+}, tags=[4]], QueryBuilderAndTags[query={
+  "bool" : {
+    "must_not" : [
+      {
+        "exists" : {
+          "field" : "integer",
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[null]]]}]

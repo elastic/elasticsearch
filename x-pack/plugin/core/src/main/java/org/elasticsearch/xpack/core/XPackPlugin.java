@@ -226,7 +226,7 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     protected void setLicenseState(XPackLicenseState licenseState) {
-        XPackPlugin.licenseState.set(licenseState);
+        XPackPlugin.licenseState.trySet(licenseState);
     }
 
     protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {

@@ -42,7 +42,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -215,12 +214,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         if (rankFeaturePhaseCoordCtx == null) {
             return new FetchSearchPhase(queryResults, aggregatedDfs, context, null);
         }
-        return new RankFeaturePhase(
-            queryResults,
-            aggregatedDfs,
-            context,
-            rankFeaturePhaseCoordCtx
-        );
+        return new RankFeaturePhase(queryResults, aggregatedDfs, context, rankFeaturePhaseCoordCtx);
     }
 
     @Override

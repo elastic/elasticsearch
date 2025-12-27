@@ -245,7 +245,6 @@ class FetchSearchPhase extends SearchPhase {
             listener.onFailure(e);
             return;
         }
-
         context.getSearchTransport()
             .sendExecuteFetch(
                 connection,

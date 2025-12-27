@@ -57,11 +57,7 @@ class DfsQueryPhase extends SearchPhase {
     private final SearchProgressListener progressListener;
     private long phaseStartTimeInNanos;
 
-    DfsQueryPhase(
-        SearchPhaseResults<SearchPhaseResult> queryResult,
-        Client client,
-        AbstractSearchAsyncAction<?> context
-    ) {
+    DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, AbstractSearchAsyncAction<?> context) {
         super(NAME);
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;

@@ -1174,7 +1174,6 @@ class NodeConstruction {
             projectResolver
         );
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
-
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
             client,

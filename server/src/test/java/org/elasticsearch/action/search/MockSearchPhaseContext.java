@@ -27,6 +27,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -123,8 +125,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             public void sendRequest(
                 long requestId,
                 String action,
-                org.elasticsearch.transport.TransportRequest request,
-                org.elasticsearch.transport.TransportRequestOptions options
+                TransportRequest request,
+                TransportRequestOptions options
             ) {
                 // Mock implementation - not needed for these tests
             }

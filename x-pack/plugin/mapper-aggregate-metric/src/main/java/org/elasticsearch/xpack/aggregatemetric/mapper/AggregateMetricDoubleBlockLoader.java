@@ -129,24 +129,17 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     public static class AvgBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-        private final DoublesBlockLoader sumLoader;
-        private final IntsBlockLoader countLoader;
-
         NumberFieldMapper.NumberFieldType sumFieldType;
         NumberFieldMapper.NumberFieldType countFieldType;
 
         AvgBlockLoader(EnumMap<AggregateMetricDoubleFieldMapper.Metric, NumberFieldMapper.NumberFieldType> availableMetrics) {
             if (availableMetrics.containsKey(AggregateMetricDoubleFieldMapper.Metric.sum) == false
                 || availableMetrics.containsKey(AggregateMetricDoubleFieldMapper.Metric.value_count) == false) {
-                sumLoader = null;
-                countLoader = null;
                 sumFieldType = null;
                 countFieldType = null;
             } else {
                 sumFieldType = availableMetrics.get(AggregateMetricDoubleFieldMapper.Metric.sum);
                 countFieldType = availableMetrics.get(AggregateMetricDoubleFieldMapper.Metric.value_count);
-                sumLoader = getDoublesBlockLoader(AggregateMetricDoubleFieldMapper.Metric.sum, availableMetrics);
-                countLoader = getIntsBlockLoader(AggregateMetricDoubleFieldMapper.Metric.value_count, availableMetrics);
             }
         }
 
@@ -165,12 +158,9 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-//            AllReader sumReader = sumLoader != null ? sumLoader.reader(context) : null;
-//            AllReader countReader = countLoader != null ? countLoader.reader(context) : null;
-
             NumericDocValues sumValues = getNumericDocValues(sumFieldType, context.reader());
             NumericDocValues valueCountValues = getNumericDocValues(countFieldType, context.reader());
-            return new BlockDocValuesReader() { // not new AllReader?
+            return new BlockDocValuesReader() {
                 private int docID = -1;
 
                 @Override
@@ -185,7 +175,11 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
 
                 @Override
                 public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-                    try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                    int expectedCount = docs.count() - offset;
+                    if (sumValues == null || valueCountValues == null) {
+                        return factory.constantNulls(expectedCount);
+                    }
+                    try (DoubleBuilder builder = factory.doublesFromDocValues(expectedCount)) {
                         int lastDoc = -1;
 
                         for (int i = offset; i < docs.count(); i++) {
@@ -193,11 +187,13 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                             if (doc < lastDoc) {
                                 throw new IllegalStateException("docs within same block must be in order");
                             }
-                            if (sumValues.advanceExact(doc) && valueCountValues.advanceExact(doc)) {
+                            boolean advance = sumValues.advanceExact(doc);
+                            advance = valueCountValues.advanceExact(doc) && advance;
+                            if (advance) {
                                 this.docID = doc;
                                 lastDoc = doc;
-                                var sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
-                                var count = Math.toIntExact(valueCountValues.longValue());
+                                double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                                int count = Math.toIntExact(valueCountValues.longValue());
                                 builder.appendDouble(sum / count);
                             } else {
                                 builder.appendNull();
@@ -210,7 +206,9 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                 @Override
                 public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
                     DoubleBuilder blockBuilder = (DoubleBuilder) builder;
-                    if (sumValues.advanceExact(docId) && valueCountValues.advanceExact(docId)) {
+                    boolean advance = sumValues.advanceExact(docId);
+                    advance = valueCountValues.advanceExact(docId) && advance;
+                    if (advance) {
                         this.docID = docId;
                         var sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
                         var count = Math.toIntExact(valueCountValues.longValue());

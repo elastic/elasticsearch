@@ -210,7 +210,6 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
             }
             var subfield = ((Number) folded).intValue();
             var functionConfig = switch (AggregateMetricDoubleBlockBuilder.Metric.indexToMetric(subfield)) {
-                case AVG -> BlockLoaderFunctionConfig.Function.AMD_AVG;
                 case MIN -> BlockLoaderFunctionConfig.Function.AMD_MIN;
                 case MAX -> BlockLoaderFunctionConfig.Function.AMD_MAX;
                 case SUM -> BlockLoaderFunctionConfig.Function.AMD_SUM;

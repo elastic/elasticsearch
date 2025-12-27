@@ -46,8 +46,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         List<Integer> selectedDocRanks = new ArrayList<>();
 
         // test the vector to see if we are using floats or bytes
-        VectorData firstVec = context.getFieldVector(docs[0].rank);
-        boolean useFloat = firstVec.isFloat();
+        List<VectorData> firstVecData = context.getFieldVectorData(docs[0].rank);
+        boolean useFloat = firstVecData.getFirst().isFloat();
 
         // cache the similarity scores for the query vector vs. searchHits
         Map<Integer, Float> querySimilarity = getQuerySimilarityForDocs(docs, useFloat, context);
@@ -68,7 +68,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                     continue;
                 }
 
-                var thisDocVector = context.getFieldVector(docRank);
+                // TODO - deal with multiple vectors to choose best
+                var thisDocVector = context.getFieldVectorData(docRank).getFirst();
                 if (thisDocVector == null) {
                     continue;
                 }
@@ -144,7 +145,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                     highestScore = score;
                 }
             } else {
-                VectorData comparisonVector = vec.getValue();
+                // TODO - deal with multiple vectors to choose best
+                VectorData comparisonVector = vec.getValue().getFirst();
                 float score = useFloat
                     ? getFloatVectorComparisonScore(similarityFunction, thisDocVector, comparisonVector)
                     : getByteVectorComparisonScore(similarityFunction, thisDocVector, comparisonVector);
@@ -166,7 +168,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
         }
 
         for (RankDoc doc : docs) {
-            VectorData vectorData = context.getFieldVector(doc.rank);
+            // TODO - deal with multiple vectors to choose best
+            VectorData vectorData = context.getFieldVectorData(doc.rank).getFirst();
             if (vectorData != null) {
                 float querySimilarityScore = useFloat
                     ? getFloatVectorComparisonScore(similarityFunction, vectorData, queryVector)

@@ -45,6 +45,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.snapshots.SnapshotTestUtils.flushMasterQueue;
+import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
@@ -296,7 +298,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_CREATE_THROTTLE_DURATION, expectedAttrs);
     }
 
-    public void testByStateCounts_InitAndQueuedShards() throws Exception {
+    public void testByStateCounts_InitAndQueuedShards() {
         final String indexName = randomIdentifier();
         final int numShards = randomIntBetween(2, 10);
         final int numReplicas = randomIntBetween(0, 1);
@@ -436,7 +438,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testByStateCounts_WaitingShards() throws Exception {
+    public void testByStateCounts_WaitingShards() {
         final String indexName = randomIdentifier();
         final String boundNode = internalCluster().startDataOnlyNode();
         final String destinationNode = internalCluster().startDataOnlyNode();

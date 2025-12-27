@@ -1470,12 +1470,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * created and the existing lucene index needs should be changed to use it.
      */
     public void associateIndexWithNewTranslog(final String translogUUID) throws IOException {
+        associateIndexWithNewUserKeyValueData(Translog.TRANSLOG_UUID_KEY, translogUUID);
+    }
+
+    /**
+     * Associate the lucene index with a new pair of key/value user data.
+     */
+    public void associateIndexWithNewUserKeyValueData(String key, String value) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newTemporaryAppendingIndexWriter(directory, null)) {
-            if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
-                throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
+            if (value.equals(getUserData(writer).get(key))) {
+                throw new IllegalArgumentException("a new [" + key + "] can't be equal to existing one. got [" + value + "]");
             }
-            updateCommitData(writer, Map.of(Translog.TRANSLOG_UUID_KEY, translogUUID));
+            updateCommitData(writer, Map.of(key, value));
         } finally {
             metadataLock.writeLock().unlock();
         }

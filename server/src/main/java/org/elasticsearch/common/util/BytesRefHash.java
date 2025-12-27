@@ -24,7 +24,7 @@ import org.elasticsearch.core.Releasables;
  *  re-hashing and capacity is always a multiple of 2 for faster identification of buckets.
  *  This class is not thread-safe.
  */
-public final class BytesRefHash extends AbstractHash implements Accountable {
+public final class BytesRefHash extends AbstractHash implements Accountable, BytesRefHashTable {
 
     // base size of the bytes ref hash
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefHash.class)
@@ -127,6 +127,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
      * Return the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
+    @Override
     public BytesRef get(long id, BytesRef dest) {
         return bytesRefs.get(id, dest);
     }
@@ -149,6 +150,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     }
 
     /** Sugar for {@link #find(BytesRef, int) find(key, key.hashCode()} */
+    @Override
     public long find(BytesRef key) {
         return find(key, key.hashCode());
     }
@@ -217,6 +219,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     }
 
     /** Sugar to {@link #add(BytesRef, int) add(key, key.hashCode()}. */
+    @Override
     public long add(BytesRef key) {
         return add(key, key.hashCode());
     }
@@ -236,6 +239,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         }
     }
 
+    @Override
     public BytesRefArray getBytesRefs() {
         return bytesRefs;
     }

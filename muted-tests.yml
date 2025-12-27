@@ -415,6 +415,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testReadBlobWithReadTimeouts
   issue: https://github.com/elastic/elasticsearch/issues/139995
+- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
+  method: testKnnRetriever
+  issue: https://github.com/elastic/elasticsearch/issues/140014
 
 # Examples:
 #

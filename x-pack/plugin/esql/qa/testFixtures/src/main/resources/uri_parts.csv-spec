@@ -1,0 +1,11 @@
+basic
+required_capability: compound_output_eval
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS_🐔 parts = uri
+| KEEP parts.port, parts.scheme, parts.domain
+;
+
+parts.port:integer | parts.scheme:keyword | parts.domain:keyword
+8080               | https                | www.example.com
+;

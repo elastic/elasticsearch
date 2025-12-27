@@ -71,6 +71,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? uriPartsCommand
     ;
 
 whereCommand
@@ -365,6 +366,10 @@ lookupCommand
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+uriPartsCommand
+    : DEV_URI_PARTS qualifiedName ASSIGN primaryExpression
     ;
 
 setCommand

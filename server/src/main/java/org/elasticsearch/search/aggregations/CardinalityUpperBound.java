@@ -34,6 +34,11 @@ public abstract class CardinalityUpperBound {
         public <R> R map(IntFunction<R> mapper) {
             return mapper.apply(0);
         }
+
+        @Override
+        public String toString() {
+            return "NONE";
+        }
     };
 
     /**
@@ -62,6 +67,11 @@ public abstract class CardinalityUpperBound {
         @Override
         public <R> R map(IntFunction<R> mapper) {
             return mapper.apply(Integer.MAX_VALUE);
+        }
+
+        @Override
+        public String toString() {
+            return "MANY";
         }
     };
 
@@ -130,6 +140,11 @@ public abstract class CardinalityUpperBound {
         @Override
         public int hashCode() {
             return Integer.hashCode(estimate);
+        }
+
+        @Override
+        public String toString() {
+            return "known[" + estimate + "]";
         }
     }
 }

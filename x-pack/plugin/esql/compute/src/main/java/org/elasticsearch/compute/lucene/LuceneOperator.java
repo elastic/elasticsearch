@@ -80,7 +80,7 @@ public abstract class LuceneOperator extends SourceOperator {
         LuceneSliceQueue sliceQueue
     ) {
         this.refCounteds = refCounteds;
-        refCounteds.collection().forEach(RefCounted::mustIncRef);
+        refCounteds.iterable().forEach(RefCounted::mustIncRef);
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
@@ -149,7 +149,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
-        refCounteds.collection().forEach(RefCounted::decRef);
+        refCounteds.iterable().forEach(RefCounted::decRef);
         additionalClose();
     }
 

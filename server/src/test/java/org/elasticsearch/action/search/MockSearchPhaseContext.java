@@ -122,12 +122,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             }
 
             @Override
-            public void sendRequest(
-                long requestId,
-                String action,
-                TransportRequest request,
-                TransportRequestOptions options
-            ) {
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
                 // Mock implementation - not needed for these tests
             }
 

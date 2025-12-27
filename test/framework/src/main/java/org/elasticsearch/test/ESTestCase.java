@@ -8,8 +8,11 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.SeedDecorators;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
@@ -172,6 +175,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.URI;
@@ -208,6 +212,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -239,6 +244,7 @@ import static org.hamcrest.Matchers.startsWith;
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class, JnaCleanerThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@SeedDecorators(value = VirtualThreadsSeedDecorator.class)
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
 @SuppressCodecs(
@@ -430,6 +436,53 @@ public abstract class ESTestCase extends LuceneTestCase {
             reverse.set((seed & 1) == 0);
         } catch (Exception e) {
             throw new AssertionError(e);
+        }
+    }
+
+    private static final AtomicReference<RandomizedContext> virtualThreadsContext = new AtomicReference<>();
+
+    /**
+     * This is an awful hack to work around the fact the virtual threads' thread group
+     * doesn't have a {@link RandomizedContext}. There's probably a way to do this
+     * that isn't a nasty hack, but that's a job for another day.
+     */
+    @SuppressForbidden(reason = "I'm not proud of it, but I don't want to spend spacetime looking at carrotsearch :)")
+    @BeforeClass
+    public static void fudgeRandomContextForVirtualThreads() {
+        final RandomizedContext current = RandomizedContext.current();
+        try {
+            Method create = RandomizedContext.class.getDeclaredMethod("create", ThreadGroup.class, Class.class, RandomizedRunner.class);
+            create.setAccessible(true);
+            Thread.ofVirtual().start(() -> {
+                try {
+                    virtualThreadsContext.set(
+                        (RandomizedContext) create.invoke(
+                            null,
+                            Thread.currentThread().getThreadGroup(),
+                            current.getTargetClass(),
+                            current.getRunner()
+                        )
+                    );
+                } catch (Exception e) {
+                    fail(e, "Hack didn't work");
+                }
+            });
+        } catch (NoSuchMethodException e) {
+            fail(e, "Hack didn't work");
+        }
+    }
+
+    @SuppressForbidden(reason = "I'm not proud of it, but I don't want to spend spacetime looking at carrotsearch :)")
+    @AfterClass
+    public static void cleanUpMess() {
+        if (virtualThreadsContext.get() != null) {
+            try {
+                final Method dispose = RandomizedContext.class.getDeclaredMethod("dispose");
+                dispose.setAccessible(true);
+                dispose.invoke(virtualThreadsContext.get());
+            } catch (Exception e) {
+                fail(e, "Hack didn't work");
+            }
         }
     }
 

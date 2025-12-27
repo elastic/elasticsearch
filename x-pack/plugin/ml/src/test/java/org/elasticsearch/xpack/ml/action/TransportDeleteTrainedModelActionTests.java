@@ -14,23 +14,41 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.License;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.cancelDownloadTask;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.getTaskInfoListOfOne;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockClientWithTasksResponse;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockListTasksClient;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -136,6 +154,68 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
         assertThat(listener.actionGet(TIMEOUT), is(cancelResponse));
     }
 
+    public void testModelExistsIsTrueWhenModelIsFound() throws Exception {
+        TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
+        TrainedModelConfig expectedConfig = buildTrainedModelConfig("modelId");
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onResponse(expectedConfig);
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
+
+        TransportDeleteTrainedModelAction action = createTransportDeleteTrainedModelAction(trainedModelProvider);
+
+        // Use a future to capture the async listener result
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        action.modelExists("modelId", null, future);
+
+        assertTrue(future.get());
+    }
+
+    public void testModelExistsIsFalseWhenModelIsNotFound() throws Exception {
+        TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onFailure(new ResourceNotFoundException("not found"));
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
+
+        TransportDeleteTrainedModelAction action = createTransportDeleteTrainedModelAction(trainedModelProvider);
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        action.modelExists("modelId", null, future);
+
+        assertFalse(future.get());
+    }
+
+    public void testDeleteModelThrowsExceptionWhenModelIsNotFound() throws Exception {
+        TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onFailure(new ResourceNotFoundException("not found"));
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
+
+        TransportDeleteTrainedModelAction action = createTransportDeleteTrainedModelAction(trainedModelProvider);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+
+        action.deleteModel(new DeleteTrainedModelAction.Request("modelId"), clusterState, null, future);
+
+        ExecutionException executionException = expectThrows(ExecutionException.class, future::get);
+        Throwable cause = executionException.getCause();
+
+        assertThat(cause, instanceOf(ResourceNotFoundException.class));
+        assertThat(cause.getMessage(), containsString("Could not find trained model"));
+    }
+
     private static void mockCancelTask(Client client) {
         var cluster = client.admin().cluster();
         when(cluster.prepareCancelTasks()).thenReturn(new CancelTasksRequestBuilder(client));
@@ -151,5 +231,40 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
 
             return Void.TYPE;
         }).when(client).execute(same(TransportCancelTasksAction.TYPE), any(), any());
+    }
+
+    private TransportDeleteTrainedModelAction createTransportDeleteTrainedModelAction(TrainedModelProvider configProvider) {
+        TransportService mockTransportService = mock(TransportService.class);
+        ClusterService mockClusterService = mock(ClusterService.class);
+        ActionFilters mockFilters = mock(ActionFilters.class);
+        Client mockClient = mock(Client.class);
+        InferenceAuditor auditor = mock(InferenceAuditor.class);
+
+        return new TransportDeleteTrainedModelAction(
+            mockTransportService,
+            mockClusterService,
+            threadPool,
+            mockClient,
+            mockFilters,
+            configProvider,  // TrainedModelProvider
+            auditor,         // InferenceAuditor
+            mock(org.elasticsearch.ingest.IngestService.class),
+            mock(org.elasticsearch.cluster.project.ProjectResolver.class)
+        );
+    }
+
+    private static TrainedModelConfig buildTrainedModelConfig(String modelId) {
+        return TrainedModelConfig.builder()
+            .setCreatedBy("ml_test")
+            .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+            .setDescription("trained model config for test")
+            .setModelId(modelId)
+            .setModelType(TrainedModelType.TREE_ENSEMBLE)
+            .setVersion(MlConfigVersion.CURRENT)
+            .setLicenseLevel(License.OperationMode.PLATINUM.description())
+            .setModelSize(0)
+            .setEstimatedOperations(0)
+            .setInput(TrainedModelInputTests.createRandomInput())
+            .build();
     }
 }

@@ -1022,6 +1022,16 @@ public final class ServiceUtils {
         );
     }
 
+    public static ElasticsearchStatusException createUnsupportedTaskTypeStatusException(Model model, EnumSet<TaskType> supportedTaskTypes) {
+        var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, supportedTaskTypes);
+
+        if (model.getTaskType() == TaskType.CHAT_COMPLETION) {
+            responseString = responseString + " " + useChatCompletionUrlMessage(model);
+        }
+
+        return new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST);
+    }
+
     public static String useChatCompletionUrlMessage(Model model) {
         return org.elasticsearch.common.Strings.format(
             "The task type for the inference entity is %s, please use the _inference/%s/%s/%s URL.",

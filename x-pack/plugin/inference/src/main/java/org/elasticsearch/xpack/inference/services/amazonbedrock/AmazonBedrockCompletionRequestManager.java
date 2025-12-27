@@ -17,20 +17,20 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionEntityFactory;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseHandler;
 
 import java.util.function.Supplier;
 
-public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequestManager {
-    private static final Logger logger = LogManager.getLogger(AmazonBedrockChatCompletionRequestManager.class);
+public class AmazonBedrockCompletionRequestManager extends AmazonBedrockRequestManager {
+    private static final Logger logger = LogManager.getLogger(AmazonBedrockCompletionRequestManager.class);
     private final AmazonBedrockChatCompletionModel model;
 
-    public AmazonBedrockChatCompletionRequestManager(
+    public AmazonBedrockCompletionRequestManager(
         AmazonBedrockChatCompletionModel model,
         ThreadPool threadPool,
         @Nullable TimeValue timeout
@@ -46,18 +46,18 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var chatCompletionInput = inferenceInputs.castTo(UnifiedChatInput.class);
-        var inputs = chatCompletionInput.getRequest();
+        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
+        var inputs = chatCompletionInput.getInputs();
         var stream = chatCompletionInput.stream();
         var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, inputs);
-        var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout, stream);
+        var request = new AmazonBedrockCompletionRequest(model, requestEntity, timeout, stream);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 
         try {
             requestSender.send(logger, request, hasRequestCompletedFunction, responseHandler, listener);
         } catch (Exception e) {
             var errorMessage = Strings.format(
-                "Failed to send [chat completion] request from inference entity id [%s]",
+                "Failed to send [completion] request from inference entity id [%s]",
                 request.getInferenceEntityId()
             );
             logger.warn(errorMessage, e);

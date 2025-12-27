@@ -22,14 +22,14 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_P_FIELD;
 
-public record AmazonBedrockChatCompletionRequestTaskSettings(
+public record AmazonBedrockCompletionRequestTaskSettings(
     @Nullable Double temperature,
     @Nullable Double topP,
     @Nullable Double topK,
     @Nullable Integer maxNewTokens
 ) {
 
-    public static final AmazonBedrockChatCompletionRequestTaskSettings EMPTY_SETTINGS = new AmazonBedrockChatCompletionRequestTaskSettings(
+    public static final AmazonBedrockCompletionRequestTaskSettings EMPTY_SETTINGS = new AmazonBedrockCompletionRequestTaskSettings(
         null,
         null,
         null,
@@ -41,11 +41,11 @@ public record AmazonBedrockChatCompletionRequestTaskSettings(
      * does not throw an error.
      *
      * @param map the settings received from a request
-     * @return a {@link AmazonBedrockChatCompletionRequestTaskSettings}
+     * @return a {@link AmazonBedrockCompletionRequestTaskSettings}
      */
-    public static AmazonBedrockChatCompletionRequestTaskSettings fromMap(Map<String, Object> map) {
+    public static AmazonBedrockCompletionRequestTaskSettings fromMap(Map<String, Object> map) {
         if (map.isEmpty()) {
-            return AmazonBedrockChatCompletionRequestTaskSettings.EMPTY_SETTINGS;
+            return AmazonBedrockCompletionRequestTaskSettings.EMPTY_SETTINGS;
         }
 
         ValidationException validationException = new ValidationException();
@@ -85,6 +85,6 @@ public record AmazonBedrockChatCompletionRequestTaskSettings(
             throw validationException;
         }
 
-        return new AmazonBedrockChatCompletionRequestTaskSettings(temperature, topP, topK, maxNewTokens);
+        return new AmazonBedrockCompletionRequestTaskSettings(temperature, topP, topK, maxNewTokens);
     }
 }

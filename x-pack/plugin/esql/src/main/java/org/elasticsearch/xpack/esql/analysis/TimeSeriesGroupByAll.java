@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.Functions;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -26,7 +24,6 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * This rule implements the "group by all" logic for time series aggregations.  It is intended to work in conjunction with
@@ -76,13 +73,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             );
         }
 
-        var timeSeries = new FieldAttribute(
-            aggregate.source(),
-            null,
-            null,
-            MetadataAttribute.TIMESERIES,
-            new EsField(MetadataAttribute.TIMESERIES, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION)
-        );
+        var timeSeries = FieldAttribute.timeSeriesAttribute(aggregate.source());
         List<Expression> groupings = new ArrayList<>();
         groupings.add(timeSeries);
 
@@ -107,18 +98,6 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             null
         );
         // insert the time_series
-        return newStats.transformDown(EsRelation.class, r -> {
-            ArrayList<Attribute> attributes = new ArrayList<>(r.output());
-            attributes.add(timeSeries);
-            return new EsRelation(
-                r.source(),
-                r.indexPattern(),
-                r.indexMode(),
-                r.originalIndices(),
-                r.concreteIndices(),
-                r.indexNameWithModes(),
-                attributes
-            );
-        });
+        return newStats.transformDown(EsRelation.class, r -> r.withAdditionalAttribute(timeSeries));
     }
 }

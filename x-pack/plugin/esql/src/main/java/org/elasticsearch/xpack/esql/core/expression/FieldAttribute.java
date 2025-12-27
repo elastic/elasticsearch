@@ -93,6 +93,17 @@ public class FieldAttribute extends TypedAttribute {
         this.field = field;
     }
 
+    /**
+     * Creates a field attribute that represents the ({@link MetadataAttribute#TIMESERIES}) field
+     * that can be used to get a JSON representation of the time series in the output.
+     *
+     * @param source The source of the attribute.
+     * @return The time series field attribute.
+     */
+    public static FieldAttribute timeSeriesAttribute(Source source) {
+        return new FieldAttribute(source, null, null, MetadataAttribute.TIMESERIES, EsField.TIMESERIES_FIELD);
+    }
+
     private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();

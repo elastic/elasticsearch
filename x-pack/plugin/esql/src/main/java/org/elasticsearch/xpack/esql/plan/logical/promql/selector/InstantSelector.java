@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -34,6 +36,8 @@ import java.util.List;
  * Conceptually an instant selector is a range selector with a null range.
  */
 public final class InstantSelector extends Selector {
+
+    private FieldAttribute timeSeries;
 
     public InstantSelector(Source source, Expression series, List<Expression> labels, LabelMatchers labelMatchers, Evaluation evaluation) {
         this(source, PlaceholderRelation.INSTANCE, series, labels, labelMatchers, evaluation);
@@ -79,5 +83,13 @@ public final class InstantSelector extends Selector {
     @Override
     public int hashCode() {
         return super.hashCode();
+    }
+
+    @Override
+    public List<Attribute> output() {
+        if (output == null) {
+            output = List.of(FieldAttribute.timeSeriesAttribute(source()));
+        }
+        return output;
     }
 }

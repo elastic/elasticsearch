@@ -10,12 +10,10 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,7 +26,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     private final Grouping grouping;
-    private final List<NamedExpression> groupings;
+    private final List<Attribute> groupings;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -36,7 +34,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         String functionName,
         List<Expression> parameters,
         Grouping grouping,
-        List<NamedExpression> groupings
+        List<Attribute> groupings
     ) {
         super(source, child, functionName, parameters);
         this.grouping = grouping;
@@ -47,7 +45,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         return grouping;
     }
 
-    public List<NamedExpression> groupings() {
+    public List<Attribute> groupings() {
         return groupings;
     }
 
@@ -82,11 +80,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        List<Attribute> output = new ArrayList<>(groupings.size());
-        for (NamedExpression exp : groupings) {
-            output.add(exp.toAttribute());
-        }
-        return output;
+        return groupings;
     }
 
     @Override

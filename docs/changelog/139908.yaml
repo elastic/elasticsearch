@@ -1,0 +1,5 @@
+pr: 139908
+summary: Add syntax support and parsing for SET approximate
+area: ES|QL
+type: enhancement
+issues: []

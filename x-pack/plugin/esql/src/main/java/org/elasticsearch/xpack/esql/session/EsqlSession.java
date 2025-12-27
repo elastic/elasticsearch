@@ -214,6 +214,9 @@ public class EsqlSession {
         EsqlStatement statement = parse(request);
         parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
+
+        Map<String, Object> approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
+
         Configuration configuration = new Configuration(
             request.timeZone() == null
                 ? statement.setting(QuerySettings.TIME_ZONE)

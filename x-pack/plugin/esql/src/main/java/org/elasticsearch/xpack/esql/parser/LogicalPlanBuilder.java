@@ -189,7 +189,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public Alias visitSetField(EsqlBaseParser.SetFieldContext ctx) {
         String name = visitIdentifier(ctx.identifier());
-        Expression value = expression(ctx.constant());
+        Expression value;
+        if (ctx.constant() != null) {
+            value = expression(ctx.constant());
+        } else {
+            value = visitMapExpression(ctx.mapExpression());
+        }
         return new Alias(source(ctx), name, value);
     }
 

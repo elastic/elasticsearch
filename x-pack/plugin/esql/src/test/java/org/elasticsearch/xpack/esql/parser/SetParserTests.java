@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -128,6 +130,30 @@ public class SetParserTests extends AbstractStatementParserTests {
         checkSetting(query, 1, "bar", 2);
         checkSetting(query, 2, "foo", BytesRefs.toBytesRef("baz"));
         checkSetting(query, 3, "x", 3.5);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSetWithMap() {
+        assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
+        EsqlStatement query = statement("""
+            SET my_map = {"foo": {"bar": 2, "baz": "bb"}, "x": false};
+            ROW a = 1
+            """, new QueryParams());
+        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.settings().size(), is(1));
+
+        assertThat(settingName(query, 0), is("my_map"));
+        Object value = ((MapExpression) query.settings().get(0).value()).toFoldedMap(FoldContext.small());
+        assertThat(value, instanceOf(Map.class));
+        Map<String, Object> map = (Map<String, Object>) value;
+        assertThat(map.size(), is(2));
+        assertThat(map.get("x"), is(false));
+        Object nested = map.get("foo");
+        assertThat(nested, instanceOf(Map.class));
+        Map<String, Object> nestedMap = (Map<String, Object>) nested;
+        assertThat(nestedMap.size(), is(2));
+        assertThat(nestedMap.get("bar"), is(2));
+        assertThat(nestedMap.get("baz"), is(BytesRefs.toBytesRef("bb")));
     }
 
     /**

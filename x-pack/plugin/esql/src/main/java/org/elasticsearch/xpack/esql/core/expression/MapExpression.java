@@ -147,4 +147,20 @@ public class MapExpression extends Expression {
         String str = entryExpressions.stream().map(String::valueOf).collect(Collectors.joining(", "));
         return "{ " + str + " }";
     }
+
+    public Map<String, Object> toFoldedMap(FoldContext ctx) throws IllegalStateException {
+        Map<String, Object> foldedMap = new LinkedHashMap<>();
+        for (Map.Entry<Expression, Expression> entry : map.entrySet()) {
+            Object key = entry.getKey().fold(ctx);
+            Expression val = entry.getValue();
+            if (val instanceof MapExpression me) {
+                foldedMap.put(BytesRefs.toString(key), me.toFoldedMap(ctx));
+            } else if (val.foldable()) {
+                foldedMap.put(BytesRefs.toString(key), val.fold(ctx));
+            } else {
+                throw new IllegalStateException("Cannot fold map with non-foldable value [" + val + "]");
+            }
+        }
+        return foldedMap;
+    }
 }

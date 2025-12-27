@@ -668,7 +668,14 @@ public class LocalExecutionPlanner {
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rowEncoderFactory, scoreChannel),
+            new RerankOperator.Factory(
+                inferenceService,
+                inferenceId,
+                queryText,
+                rowEncoderFactory,
+                scoreChannel,
+                RerankOperator.DEFAULT_BATCH_SIZE
+            ),
             outputLayout
         );
     }

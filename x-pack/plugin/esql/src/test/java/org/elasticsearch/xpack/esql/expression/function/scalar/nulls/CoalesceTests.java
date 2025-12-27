@@ -95,6 +95,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(first == null ? second : first)
             );
         }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
+            var first = randomBoolean() ? null : new org.apache.lucene.util.BytesRef(randomAlphaOfLength(10));
+            var second = new org.apache.lucene.util.BytesRef(randomAlphaOfLength(10));
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.DENSE_VECTOR, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.DENSE_VECTOR, "second")
+                ),
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DENSE_VECTOR,
+                equalTo(first == null ? second : first)
+            ).withoutEvaluator();
+        }));
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> {
             Long firstDate = randomBoolean() ? null : ZonedDateTime.parse("2023-12-04T10:15:30Z").toInstant().toEpochMilli();
             Long secondDate = ZonedDateTime.parse("2023-12-05T10:45:00Z").toInstant().toEpochMilli();
@@ -193,7 +206,23 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         if (expected instanceof List<?> l && l.size() == 1) {
             expected = l.get(0);
         }
-        return new TestCaseSupplier.TestCase(data, delegate.evaluatorToString(), delegate.expectedType(), equalTo(expected));
+
+        // 1. Create the new test case based on the null data
+        TestCaseSupplier.TestCase newCase = new TestCaseSupplier.TestCase(
+            data,
+            delegate.evaluatorToString(),
+            delegate.expectedType(),
+            equalTo(expected)
+        );
+
+        // 2. CRITICAL FIX: Copy the "withoutEvaluator" status from the original case.
+        // If the base case disabled the evaluator (like our dense_vector case),
+        // this generated null-check case must disable it too.
+        if (delegate.canBuildEvaluator() == false) {
+            return newCase.withoutEvaluator();
+        }
+
+        return newCase;
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers) {
@@ -227,12 +256,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testCoalesceIsLazy() {
+        if (testCase.canBuildEvaluator() == false) return;
+
         List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
-        FieldAttribute evil = new FieldAttribute(
-            Source.EMPTY,
-            "evil",
-            new EsField("evil", sub.get(0).dataType(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-        );
+        FieldAttribute evil = new FieldAttribute(Source.EMPTY, "evil", new EsField("evil", sub.get(0).dataType(), Map.of(),
+            true, EsField.TimeSeriesFieldType.NONE));
         sub.add(evil);
         Coalesce exp = build(Source.EMPTY, sub);
         Layout.Builder builder = new Layout.Builder();
@@ -306,6 +334,9 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
      * </p>
      */
     public void testEvaluateWithGarbage() {
+        // Skip this test if the test case is not built for block evaluation (like dense_vector)
+        if (testCase.canBuildEvaluator() == false) return;
+
         DriverContext context = driverContext();
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
         int positions = between(2, 1024);

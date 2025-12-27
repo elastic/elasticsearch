@@ -1,0 +1,3 @@
+description: "Adds support for `dense_vector` fields in the `COALESCE` function."
+type: enhancement
+issue: [139928]

@@ -678,8 +678,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         unary(suppliers, expectedEvaluatorToString, cases, expectedType, v -> expectedValue.apply((List<Float>) v), List.of());
     }
-
-    private static List<Float> randomDenseVector(float lower, float upper) {
+    /**
+     * Generate a random dense vector.
+     *
+     * @param lower the lower bound for the random float values
+     * @param upper the upper bound for the random float values
+     */
+    public static List<Float> randomDenseVector(float lower, float upper) {
         int dimensions = randomIntBetween(64, 128);
         List<Float> vector = new ArrayList<>();
         for (int i = 0; i < dimensions; i++) {

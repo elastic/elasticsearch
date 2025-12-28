@@ -179,7 +179,7 @@ RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 
 EOF
 
-EXPOSE 9200 9300
+EXPOSE 9200 9300 19500
 
 LABEL org.label-schema.build-date="${build_date}" \\
   org.label-schema.license="${license}" \\

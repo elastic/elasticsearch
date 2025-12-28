@@ -131,7 +131,7 @@ RUN chmod g=u /etc/passwd && \\
 
 RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 
-EXPOSE 9200 9300
+EXPOSE 9200 9300 19500
 
 
 LABEL org.label-schema.build-date="${build_date}" \\

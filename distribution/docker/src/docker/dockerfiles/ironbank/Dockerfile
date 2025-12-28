@@ -114,7 +114,7 @@ RUN chmod g=u /etc/passwd && \\
 
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 
-EXPOSE 9200 9300
+EXPOSE 9200 9300 19500
 
 RUN mkdir /licenses && ln LICENSE.txt /licenses/LICENSE
 

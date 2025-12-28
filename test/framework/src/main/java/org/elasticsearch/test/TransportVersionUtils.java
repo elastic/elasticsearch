@@ -28,6 +28,10 @@ public class TransportVersionUtils {
     private static final NavigableSet<TransportVersion> RELEASED_VERSIONS = Collections.unmodifiableNavigableSet(
         new TreeSet<>(TransportVersion.getAllVersions())
     );
+    private static final NavigableSet<TransportVersion> NON_PATCH_VERSIONS = Collections.unmodifiableNavigableSet(
+        // Exclude patch versions since they break the semantics of methods like `randomVersionBetween`
+        TransportVersion.getAllVersions().stream().filter(v -> v.isPatchVersion() == false).collect(Collectors.toCollection(TreeSet::new))
+    );
 
     /** Returns all released versions */
     public static NavigableSet<TransportVersion> allReleasedVersions() {
@@ -63,8 +67,10 @@ public class TransportVersionUtils {
         if (minVersion != null && maxVersion != null && maxVersion.supports(minVersion) == false) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
+        assertNotPatch(minVersion);
+        assertNotPatch(maxVersion);
 
-        NavigableSet<TransportVersion> versions = allReleasedVersions();
+        NavigableSet<TransportVersion> versions = NON_PATCH_VERSIONS;
         if (minVersion != null) {
             if (versions.contains(minVersion) == false) {
                 throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
@@ -88,9 +94,18 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getPreviousVersion(TransportVersion version) {
-        TransportVersion lower = allReleasedVersions().lower(version);
+        return getPreviousVersion(version, false);
+    }
+
+    public static TransportVersion getPreviousVersion(TransportVersion version, boolean createIfNecessary) {
+        TransportVersion lower = (version.isPatchVersion() ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).lower(version);
         if (lower == null) {
-            throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
+            if (createIfNecessary) {
+                // create a new transport version one less than specified
+                return new TransportVersion(version.id() - 1);
+            } else {
+                throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
+            }
         }
         return lower;
     }
@@ -100,7 +115,13 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getNextVersion(TransportVersion version, boolean createIfNecessary) {
-        TransportVersion higher = allReleasedVersions().higher(version);
+        TransportVersion higher = (version.isPatchVersion() ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).higher(version);
+        if (higher != null && version.isPatchVersion() && higher.isPatchVersion() == false) {
+            throw new IllegalStateException(
+                "couldn't determine next version as version [" + version + "] is  patch, and is the newest patch"
+            );
+        }
+
         if (higher == null) {
             if (createIfNecessary) {
                 // create a new transport version one greater than specified
@@ -115,5 +136,11 @@ public class TransportVersionUtils {
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
     public static TransportVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, TransportVersion.minimumCompatible(), TransportVersion.current());
+    }
+
+    private static void assertNotPatch(@Nullable TransportVersion version) {
+        if (version != null && version.isPatchVersion()) {
+            throw new IllegalArgumentException("Version [" + version + "] is a patch version");
+        }
     }
 }

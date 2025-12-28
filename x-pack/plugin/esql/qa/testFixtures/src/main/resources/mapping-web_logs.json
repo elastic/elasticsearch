@@ -6,13 +6,13 @@
         "uri": {
             "type": "keyword"
         },
-        "user-agent": {
+        "user_agent": {
             "type": "keyword"
         },
         "domain": {
             "type": "keyword"
         },
-        "public-ip": {
+        "public_ip": {
             "type": "ip"
         }
     }

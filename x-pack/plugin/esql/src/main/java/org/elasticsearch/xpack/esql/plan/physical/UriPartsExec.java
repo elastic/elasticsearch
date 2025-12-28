@@ -28,12 +28,7 @@ public class UriPartsExec extends CompoundOutputEvalExec {
         UriPartsExec::new
     );
 
-    public UriPartsExec(
-        Source source,
-        PhysicalPlan child,
-        Expression input,
-        List<Attribute> outputFields
-    ) {
+    public UriPartsExec(Source source, PhysicalPlan child, Expression input, List<Attribute> outputFields) {
         super(source, child, input, outputFields, UriPartsFunction.getInstance());
     }
 

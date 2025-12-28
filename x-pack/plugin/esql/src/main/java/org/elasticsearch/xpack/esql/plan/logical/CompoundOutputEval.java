@@ -19,14 +19,12 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -119,7 +117,8 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         final String outputFieldPrefix,
         final Source source
     ) {
-        return function.getOutputColumns().entrySet()
+        return function.getOutputColumns()
+            .entrySet()
             .stream()
             .map(
                 entry -> (Attribute) new ReferenceAttribute(

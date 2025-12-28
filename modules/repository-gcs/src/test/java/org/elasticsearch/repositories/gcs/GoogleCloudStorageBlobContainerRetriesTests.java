@@ -54,7 +54,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -86,6 +85,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
@@ -685,15 +685,5 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 exchange.close();
             }
         };
-    }
-
-    @Override
-    protected OperationPurpose randomRetryingPurpose() {
-        return BlobStoreTestUtil.randomRetryingPurpose();
-    }
-
-    @Override
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
     }
 }

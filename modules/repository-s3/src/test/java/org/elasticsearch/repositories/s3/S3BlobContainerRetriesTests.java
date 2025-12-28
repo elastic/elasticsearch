@@ -51,7 +51,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -97,6 +96,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SET
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.MAX_CONNECTIONS_SETTING;
@@ -1458,16 +1458,6 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     protected Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
         // some attempts make meaningful progress and do not count towards the max retry limit
         return allOf(greaterThanOrEqualTo(maxRetries), lessThanOrEqualTo(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS));
-    }
-
-    @Override
-    protected OperationPurpose randomRetryingPurpose() {
-        return BlobStoreTestUtil.randomRetryingPurpose();
-    }
-
-    @Override
-    protected OperationPurpose randomFiniteRetryingPurpose() {
-        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
     }
 
     private void assertMetricsForOpeningStream() {

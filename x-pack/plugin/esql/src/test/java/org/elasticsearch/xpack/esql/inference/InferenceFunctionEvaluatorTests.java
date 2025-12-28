@@ -29,12 +29,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -78,14 +81,14 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         BulkInferenceRunner bulkInferenceRunner = mock(BulkInferenceRunner.class);
 
         doAnswer(i -> {
-            threadPool.schedule(
-                () -> i.getArgument(1, ActionListener.class).onResponse(List.of(inferenceResponse(embedding))),
-                TimeValue.timeValueMillis(between(1, 10)),
-                threadPool.generic()
-            );
+            threadPool.schedule(() -> {
+                i.getArgument(1, Consumer.class)
+                    .accept(new BulkInferenceResponse(new BulkInferenceRequestItem(null, new int[] { 1 }), inferenceResponse(embedding)));
+                i.getArgument(2, ActionListener.class).onResponse(null);
+            }, TimeValue.timeValueMillis(between(1, 10)), threadPool.generic());
 
             return null;
-        }).when(bulkInferenceRunner).executeBulk(any(), any());
+        }).when(bulkInferenceRunner).executeBulk(any(), any(), any());
         when(bulkInferenceRunner.threadPool()).thenReturn(threadPool);
 
         when(inferenceService.bulkInferenceRunner()).thenReturn(bulkInferenceRunner);
@@ -139,7 +142,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
 
         // Execute the fold operation
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(inferenceOperatorProvider);
 
         AtomicReference<Expression> resultExpression = new AtomicReference<>();
         evaluator.fold(textEmbeddingFunction, ActionListener.wrap(resultExpression::set, ESTestCase::fail));
@@ -163,10 +166,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
             Literal.keyword(Source.EMPTY, "test model")
         );
 
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            FoldContext.small(),
-            (f, driverContext) -> mock(Operator.class)
-        );
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator((f, driverContext) -> mock(Operator.class));
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(textEmbeddingFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
@@ -192,7 +192,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         }).when(operator).getOutput();
 
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(inferenceOperatorProvider);
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(textEmbeddingFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
@@ -215,7 +215,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         when(operator.getOutput()).thenReturn(null);
 
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(inferenceOperatorProvider);
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(textEmbeddingFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
@@ -231,7 +231,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         InferenceFunction<?> unsupported = mock(InferenceFunction.class);
         when(unsupported.foldable()).thenReturn(true);
 
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), (f, driverContext) -> {
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator((f, driverContext) -> {
             throw new IllegalArgumentException("Unknown inference function: " + f.getClass().getName());
         });
 
@@ -271,14 +271,16 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         BulkInferenceRunner bulkInferenceRunner = mock(BulkInferenceRunner.class);
 
         doAnswer(i -> {
-            threadPool.schedule(
-                () -> i.getArgument(1, ActionListener.class).onResponse(List.of(completionResponse(completionText))),
-                TimeValue.timeValueMillis(between(1, 10)),
-                threadPool.generic()
-            );
+            threadPool.schedule(() -> {
+                i.getArgument(1, Consumer.class)
+                    .accept(
+                        new BulkInferenceResponse(new BulkInferenceRequestItem(null, new int[] { 1 }), completionResponse(completionText))
+                    );
+                i.getArgument(2, ActionListener.class).onResponse(null);
+            }, TimeValue.timeValueMillis(between(1, 10)), threadPool.generic());
 
             return null;
-        }).when(bulkInferenceRunner).executeBulk(any(), any());
+        }).when(bulkInferenceRunner).executeBulk(any(), any(), any());
         when(bulkInferenceRunner.threadPool()).thenReturn(threadPool);
 
         when(inferenceService.bulkInferenceRunner()).thenReturn(bulkInferenceRunner);
@@ -332,7 +334,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
 
         // Execute the fold operation
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(inferenceOperatorProvider);
 
         AtomicReference<Expression> resultExpression = new AtomicReference<>();
         evaluator.fold(completionFunction, ActionListener.wrap(resultExpression::set, ESTestCase::fail));
@@ -356,10 +358,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
             Literal.keyword(Source.EMPTY, "test model")
         );
 
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            FoldContext.small(),
-            (f, driverContext) -> mock(Operator.class)
-        );
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator((f, driverContext) -> mock(Operator.class));
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(completionFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
@@ -385,7 +384,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         }).when(operator).getOutput();
 
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(inferenceOperatorProvider);
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(completionFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
@@ -408,7 +407,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         when(operator.getOutput()).thenReturn(null);
 
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(inferenceOperatorProvider);
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(completionFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));

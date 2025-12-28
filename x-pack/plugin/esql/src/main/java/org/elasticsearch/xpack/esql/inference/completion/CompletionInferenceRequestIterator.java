@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItemIterator;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -21,12 +24,19 @@ import java.util.NoSuchElementException;
  *  This iterator reads prompts from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
  *  of type {@link TaskType#COMPLETION}.
  */
-class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator {
+class CompletionInferenceRequestIterator implements BulkInferenceRequestItemIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;
     private final int size;
+
+    private int[] shapeBuffer;
+    private int shapeSize;
+
     private int currentPos = 0;
+
+    private static final int[] SHAPE_SINGLE_ONE = new int[] { 1 };
+    private static final int[] SHAPE_SINGLE_ZERO = new int[] { 0 };
 
     /**
      * Constructs a new iterator from the given block of prompts.
@@ -34,10 +44,12 @@ class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator 
      * @param promptBlock The input block containing prompts.
      * @param inferenceId The ID of the inference model to invoke.
      */
-    CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
+    CompletionInferenceRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
         this.textReader = new InputTextReader(promptBlock);
         this.size = promptBlock.getPositionCount();
         this.inferenceId = inferenceId;
+        // Start with reasonable capacity (most shapes are small)
+        this.shapeBuffer = new int[16];
     }
 
     @Override
@@ -46,12 +58,45 @@ class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator 
     }
 
     @Override
-    public InferenceAction.Request next() {
+    public BulkInferenceRequestItem next() {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
-        return inferenceRequest(textReader.readText(currentPos++));
+        shapeSize = 0;
+        String nextPrompt = null;
+
+        // Consume leading nulls and find first non-null
+        while (Strings.isNullOrEmpty(nextPrompt) && currentPos < size) {
+            nextPrompt = textReader.readText(currentPos);
+            addToShape(Strings.isNullOrEmpty(nextPrompt) ? 0 : 1);
+            currentPos++;
+        }
+
+        // Consume trailing nulls
+        while (currentPos < size && Strings.isNullOrEmpty(textReader.readText(currentPos))) {
+            addToShape(0);
+            currentPos++;
+        }
+
+        // Create shape array of exact size
+        return new BulkInferenceRequestItem(inferenceRequest(nextPrompt), createShape());
+    }
+
+    private void addToShape(int value) {
+        if (shapeSize >= shapeBuffer.length) {
+            // Grow buffer if needed (rare case)
+            shapeBuffer = Arrays.copyOf(shapeBuffer, shapeBuffer.length * 2);
+        }
+        shapeBuffer[shapeSize++] = value;
+    }
+
+    private int[] createShape() {
+        if (shapeSize == 1) {
+            return shapeBuffer[0] == 1 ? SHAPE_SINGLE_ONE : SHAPE_SINGLE_ZERO;
+        }
+
+        return Arrays.copyOf(shapeBuffer, shapeSize);
     }
 
     /**

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -69,7 +70,8 @@ public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimi
             || child instanceof Insist
             || child instanceof OrderBy
             || child instanceof Project
-            || child instanceof RegexExtract) {
+            || child instanceof RegexExtract
+            || child instanceof CompoundOutputEval<?>) {
                 var unaryChild = (UnaryPlan) child;
                 plan = unaryChild.replaceChild(sample.replaceChild(unaryChild.child()));
             }

@@ -77,6 +77,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
+    /**
+     * In some environments it is important to publish replica shard assignments ASAP for availability reasons, not only primary shards.
+     */
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION = Setting.boolSetting(
         "cluster.routing.allocation.unthrottle_replica_assignment_in_simulation",
         false,

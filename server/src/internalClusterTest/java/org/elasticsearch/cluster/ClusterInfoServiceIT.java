@@ -422,7 +422,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             // Manually control cluster info refreshes
             .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m")
             .build();
-        var masterName = internalCluster().startMasterOnlyNode(settings);
+        internalCluster().startMasterOnlyNode(settings);
         var dataNodeName = internalCluster().startDataOnlyNode(settings);
         ensureStableCluster(2);
 
@@ -478,11 +478,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             );
 
             // Force a refresh of the ClusterInfo state to collect fresh info from the data node.
-            final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
-                InternalClusterInfoService.class,
-                internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
-            );
-            final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+            final ClusterInfo clusterInfo = refreshClusterInfo();
+            assertNotNull(clusterInfo);
 
             // Since tasks are actively queued right now, #peekMaxQueueLatencyInQueue, which is called from the
             // TransportNodeUsageStatsForThreadPoolsAction that a ClusterInfoService refresh initiates, should return a max queue
@@ -527,7 +524,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 equalTo(0L)
             );
 
-            final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+            final ClusterInfo nextClusterInfo = refreshClusterInfo();
             {
                 final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = nextClusterInfo
                     .getNodeUsageStatsForThreadPools();
@@ -554,11 +551,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         // Now that there's nothing in the queue, and no activity since the last ClusterInfo refresh, the max latency returned should be
         // zero. Verify this.
-        final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
-            InternalClusterInfoService.class,
-            internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
-        );
-        final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+        final ClusterInfo clusterInfo = refreshClusterInfo();
         {
             final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
             logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);

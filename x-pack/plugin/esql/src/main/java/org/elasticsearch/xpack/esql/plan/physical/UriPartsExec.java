@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
 
 import java.io.IOException;
@@ -33,10 +32,9 @@ public class UriPartsExec extends CompoundOutputEvalExec {
         Source source,
         PhysicalPlan child,
         Expression input,
-        List<Attribute> outputFields,
-        CompoundOutputFunction function
+        List<Attribute> outputFields
     ) {
-        super(source, child, input, outputFields, function);
+        super(source, child, input, outputFields, UriPartsFunction.getInstance());
     }
 
     public UriPartsExec(StreamInput in) throws IOException {
@@ -50,7 +48,7 @@ public class UriPartsExec extends CompoundOutputEvalExec {
 
     @Override
     public CompoundOutputEvalExec createNewInstance(Source source, PhysicalPlan child, Expression input, List<Attribute> outputFields) {
-        return new UriPartsExec(source, child, input, outputFields, function());
+        return new UriPartsExec(source, child, input, outputFields);
     }
 
     @Override

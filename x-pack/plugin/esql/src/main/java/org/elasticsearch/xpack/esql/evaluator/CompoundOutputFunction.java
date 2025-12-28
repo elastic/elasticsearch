@@ -16,6 +16,9 @@ import java.util.Map;
  * Interface for the concrete functionality that produces compound outputs from a single input.
  * The implementations of this interface should serve as a bridge between the ESQL engine and the domain-specific logic that produces
  * the compound outputs.
+ * <p>
+ * <b>NOTE:</b> The functions implementing this interface must be thread-safe and yield consistent results for the same input.
+ * As such, it is recommended that they are stateless, allowing implementing them as singletons or multitons.
  */
 public interface CompoundOutputFunction {
 

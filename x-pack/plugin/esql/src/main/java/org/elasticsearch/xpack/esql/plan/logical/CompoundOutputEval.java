@@ -32,6 +32,17 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
+/**
+ * Base class for logical plan nodes that make a single evaluation on a single input expression and produce multiple output columns.
+ * <p>
+ * <b>NOTE:</b> The construction of the initial instance of the {@link CompoundOutputEval} subclass computes the output attributes based on
+ * the specific evaluator's output columns and the provided prefix. Therefore, it should be used only when the node is first created.
+ * In order to ensure this, there is no constructor that makes this computation directly. Instead, the initial instance creation should be
+ * done through a static method like {@code createInitialInstance(...)} that makes use of the static {@link #computeOutputAttributes}
+ * method.
+ * Any subsequent instance construction, such as deserialization, regeneration with new names, or child replacement, should use the
+ * constructor that directly accepts the output fields.
+ */
 public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extends UnaryPlan
     implements
         TelemetryAware,
@@ -45,27 +56,6 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
      * Provides the actual functionality logic that corresponds the concrete {@link CompoundOutputEval} subclass.
      */
     private final CompoundOutputFunction function;
-
-    /**
-     * This constructor computes the output attributes based on the evaluator's output columns and the provided prefix.
-     * Therefore, it should be used only when the node is first created. Other uses, such as deserialization, regeneration with new names,
-     * or child replacement, should use the constructor that directly accepts the output fields.
-     *
-     * @param source            the source information
-     * @param child             the child logical plan
-     * @param input             the input expression
-     * @param outputFieldPrefix the prefix for the output field names
-     * @param function         the function instance
-     */
-    protected CompoundOutputEval(
-        Source source,
-        LogicalPlan child,
-        Expression input,
-        Attribute outputFieldPrefix,
-        CompoundOutputFunction function
-    ) {
-        this(source, child, input, computeOutputAttributes(function.getOutputColumns(), outputFieldPrefix.name(), source), function);
-    }
 
     /**
      * This constructor directly accepts the output fields. It should be used for deserialization, regeneration with new names,
@@ -119,17 +109,17 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
     /**
      * Computes the output attributes based on the provided output columns and prefix.
      *
-     * @param outputColumns   the map of output column names to their data types
+     * @param function          the compound output function providing the output columns
      * @param outputFieldPrefix the prefix to be used for the output field names
-     * @param source          the source information for the attributes
+     * @param source            the source information for the attributes
      * @return a list of computed output attributes
      */
-    private static List<Attribute> computeOutputAttributes(
-        final LinkedHashMap<String, DataType> outputColumns,
+    protected static List<Attribute> computeOutputAttributes(
+        final CompoundOutputFunction function,
         final String outputFieldPrefix,
         final Source source
     ) {
-        return outputColumns.entrySet()
+        return function.getOutputColumns().entrySet()
             .stream()
             .map(
                 entry -> (Attribute) new ReferenceAttribute(

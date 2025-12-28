@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
 
 import java.io.IOException;
@@ -26,8 +25,9 @@ public class UriParts extends CompoundOutputEval<UriParts> {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "UriParts", UriParts::new);
 
-    public UriParts(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix) {
-        super(source, child, input, outputFieldPrefix, UriPartsFunction.getInstance());
+    public static UriParts createInitialInstance(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix) {
+        List<Attribute> outputFields = computeOutputAttributes(UriPartsFunction.getInstance(), outputFieldPrefix.name(), source);
+        return new UriParts(source, child, input, outputFields);
     }
 
     public UriParts(Source source, LogicalPlan child, Expression input, List<Attribute> outputFields) {

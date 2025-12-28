@@ -135,7 +135,7 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, configOptionsHashCode(), outputFields, function);
+        return Objects.hash(super.hashCode(), input, outputFields, function, configOptionsHashCode());
     }
 
 }

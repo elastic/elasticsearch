@@ -474,7 +474,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "URI_PARTS command requires an input expression");
         }
 
-        return child -> new UriParts(source, child, input, outputPrefix);
+        return child -> UriParts.createInitialInstance(source, child, input, outputPrefix);
     }
 
     @Override

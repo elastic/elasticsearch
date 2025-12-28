@@ -517,7 +517,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            return switch (plan) {
+            var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
                 case Drop d -> resolveDrop(d, childrenOutput, context.unmappedResolution());
@@ -536,6 +536,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
+
+            return context.unmappedResolution() == UnmappedResolution.LOAD ? resolvePartiallyMapped(resolved, context) : resolved;
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -1034,7 +1036,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return insist.withAttributes(list);
         }
 
-        private List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
+        private static List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
             List<IndexResolution> resolutions = new ArrayList<>();
             plan.forEachDown(EsRelation.class, e -> {
                 var resolution = context.indexResolution().get(new IndexPattern(e.source(), e.indexPattern()));
@@ -1063,7 +1065,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedCol;
         }
 
-        private static Attribute invalidInsistAttribute(FieldAttribute fa) {
+        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa) {
             var name = fa.name();
             EsField field = fa.field() instanceof InvalidMappedField imf
                 ? new InvalidMappedField(name, InvalidMappedField.makeErrorsMessageIncludingInsistKeyword(imf.getTypesToIndices()))
@@ -1085,6 +1087,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 attribute.name(),
                 new PotentiallyUnmappedKeywordEsField(attribute.name())
             );
+        }
+
+        /**
+         * This will inspect current node/{@code plan}'s expressions and check if any of the {@code FieldAttribute}s refer to fields that
+         * are partially unmapped across the indices involved in the plan fragment. If so, replace their field with an "insisted" EsField.
+         */
+        private static LogicalPlan resolvePartiallyMapped(LogicalPlan plan, AnalyzerContext context) {
+            var indexResolutions = collectIndexResolutions(plan, context);
+            Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
+            var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
+                var esField = fa.field();
+                var isInsisted = esField instanceof PotentiallyUnmappedKeywordEsField || esField instanceof InvalidMappedField;
+                if (isInsisted == false) {
+                    var existing = insistedMap.get(fa);
+                    if (existing != null) { // field shows up multiple times in the node; return first processing
+                        return existing;
+                    }
+                    // Field is partially unmapped.
+                    if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
+                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
+                        insistedMap.put(fa, newFA);
+                        return newFA;
+                    }
+                }
+                return fa;
+            });
+            return insistedMap.isEmpty() ? transformed : propagateInsistedFields(transformed, insistedMap);
+        }
+
+        /**
+         * Push only those fields from the {@code insistedMap} into {@code EsRelation}s in the {@code plan} that wrap a
+         * {@code PotentiallyUnmappedKeywordEsField}.
+         */
+        private static LogicalPlan propagateInsistedFields(LogicalPlan plan, Map<? extends Attribute, FieldAttribute> insistedMap) {
+            return plan.transformUp(EsRelation.class, esr -> {
+                var newOutput = new ArrayList<Attribute>();
+                boolean updated = false;
+                for (Attribute attr : esr.output()) {
+                    var newFA = insistedMap.get(attr);
+                    if (newFA != null && newFA.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                        newOutput.add(newFA);
+                        updated = true;
+                    } else {
+                        newOutput.add(attr);
+                    }
+                }
+                return updated ? esr.withAttributes(newOutput) : esr;
+            });
         }
 
         private LogicalPlan resolveFuse(Fuse fuse, List<Attribute> childrenOutput) {

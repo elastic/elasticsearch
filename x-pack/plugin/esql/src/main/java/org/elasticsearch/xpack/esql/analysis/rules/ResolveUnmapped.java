@@ -19,13 +19,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -45,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
+import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 /**
  * The rule handles fields that don't show up in the index mapping, but are used within the query. These fields can either be missing
@@ -120,7 +119,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         var transformed = plan.transformUp(n -> n instanceof EsRelation esr && esr.indexMode() != IndexMode.LOOKUP, n -> {
             EsRelation esr = (EsRelation) n;
             List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, esr.outputSet().names());
-            return fieldsToLoad.isEmpty() ? esr : esr.withAttributes(NamedExpressions.mergeOutputAttributes(fieldsToLoad, esr.output()));
+            // there shouldn't be any duplicates, we can just merge the two lists
+            return fieldsToLoad.isEmpty() ? esr : esr.withAttributes(combine(esr.output(), fieldsToLoad));
         });
 
         return transformed.transformUp(Fork.class, f -> patchFork(f, Expressions.asAttributes(fieldsToLoad(unresolved, Set.of()))));
@@ -166,21 +166,14 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             newChildren.add(child);
         }
 
-        List<Attribute> newAttributes = new ArrayList<>(fork.output().size() + aliasAttributes.size());
-        newAttributes.addAll(fork.output());
-        newAttributes.addAll(aliasAttributes);
-
-        return fork.replaceSubPlansAndOutput(newChildren, newAttributes);
+        return fork.replaceSubPlansAndOutput(newChildren, combine(fork.output(), aliasAttributes));
     }
 
     private static Project patchForkProject(Project project, List<Attribute> aliasAttributes) {
         // refresh the IDs for each UnionAll child (needed for correct resolution of convert functions; see collectConvertFunctions())
         aliasAttributes = aliasAttributes.stream().map(a -> a.withId(new NameId())).toList();
 
-        List<NamedExpression> newProjections = new ArrayList<>(project.projections().size() + aliasAttributes.size());
-        newProjections.addAll(project.projections());
-        newProjections.addAll(aliasAttributes);
-        project = project.withProjections(newProjections);
+        project = project.withProjections(combine(project.projections(), aliasAttributes));
 
         // If Project's child doesn't output the attribute, introduce a null-Eval'ing. This is similar to what Fork-resolution does.
         List<Alias> nullAliases = new ArrayList<>(aliasAttributes.size());
@@ -244,7 +237,6 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static LogicalPlan evalUnresolved(UnaryPlan unaryAtopSource, List<Alias> nullAliases) {
         assertSourceType(unaryAtopSource.child());
         if (unaryAtopSource instanceof Eval eval && eval.resolved()) { // if this Eval isn't resolved, insert a new (resolved) one
-            List<Alias> newAliases = new ArrayList<>(eval.fields().size() + nullAliases.size());
             List<Alias> pre = new ArrayList<>(nullAliases.size());
             List<Alias> post = new ArrayList<>(nullAliases.size());
             var outputNames = eval.outputSet().names();
@@ -258,10 +250,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             if (pre.size() + post.size() == 0) {
                 return eval;
             }
-            newAliases.addAll(pre);
-            newAliases.addAll(eval.fields());
-            newAliases.addAll(post);
-            return new Eval(eval.source(), eval.child(), newAliases);
+            return new Eval(eval.source(), eval.child(), combine(pre, eval.fields(), post));
         } else {
             return unaryAtopSource.replaceChild(new Eval(unaryAtopSource.source(), unaryAtopSource.child(), nullAliases));
         }

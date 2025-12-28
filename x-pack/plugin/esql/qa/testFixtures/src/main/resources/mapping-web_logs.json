@@ -1,0 +1,19 @@
+{
+    "properties": {
+        "timestamp": {
+            "type": "date"
+        },
+        "uri": {
+            "type": "keyword"
+        },
+        "user-agent": {
+            "type": "keyword"
+        },
+        "domain": {
+            "type": "keyword"
+        },
+        "public-ip": {
+            "type": "ip"
+        }
+    }
+}

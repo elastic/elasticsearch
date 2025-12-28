@@ -9,3 +9,92 @@ ROW uri = "https://www.example.com:8080"
 parts.port:integer | parts.scheme:keyword | parts.domain:keyword
 8080               | https                | www.example.com
 ;
+
+
+rename
+required_capability: compound_output_eval
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS_🐔 parts = uri
+| KEEP parts.port, parts.scheme, parts.domain
+| RENAME parts.port AS port, parts.scheme AS scheme, parts.domain AS domain
+;
+
+port:integer | scheme:keyword | domain:keyword
+8080         | https          | www.example.com
+;
+
+
+test_after_filtering
+required_capability: compound_output_eval
+
+FROM web_logs
+| WHERE domain == "www.elastic.co"
+| URI_PARTS_🐔 p = uri
+| KEEP p.scheme, p.domain, p.path
+| SORT p.path
+;
+
+p.scheme:keyword     | p.domain:keyword       | p.path:keyword
+https                | www.elastic.co         | /downloads/elasticsearch
+https                | www.elastic.co         | /guide/en/elasticsearch/reference/current/esql.html
+;
+
+
+test_before_filtering
+required_capability: compound_output_eval
+
+FROM web_logs
+| URI_PARTS_🐔 p = uri
+| WHERE p.domain == "www.elastic.co"
+| KEEP p.scheme, p.domain, p.path
+| SORT p.path DESC
+;
+
+p.scheme:keyword     | p.domain:keyword       | p.path:keyword
+https                | www.elastic.co         | /guide/en/elasticsearch/reference/current/esql.html
+https                | www.elastic.co         | /downloads/elasticsearch
+;
+
+
+test_non_web_uri
+required_capability: compound_output_eval
+
+FROM web_logs
+| WHERE domain == "files.internal"
+| URI_PARTS_🐔 p = uri
+| KEEP p.scheme, p.domain, p.path, p.username, p.password
+;
+
+p.scheme:keyword | p.domain:keyword     | p.path:keyword   | p.username:keyword | p.password:keyword
+ftp              | files.internal       | /data.zip        | user               | pass
+;
+
+
+test_no_scheme_uri
+required_capability: compound_output_eval
+
+FROM web_logs
+| WHERE domain == "app.example.com"
+| URI_PARTS_🐔 p = uri
+| KEEP p.scheme, p.domain, p.path, p.query
+;
+
+p.scheme:keyword | p.domain:keyword       | p.path:keyword | p.query:keyword
+null             | null                   | /app/login     | session=expired
+;
+
+
+test_invalid_uri
+required_capability: compound_output_eval
+
+ROW uri = "not a valid uri"
+| URI_PARTS_🐔 parts = uri
+| KEEP parts.scheme, parts.domain, parts.path
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: unable to parse URI \[.*\]
+warningregex: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
+
+parts.scheme:keyword | parts.domain:keyword | parts.path:keyword
+null                 | null                 | null
+;

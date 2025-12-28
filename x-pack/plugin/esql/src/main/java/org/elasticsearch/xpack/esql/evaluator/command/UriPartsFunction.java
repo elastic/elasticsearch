@@ -52,7 +52,7 @@ public class UriPartsFunction implements CompoundOutputFunction {
     }
 
     @Override
-    public Map<String, Object> evaluate(String uri) {
+    public Map<String, Object> evaluate(String uri) throws Exception {
         return getUriParts(uri);
     }
 
@@ -151,7 +151,6 @@ public class UriPartsFunction implements CompoundOutputFunction {
         outputColumns.put("port", DataType.INTEGER);
         outputColumns.put("query", DataType.KEYWORD);
         outputColumns.put("scheme", DataType.KEYWORD);
-        outputColumns.put("user_info", DataType.KEYWORD);
         outputColumns.put("username", DataType.KEYWORD);
         outputColumns.put("password", DataType.KEYWORD);
         return outputColumns;

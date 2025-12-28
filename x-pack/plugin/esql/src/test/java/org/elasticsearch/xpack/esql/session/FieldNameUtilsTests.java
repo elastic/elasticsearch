@@ -63,7 +63,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkEval() {
-        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)", Set.of("*"));
+        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)", Set.of("_index"));
     }
 
     public void testSort1() {
@@ -2165,7 +2165,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, Set.of("_index", "x", "y", "a", "c", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
+            """, ALL_FIELDS);
     }
 
     public void testForkFieldsWithEnrichAndLookupJoins() {
@@ -2368,7 +2368,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( WHERE author:"Ursula K. Le Guin" AND title:"short stories" | SORT _score, _id DESC | LIMIT 3)
             | FUSE
             | STATS count_fork=COUNT(*) BY _fork
-            | SORT _fork""", Set.of("_index", "title", "author", "title.*", "author.*"));
+            | SORT _fork""", ALL_FIELDS);
     }
 
     public void testFuseWithMultipleForkBranches() {
@@ -2657,19 +2657,16 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkBeforeStats() {
-        assertFieldNames(
-            """
-                FROM employees
-                | WHERE emp_no == 10048 OR emp_no == 10081
-                | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
-                | DISSECT a "%{x} %{y} %{z}"
-                | EVAL y = y::keyword )
-                ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
-                ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
-                ( EVAL x = "abc" | EVAL y = "aaa" )
-                | STATS c = count(*), m = max(_fork)""",
-            Set.of("_index", "first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*")
-        );
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no == 10048 OR emp_no == 10081
+            | FORK ( EVAL a = CONCAT(first_name, " ", emp_no::keyword, " ", last_name)
+            | DISSECT a "%{x} %{y} %{z}"
+            | EVAL y = y::keyword )
+            ( STATS x = COUNT(*)::keyword, y = MAX(emp_no)::keyword, z = MIN(emp_no)::keyword )
+            ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
+            ( EVAL x = "abc" | EVAL y = "aaa" )
+            | STATS c = count(*), m = max(_fork)""", ALL_FIELDS);
     }
 
     public void testForkBeforeStatsWithWhere() {
@@ -2683,7 +2680,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( SORT emp_no ASC | LIMIT 2 | EVAL x = last_name )
             ( EVAL x = "abc" | EVAL y = "aaa" )
             | STATS a = count(*) WHERE _fork == "fork1",
-            b = max(_fork)""", Set.of("_index", "first_name", "emp_no", "last_name", "last_name.*", "first_name.*", "emp_no.*"));
+            b = max(_fork)""", ALL_FIELDS);
     }
 
     public void testForkBeforeStatsByWithWhere() {
@@ -2698,7 +2695,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             ( EVAL x = "abc" | EVAL y = "aaa" )
             | STATS a = count(*)  WHERE emp_no > 10000,
             b = max(x) WHERE _fork == "fork1" BY _fork
-            | SORT _fork""", Set.of("_index", "emp_no", "x", "first_name", "last_name", "last_name.*", "x.*", "first_name.*", "emp_no.*"));
+            | SORT _fork""", ALL_FIELDS);
     }
 
     public void testForkAfterDrop() {
@@ -2736,7 +2733,20 @@ public class FieldNameUtilsTests extends ESTestCase {
             FROM languages
             | FORK ( WHERE language_name == "English" | KEEP language_name, language_code )
             ( WHERE language_name != "English" )
-            | SORT _fork, language_name""", Set.of("_index", "language_name", "language_code", "language_code.*", "language_name.*"));
+            | SORT _fork, language_name""", ALL_FIELDS);
+    }
+
+    public void testForkBranchWithKeep2() {
+        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3)", IndexResolver.ALL_FIELDS);
+    }
+
+    public void testForkBranchWithKeep3() {
+        assertFieldNames("""
+            FROM employees
+            | FORK (EVAL x = 1 | KEEP x)
+                   (EVAL y = 2 | KEEP y)
+                   (WHERE emp_no > 10000)
+            """, ALL_FIELDS);
     }
 
     public void testForkBeforeRename() {
@@ -3142,33 +3152,78 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testSubqueryInFrom() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        // TODO improve FieldNameUtils to process subqueries better, so that we don't call field-caps with "*"
-        assertFieldNames("""
-            FROM employees, (FROM books | WHERE author:"Faulkner" | KEEP title, author | SORT title | LIMIT 5)
-            | WHERE emp_no == 10000 OR author IS NOT NULL
-            | KEEP emp_no, first_name, last_name, author, title
-            | SORT emp_no, author
-            """, Set.of("*"));
+        assertFieldNames(
+            """
+                FROM employees, (FROM books | WHERE author:"Faulkner" | KEEP title, author | SORT title | LIMIT 5)
+                | WHERE emp_no == 10000 OR author IS NOT NULL
+                | KEEP emp_no, first_name, last_name, author, title
+                | SORT emp_no, author
+                """,
+            Set.of(
+                "title.*",
+                "last_name.*",
+                "_index",
+                "emp_no",
+                "author",
+                "first_name.*",
+                "last_name",
+                "title",
+                "author.*",
+                "first_name",
+                "emp_no.*"
+            )
+        );
     }
 
     public void testSubqueryInFromWithFork() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         // nested fork may trigger assertion in FieldNameUtils, defer the check of nested subqueries or subquery with fork
         // to logical plan optimizer.
-        // TODO Improve FieldNameUtils to process subqueries better, , so that we don't call field-caps with "*"
-        assertFieldNames("""
-            FROM employees, (FROM books | FORK (WHERE author:"Faulkner") (WHERE title:"Ring") | KEEP title, author | SORT title | LIMIT 5)
-            | WHERE emp_no == 10000 OR author IS NOT NULL
-            | KEEP emp_no, first_name, last_name, author, title
-            | SORT emp_no, author
-            """, Set.of("*"));
+        assertFieldNames(
+            """
+                FROM employees,
+                (FROM books | FORK (WHERE author:"Faulkner")
+                (WHERE title:"Ring") | KEEP title, author | SORT title | LIMIT 5)
+                | WHERE emp_no == 10000 OR author IS NOT NULL
+                | KEEP emp_no, first_name, last_name, author, title
+                | SORT emp_no, author
+                """,
+            Set.of(
+                "title.*",
+                "last_name.*",
+                "_index",
+                "emp_no",
+                "author",
+                "first_name.*",
+                "last_name",
+                "title",
+                "author.*",
+                "first_name",
+                "emp_no.*"
+            )
+        );
 
-        assertFieldNames("""
-            FROM books, (FROM employees | WHERE emp_no == 10000)
-            | FORK (WHERE author:"Faulkner") (WHERE title:"Ring")
-            | KEEP emp_no, first_name, last_name, author, title
-            | SORT emp_no, author
-            """, Set.of("*"));
+        assertFieldNames(
+            """
+                FROM books, (FROM employees | WHERE emp_no == 10000)
+                | FORK (WHERE author:"Faulkner") (WHERE title:"Ring")
+                | KEEP emp_no, first_name, last_name, author, title
+                | SORT emp_no, author
+                """,
+            Set.of(
+                "title.*",
+                "last_name.*",
+                "_index",
+                "emp_no",
+                "author",
+                "first_name.*",
+                "last_name",
+                "title",
+                "author.*",
+                "first_name",
+                "emp_no.*"
+            )
+        );
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

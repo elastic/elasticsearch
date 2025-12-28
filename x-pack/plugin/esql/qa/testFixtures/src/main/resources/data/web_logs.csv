@@ -1,4 +1,4 @@
-timestamp:date,uri:keyword,user-agent:keyword,domain:keyword,public-ip:ip
+timestamp:date,uri:keyword,user_agent:keyword,domain:keyword,public_ip:ip
 2024-01-10T10:00:00.000Z,https://www.elastic.co/downloads/elasticsearch,Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36,www.elastic.co,8.8.8.8
 2024-01-10T10:01:30.500Z,/app/login?session=expired,curl/7.68.0,app.example.com,208.67.222.222
 2024-01-10T10:02:15.123Z,https://discuss.elastic.co/c/elasticsearch,Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X),discuss.elastic.co,1.1.1.1

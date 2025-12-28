@@ -13,11 +13,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.plan.logical.UriParts.URI_PARTS_FUNCTION;
 
 /**
  * Physical plan for the URI_PARTS command.
@@ -41,7 +40,7 @@ public class UriPartsExec extends CompoundOutputEvalExec {
     }
 
     public UriPartsExec(StreamInput in) throws IOException {
-        super(in, URI_PARTS_FUNCTION);
+        super(in, UriPartsFunction.getInstance());
     }
 
     @Override

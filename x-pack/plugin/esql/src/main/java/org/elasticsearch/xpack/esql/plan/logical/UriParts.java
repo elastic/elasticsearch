@@ -26,22 +26,16 @@ public class UriParts extends CompoundOutputEval<UriParts> {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "UriParts", UriParts::new);
 
-    /**
-     * The function that provides the actual functionality logic for the URI_PARTS evaluator.
-     * Since it is stateless, we can use as a singleton.
-     */
-    public static final CompoundOutputFunction URI_PARTS_FUNCTION = new UriPartsFunction();
-
     public UriParts(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix) {
-        super(source, child, input, outputFieldPrefix, URI_PARTS_FUNCTION);
+        super(source, child, input, outputFieldPrefix, UriPartsFunction.getInstance());
     }
 
     public UriParts(Source source, LogicalPlan child, Expression input, List<Attribute> outputFields) {
-        super(source, child, input, outputFields, URI_PARTS_FUNCTION);
+        super(source, child, input, outputFields, UriPartsFunction.getInstance());
     }
 
     public UriParts(StreamInput in) throws IOException {
-        super(in, URI_PARTS_FUNCTION);
+        super(in, UriPartsFunction.getInstance());
     }
 
     @Override

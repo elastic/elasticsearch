@@ -19,7 +19,33 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * Function that extracts parts from a URI string.
+ * Since it is stateless, it is implemented as a singleton.
+ * The extracted parts are:
+ * <ul>
+ *     <li>domain</li>
+ *     <li>fragment</li>
+ *     <li>path</li>
+ *     <li>extension</li>
+ *     <li>port</li>
+ *     <li>query</li>
+ *     <li>scheme</li>
+ *     <li>user_info</li>
+ *     <li>username</li>
+ *     <li>password</li>
+ * </ul>
+ */
 public class UriPartsFunction implements CompoundOutputFunction {
+
+    private static final UriPartsFunction INSTANCE = new UriPartsFunction();
+
+    private UriPartsFunction() {}
+
+    public static UriPartsFunction getInstance() {
+        return INSTANCE;
+    }
+
     @Override
     public LinkedHashMap<String, DataType> getOutputColumns() {
         return uriPartsOutputColumns();

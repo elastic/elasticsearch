@@ -315,25 +315,9 @@ tests:
   - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
     method: testOneRemoteClusterPartial
     issue: https://github.com/elastic/elasticsearch/issues/124055
-  - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
-    method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: staged, expectedAssembleTaskName:
-    extractedAssemble, #1]"
-    issue: https://github.com/elastic/elasticsearch/issues/119870
-  - class: org.elasticsearch.packaging.test.DebPreservationTests
-    method: test40RestartOnUpgrade
-    issue: https://github.com/elastic/elasticsearch/issues/125821
   - class: org.elasticsearch.repositories.blobstore.testkit.analyze.GCSRepositoryAnalysisRestIT
     method: testRepositoryAnalysis
     issue: https://github.com/elastic/elasticsearch/issues/125668
-  - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-    method: test {p0=/11_nodes/Test cat nodes output}
-    issue: https://github.com/elastic/elasticsearch/issues/125906
-  - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-    method: test {p0=/10_info/Info}
-    issue: https://github.com/elastic/elasticsearch/issues/125904
-  - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
-    method: test {p0=/11_nodes/Additional disk information}
-    issue: https://github.com/elastic/elasticsearch/issues/125905
   - class: org.elasticsearch.docker.test.DockerYmlTestSuiteIT
     method: test {p0=/11_nodes/Test cat nodes output with full_id set}
     issue: https://github.com/elastic/elasticsearch/issues/125903
@@ -346,21 +330,6 @@ tests:
   - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
     method: test {yaml=reference/search/retriever/line_906}
     issue: https://github.com/elastic/elasticsearch/issues/131041
-  - class: org.elasticsearch.packaging.test.DockerTests
-    method: test151MachineDependentHeapWithSizeOverride
-    issue: https://github.com/elastic/elasticsearch/issues/123437
-  - class: org.elasticsearch.packaging.test.ArchiveTests
-    method: test61EsJavaHomeOverride
-    issue: https://github.com/elastic/elasticsearch/issues/131839
-  - class: org.elasticsearch.packaging.test.PackageTests
-    method: test32JavaHomeOverride
-    issue: https://github.com/elastic/elasticsearch/issues/131842
-  - class: org.elasticsearch.packaging.test.ArchiveTests
-    method: test63BundledJdkRemoved
-    issue: https://github.com/elastic/elasticsearch/issues/131891
-  - class: org.elasticsearch.packaging.test.PackageTests
-    method: test42BundledJdkRemoved
-    issue: https://github.com/elastic/elasticsearch/issues/131890
   - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
     method: test {yaml=reference/search/retriever/line_983}
     issue: https://github.com/elastic/elasticsearch/issues/132854

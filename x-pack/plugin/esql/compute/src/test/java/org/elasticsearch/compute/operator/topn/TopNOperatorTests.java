@@ -202,48 +202,50 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testRamBytesUsed() {
-        RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
-            @Override
-            public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
-                if (o instanceof ElementType) {
-                    return 0; // shared
+        for (var sortedInput : new boolean[]{true, false}) {
+            RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
+                @Override
+                public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
+                    if (o instanceof ElementType) {
+                        return 0; // shared
+                    }
+                    if (o instanceof TopNEncoder) {
+                        return 0; // shared
+                    }
+                    if (o instanceof CircuitBreaker) {
+                        return 0; // shared
+                    }
+                    if (o instanceof BlockFactory) {
+                        return 0; // shard
+                    }
+                    return super.accumulateObject(o, shallowSize, fieldValues, queue);
                 }
-                if (o instanceof TopNEncoder) {
-                    return 0; // shared
+            };
+            int topCount = 10_000;
+            // We under-count by a few bytes because of the lists. In that end that's fine, but we need to account for it here.
+            long underCount = 200;
+            DriverContext context = driverContext();
+            try (
+                TopNOperator op = new TopNOperator.TopNOperatorFactory(
+                    topCount,
+                    List.of(LONG),
+                    List.of(DEFAULT_UNSORTABLE),
+                    List.of(new TopNOperator.SortOrder(0, true, false)),
+                    pageSize,
+                    sortedInput
+                ).get(context)
+            ) {
+                long actualEmpty = RamUsageTester.ramUsed(op, acc);
+                assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
+                // But when we fill it then we're quite close
+                for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
+                    op.addInput(p);
                 }
-                if (o instanceof CircuitBreaker) {
-                    return 0; // shared
-                }
-                if (o instanceof BlockFactory) {
-                    return 0; // shard
-                }
-                return super.accumulateObject(o, shallowSize, fieldValues, queue);
-            }
-        };
-        int topCount = 10_000;
-        // We under-count by a few bytes because of the lists. In that end that's fine, but we need to account for it here.
-        long underCount = 200;
-        DriverContext context = driverContext();
-        try (
-            TopNOperator op = new TopNOperator.TopNOperatorFactory(
-                topCount,
-                List.of(LONG),
-                List.of(DEFAULT_UNSORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false)),
-                pageSize,
-                false
-            ).get(context)
-        ) {
-            long actualEmpty = RamUsageTester.ramUsed(op, acc);
-            assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
-            // But when we fill it then we're quite close
-            for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
-                op.addInput(p);
-            }
-            long actualFull = RamUsageTester.ramUsed(op, acc);
-            assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
+                long actualFull = RamUsageTester.ramUsed(op, acc);
+                assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
 
-            // TODO empty it again and check.
+                // TODO empty it again and check.
+            }
         }
     }
 

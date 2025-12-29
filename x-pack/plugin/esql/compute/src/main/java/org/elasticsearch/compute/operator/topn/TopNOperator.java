@@ -467,44 +467,33 @@ public class TopNOperator implements Operator, Accountable {
 
     private void mergeSort(BoundedSortedVector sortedData, Page page) {
         var i = 0;
-        var j = 0;
         var maxSize = sortedData.maxSize;
         var merged = BoundedSortedVector.build(breaker, maxSize);
         RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
 
-        while (merged.size() < maxSize && (i < sortedData.size() || j < page.getPositionCount())) {
-            if (i >= sortedData.size()) {
+        while (merged.size() < maxSize && (sortedData.isEmpty() == false || i < page.getPositionCount())) {
+            if (spare == null && i < page.getPositionCount()) {
                 spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
-                rowFiller.writeKey(j, spare);
-                rowFiller.writeValues(j, spare);
+                rowFiller.writeKey(i, spare);
+                rowFiller.writeValues(i, spare);
                 spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
                 spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
-                merged.add(spare);
-                spare = null;
-                ++j;
-            } else if (j >= page.getPositionCount()) {
-                merged.add(sortedData.get(i));
-                ++i;
-            } else {
-                if (spare == null) {
-                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
-                    rowFiller.writeKey(j, spare);
-                    rowFiller.writeValues(j, spare);
-                    spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
-                    spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
-                }
+            }
 
-                if (compareRows(spare, sortedData.get(i)) > 0) {
-                    merged.add(spare);
-                    ++j;
-                    spare = null;
-                } else {
-                    merged.add(sortedData.get(i));
-                    ++i;
-                }
+            if (spare != null && (sortedData.isEmpty() || compareRows(spare, sortedData.getFirst()) > 0)) {
+                merged.add(spare);
+                ++i;
+                spare = null;
+            } else {
+                merged.add(sortedData.removeFirst());
             }
         }
-        spare = null;
+
+        if (spare != null) {
+            spare.close();
+            spare = null;
+        }
+        this.inputSortedVector.close();
         this.inputSortedVector = merged;
     }
 
@@ -533,7 +522,10 @@ public class TopNOperator implements Operator, Accountable {
         boolean success = false;
         try {
             if (sortedInput) {
-                list.addAll(inputSortedVector);
+                while (inputSortedVector.size() > 0) {
+                    list.add(inputSortedVector.removeFirst());
+                }
+                inputSortedVector.close();
                 inputSortedVector = null;
             } else {
                 while (inputQueue.size() > 0) {
@@ -792,6 +784,13 @@ public class TopNOperator implements Operator, Accountable {
                 total += r == null ? 0 : r.ramBytesUsed();
             }
             return total;
+        }
+
+        public void closeWithoutReleasingRows() {
+            Releasables.close(
+                // Release the array itself
+                () -> breaker.addWithoutBreaking(-BoundedSortedVector.sizeOf(maxSize))
+            );
         }
 
         @Override

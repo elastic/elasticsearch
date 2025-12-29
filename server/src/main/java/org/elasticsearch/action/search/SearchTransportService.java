@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -71,6 +72,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
@@ -317,9 +319,22 @@ public class SearchTransportService {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(task.getId());
 
+            // Capture authentication headers from current ThreadContext
+            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            Map<String, String> headers = new HashMap<>();
+
+            // Copy security-related headers
+            for (String header : threadContext.getHeaders().keySet()) {
+                if (header.startsWith("Authorization") ||
+                    header.startsWith("es-security") ||
+                    header.equals("_xpack_security_authentication")) {
+                    headers.put(header, threadContext.getHeader(header));
+                }
+            }
+
             client.execute(
                 TransportFetchPhaseCoordinationAction.TYPE,
-                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),
                 ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
             );
         } else {
@@ -596,7 +611,7 @@ public class SearchTransportService {
         );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
-            boolean fetchedPhaseChunkedEnabled = searchService.fetchPhaseChunked();
+            boolean fetchPhaseChunkedEnabled = searchService.fetchPhaseChunked();
             boolean hasCoordinator = request instanceof ShardFetchSearchRequest fetchSearchReq
                 && fetchSearchReq.getCoordinatingNode() != null;
 
@@ -608,32 +623,35 @@ public class SearchTransportService {
             if (hasCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 DiscoveryNode coordinatorNode = fetchSearchReq.getCoordinatingNode();
-                // In CCS, the remote data node won't have a connection to the local coordinator
                 canConnectToCoordinator = transportService.nodeConnected(coordinatorNode);
             }
 
             if (logger.isTraceEnabled()) {
                 logger.info(
                     "CHUNKED_FETCH decision: enabled={}, versionSupported={}, hasCoordinator={}, "
-                        + "canConnectToCoordinator={}, channelVersion={}, request_from={}",
-                    fetchedPhaseChunkedEnabled,
+                        + "canConnectToCoordinator={}, channelVersion={}",
+                    fetchPhaseChunkedEnabled,
                     versionSupported,
                     hasCoordinator,
                     canConnectToCoordinator,
-                    channelVersion,
-                    hasCoordinator ? request.getCoordinatingNode() : "N/A"
+                    channelVersion
                 );
             }
 
             FetchPhaseResponseChunk.Writer chunkWriter = null;
 
-            // Only use chunked fetch if we can actually connect back to the coordinator
-            if (fetchedPhaseChunkedEnabled && versionSupported && canConnectToCoordinator) {
+            // Only use chunked fetch if all conditions are met
+            if (fetchPhaseChunkedEnabled && versionSupported && canConnectToCoordinator) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
 
+                /// Capture the current ThreadContext to preserve authentication headers
+                final Supplier<ThreadContext.StoredContext> contextSupplier =
+                    transportService.getThreadPool().getThreadContext().newRestorableContext(true);
+
                 chunkWriter = (responseChunk, listener) -> {
-                    try {
+                    // Restore the ThreadContext before sending the chunk
+                    try (ThreadContext.StoredContext ignored = contextSupplier.get()) {
                         transportService.sendChildRequest(
                             transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
                             TransportFetchPhaseResponseChunkAction.TYPE.name(),
@@ -641,7 +659,7 @@ public class SearchTransportService {
                             task,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                listener.map(ignored -> null),
+                                listener.map(ignored2 -> null),
                                 in -> ActionResponse.Empty.INSTANCE,
                                 EsExecutors.DIRECT_EXECUTOR_SERVICE
                             )
@@ -651,6 +669,7 @@ public class SearchTransportService {
                     }
                 };
             }
+
             searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, new ChannelActionListener<>(channel));
         };
 

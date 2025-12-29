@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -37,6 +38,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class TransportFetchPhaseCoordinationAction extends HandledTransportAction<
     TransportFetchPhaseCoordinationAction.Request,
@@ -86,16 +88,19 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
     public static class Request extends ActionRequest {
         private final ShardFetchSearchRequest shardFetchRequest;
         private final DiscoveryNode dataNode;
+        private final Map<String, String> headers;
 
-        public Request(ShardFetchSearchRequest shardFetchRequest, DiscoveryNode dataNode) {
+        public Request(ShardFetchSearchRequest shardFetchRequest, DiscoveryNode dataNode, Map<String, String> headers) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
+            this.headers = headers;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.shardFetchRequest = new ShardFetchSearchRequest(in);
             this.dataNode = new DiscoveryNode(in);
+            this.headers = in.readMap(StreamInput::readString);
         }
 
         @Override
@@ -103,6 +108,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             super.writeTo(out);
             shardFetchRequest.writeTo(out);
             dataNode.writeTo(out);
+            out.writeMap(headers, StreamOutput::writeString);
         }
 
         @Override
@@ -116,6 +122,10 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         public DiscoveryNode getDataNode() {
             return dataNode;
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
         }
     }
 
@@ -232,14 +242,24 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             }
         });
 
-        // Forward request to data node using the existing FETCH_ID_ACTION_NAME
-        transportService.sendChildRequest(
-            request.getDataNode(),
-            "indices:data/read/search[phase/fetch/id]",
-            fetchReq,
-            task,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(childListener, FetchSearchResult::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-        );
+        // Restore authentication headers before forwarding to data node
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            // Restore the headers from the original request
+            for (Map.Entry<String, String> header : request.getHeaders().entrySet()) {
+                threadContext.putHeader(header.getKey(), header.getValue());
+            }
+
+            // Forward request to data node with restored authentication context
+            transportService.sendChildRequest(
+                request.getDataNode(),
+                "indices:data/read/search[phase/fetch/id]",
+                fetchReq,
+                task,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(childListener, FetchSearchResult::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            );
+        }
     }
 }

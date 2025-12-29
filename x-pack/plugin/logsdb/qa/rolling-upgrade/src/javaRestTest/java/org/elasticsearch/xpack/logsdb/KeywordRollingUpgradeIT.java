@@ -116,7 +116,7 @@ public class KeywordRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCas
             requestBody.append("{\"create\": {}}");
             requestBody.append('\n');
             requestBody.append(
-                ITEM_TEMPLATE.replace("$now", LogsdbIndexingRollingUpgradeIT.formatInstant(startTime)).replace("$message", value)
+                ITEM_TEMPLATE.replace("$now", AbstractLogsdbRollingUpgradeTestCase.formatInstant(startTime)).replace("$message", value)
             );
             requestBody.append('\n');
 

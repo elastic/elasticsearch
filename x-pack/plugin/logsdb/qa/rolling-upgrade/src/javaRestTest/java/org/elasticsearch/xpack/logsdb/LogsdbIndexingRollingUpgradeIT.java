@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -238,10 +236,6 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         assertThat(maxRx, notNullValue());
         Double maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
         assertThat(maxTx, notNullValue());
-    }
-
-    static String formatInstant(Instant instant) {
-        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 
     static void maybeEnableLogsdbByDefault() throws IOException {

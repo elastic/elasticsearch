@@ -10,8 +10,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -214,10 +212,6 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         assertOK(response);
         var responseBody = entityAsMap(response);
         assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(expectedHitCount));
-    }
-
-    static String formatInstant(Instant instant) {
-        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 
     private static Map<String, Object> getDataStream(String dataStreamName) throws IOException {

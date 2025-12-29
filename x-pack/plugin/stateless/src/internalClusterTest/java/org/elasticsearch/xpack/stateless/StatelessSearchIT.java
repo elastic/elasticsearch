@@ -941,6 +941,7 @@ public class StatelessSearchIT extends AbstractServerlessStatelessPluginIntegTes
                     int docsToDelete = randomIntBetween(1, lastBulkIds.size());
                     var deletedDocIds = randomSubsetOf(docsToDelete, lastBulkIds);
                     deleteDocsById(indexName, deletedDocIds);
+                    refresh(indexName);
                     docsDeleted += deletedDocIds.size();
                 }
                 var docsToIndex = randomIntBetween(10, 100);

@@ -1185,7 +1185,7 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 ;
 
 derivative_of_gauge_metric_promql
-required_capability: promql_pre_tech_preview_v7
+required_capability: promql_pre_tech_preview_v10
 
 // tag::deriv[]
 PROMQL index=k8s step=5m max by (pod) (deriv(network.cost[5m]))

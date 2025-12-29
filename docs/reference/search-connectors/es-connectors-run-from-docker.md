@@ -57,13 +57,13 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.2.1 \
+docker.elastic.co/integrations/elastic-connectors:9.2.3 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
 
 ::::{tip}
-For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:9.3.0-SNAPSHOT`.
+For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:9.4.0-SNAPSHOT`.
 
 ::::
 

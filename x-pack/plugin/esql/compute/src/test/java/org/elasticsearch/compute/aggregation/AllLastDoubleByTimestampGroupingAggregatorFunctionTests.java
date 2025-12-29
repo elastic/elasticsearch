@@ -53,6 +53,6 @@ public class AllLastDoubleByTimestampGroupingAggregatorFunctionTests extends Gro
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         GroundTruthFirstLastAggregator work = new GroundTruthFirstLastAggregator(false);
         processPages(work, input, group);
-        work.checkMv(BlockUtils.toJavaObject(result, position));
+        work.check(BlockUtils.toJavaObject(result, position));
     }
 }

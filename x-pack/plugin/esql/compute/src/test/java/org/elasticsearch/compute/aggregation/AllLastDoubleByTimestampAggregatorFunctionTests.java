@@ -53,6 +53,6 @@ public class AllLastDoubleByTimestampAggregatorFunctionTests extends AggregatorF
     public void assertSimpleOutput(List<Page> input, Block result) {
         GroundTruthFirstLastAggregator work = new GroundTruthFirstLastAggregator(false);
         processPages(work, input);
-        work.checkMv(BlockUtils.toJavaObject(result, 0));
+        work.check(BlockUtils.toJavaObject(result, 0));
     }
 }

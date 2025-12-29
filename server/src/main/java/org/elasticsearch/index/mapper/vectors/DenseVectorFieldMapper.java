@@ -383,20 +383,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
         }
 
-        private DenseVectorIndexOptions defaultIndexOptions(boolean defaultInt8Hnsw, boolean defaultBBQHnsw) {
+        private DenseVectorIndexOptions defaultIndexOptions(boolean defaultInt8Hnsw, boolean defaultBBQ8Hnsw) {
             if (elementType.getValue() != ElementType.FLOAT || indexed.getValue() == false) {
                 return null;
             }
 
             boolean dimIsConfigured = dims != null && dims.isConfigured();
-            if (defaultBBQHnsw && dimIsConfigured == false) {
+            if (defaultBBQ8Hnsw && dimIsConfigured == false) {
                 // Delay selecting the default index options until dimensions are configured.
                 // This applies only to indices that are eligible to use BBQ as the default,
                 // since prior to this change, the default was selected eagerly.
                 return null;
             }
 
-            if (defaultBBQHnsw && dimIsConfigured && dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
+            if (defaultBBQ8Hnsw && dimIsConfigured && dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
                 return new BBQHnswIndexOptions(
                     Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                     Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
@@ -2603,8 +2603,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            // TODO we should add DENSE_VECTOR_BINARY?
-            return DocValueFormat.DENSE_VECTOR;
+            if (format == null || "array".equals(format)) {
+                return DocValueFormat.DENSE_VECTOR;
+            }
+            if ("base64".equals(format) || "binary".equals(format)) {
+                return DocValueFormat.BINARY;
+            }
+            throw new IllegalArgumentException(
+                "Field [" + name() + "] of type [" + typeName() + "] doesn't support format [" + format + "]."
+            );
         }
 
         @Override

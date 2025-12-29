@@ -250,8 +250,17 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValueFormat() {
         DenseVectorFieldType fft = createFloatFieldType();
         assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, fft.docValueFormat("base64", null));
+        assertEquals(DocValueFormat.BINARY, fft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat("bogus", null));
+
         DenseVectorFieldType bft = createByteFieldType();
         assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, bft.docValueFormat("base64", null));
+        assertEquals(DocValueFormat.BINARY, bft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat("bogus", null));
     }
 
     public void testFetchSourceValue() throws IOException {

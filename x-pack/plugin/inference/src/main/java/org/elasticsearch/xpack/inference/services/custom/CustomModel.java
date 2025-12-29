@@ -89,7 +89,6 @@ public class CustomModel extends Model {
         );
     }
 
-    // should only be used for testing
     CustomModel(
         String inferenceId,
         TaskType taskType,

@@ -16,6 +16,7 @@ import org.hamcrest.Matchers;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -68,9 +69,9 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractLogsdbRollingUpgrad
         }
 
         String dataStreamName = "logs-bwc-test";
-        Instant time;
-        time = Instant.now().minusSeconds(60 * 60);
-        bulkIndex(dataStreamName, 4, 1024, time);
+        createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
+        Instant time = Instant.now().minusSeconds(60 * 60);
+        bulkIndex(dataStreamName, 4, 1024, time, SyntheticSourceRollingUpgradeIT::docSupplier);
 
         String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
         var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
@@ -85,7 +86,7 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractLogsdbRollingUpgrad
         for (int i = 0; i < numNodes; i++) {
             upgradeNode(i);
             time = time.plusNanos(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, time);
+            bulkIndex(dataStreamName, 4, 1024, time, SyntheticSourceRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
 
@@ -100,42 +101,17 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractLogsdbRollingUpgrad
         query(dataStreamName);
     }
 
-    static String bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
-        String firstIndex = null;
-        for (int i = 0; i < numRequest; i++) {
-            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
-            StringBuilder requestBody = new StringBuilder();
-            for (int j = 0; j < numDocs; j++) {
-                String field1 = Integer.toString(randomFrom(VALUES));
-                var randomArray = randomArray(1, 3, Integer[]::new, () -> randomFrom(VALUES));
-                String field2 = Arrays.stream(randomArray).map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
-                int field3 = randomFrom(VALUES);
-                String field4 = Arrays.stream(randomArray).map(String::valueOf).collect(Collectors.joining(","));
-
-                requestBody.append("{\"create\": {}}");
-                requestBody.append('\n');
-                requestBody.append(
-                    BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                        .replace("$field1", field1)
-                        .replace("$field2", "[" + field2 + "]")
-                        .replace("$field3", Long.toString(field3))
-                        .replace("$field4", "[" + field4 + "]")
-                );
-                requestBody.append('\n');
-
-                startTime = startTime.plusMillis(1);
-            }
-            bulkRequest.setJsonEntity(requestBody.toString());
-            bulkRequest.addParameter("refresh", "true");
-            var response = client().performRequest(bulkRequest);
-            assertOK(response);
-            var responseBody = entityAsMap(response);
-            assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-            if (firstIndex == null) {
-                firstIndex = (String) ((Map<?, ?>) ((Map<?, ?>) ((List<?>) responseBody.get("items")).get(0)).get("create")).get("_index");
-            }
-        }
-        return firstIndex;
+    static String docSupplier(Instant time, int j) {
+        String field1 = Integer.toString(randomFrom(VALUES));
+        var randomArray = randomArray(1, 3, Integer[]::new, () -> randomFrom(VALUES));
+        String field2 = Arrays.stream(randomArray).map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
+        int field3 = randomFrom(VALUES);
+        String field4 = Arrays.stream(randomArray).map(String::valueOf).collect(Collectors.joining(","));
+        return BULK_ITEM_TEMPLATE.replace("$now", formatInstant(time))
+            .replace("$field1", field1)
+            .replace("$field2", "[" + field2 + "]")
+            .replace("$field3", Long.toString(field3))
+            .replace("$field4", "[" + field4 + "]");
     }
 
     void search(String dataStreamName) throws Exception {

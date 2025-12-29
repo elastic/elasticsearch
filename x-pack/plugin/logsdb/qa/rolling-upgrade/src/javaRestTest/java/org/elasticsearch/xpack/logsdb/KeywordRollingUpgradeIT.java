@@ -73,7 +73,7 @@ public class KeywordRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCas
         // given - enable logsdb, create a template + index
         LogsdbIndexingRollingUpgradeIT.maybeEnableLogsdbByDefault();
         String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-        LogsdbIndexingRollingUpgradeIT.createTemplate(DATA_STREAM_NAME, templateId, TEMPLATE);
+        AbstractLogsdbRollingUpgradeTestCase.createTemplate(DATA_STREAM_NAME, templateId, TEMPLATE);
 
         // when - index a document
         indexDocuments(FIELD_VALUES_1);

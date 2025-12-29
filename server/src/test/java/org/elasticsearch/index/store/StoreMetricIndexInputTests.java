@@ -20,7 +20,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class StoreMetricIndexInputTest extends ESTestCase {
+public class StoreMetricIndexInputTests extends ESTestCase {
 
     public void testReadByteUpdatesMetrics() throws Exception {
         MetricHolder<StoreMetrics> metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);

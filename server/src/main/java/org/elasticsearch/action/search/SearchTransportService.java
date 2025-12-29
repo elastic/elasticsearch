@@ -318,7 +318,7 @@ public class SearchTransportService {
         if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(task.getId());
-            
+
             client.execute(
                 TransportFetchPhaseCoordinationAction.TYPE,
                 new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),

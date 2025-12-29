@@ -15,6 +15,11 @@ import java.util.List;
 
 class GroupedTopNProcessor implements TopNProcessor {
     private final UngroupedTopNProcessor ungroupedTopNProcessor = new UngroupedTopNProcessor();
+    private final List<Integer> groupChannels;
+
+    GroupedTopNProcessor(List<Integer> groupChannels) {
+        this.groupChannels = groupChannels;
+    }
 
     @Override
     public RowFiller rowFiller(
@@ -23,7 +28,7 @@ class GroupedTopNProcessor implements TopNProcessor {
         List<TopNOperator.SortOrder> sortOrders,
         Page page
     ) {
-        return new GroupedRowFiller(elementTypes, encoders, sortOrders, page);
+        return new GroupedRowFiller(elementTypes, encoders, sortOrders, groupChannels, page);
     }
 
     @Override

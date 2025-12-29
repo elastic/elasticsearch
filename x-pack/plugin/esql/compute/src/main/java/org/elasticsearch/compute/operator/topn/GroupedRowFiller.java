@@ -14,24 +14,30 @@ import java.util.List;
 
 final class GroupedRowFiller implements RowFiller {
     private final UngroupedRowFiller ungroupedRowFiller;
-    private final KeyExtractor groupKeyExtractor;
+    private final KeyExtractor[] groupKeyExtractors;
 
-    GroupedRowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<TopNOperator.SortOrder> sortOrders, Page page) {
+    GroupedRowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<TopNOperator.SortOrder> sortOrders, List<Integer> groupChannels, Page page) {
         this.ungroupedRowFiller = new UngroupedRowFiller(elementTypes, encoders, sortOrders, page);
-        this.groupKeyExtractor = KeyExtractor.extractorFor(
-            elementTypes.get(0),
-            encoders.get(0).toSortable(),
-            true,
-            (byte) 0,
-            (byte) 1,
-            page.getBlock(0)
-        );
+        this.groupKeyExtractors = new KeyExtractor[groupChannels.size()];
+        for (int k = 0; k < groupKeyExtractors.length; k++) {
+            int channel = groupChannels.get(k);
+            groupKeyExtractors[k] = KeyExtractor.extractorFor(
+                elementTypes.get(channel),
+                encoders.get(channel).toSortable(),
+                true,
+                (byte) 0,
+                (byte) 1,
+                page.getBlock(channel)
+            );
+        }
     }
 
     @Override
     public void writeKey(int i, Row row) {
         ungroupedRowFiller.writeKey(i, row);
-        groupKeyExtractor.writeKey(((GroupedRow) row).groupKey(), i);
+        for (KeyExtractor extractor : groupKeyExtractors) {
+            extractor.writeKey(((GroupedRow) row).groupKey(), i);
+        }
     }
 
     @Override

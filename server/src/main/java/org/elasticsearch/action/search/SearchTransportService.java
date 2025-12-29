@@ -322,7 +322,7 @@ public class SearchTransportService {
             // Capture headers from current ThreadContext
             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
-            
+
             client.execute(
                 TransportFetchPhaseCoordinationAction.TYPE,
                 new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),

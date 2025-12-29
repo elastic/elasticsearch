@@ -507,9 +507,7 @@ public class HdfsFixture extends ExternalResource {
 
     private static ServerSocket portPlaceholder() {
         try {
-            final var socket = new ServerSocket(0);
-            socket.setReuseAddress(true);
-            return socket;
+            return new ServerSocket(0);
         } catch (Exception ex) {
             LOGGER.error("Failed to find available port", ex);
             throw new RuntimeException(ex);

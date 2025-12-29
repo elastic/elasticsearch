@@ -22,7 +22,7 @@ final class GroupedRowFiller implements RowFiller {
     @Override
     public void writeKey(int i, Row row) {
         ungroupedRowFiller.writeKey(i, row);
-        ((GroupedRow) row).writeGroupKey(i, row);
+        throw new AssertionError("TODO(gal) NOCOMMIT implement ME :E");
     }
 
     @Override

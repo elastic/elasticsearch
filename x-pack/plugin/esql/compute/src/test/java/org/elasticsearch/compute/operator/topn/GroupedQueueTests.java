@@ -14,6 +14,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -101,14 +104,24 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private Row createRow(CircuitBreaker breaker, TopNOperator.SortOrder sortOrder, int groupKey, int value) {
-        UngroupedRow ungroupedRow = new UngroupedRow(breaker, List.of(sortOrder), 0, 0);
-        ungroupedRow.keys().append(sortOrder.nonNul());
-        TopNEncoder.DEFAULT_SORTABLE.encodeInt(value, ungroupedRow.keys());
-        ungroupedRow.bytesOrder().endOffsets[0] = ungroupedRow.keys().length() - 1;
-
-        GroupedRow groupedRow = new GroupedRow(ungroupedRow, 0);
-        TopNEncoder.DEFAULT_SORTABLE.encodeInt(groupKey, groupedRow.groupKey());
-        return groupedRow;
+        try (
+            IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(value).build();
+            IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(value * 2).build()
+        ) {
+            Row row = new GroupedRow(
+                new UngroupedRow(breaker, List.of(sortOrder), 32, 64),
+                0
+            );
+            var filler = new GroupedRowFiller(
+                List.of(ElementType.INT, ElementType.INT),
+                List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
+                List.of(sortOrder),
+                new Page(keyBlock, valueBlock)
+            );
+            filler.writeKey(0, row);
+            filler.writeValues(0, row);
+            return row;
+        }
     }
 
     private static int extractIntValue(Row row) {

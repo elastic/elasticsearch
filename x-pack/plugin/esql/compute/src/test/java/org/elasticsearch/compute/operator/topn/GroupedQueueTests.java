@@ -105,18 +105,20 @@ public class GroupedQueueTests extends ESTestCase {
 
     private Row createRow(CircuitBreaker breaker, TopNOperator.SortOrder sortOrder, int groupKey, int value) {
         try (
+            IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(groupKey).build();
             IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(value).build();
             IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(value * 2).build()
         ) {
+            TopNOperator.SortOrder adjustedSortOrder = new TopNOperator.SortOrder(1, sortOrder.asc(), sortOrder.nullsFirst());
             Row row = new GroupedRow(
-                new UngroupedRow(breaker, List.of(sortOrder), 32, 64),
+                new UngroupedRow(breaker, List.of(adjustedSortOrder), 32, 64),
                 0
             );
             var filler = new GroupedRowFiller(
-                List.of(ElementType.INT, ElementType.INT),
-                List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
-                List.of(sortOrder),
-                new Page(keyBlock, valueBlock)
+                List.of(ElementType.INT, ElementType.INT, ElementType.INT),
+                List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
+                List.of(adjustedSortOrder),
+                new Page(groupKeyBlock, keyBlock, valueBlock)
             );
             filler.writeKey(0, row);
             filler.writeValues(0, row);

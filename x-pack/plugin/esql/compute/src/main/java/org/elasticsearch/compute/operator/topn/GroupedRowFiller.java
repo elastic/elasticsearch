@@ -14,15 +14,24 @@ import java.util.List;
 
 final class GroupedRowFiller implements RowFiller {
     private final UngroupedRowFiller ungroupedRowFiller;
+    private final KeyExtractor groupKeyExtractor;
 
     GroupedRowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<TopNOperator.SortOrder> sortOrders, Page page) {
         this.ungroupedRowFiller = new UngroupedRowFiller(elementTypes, encoders, sortOrders, page);
+        this.groupKeyExtractor = KeyExtractor.extractorFor(
+            elementTypes.get(0),
+            encoders.get(0).toSortable(),
+            true,
+            (byte) 0,
+            (byte) 1,
+            page.getBlock(0)
+        );
     }
 
     @Override
     public void writeKey(int i, Row row) {
         ungroupedRowFiller.writeKey(i, row);
-        throw new AssertionError("TODO(gal) NOCOMMIT implement ME :E");
+        groupKeyExtractor.writeKey(((GroupedRow) row).groupKey(), i);
     }
 
     @Override

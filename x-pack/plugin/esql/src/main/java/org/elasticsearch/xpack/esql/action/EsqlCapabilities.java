@@ -1822,6 +1822,16 @@ public class EsqlCapabilities {
          */
         ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
 
+        /**
+         * Fix for INLINE STATS GROUP BY null being incorrectly pruned by PruneLeftJoinOnNullMatchingField.
+         * For INLINE STATS, the right side of the join can be Aggregate or LocalRelation (when optimized).
+         * The join key is always the grouping, and since STATS supports GROUP BY null, pruning the join when
+         * the join key (grouping) is null would incorrectly change the query results. This fix ensures
+         * PruneLeftJoinOnNullMatchingField only applies to LOOKUP JOIN (where right side is EsRelation).
+         * https://github.com/elastic/elasticsearch/issues/139887
+         */
+        FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

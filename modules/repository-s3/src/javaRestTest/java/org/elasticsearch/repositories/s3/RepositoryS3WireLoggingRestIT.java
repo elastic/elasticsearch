@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.DynamicRegionSupplier;
-import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -52,7 +51,6 @@ public class RepositoryS3WireLoggingRestIT extends AbstractRepositoryS3RestTestC
         true,
         BUCKET,
         BASE_PATH,
-        S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     );
 

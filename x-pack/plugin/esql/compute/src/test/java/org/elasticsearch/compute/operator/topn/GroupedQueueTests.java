@@ -100,6 +100,26 @@ public class GroupedQueueTests extends ESTestCase {
             assertThat(queue.add(createRow(breaker, SORT_ORDER, 0, 30)), nullValue());
             assertThat(queue.add(createRow(breaker, SORT_ORDER, 1, 40)), nullValue());
             assertThat(queue.size(), equalTo(4));
+
+            try (Row evicted = queue.add(createRow(breaker, SORT_ORDER, 0, 5))) {
+                assertThat(evicted, notNullValue());
+                assertThat(extractIntValue(evicted), equalTo(30));
+            }
+            try (Row evicted = queue.add(createRow(breaker, SORT_ORDER, 1, 15))) {
+                assertThat(evicted, notNullValue());
+                assertThat(extractIntValue(evicted), equalTo(40));
+            }
+            assertThat(queue.size(), equalTo(4));
+
+            try (Row row = queue.add(createRow(breaker, SORT_ORDER, 0, 50))) {
+                assertThat(row, notNullValue());
+                assertThat(extractIntValue(row), equalTo(50));
+            }
+            try (Row row = queue.add(createRow(breaker, SORT_ORDER, 1, 50))) {
+                assertThat(row, notNullValue());
+                assertThat(extractIntValue(row), equalTo(50));
+            }
+            assertThat(queue.size(), equalTo(4));
         }
     }
 

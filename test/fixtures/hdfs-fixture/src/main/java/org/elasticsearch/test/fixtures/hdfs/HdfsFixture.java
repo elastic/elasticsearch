@@ -68,7 +68,7 @@ public class HdfsFixture extends ExternalResource {
     private Configuration cfg;
 
     private Configuration haConfiguration;
-    private int explicitPort = findAvailablePort();
+    private ServerSocket portPlaceholder = portPlaceholder();
 
     public HdfsFixture withHAService(String haNameService) {
         this.haNameService = haNameService;
@@ -285,7 +285,7 @@ public class HdfsFixture extends ExternalResource {
         UserGroupInformation.setConfiguration(cfg);
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
-        builder.nameNodePort(explicitPort);
+        builder.nameNodePort(portPlaceholder.getLocalPort());
         // Explicitly enable formatting and directory management for clean test environment
         builder.format(true);
         builder.manageNameDfsDirs(true);
@@ -296,6 +296,7 @@ public class HdfsFixture extends ExternalResource {
             MiniDFSNNTopology namenodeTopology = new MiniDFSNNTopology().addNameservice(nameservice);
             builder.nnTopology(namenodeTopology);
         }
+        portPlaceholder.close();
         dfs = builder.build();
         // dfs.waitClusterUp();
         // Configure contents of the filesystem
@@ -379,7 +380,7 @@ public class HdfsFixture extends ExternalResource {
     }
 
     public int getPort() {
-        return dfs == null ? explicitPort : dfs.getNameNodePort(0);
+        return dfs == null ? portPlaceholder.getLocalPort() : dfs.getNameNodePort(0);
     }
 
     // fix port handling to allow parallel hdfs fixture runs
@@ -504,13 +505,15 @@ public class HdfsFixture extends ExternalResource {
         refreshMethod.invoke(classRef);
     }
 
-    private static int findAvailablePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
+    private static ServerSocket portPlaceholder() {
+        try {
+            final var socket = new ServerSocket(0);
+            socket.setReuseAddress(true);
+            return socket;
         } catch (Exception ex) {
             LOGGER.error("Failed to find available port", ex);
+            throw new RuntimeException(ex);
         }
-        return -1;
     }
 
 }

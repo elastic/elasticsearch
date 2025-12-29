@@ -45,8 +45,8 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         Instant startTime = Instant.now().minusSeconds(60 * 60);
         bulkIndex(dataStreamName, 4, 1024, startTime);
 
-        String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
-        var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
+        String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+        var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
         assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("time_series"));
         assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 

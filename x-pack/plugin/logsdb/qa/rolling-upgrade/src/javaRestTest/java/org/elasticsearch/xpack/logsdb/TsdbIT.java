@@ -226,12 +226,4 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         assertOK(response);
         return entityAsMap(response);
     }
-
-    private static Map<?, ?> getIndex(String indexName) throws IOException {
-        var getIndexRequest = new Request("GET", "/" + indexName + "?human");
-        var response = client().performRequest(getIndexRequest);
-        assertOK(response);
-        return entityAsMap(response);
-    }
-
 }

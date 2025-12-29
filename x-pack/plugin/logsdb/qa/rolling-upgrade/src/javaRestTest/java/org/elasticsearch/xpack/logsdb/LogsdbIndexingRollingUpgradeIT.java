@@ -7,18 +7,13 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -79,8 +74,8 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             time = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4, 1024, time);
 
-            String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
-            var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
+            String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+            var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
             assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
@@ -245,30 +240,8 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         assertThat(maxTx, notNullValue());
     }
 
-    static Map<String, Object> getIndexSettingsWithDefaults(String index) throws IOException {
-        Request request = new Request("GET", "/" + index + "/_settings");
-        request.addParameter("flat_settings", "true");
-        request.addParameter("include_defaults", "true");
-        Response response = client().performRequest(request);
-        try (InputStream is = response.getEntity().getContent()) {
-            return XContentHelper.convertToMap(
-                XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
-                is,
-                true
-            );
-        }
-    }
-
     static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
-    }
-
-    static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
-        final Request request = new Request("GET", "_data_stream/" + dataStreamName);
-        final List<?> dataStreams = (List<?>) entityAsMap(client.performRequest(request)).get("data_streams");
-        final Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
-        final List<?> backingIndices = (List<?>) dataStream.get("indices");
-        return (String) ((Map<?, ?>) backingIndices.get(backingIndex)).get("index_name");
     }
 
     static void maybeEnableLogsdbByDefault() throws IOException {

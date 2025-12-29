@@ -78,9 +78,9 @@ public class KeywordRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCas
         // when - index a document
         indexDocuments(FIELD_VALUES_1);
 
-        // then - verify that logsdb and synthetic source are enabled before proceeding futher
-        String firstBackingIndex = LogsdbIndexingRollingUpgradeIT.getWriteBackingIndex(client(), DATA_STREAM_NAME, 0);
-        var settings = (Map<?, ?>) LogsdbIndexingRollingUpgradeIT.getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
+        // then - verify that logsdb and synthetic source are enabled before proceeding further
+        String firstBackingIndex = getDataStreamBackingIndexNames(DATA_STREAM_NAME).getFirst();
+        var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
         assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
         assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 

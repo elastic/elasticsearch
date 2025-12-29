@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -123,6 +124,31 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
+    public void testRamBytesUsedEmpty() {
+        try (TopNQueue queue = GroupedQueue.build(breaker, 5)) {
+            long actual = queue.ramBytesUsed();
+            assertThat(actual, equalTo(expectedRamBytesUsed(queue)));
+        }
+    }
+
+    public void testRamBytesUsedPartiallyFilled() {
+        try (TopNQueue queue = GroupedQueue.build(breaker, 5)) {
+            addRows(queue, SORT_ORDER, 0, 10, 20);
+            addRows(queue, SORT_ORDER, 1, 30);
+            long actual = queue.ramBytesUsed();
+            assertThat(actual, equalTo(expectedRamBytesUsed(queue)));
+        }
+    }
+
+    public void testRamBytesUsedAtCapacity() {
+        try (TopNQueue queue = GroupedQueue.build(breaker, 5)) {
+            addRows(queue, SORT_ORDER, 0, 10, 20, 30);
+            addRows(queue, SORT_ORDER, 1, 40, 50);
+            long actual = queue.ramBytesUsed();
+            assertThat(actual, equalTo(expectedRamBytesUsed(queue)));
+        }
+    }
+
     private Row createRow(CircuitBreaker breaker, TopNOperator.SortOrder sortOrder, int groupKey, int sortKey) {
         try (
             IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(groupKey).build();
@@ -166,4 +192,18 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(0, true, false);
+
+    private long expectedRamBytesUsed(TopNQueue queue) {
+        long expected = RamUsageTester.ramUsed(queue);
+        expected -= RamUsageTester.ramUsed(breaker);
+        if (queue.size() > 0) {
+            var size = queue.size();
+            Row rowSample = queue.pop();
+            expected -= size * (RamUsageTester.ramUsed(rowSample) - rowSample.ramBytesUsed());
+            expected += size * RamUsageTester.ramUsed(breaker);
+            expected += (size - 1) * (RamUsageTester.ramUsed(SORT_ORDER) + RamUsageTester.ramUsed("topn"));
+            queue.add(rowSample);
+        }
+        return expected;
+    }
 }

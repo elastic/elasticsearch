@@ -73,6 +73,11 @@ public abstract class AbstractPageMappingOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return prev != null;
+    }
+
+    @Override
     public final Page getOutput() {
         if (prev == null) {
             return null;

@@ -213,6 +213,150 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         }
     }
 
+    public void testCanProduceMoreDataWithoutExtraInput() throws Exception {
+        // Create a scenario with many queries and a small page size
+        // This ensures that canProduceMoreDataWithoutExtraInput() returns true
+        // when there are more queries to process
+        int numQueries = 100;
+        int maxPageSize = 9; // Small page size to ensure multiple pages
+
+        List<List<String>> directoryTermsList = IntStream.range(0, numQueries).mapToObj(i -> List.of("term-" + i)).toList();
+        List<List<String>> inputTermsList = IntStream.range(0, numQueries).mapToObj(i -> List.of("term-" + i)).toList();
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(
+                directoryData.field,
+                directoryData.searchExecutionContext,
+                AliasFilter.EMPTY,
+                inputTerms
+            );
+
+            EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                blockFactory,
+                maxPageSize,
+                queryList,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                warnings()
+            );
+
+            // Before getting any output, canProduceMoreDataWithoutExtraInput should return true
+            // (operator is not finished yet)
+            assertTrue(
+                "canProduceMoreDataWithoutExtraInput should return true before processing starts",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+
+            int pageCount = 0;
+            int totalPositions = 0;
+
+            // Process pages until finished
+            while (queryOperator.isFinished() == false) {
+                Page page = queryOperator.getOutput();
+                if (page != null) {
+                    pageCount++;
+                    int positions = page.getPositionCount();
+                    totalPositions += positions;
+
+                    // After getting a page but before finishing, canProduceMoreDataWithoutExtraInput
+                    // should return true if there are more queries to process
+                    if (queryOperator.isFinished() == false) {
+                        assertTrue(
+                            "canProduceMoreDataWithoutExtraInput should return true when there are more queries to process",
+                            queryOperator.canProduceMoreDataWithoutExtraInput()
+                        );
+                    }
+
+                    page.releaseBlocks();
+                }
+            }
+
+            // Verify we got multiple pages (due to small maxPageSize)
+            assertThat("Should produce multiple pages", pageCount, lessThanOrEqualTo((numQueries / maxPageSize) + 1));
+            assertThat("Total positions should match number of queries", totalPositions, equalTo(numQueries));
+
+            // After finishing, canProduceMoreDataWithoutExtraInput should return false
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+            assertTrue("Operator should be finished", queryOperator.isFinished());
+        }
+    }
+
+    public void testCanProduceMoreDataWithoutExtraInput_WithManyMatches() throws Exception {
+        // Create a scenario where a single query matches many documents
+        // This tests the case where canProduceMoreDataWithoutExtraInput returns true
+        // even when processing a single query with many matches
+
+        // Create directory with many documents matching the same term
+        int numMatchingDocs = 50;
+        List<List<String>> directoryTermsList = IntStream.range(0, numMatchingDocs).mapToObj(i -> List.of("common-term")).toList();
+
+        // Single query that matches all documents
+        List<List<String>> inputTermsList = List.of(List.of("common-term"));
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(
+                directoryData.field,
+                directoryData.searchExecutionContext,
+                AliasFilter.EMPTY,
+                inputTerms
+            );
+
+            int maxPageSize = 10; // Small page size to ensure multiple pages from single query
+            EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                blockFactory,
+                maxPageSize,
+                queryList,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                warnings()
+            );
+
+            // Before getting any output
+            assertTrue(
+                "canProduceMoreDataWithoutExtraInput should return true before processing starts",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+
+            int pageCount = 0;
+            int totalPositions = 0;
+
+            // Process pages until finished
+            while (queryOperator.isFinished() == false) {
+                Page page = queryOperator.getOutput();
+                if (page != null) {
+                    pageCount++;
+                    int positions = page.getPositionCount();
+                    totalPositions += positions;
+
+                    // After getting a page but before finishing, canProduceMoreDataWithoutExtraInput
+                    // should return true if there are more matches to process
+                    if (queryOperator.isFinished() == false) {
+                        assertTrue(
+                            "canProduceMoreDataWithoutExtraInput should return true when there are more matches to process",
+                            queryOperator.canProduceMoreDataWithoutExtraInput()
+                        );
+                    }
+
+                    page.releaseBlocks();
+                }
+            }
+
+            // Verify we got multiple pages (due to small maxPageSize and many matches)
+            assertThat("Should produce multiple pages", pageCount, lessThanOrEqualTo((numMatchingDocs / maxPageSize) + 1));
+            assertThat("Total positions should match number of matching documents", totalPositions, equalTo(numMatchingDocs));
+
+            // After finishing, canProduceMoreDataWithoutExtraInput should return false
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+            assertTrue("Operator should be finished", queryOperator.isFinished());
+        }
+    }
+
     public void testQueries_OnlySingleValues() throws Exception {
         try (
             var directoryData = makeDirectoryWith(

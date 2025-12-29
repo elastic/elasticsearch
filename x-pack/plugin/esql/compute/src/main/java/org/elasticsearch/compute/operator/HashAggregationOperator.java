@@ -276,6 +276,11 @@ public class HashAggregationOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return output != null;
+    }
+
+    @Override
     public void close() {
         if (output != null) {
             output.releaseBlocks();

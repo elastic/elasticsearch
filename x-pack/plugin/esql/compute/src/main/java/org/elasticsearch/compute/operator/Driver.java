@@ -81,7 +81,7 @@ public class Driver implements Releasable, Describable {
     private final long startNanos;
     private final DriverContext driverContext;
     private final Supplier<String> description;
-    private List<Operator> activeOperators;
+    protected List<Operator> activeOperators;
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
@@ -312,6 +312,7 @@ public class Driver implements Releasable, Describable {
         closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
 
         if (movedPage == false) {
+            onNoPagesMoved();
             return oneOf(
                 activeOperators.stream()
                     .map(Operator::isBlocked)
@@ -320,6 +321,14 @@ public class Driver implements Releasable, Describable {
             );
         }
         return Operator.NOT_BLOCKED;
+    }
+
+    /**
+     * Called when no pages were moved in a loop iteration.
+     * Subclasses can override this to detect when the driver is idle/empty.
+     */
+    protected void onNoPagesMoved() {
+        // Default implementation does nothing
     }
 
     // Returns the index of the last operator that was closed, -1 if no operator was closed.

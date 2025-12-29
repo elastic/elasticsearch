@@ -88,19 +88,16 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
     public static class Request extends ActionRequest {
         private final ShardFetchSearchRequest shardFetchRequest;
         private final DiscoveryNode dataNode;
-        private final Map<String, String> headers;
 
-        public Request(ShardFetchSearchRequest shardFetchRequest, DiscoveryNode dataNode, Map<String, String> headers) {
+        public Request(ShardFetchSearchRequest shardFetchRequest, DiscoveryNode dataNode) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
-            this.headers = headers;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.shardFetchRequest = new ShardFetchSearchRequest(in);
             this.dataNode = new DiscoveryNode(in);
-            this.headers = in.readMap(StreamInput::readString);
         }
 
         @Override
@@ -108,7 +105,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             super.writeTo(out);
             shardFetchRequest.writeTo(out);
             dataNode.writeTo(out);
-            out.writeMap(headers, StreamOutput::writeString);
         }
 
         @Override
@@ -122,10 +118,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         public DiscoveryNode getDataNode() {
             return dataNode;
-        }
-
-        public Map<String, String> getHeaders() {
-            return headers;
         }
     }
 
@@ -241,12 +233,6 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 responseStream.decRef();
             }
         });
-
-        // Restore headers from the request into ThreadContext before forwarding to data node
-        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        for (Map.Entry<String, String> header : request.getHeaders().entrySet()) {
-            threadContext.putHeader(header.getKey(), header.getValue());
-        }
 
         // Forward request to data node with restored authentication context
         transportService.sendChildRequest(

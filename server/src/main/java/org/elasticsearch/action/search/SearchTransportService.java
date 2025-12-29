@@ -318,14 +318,10 @@ public class SearchTransportService {
         if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(task.getId());
-
-            // Capture headers from current ThreadContext
-            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-            Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
             
             client.execute(
                 TransportFetchPhaseCoordinationAction.TYPE,
-                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),
                 ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
             );
         } else {

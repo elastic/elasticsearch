@@ -42,7 +42,7 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<Object[]> parameters = new ArrayList<>();
+        List<TestCaseSupplier> allSuppliers = new ArrayList<>();
         for (ToIp.LeadingZeros leadingZeros : new ToIp.LeadingZeros[] { null, REJECT, OCTAL, DECIMAL }) {
             List<TestCaseSupplier> suppliers = new ArrayList<>();
             // convert from IP to IP
@@ -69,6 +69,7 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
                 bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
                 emptyList()
             );
+
             // Inject the options param
             if (leadingZeros != null) {
                 suppliers = TestCaseSupplier.mapTestCases(
@@ -76,20 +77,32 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
                     tc -> tc.withData(List.of(tc.getData().getFirst(), options(leadingZeros))),
                     supplier -> List.of(supplier.types().getFirst(), DataType.UNSUPPORTED)
                 );
-            } else {
-                // Only add nulls support for single-parameter cases
-                suppliers = anyNullIsNull(true, randomizeBytesRefsOffset(suppliers));
             }
-            for (TestCaseSupplier supplier : suppliers) {
-                parameters.add(new Object[] { supplier });
-            }
+
+            // Add nulls cases, only for the first parameter
+            suppliers.add(
+                new TestCaseSupplier(
+                    leadingZeros != null ? List.of(DataType.NULL, DataType.UNSUPPORTED) : List.of(DataType.NULL),
+                    () -> new TestCaseSupplier.TestCase(
+                        leadingZeros != null
+                            ? List.of(TestCaseSupplier.TypedData.NULL, options(leadingZeros))
+                            : List.of(TestCaseSupplier.TypedData.NULL),
+                        "LiteralsEvaluator[lit=null]",
+                        DataType.IP,
+                        nullValue()
+                    )
+                )
+            );
+
+            allSuppliers.addAll(suppliers);
         }
 
-        parameters.add(new Object[] { exampleRejectingLeadingZeros(stringEvaluator(null), true) });
-        parameters.add(new Object[] { exampleRejectingLeadingZeros(stringEvaluator(REJECT), false) });
-        parameters.add(new Object[] { exampleParsingLeadingZerosAsDecimal(stringEvaluator(DECIMAL)) });
-        parameters.add(new Object[] { exampleParsingLeadingZerosAsOctal(stringEvaluator(OCTAL)) });
-        return parameters;
+        allSuppliers.add(exampleRejectingLeadingZeros(stringEvaluator(null), true));
+        allSuppliers.add(exampleRejectingLeadingZeros(stringEvaluator(REJECT), false));
+        allSuppliers.add(exampleParsingLeadingZerosAsDecimal(stringEvaluator(DECIMAL)));
+        allSuppliers.add(exampleParsingLeadingZerosAsOctal(stringEvaluator(OCTAL)));
+
+        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(allSuppliers));
     }
 
     private static TestCaseSupplier exampleRejectingLeadingZeros(String stringEvaluator, boolean useDefault) {

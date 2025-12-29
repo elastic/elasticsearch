@@ -86,6 +86,7 @@ public class ThrottledIterator<T> implements Releasable {
                 logger.error(Strings.format("exception when processing [%s] with [%s]", item, itemConsumer), e);
                 assert false : e;
             }
+            assert permits.get() > 0; // i.e. only one thread is in this loop at once
         } while (permits.decrementAndGet() > 0);
     }
 

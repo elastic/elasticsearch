@@ -61,7 +61,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.action.ActionLogger;
-import org.elasticsearch.common.logging.action.LoggerActionWriter;
+import org.elasticsearch.common.logging.action.Log4jActionWriter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -243,7 +243,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             "search",
             clusterService.getClusterSettings(),
             new SearchLogProducer(),
-            new LoggerActionWriter(SEARCH_ACTIONLOG_NAME),
+            new Log4jActionWriter(SEARCH_ACTIONLOG_NAME),
             fieldProvider
         );
     }

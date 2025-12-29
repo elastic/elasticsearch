@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.action.ActionLogger;
-import org.elasticsearch.common.logging.action.LoggerActionWriter;
+import org.elasticsearch.common.logging.action.Log4jActionWriter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
@@ -198,7 +198,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             EsqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EsqlLogProducer(),
-            new LoggerActionWriter(EsqlLogProducer.LOGGER_NAME),
+            new Log4jActionWriter(EsqlLogProducer.LOGGER_NAME),
             fieldProvider
         );
 

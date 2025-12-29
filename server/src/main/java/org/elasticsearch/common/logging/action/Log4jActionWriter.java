@@ -17,15 +17,15 @@ import org.elasticsearch.common.logging.ESLogMessage;
 /**
  * Writer that just uses one of the standard log4j loggers.
  */
-public class LoggerActionWriter implements ActionLogWriter {
+public class Log4jActionWriter implements ActionLogWriter {
 
     private final Logger logger;
 
-    public LoggerActionWriter(Logger logger) {
+    public Log4jActionWriter(Logger logger) {
         this.logger = logger;
     }
 
-    public LoggerActionWriter(String loggerName) {
+    public Log4jActionWriter(String loggerName) {
         this(LogManager.getLogger(loggerName));
     }
 

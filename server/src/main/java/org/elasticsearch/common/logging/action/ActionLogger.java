@@ -21,6 +21,11 @@ import org.elasticsearch.index.SlowLogFields;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
+/**
+ * Generic wrapper to log completion (whether successful or not) of any action, with necessary details.
+ * Specific details are added in the specific context types for each action.
+ * @param <Context> Logging context type
+ */
 public class ActionLogger<Context extends ActionLoggerContext> {
     private final ActionLoggerProducer<Context> producer;
     private final ActionLogWriter writer;

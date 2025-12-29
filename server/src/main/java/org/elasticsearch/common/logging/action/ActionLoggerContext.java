@@ -17,6 +17,10 @@ import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
+/**
+ * Context for {@link ActionLogger}.
+ * This class contains the information needed to log the query and is extended by specific logging contexts for each action.
+ */
 public abstract class ActionLoggerContext {
     private final long tookInNanos;
     private final boolean success;

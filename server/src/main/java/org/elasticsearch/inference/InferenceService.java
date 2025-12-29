@@ -67,6 +67,7 @@ public interface InferenceService extends Closeable {
 
     /**
      * Create a new model from {@link ModelConfigurations} and {@link ModelSecrets} objects with the given inference ID and task type.
+     * This method is used for creating updated model instances.
      * @param inferenceEntityId The inference entity ID
      * @param taskType The model task type
      * @param config The model configurations

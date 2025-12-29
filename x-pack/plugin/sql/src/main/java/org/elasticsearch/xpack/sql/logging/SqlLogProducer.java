@@ -19,7 +19,7 @@ public class SqlLogProducer implements ActionLoggerProducer<SqlLogContext> {
     @Override
     public ESLogMessage produce(SqlLogContext context, SlowLogFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        return msg.with("query", context.getQuery());
+        return msg.with("query", context.getQuery()).with("rows", context.getRows());
     }
 
     @Override

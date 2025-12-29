@@ -9,21 +9,39 @@
 
 package org.elasticsearch.common.logging.action;
 
+import org.elasticsearch.tasks.Task;
+
 /**
  * Builder class for a logger context.
  * The builder is created at the beginning of a logging operation and will produce a context when the operation is completed,
  * which is usually the completion of the listener.
  * @param <Context> Context type to build.
- * @param <R> Response type for the listener.
+ * @param <Request> Request class.
+ * @param <Response> Response type for the listener.
  */
-public interface ActionLoggerContextBuilder<Context extends ActionLoggerContext, R> {
+public abstract class ActionLoggerContextBuilder<Context extends ActionLoggerContext, Request, Response> {
+
+    private final long start;
+    protected final Request request;
+    protected final Task task;
+
+    protected ActionLoggerContextBuilder(Task task, Request request) {
+        start = System.nanoTime();
+        this.task = task;
+        this.request = request;
+    }
+
+    protected long elapsed() {
+        return System.nanoTime() - start;
+    }
+
     /**
      * Build context for successful completion
      */
-    Context build(R response);
+    public abstract Context build(Response response);
 
     /**
      * Build context for failure completion
      */
-    Context build(Exception e);
+    public abstract Context build(Exception e);
 }

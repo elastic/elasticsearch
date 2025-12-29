@@ -27,8 +27,8 @@ public class EqlLogContext extends ActionLoggerContext {
         this.response = response;
     }
 
-    EqlLogContext(Task task, EqlSearchRequest request, Exception error) {
-        super(task, TYPE, error);
+    EqlLogContext(Task task, EqlSearchRequest request, long tookInNanos, Exception error) {
+        super(task, TYPE, tookInNanos, error);
         this.request = request;
         this.response = null;
     }

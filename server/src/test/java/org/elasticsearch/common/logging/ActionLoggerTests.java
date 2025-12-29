@@ -125,7 +125,7 @@ public class ActionLoggerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testWrapDisabled() {
         ActionListener<String> listener = ActionListener.noop();
-        ActionLoggerContextBuilder<TestContext, String> builder = mock(ActionLoggerContextBuilder.class);
+        ActionLoggerContextBuilder<TestContext, String, String> builder = mock(ActionLoggerContextBuilder.class);
 
         ActionListener<String> wrapped = actionLogger.wrap(listener, builder);
 
@@ -157,7 +157,7 @@ public class ActionLoggerTests extends ESTestCase {
         }
 
         TestContext(Exception error) {
-            super(mock(Task.class), "test", error);
+            super(mock(Task.class), "test", 0, error);
         }
     }
 }

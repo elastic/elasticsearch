@@ -10,22 +10,30 @@ package org.elasticsearch.xpack.sql.logging;
 import org.elasticsearch.common.logging.action.ActionLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
 public class SqlLogContext extends ActionLoggerContext {
     public static final String TYPE = "sql";
     private final SqlQueryRequest request;
+    private final SqlQueryResponse response;
 
-    SqlLogContext(Task task, SqlQueryRequest request, long tookInNanos) {
+    SqlLogContext(Task task, SqlQueryRequest request, long tookInNanos, SqlQueryResponse response) {
         super(task, TYPE, tookInNanos);
         this.request = request;
+        this.response = response;
     }
 
-    SqlLogContext(Task task, SqlQueryRequest request, Exception error) {
-        super(task, TYPE, error);
+    SqlLogContext(Task task, SqlQueryRequest request, long tookInNanos, Exception error) {
+        super(task, TYPE, tookInNanos, error);
         this.request = request;
+        this.response = null;
     }
 
     String getQuery() {
         return request.query();
+    }
+
+    long getRows() {
+        return response == null ? 0 : response.size();
     }
 }

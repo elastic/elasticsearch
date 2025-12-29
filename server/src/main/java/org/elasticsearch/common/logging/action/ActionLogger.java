@@ -77,7 +77,7 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         writer.write(level, event);
     }
 
-    public <R> ActionListener<R> wrap(ActionListener<R> listener, final ActionLoggerContextBuilder<Context, R> contextBuilder) {
+    public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActionLoggerContextBuilder<Context, Req, R> contextBuilder) {
         if (enabled == false) {
             return listener;
         }

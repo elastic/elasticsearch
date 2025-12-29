@@ -24,8 +24,8 @@ public class EsqlLogContext extends ActionLoggerContext {
         this.response = response;
     }
 
-    EsqlLogContext(Task task, EsqlQueryRequest request, Exception error) {
-        super(task, TYPE, error);
+    EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos, Exception error) {
+        super(task, TYPE, tookInNanos, error);
         this.request = request;
         this.response = null;
     }

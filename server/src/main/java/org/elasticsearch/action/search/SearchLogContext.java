@@ -26,8 +26,8 @@ public class SearchLogContext extends ActionLoggerContext {
         this.response = response;
     }
 
-    SearchLogContext(Task task, SearchRequest request, Exception error) {
-        super(task, TYPE, error);
+    SearchLogContext(Task task, SearchRequest request, long tookInNanos, Exception error) {
+        super(task, TYPE, tookInNanos, error);
         this.request = request;
         this.response = null;
     }

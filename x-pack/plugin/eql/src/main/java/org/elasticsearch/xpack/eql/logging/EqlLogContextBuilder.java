@@ -12,16 +12,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
-public class EqlLogContextBuilder implements ActionLoggerContextBuilder<EqlLogContext, EqlSearchResponse> {
-
-    private final EqlSearchRequest request;
-    private final Task task;
-    private final long started;
+public class EqlLogContextBuilder extends ActionLoggerContextBuilder<EqlLogContext, EqlSearchRequest, EqlSearchResponse> {
 
     public EqlLogContextBuilder(Task task, EqlSearchRequest request) {
-        this.request = request;
-        this.task = task;
-        this.started = System.nanoTime();
+        super(task, request);
     }
 
     @Override
@@ -31,6 +25,6 @@ public class EqlLogContextBuilder implements ActionLoggerContextBuilder<EqlLogCo
 
     @Override
     public EqlLogContext build(Exception e) {
-        return new EqlLogContext(task, request, e);
+        return new EqlLogContext(task, request, elapsed(), e);
     }
 }

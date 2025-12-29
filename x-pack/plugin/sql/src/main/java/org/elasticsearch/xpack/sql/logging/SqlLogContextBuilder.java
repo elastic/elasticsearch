@@ -12,25 +12,19 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 
-public class SqlLogContextBuilder implements ActionLoggerContextBuilder<SqlLogContext, SqlQueryResponse> {
-
-    private final SqlQueryRequest request;
-    private final Task task;
-    private final long started;
+public class SqlLogContextBuilder extends ActionLoggerContextBuilder<SqlLogContext, SqlQueryRequest, SqlQueryResponse> {
 
     public SqlLogContextBuilder(Task task, SqlQueryRequest request) {
-        this.request = request;
-        this.task = task;
-        this.started = System.nanoTime();
+        super(task, request);
     }
 
     @Override
     public SqlLogContext build(SqlQueryResponse response) {
-        return new SqlLogContext(task, request, System.nanoTime() - started);
+        return new SqlLogContext(task, request, elapsed(), response);
     }
 
     @Override
     public SqlLogContext build(Exception e) {
-        return new SqlLogContext(task, request, e);
+        return new SqlLogContext(task, request, elapsed(), e);
     }
 }

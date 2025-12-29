@@ -20,6 +20,7 @@ import java.util.Collections;
 /**
  * Context for {@link ActionLogger}.
  * This class contains the information needed to log the query and is extended by specific logging contexts for each action.
+ * {@link ActionLoggerProducer} uses the context data to compose fields for the log message.
  */
 public abstract class ActionLoggerContext {
     private final long tookInNanos;
@@ -35,20 +36,16 @@ public abstract class ActionLoggerContext {
         return new String(sourceEscaped, StandardCharsets.UTF_8);
     }
 
-    public ActionLoggerContext(Task task, String type, Exception error) {
+    public ActionLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
         this.type = type;
         this.success = false;
         this.error = error;
-        this.tookInNanos = 0;
+        this.tookInNanos = tookInNanos;
         this.task = task;
     }
 
     public ActionLoggerContext(Task task, String type, long tookInNanos) {
-        this.type = type;
-        this.success = true;
-        this.tookInNanos = tookInNanos;
-        this.error = null;
-        this.task = task;
+        this(task, type, tookInNanos, null);
     }
 
     public long getTookInNanos() {

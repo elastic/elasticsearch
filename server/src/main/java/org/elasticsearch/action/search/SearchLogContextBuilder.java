@@ -12,14 +12,10 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.common.logging.action.ActionLoggerContextBuilder;
 import org.elasticsearch.tasks.Task;
 
-public class SearchLogContextBuilder implements ActionLoggerContextBuilder<SearchLogContext, SearchResponse> {
-
-    private final SearchRequest request;
-    private final Task task;
+public class SearchLogContextBuilder extends ActionLoggerContextBuilder<SearchLogContext, SearchRequest, SearchResponse> {
 
     public SearchLogContextBuilder(Task task, SearchRequest request) {
-        this.request = request;
-        this.task = task;
+        super(task, request);
     }
 
     @Override
@@ -29,6 +25,6 @@ public class SearchLogContextBuilder implements ActionLoggerContextBuilder<Searc
 
     @Override
     public SearchLogContext build(Exception e) {
-        return new SearchLogContext(task, request, e);
+        return new SearchLogContext(task, request, elapsed(), e);
     }
 }

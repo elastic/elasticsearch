@@ -325,9 +325,9 @@ public class SearchTransportService {
 
             // Copy security-related headers
             for (String header : threadContext.getHeaders().keySet()) {
-                if (header.startsWith("Authorization") ||
-                    header.startsWith("es-security") ||
-                    header.equals("_xpack_security_authentication")) {
+                if (header.startsWith("Authorization")
+                    || header.startsWith("es-security")
+                    || header.equals("_xpack_security_authentication")) {
                     headers.put(header, threadContext.getHeader(header));
                 }
             }
@@ -646,8 +646,9 @@ public class SearchTransportService {
                 logger.info("Using CHUNKED fetch path");
 
                 /// Capture the current ThreadContext to preserve authentication headers
-                final Supplier<ThreadContext.StoredContext> contextSupplier =
-                    transportService.getThreadPool().getThreadContext().newRestorableContext(true);
+                final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
+                    .getThreadContext()
+                    .newRestorableContext(true);
 
                 chunkWriter = (responseChunk, listener) -> {
                     // Restore the ThreadContext before sending the chunk

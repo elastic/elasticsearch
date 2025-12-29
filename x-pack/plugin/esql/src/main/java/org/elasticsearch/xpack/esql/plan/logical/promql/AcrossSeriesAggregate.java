@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class AcrossSeriesAggregate extends PromqlFunctionCall {
+public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     public enum Grouping {
         BY,

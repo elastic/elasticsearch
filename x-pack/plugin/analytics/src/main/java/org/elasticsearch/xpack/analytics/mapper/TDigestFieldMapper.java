@@ -22,7 +22,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -74,13 +73,10 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Field Mapper for pre-aggregated histograms.
  */
 public class TDigestFieldMapper extends FieldMapper {
-    public static final FeatureFlag TDIGEST_FIELD_MAPPER = new FeatureFlag("tdigest_field_mapper");
 
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
-    public static final String SUM_FIELD_NAME = "sum";
-    public static final String MIN_FIELD_NAME = "min";
-    public static final String MAX_FIELD_NAME = "max";
+
     public static final String CONTENT_TYPE = "tdigest";
 
     private static TDigestFieldMapper toType(FieldMapper in) {
@@ -568,22 +564,19 @@ public class TDigestFieldMapper extends FieldMapper {
             return docId -> {
                 if (docValues.advanceExact(docId)) {
                     // we assume the summary sub-
-                    if (minValues != null) {
-                        minValues.advanceExact(docId);
+                    if (minValues != null && minValues.advanceExact(docId)) {
                         min = NumericUtils.sortableLongToDouble(minValues.longValue());
                     } else {
                         min = Double.NaN;
                     }
 
-                    if (maxValues != null) {
-                        maxValues.advanceExact(docId);
+                    if (maxValues != null && maxValues.advanceExact(docId)) {
                         max = NumericUtils.sortableLongToDouble(maxValues.longValue());
                     } else {
                         max = Double.NaN;
                     }
 
-                    if (sumValues != null) {
-                        sumValues.advanceExact(docId);
+                    if (sumValues != null && sumValues.advanceExact(docId)) {
                         sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
                     } else {
                         sum = Double.NaN;

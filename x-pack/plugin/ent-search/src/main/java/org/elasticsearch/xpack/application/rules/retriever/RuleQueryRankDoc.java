@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.rules.retriever;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -111,6 +110,6 @@ public class RuleQueryRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_17_0;
+        return TransportVersion.minimumCompatible();
     }
 }

@@ -45,7 +45,6 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
 
     public ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType elementType) {
         super(NAME);
-        assert elementType != DenseVectorFieldMapper.ElementType.BIT : "ES815BitFlatVectorFormat should be used for bits";
         format = new ES93GenericFlatVectorsFormat(elementType, false);
     }
 

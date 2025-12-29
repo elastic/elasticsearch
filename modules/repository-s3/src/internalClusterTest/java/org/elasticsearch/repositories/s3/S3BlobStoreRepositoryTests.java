@@ -36,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -73,7 +72,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -646,13 +644,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         public TestS3RepositoryPlugin(final Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
-            settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
-            return settings;
         }
 
         @Override

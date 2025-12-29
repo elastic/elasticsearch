@@ -2,9 +2,9 @@
 
 **Supported types**
 
-| field | result |
-| --- | --- |
-| counter_double | double |
-| counter_integer | double |
-| counter_long | double |
+| field | window | result |
+| --- | --- | --- |
+| counter_double | | double |
+| counter_integer | | double |
+| counter_long | | double |
 

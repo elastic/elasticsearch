@@ -30,6 +30,8 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -171,7 +173,19 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  * On success, details of how long everything took are returned. On failure, cancels the remote read tasks to try and avoid consuming
  * unnecessary resources.
  */
-class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
+public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
+
+    /**
+     * Turns off copy-during-write as a test: minio implements this with a long wait
+     * and a client timeout. See: #135565
+     */
+    public static final Setting<Boolean> ENABLE_COPY_DURING_WRITE_CONTENTION = Setting.boolSetting(
+        "repositories.blobstore.testkit.analyze.copy_during_write_contention",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+    private final boolean enableEarlyCopy;
 
     private static final Logger logger = LogManager.getLogger(BlobAnalyzeAction.class);
 
@@ -180,10 +194,16 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
     private final RepositoriesService repositoriesService;
     private final TransportService transportService;
 
-    BlobAnalyzeAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
+    BlobAnalyzeAction(
+        TransportService transportService,
+        Settings settings,
+        ActionFilters actionFilters,
+        RepositoriesService repositoriesService
+    ) {
         super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT));
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
+        this.enableEarlyCopy = ENABLE_COPY_DURING_WRITE_CONTENTION.get(settings);
     }
 
     @Override
@@ -202,7 +222,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         logger.trace("handling [{}]", request);
 
         assert task instanceof CancellableTask;
-        new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener).run();
+        new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener, enableEarlyCopy)
+            .run();
     }
 
     /**
@@ -241,7 +262,8 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
             Request request,
             BlobStoreRepository repository,
             BlobContainer blobContainer,
-            ActionListener<Response> listener
+            ActionListener<Response> listener,
+            boolean enableEarlyCopy
         ) {
             this.transportService = transportService;
             this.task = task;
@@ -259,7 +281,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                 checksumStart = randomLongBetween(0L, request.targetLength);
                 checksumEnd = randomLongBetween(checksumStart + 1, request.targetLength + 1);
             }
-            doEarlyCopy = random.nextBoolean();
+            doEarlyCopy = enableEarlyCopy && random.nextBoolean();
 
             final ArrayList<DiscoveryNode> nodes = new ArrayList<>(request.nodes); // copy for shuffling purposes
             if (request.readEarly) {

@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,7 +32,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -332,24 +330,14 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.visitPercentage = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.queryVector = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.queryVector = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.queryVector = in.readOptionalWriteable(VectorData::new);
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.queryName = in.readOptionalString();
-        } else {
-            this.queryName = null;
-        }
+        this.queryName = in.readOptionalString();
         this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         this.querySupplier = null;
         this.similarity = in.readOptionalFloat();
-        if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
-            this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
-        }
+        this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
     }
 
@@ -591,21 +579,13 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(queryVector);
-        } else {
-            out.writeFloatArray(queryVector.asFloatVector());
-        }
+        out.writeOptionalWriteable(queryVector);
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalString(queryName);
-        }
+        out.writeOptionalString(queryName);
         out.writeOptionalNamedWriteable(queryVectorBuilder);
         out.writeOptionalFloat(similarity);
-        if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-            out.writeOptionalWriteable(innerHitBuilder);
-        }
+        out.writeOptionalWriteable(innerHitBuilder);
         out.writeOptionalWriteable(rescoreVectorBuilder);
     }
 

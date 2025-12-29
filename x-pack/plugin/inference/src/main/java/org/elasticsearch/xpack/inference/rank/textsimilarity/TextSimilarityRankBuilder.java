@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -104,7 +103,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

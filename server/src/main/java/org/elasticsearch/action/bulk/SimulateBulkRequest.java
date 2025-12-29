@@ -10,7 +10,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -144,18 +143,9 @@ public class SimulateBulkRequest extends BulkRequest {
     public SimulateBulkRequest(StreamInput in) throws IOException {
         super(in);
         this.pipelineSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.componentTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-            this.indexTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
-        } else {
-            componentTemplateSubstitutions = Map.of();
-            indexTemplateSubstitutions = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            this.mappingAddition = (Map<String, Object>) in.readGenericValue();
-        } else {
-            mappingAddition = Map.of();
-        }
+        this.componentTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
+        this.indexTemplateSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
+        this.mappingAddition = (Map<String, Object>) in.readGenericValue();
         if (in.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
             mappingMergeType = in.readOptionalString();
         } else {
@@ -167,13 +157,9 @@ public class SimulateBulkRequest extends BulkRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericValue(pipelineSubstitutions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeGenericValue(componentTemplateSubstitutions);
-            out.writeGenericValue(indexTemplateSubstitutions);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeGenericValue(mappingAddition);
-        }
+        out.writeGenericValue(componentTemplateSubstitutions);
+        out.writeGenericValue(indexTemplateSubstitutions);
+        out.writeGenericValue(mappingAddition);
         if (out.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
             out.writeOptionalString(mappingMergeType);
         }

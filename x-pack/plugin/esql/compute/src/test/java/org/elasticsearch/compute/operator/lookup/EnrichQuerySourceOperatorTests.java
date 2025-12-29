@@ -224,19 +224,18 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         List<List<String>> inputTermsList = IntStream.range(0, numQueries).mapToObj(i -> List.of("term-" + i)).toList();
 
         try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
-            QueryList queryList = QueryList.rawTermQueryList(
-                directoryData.field,
-                directoryData.searchExecutionContext,
-                AliasFilter.EMPTY,
-                inputTerms
-            );
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
 
+            Page inputPage = new Page(inputTerms);
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 maxPageSize,
                 queryList,
+                inputPage,
+                BlockOptimization.NONE,
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
+                directoryData.searchExecutionContext,
                 warnings()
             );
 
@@ -297,20 +296,19 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         List<List<String>> inputTermsList = List.of(List.of("common-term"));
 
         try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
-            QueryList queryList = QueryList.rawTermQueryList(
-                directoryData.field,
-                directoryData.searchExecutionContext,
-                AliasFilter.EMPTY,
-                inputTerms
-            );
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
 
             int maxPageSize = 10; // Small page size to ensure multiple pages from single query
+            Page inputPage = new Page(inputTerms);
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 maxPageSize,
                 queryList,
+                inputPage,
+                BlockOptimization.NONE,
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
+                directoryData.searchExecutionContext,
                 warnings()
             );
 

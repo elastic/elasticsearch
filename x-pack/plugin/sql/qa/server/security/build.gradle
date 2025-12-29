@@ -20,7 +20,6 @@ subprojects {
   dependencies {
     javaRestTestImplementation project(":x-pack:plugin:core")
     javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-    javaRestTestImplementation testArtifact(project(mainProject.path))
     testArtifacts testArtifact(project(mainProject.path))
   }
 

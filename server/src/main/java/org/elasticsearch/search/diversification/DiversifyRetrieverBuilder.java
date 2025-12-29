@@ -362,6 +362,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         // temporary
         int vectorCount = 0;
+        // TODO - make this once single way to get the vectors
         if (SemanticTextFieldVectorSupplier.isFieldSemanticTextVector(diversificationField, results[0])) {
             FieldVectorSupplier fieldVectorSupplier = new SemanticTextFieldVectorSupplier(diversificationField, results);
             vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier);

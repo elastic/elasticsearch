@@ -319,10 +319,10 @@ public class SearchTransportService {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(task.getId());
 
-            // Capture authentication headers from current ThreadContext
+            // Capture headers from current ThreadContext
             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
-
+            
             client.execute(
                 TransportFetchPhaseCoordinationAction.TYPE,
                 new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),
@@ -637,8 +637,9 @@ public class SearchTransportService {
                 logger.info("Using CHUNKED fetch path");
 
                 /// Capture the current ThreadContext to preserve authentication headers
-                final Supplier<ThreadContext.StoredContext> contextSupplier =
-                    transportService.getThreadPool().getThreadContext().newRestorableContext(true);
+                final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
+                    .getThreadContext()
+                    .newRestorableContext(true);
 
                 chunkWriter = (responseChunk, listener) -> {
                     // Restore the ThreadContext before sending the chunk

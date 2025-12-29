@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+//import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -100,19 +100,14 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
     ) {
         DiscoveryNode localNode = clusterService.localNode();
         var writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
-        assert writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
-        var trackingForWriteExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) writeExecutor;
+        //assert writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
+        //var trackingForWriteExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) writeExecutor;
 
-        long maxQueueLatencyMillis = Math.max(
-            trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset(),
-            trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
-        );
+        long maxQueueLatencyMillis = 10;
         lastMaxQueueLatencyMillis.set(maxQueueLatencyMillis);
         ThreadPoolUsageStats threadPoolUsageStats = new ThreadPoolUsageStats(
-            trackingForWriteExecutor.getMaximumPoolSize(),
-            (float) trackingForWriteExecutor.pollUtilization(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
-            ),
+            100,
+            2,
             maxQueueLatencyMillis
         );
 

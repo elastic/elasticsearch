@@ -109,6 +109,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         plan = addLabelFilters(promqlCommand, labelFilterConditions, plan);
         plan = createTimeSeriesAggregate(promqlCommand, value, plan);
         plan = convertValueToDouble(promqlCommand, plan);
+        // ensure we're returning exactly the same columns (including ids) and in the same order before and after optimization
         return new Project(promqlCommand.source(), plan, promqlCommand.output());
     }
 

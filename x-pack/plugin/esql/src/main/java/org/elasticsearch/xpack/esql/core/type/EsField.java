@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -24,14 +23,6 @@ import java.util.Objects;
  * Information about a field in an ES index.
  */
 public class EsField implements Writeable {
-
-    public static final EsField TIMESERIES_FIELD = new EsField(
-        MetadataAttribute.TIMESERIES,
-        DataType.KEYWORD,
-        Map.of(),
-        false,
-        EsField.TimeSeriesFieldType.DIMENSION
-    );
 
     private static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = TransportVersion.fromName(
         "esql_serialize_timeseries_field_type"

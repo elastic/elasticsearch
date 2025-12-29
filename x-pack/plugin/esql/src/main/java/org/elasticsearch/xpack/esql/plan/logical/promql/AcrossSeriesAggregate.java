@@ -17,6 +17,25 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Represents a PromQL aggregate function call that operates across multiple time series.
+ * <p>
+ * These functions aggregate elements from multiple time series into a single result vector,
+ * optionally grouping by specific labels. This corresponds to PromQL syntax:
+ * <pre>
+ * function_name(instant_vector) [without|by (label_list)]
+ * </pre>
+ *
+ * Examples:
+ * <pre>
+ * sum(http_requests_total)
+ * avg(cpu_usage) by (host, env)
+ * max(response_time) without (instance)
+ * </pre>
+ *
+ * These functions reduce the number of time series by aggregating values across series
+ * that share the same grouping labels (or all series if no grouping is specified).
+ */
 public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     public enum Grouping {

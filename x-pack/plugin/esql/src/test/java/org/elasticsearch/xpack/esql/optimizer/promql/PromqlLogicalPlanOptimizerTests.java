@@ -616,6 +616,11 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("network.bytes_in", "step", "_timeseries")));
     }
 
+    public void testGroupByAllInstantSelectorRate() {
+        var plan = planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
+    }
+
     protected LogicalPlan planPromql(String query) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');

@@ -18,6 +18,23 @@ import java.util.List;
 
 /**
  * Represents a PromQL aggregate function call that operates on range vectors.
+ * <p>
+ * These functions take a range vector as input and aggregate the values within each series
+ * over the specified time range, returning an instant vector.
+ * This corresponds to PromQL syntax:
+ * <pre>
+ * function_name(range_vector)
+ * </pre>
+ *
+ * Examples:
+ * <pre>
+ * rate(http_requests_total[5m])
+ * increase(errors_total[1h])
+ * delta(cpu_temp_celsius[30m])
+ * </pre>
+ *
+ * These functions operate independently on each time series selected by the range vector.
+ * The result contains one sample per series at the evaluation timestamp.
  */
 public final class WithinSeriesAggregate extends PromqlFunctionCall {
 
@@ -40,6 +57,7 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
     @Override
     public List<Attribute> output() {
         if (output == null) {
+            // returns values grouped per time series
             output = List.of(FieldAttribute.timeSeriesAttribute(source()));
         }
         return output;

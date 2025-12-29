@@ -981,6 +981,52 @@ sum:double | step:datetime            | _timeseries:keyword
 210.625    | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
 ;
 
+
+bare_rate_with_tbucket_outputs_dimensions
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all  
+required_capability: metrics_group_by_all_with_ts_dimensions
+
+TS k8s
+| STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)
+| EVAL rate=ROUND(rate, 3)
+| SORT rate DESC
+;
+ignoreOrder:true
+
+_timeseries:keyword                                                   | tbucket:datetime         | rate:double
+"{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z | 3.13
+"{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2024-05-10T00:00:00.000Z | 2.83
+"{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2024-05-10T00:00:00.000Z | 2.621
+"{""cluster"":""qa"",""pod"":""one""}"                                | 2024-05-10T00:00:00.000Z | 3.96
+"{""cluster"":""qa"",""pod"":""three""}"                              | 2024-05-10T00:00:00.000Z | 3.346
+"{""cluster"":""qa"",""pod"":""two""}"                                | 2024-05-10T00:00:00.000Z | 4.38
+"{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z | 1.655
+"{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2024-05-10T00:00:00.000Z | 2.526
+"{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2024-05-10T00:00:00.000Z | 2.874  
+;
+
+bare_rate_with_tbucket_outputs_dimensions_promql
+required_capability: promql_pre_tech_preview_v10
+
+PROMQL index=k8s step=1h rate=(rate(network.total_bytes_in[1h]))
+| EVAL rate=ROUND(rate, 3)
+| SORT rate DESC
+;
+ignoreOrder:true
+
+step:datetime            | _timeseries:keyword                                                   | rate:double
+2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"   | 3.13
+2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}" | 2.83
+2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"   | 2.621
+2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"                                | 3.96
+2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"                              | 3.346
+2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"                                | 4.38
+2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"         | 1.655
+2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"       | 2.526
+2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"         | 2.874
+;
+
 oneRateIncreaseWithBucketAndClusterThenFilter
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2

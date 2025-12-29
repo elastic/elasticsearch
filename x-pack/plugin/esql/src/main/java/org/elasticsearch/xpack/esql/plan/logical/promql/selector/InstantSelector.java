@@ -19,20 +19,24 @@ import java.util.List;
 
 /**
  * Represents a PromQL instant vector selector.
- *
+ * <p>
  * An instant vector selects time series based on metric name and label matchers,
  * returning the most recent sample at the evaluation timestamp. This corresponds to PromQL syntax:
- *   metric_name{label="value"} offset 5m @ timestamp
+ * <pre>
+ * metric_name{label="value"} offset 5m @ timestamp
+ * </pre>
  *
  * Examples:
- *   http_requests_total
- *   cpu_usage{host="web-1"}
- *   memory_used{env=~"prod.*"} offset 10m
- *   up{job="prometheus"} @ 1609746000
+ * <pre>
+ * http_requests_total
+ * cpu_usage{host="web-1"}
+ * memory_used{env=~"prod.*"} offset 10m
+ * up{job="prometheus"} @ 1609746000
+ * </pre>
  *
  * The instant vector selects a single sample per matching time series at the
  * evaluation time (with optional offset/@ modifiers), representing the current state.
- *
+ * <p>
  * Conceptually an instant selector is a range selector with a null range.
  */
 public final class InstantSelector extends Selector {
@@ -88,6 +92,7 @@ public final class InstantSelector extends Selector {
     @Override
     public List<Attribute> output() {
         if (output == null) {
+            // returns values grouped per time series
             output = List.of(FieldAttribute.timeSeriesAttribute(source()));
         }
         return output;

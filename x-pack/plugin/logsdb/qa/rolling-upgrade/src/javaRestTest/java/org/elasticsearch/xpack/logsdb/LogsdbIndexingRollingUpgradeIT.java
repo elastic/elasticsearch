@@ -13,7 +13,6 @@ import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -70,7 +69,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             createTemplate(dataStreamName, templateId, TEMPLATE);
 
             time = Instant.now().minusSeconds(60 * 60);
-            bulkIndex(dataStreamName, 4, 1024, time);
+            bulkIndex(dataStreamName, 4, 1024, time, LogsdbIndexingRollingUpgradeIT::docSupplier);
 
             String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
             var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
@@ -87,7 +86,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         for (int i = 0; i < numNodes; i++) {
             upgradeNode(i);
             time = time.plusNanos(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, time);
+            bulkIndex(dataStreamName, 4, 1024, time, LogsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
         }
@@ -126,45 +125,20 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         assertOK(client().performRequest(putIndexTemplateRequest));
     }
 
-    static String bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
-        String firstIndex = null;
-        for (int i = 0; i < numRequest; i++) {
-            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
-            StringBuilder requestBody = new StringBuilder();
-            for (int j = 0; j < numDocs; j++) {
-                String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
-                String methodName = "method" + j % 5;
-                String ip = NetworkAddress.format(randomIp(true));
-                String message = randomAlphaOfLength(128);
-                long length = randomLong();
-                double factor = randomDouble();
-
-                requestBody.append("{\"create\": {}}");
-                requestBody.append('\n');
-                requestBody.append(
-                    BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                        .replace("$host", hostName)
-                        .replace("$method", methodName)
-                        .replace("$ip", ip)
-                        .replace("$message", message)
-                        .replace("$length", Long.toString(length))
-                        .replace("$factor", Double.toString(factor))
-                );
-                requestBody.append('\n');
-
-                startTime = startTime.plusMillis(1);
-            }
-            bulkRequest.setJsonEntity(requestBody.toString());
-            bulkRequest.addParameter("refresh", "true");
-            var response = client().performRequest(bulkRequest);
-            assertOK(response);
-            var responseBody = entityAsMap(response);
-            assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-            if (firstIndex == null) {
-                firstIndex = (String) ((Map<?, ?>) ((Map<?, ?>) ((List<?>) responseBody.get("items")).get(0)).get("create")).get("_index");
-            }
-        }
-        return firstIndex;
+    static String docSupplier(Instant startTime, int j) {
+        String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
+        String methodName = "method" + j % 5;
+        String ip = NetworkAddress.format(randomIp(true));
+        String message = randomAlphaOfLength(128);
+        long length = randomLong();
+        double factor = randomDouble();
+        return BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
+            .replace("$host", hostName)
+            .replace("$method", methodName)
+            .replace("$ip", ip)
+            .replace("$message", message)
+            .replace("$length", Long.toString(length))
+            .replace("$factor", Double.toString(factor));
     }
 
     void search(String dataStreamName) throws Exception {

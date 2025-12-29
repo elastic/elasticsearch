@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,25 +44,22 @@ abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFiel
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                int docValuesCount = docValues.docValueCount();
-                for (int j = 0; j < docValuesCount; j++) {
-                    double value = docValues.nextValue();
-                    switch (metric) {
-                        case min -> min = Math.min(value, min);
-                        case max -> max = Math.max(value, max);
-                        case sum -> sum.add(value);
-                        // This is the reason why we can't use GaugeMetricFieldProducer
-                        // For downsampled indices aggregate metric double's value count field needs to be summed.
-                        // (Note: not using CompensatedSum here should be ok given that value_count is mapped as long)
-                        case value_count -> count += Math.round(value);
-                    }
+        public void collect(SortedNumericDoubleValues docValues, int docId) throws IOException {
+            if (docValues.advanceExact(docId) == false) {
+                return;
+            }
+            isEmpty = false;
+            int docValuesCount = docValues.docValueCount();
+            for (int j = 0; j < docValuesCount; j++) {
+                double value = docValues.nextValue();
+                switch (metric) {
+                    case min -> min = Math.min(value, min);
+                    case max -> max = Math.max(value, max);
+                    case sum -> sum.add(value);
+                    // This is the reason why we can't use GaugeMetricFieldProducer
+                    // For downsampled indices aggregate metric double's value count field needs to be summed.
+                    // (Note: not using CompensatedSum here should be ok given that value_count is mapped as long)
+                    case value_count -> count += Math.round(value);
                 }
             }
         }
@@ -104,29 +100,21 @@ abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFiel
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
+        public void collect(SortedNumericDoubleValues docValues, int docId) throws IOException {
+            if (isEmpty() == false || docValues.advanceExact(docId) == false) {
                 return;
             }
-
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
+            int docValuesCount = docValues.docValueCount();
+            assert docValuesCount > 0;
+            isEmpty = false;
+            if (docValuesCount == 1 || supportsMultiValue == false) {
+                lastValue = docValues.nextValue();
+            } else {
+                var values = new Object[docValuesCount];
+                for (int j = 0; j < docValuesCount; j++) {
+                    values[j] = docValues.nextValue();
                 }
-                int docValuesCount = docValues.docValueCount();
-                assert docValuesCount > 0;
-                isEmpty = false;
-                if (docValuesCount == 1 || supportsMultiValue == false) {
-                    lastValue = docValues.nextValue();
-                } else {
-                    var values = new Object[docValuesCount];
-                    for (int j = 0; j < docValuesCount; j++) {
-                        values[j] = docValues.nextValue();
-                    }
-                    lastValue = values;
-                }
-                return;
+                lastValue = values;
             }
         }
 

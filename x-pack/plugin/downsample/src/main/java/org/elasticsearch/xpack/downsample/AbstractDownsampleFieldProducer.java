@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.internal.hppc.IntArrayList;
-
 import java.io.IOException;
 
 /**
@@ -43,5 +41,5 @@ abstract class AbstractDownsampleFieldProducer<T> implements DownsampleFieldSeri
         return isEmpty;
     }
 
-    public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
+    public abstract void collect(T docValues, int docId) throws IOException;
 }

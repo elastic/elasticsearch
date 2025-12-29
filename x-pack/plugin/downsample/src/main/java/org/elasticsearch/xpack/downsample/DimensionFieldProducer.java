@@ -54,24 +54,14 @@ public class DimensionFieldProducer extends LastValueFieldProducer {
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
-        if (isEmpty() == false) {
-            assert validate(docValues, docIdBuffer);
+    public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        if (isEmpty() == false || docValues.advanceExact(docId) == false) {
             return;
         }
 
-        for (int i = 0; i < docIdBuffer.size(); i++) {
-            int docId = docIdBuffer.get(i);
-            if (docValues.advanceExact(docId) == false) {
-                continue;
-            }
-            int docValueCount = docValues.docValueCount();
-            for (int j = 0; j < docValueCount; j++) {
-                collectOnce(docValues.nextValue());
-            }
-            // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the
-            // same.
-            return;
+        int docValueCount = docValues.docValueCount();
+        for (int j = 0; j < docValueCount; j++) {
+            collectOnce(docValues.nextValue());
         }
     }
 }

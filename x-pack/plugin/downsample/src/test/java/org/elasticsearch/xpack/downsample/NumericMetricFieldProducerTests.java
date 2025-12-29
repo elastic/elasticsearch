@@ -24,7 +24,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(Double.MAX_VALUE, aggregateMetricFieldProducer.min, 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2, 3);
         var numericValues = createNumericValuesInstance(docIdBuffer, 40, 5.5, 12.2, 55);
-        aggregateMetricFieldProducer.collect(numericValues, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            aggregateMetricFieldProducer.collect(numericValues, docIdBuffer.get(i));
+        }
         assertEquals(5.5, aggregateMetricFieldProducer.min, 0);
         aggregateMetricFieldProducer.reset();
         assertEquals(Double.MAX_VALUE, aggregateMetricFieldProducer.min, 0);
@@ -33,7 +35,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2, 3);
         var values = createNumericValuesInstance(docIdBuffer, 40D, 5.5, 12.2, 55D);
-        lastValueProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueProducer.collect(values, docIdBuffer.get(i));
+        }
         assertNotNull(lastValueProducer.lastValue());
         assertEquals(40.0, lastValueProducer.lastValue(), 0);
         lastValueProducer.reset();
@@ -45,7 +49,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(-Double.MAX_VALUE, aggregateMetricFieldProducer.max, 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55);
-        aggregateMetricFieldProducer.collect(numericValues, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            aggregateMetricFieldProducer.collect(numericValues, docIdBuffer.get(i));
+        }
         assertEquals(55d, aggregateMetricFieldProducer.max, 0);
         aggregateMetricFieldProducer.reset();
         assertEquals(-Double.MAX_VALUE, aggregateMetricFieldProducer.max, 0);
@@ -54,7 +60,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55D);
-        lastValueProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueProducer.collect(numericValues, docIdBuffer.get(i));
+        }
         assertNotNull(lastValueProducer.lastValue());
         assertEquals(5.5, lastValueProducer.lastValue(), 0);
         lastValueProducer.reset();
@@ -66,7 +74,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(0, aggregateMetricFieldProducer.sum.value(), 0);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55);
-        aggregateMetricFieldProducer.collect(numericValues, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            aggregateMetricFieldProducer.collect(numericValues, docIdBuffer.get(i));
+        }
         assertEquals(72.7, aggregateMetricFieldProducer.sum.value(), 0);
         aggregateMetricFieldProducer.reset();
         assertEquals(0, aggregateMetricFieldProducer.sum.value(), 0);
@@ -75,7 +85,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertNull(lastValueProducer.lastValue());
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55D);
-        lastValueProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueProducer.collect(numericValues, docIdBuffer.get(i));
+        }
         assertNotNull(lastValueProducer.lastValue());
         assertEquals(5.5, lastValueProducer.lastValue(), 0);
         lastValueProducer.reset();
@@ -111,7 +123,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
             1.6,
             1.7
         );
-        instance.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            instance.collect(values, docIdBuffer.get(i));
+        }
         assertEquals(15.3, instance.sum.value(), Double.MIN_NORMAL);
 
         // Summing up an array which contains NaN and infinities and expect a result same as naive summation
@@ -129,7 +143,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
             sum += d;
         }
         values = createNumericValuesInstance(docIdBuffer, valueArray);
-        instance.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            instance.collect(values, docIdBuffer.get(i));
+        }
         assertEquals(sum, instance.sum.value(), 1e-10);
 
         // Summing up some big double values and expect infinity result
@@ -142,7 +158,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
             valueArray[i] = Double.MAX_VALUE;
         }
         values = createNumericValuesInstance(docIdBuffer, valueArray);
-        instance.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            instance.collect(values, docIdBuffer.get(i));
+        }
         assertEquals(Double.POSITIVE_INFINITY, instance.sum.value(), 0d);
 
         instance.reset();
@@ -154,7 +172,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
             valueArray[i] = -Double.MAX_VALUE;
         }
         values = createNumericValuesInstance(docIdBuffer, valueArray);
-        instance.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            instance.collect(values, docIdBuffer.get(i));
+        }
         assertEquals(Double.NEGATIVE_INFINITY, instance.sum.value(), 0d);
     }
 
@@ -163,7 +183,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertEquals(0, aggregateMetricFieldProducer.count);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var numericValues = createNumericValuesInstance(docIdBuffer, 40, 30, 20);
-        aggregateMetricFieldProducer.collect(numericValues, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            aggregateMetricFieldProducer.collect(numericValues, docIdBuffer.get(i));
+        }
         assertEquals(3L, aggregateMetricFieldProducer.count);
         aggregateMetricFieldProducer.reset();
         assertEquals(0, aggregateMetricFieldProducer.count);
@@ -171,7 +193,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         var lastValueProducer = new NumericMetricFieldProducer.LastValue(randomAlphaOfLength(10));
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createNumericValuesInstance(docIdBuffer, 40, 30, 20);
-        lastValueProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueProducer.collect(values, docIdBuffer.get(i));
+        }
         assertNotNull(lastValueProducer.lastValue());
         assertEquals(40, lastValueProducer.lastValue().intValue(), 0);
         lastValueProducer.reset();
@@ -185,7 +209,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);
 
-        producer.collect(valuesInstance, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            producer.collect(valuesInstance, docIdBuffer.get(i));
+        }
 
         assertFalse(producer.isEmpty());
         assertNotNull(producer.lastValue());
@@ -204,7 +230,9 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertTrue(producer.isEmpty());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);
-        producer.collect(valuesInstance, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            producer.collect(valuesInstance, docIdBuffer.get(i));
+        }
 
         assertFalse(producer.isEmpty());
 

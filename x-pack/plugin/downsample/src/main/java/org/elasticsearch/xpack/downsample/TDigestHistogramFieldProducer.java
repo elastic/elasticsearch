@@ -70,6 +70,20 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
             }
         }
 
+        public void collect(HistogramValues docValues, int docId) throws IOException {
+            if (docValues.advanceExact(docId) == false) {
+                return;
+            }
+            isEmpty = false;
+            if (tDigestState == null) { // TODO: figure out what circuit breaker to use here and in the other histogram
+                tDigestState = TDigestState.create(new NoopCircuitBreaker("downsampling-histograms"), COMPRESSION);
+            }
+            final HistogramValue sketch = docValues.histogram();
+            while (sketch.next()) {
+                tDigestState.add(sketch.value(), sketch.count());
+            }
+        }
+
         @Override
         public void reset() {
             isEmpty = true;
@@ -114,6 +128,14 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 lastValue = docValues.histogram();
                 return;
             }
+        }
+
+        public void collect(HistogramValues docValues, int docId) throws IOException {
+            if (isEmpty() == false || docValues.advanceExact(docId) == false) {
+                return;
+            }
+            isEmpty = false;
+            lastValue = docValues.histogram();
         }
 
         @Override

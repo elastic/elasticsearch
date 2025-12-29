@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -80,7 +79,6 @@ import static org.elasticsearch.core.Strings.format;
 class DownsampleShardIndexer {
 
     private static final Logger logger = LogManager.getLogger(DownsampleShardIndexer.class);
-    private static final int DOCID_BUFFER_SIZE = 8096;
     public static final int DOWNSAMPLE_BULK_ACTIONS = 10000;
     public static final ByteSizeValue DOWNSAMPLE_BULK_SIZE = ByteSizeValue.of(1, ByteSizeUnit.MB);
     public static final ByteSizeValue DOWNSAMPLE_MAX_BYTES_IN_FLIGHT = ByteSizeValue.of(50, ByteSizeUnit.MB);
@@ -164,7 +162,7 @@ class DownsampleShardIndexer {
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.STARTED, null),
             ActionListener.noop()
         );
-        logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " started");
+        logger.info("Downsampling task [{} on shard {} started", task.getPersistentTaskId(), indexShard.shardId());
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
@@ -219,7 +217,7 @@ class DownsampleShardIndexer {
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.COMPLETED, null),
             ActionListener.noop()
         );
-        logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " completed");
+        logger.info("Downsampling task [{} on shard {} completed", task.getPersistentTaskId(), indexShard.shardId());
         downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.SUCCESS);
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
@@ -245,7 +243,7 @@ class DownsampleShardIndexer {
                 new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.CANCELLED, null),
                 ActionListener.noop()
             );
-            logger.info("Downsampling task [" + task.getPersistentTaskId() + "] on shard " + indexShard.shardId() + " cancelled");
+            logger.info("Downsampling task [{}] on shard {} cancelled", task.getPersistentTaskId(), indexShard.shardId());
             throw new DownsampleShardIndexerException(
                 new TaskCancelledException(format("Shard %s downsample cancelled", indexShard.shardId())),
                 format("Shard %s downsample cancelled", indexShard.shardId()),
@@ -344,7 +342,6 @@ class DownsampleShardIndexer {
     private class TimeSeriesBucketCollector extends BucketCollector {
         private final BulkProcessor2 bulkProcessor;
         private final DownsampleBucketBuilder downsampleBucketBuilder;
-        private final List<LeafDownsampleCollector> leafBucketCollectors = new ArrayList<>();
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
@@ -398,17 +395,7 @@ class DownsampleShardIndexer {
                 }
             }
 
-            var leafBucketCollector = new LeafDownsampleCollector(aggCtx, docCountProvider, fieldCollectors);
-            leafBucketCollectors.add(leafBucketCollector);
-            return leafBucketCollector;
-        }
-
-        void bulkCollection() throws IOException {
-            // The leaf bucket collectors with newer timestamp go first, to correctly capture the last value for counters and labels.
-            leafBucketCollectors.sort((o1, o2) -> -Long.compare(o1.firstTimeStampForBulkCollection, o2.firstTimeStampForBulkCollection));
-            for (LeafDownsampleCollector leafBucketCollector : leafBucketCollectors) {
-                leafBucketCollector.leafBulkCollection();
-            }
+            return new LeafDownsampleCollector(aggCtx, docCountProvider, fieldCollectors);
         }
 
         class LeafDownsampleCollector extends LeafBucketCollector {
@@ -417,9 +404,6 @@ class DownsampleShardIndexer {
             final DocCountProvider docCountProvider;
             final LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors;
 
-            // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
-            long firstTimeStampForBulkCollection;
-            final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
             final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
 
             LeafDownsampleCollector(
@@ -462,7 +446,6 @@ class DownsampleShardIndexer {
                 lastTimestamp = timestamp;
 
                 if (tsidChanged || downsampleBucketBuilder.timestamp() != lastHistoTimestamp) {
-                    bulkCollection();
                     // Flush downsample doc if not empty
                     if (downsampleBucketBuilder.isEmpty() == false) {
                         XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
@@ -478,41 +461,17 @@ class DownsampleShardIndexer {
                     bucketsCreated++;
                 }
 
-                if (docIdBuffer.isEmpty()) {
-                    firstTimeStampForBulkCollection = aggCtx.getTimestamp();
-                }
-                // buffer.add() always delegates to system.arraycopy() and checks buffer size for resizing purposes:
-                docIdBuffer.buffer[docIdBuffer.elementsCount++] = docId;
-                if (docIdBuffer.size() == DOCID_BUFFER_SIZE) {
-                    bulkCollection();
-                }
-            }
-
-            void leafBulkCollection() throws IOException {
-                if (docIdBuffer.isEmpty()) {
-                    return;
-                }
-
-                if (logger.isDebugEnabled()) {
-                    logger.debug("buffered {} docids", docIdBuffer.size());
-                }
-
-                downsampleBucketBuilder.collectDocCount(docIdBuffer, docCountProvider);
+                downsampleBucketBuilder.collectDocCount(docId, docCountProvider);
                 // Iterate over all field values and collect the doc_values for this docId
                 for (int i = 0; i < fieldCollectors.length; i++) {
-                    fieldCollectors[i].collect(docIdBuffer);
+                    fieldCollectors[i].collect(docId);
                 }
-
-                docsProcessed += docIdBuffer.size();
-                task.setDocsProcessed(docsProcessed);
-
-                // buffer.clean() also overwrites all slots with zeros
-                docIdBuffer.elementsCount = 0;
+                task.setDocsProcessed(++docsProcessed);
             }
 
             record FieldCollector<T>(AbstractDownsampleFieldProducer<T> fieldProducer, T docValues) {
-                void collect(IntArrayList docIdBuffer) throws IOException {
-                    fieldProducer.collect(docValues, docIdBuffer);
+                void collect(int docId) throws IOException {
+                    fieldProducer.collect(docValues, docId);
                 }
             }
 
@@ -559,7 +518,6 @@ class DownsampleShardIndexer {
         @Override
         public void postCollection() throws IOException {
             // Flush downsample doc if not empty
-            bulkCollection();
             if (downsampleBucketBuilder.isEmpty() == false) {
                 XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
                 indexBucket(doc);
@@ -641,14 +599,11 @@ class DownsampleShardIndexer {
             }
         }
 
-        public void collectDocCount(IntArrayList buffer, DocCountProvider docCountProvider) throws IOException {
+        public void collectDocCount(int docId, DocCountProvider docCountProvider) throws IOException {
             if (docCountProvider.alwaysOne()) {
-                this.docCount += buffer.size();
+                this.docCount++;
             } else {
-                for (int i = 0; i < buffer.size(); i++) {
-                    int docId = buffer.get(i);
-                    this.docCount += docCountProvider.getDocCount(docId);
-                }
+                this.docCount += docCountProvider.getDocCount(docId);
             }
         }
 

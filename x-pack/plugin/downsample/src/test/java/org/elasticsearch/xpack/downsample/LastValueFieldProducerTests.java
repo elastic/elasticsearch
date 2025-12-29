@@ -31,7 +31,9 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "bbb", "ccc" });
-        lastValueFieldProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueFieldProducer.collect(values, docIdBuffer.get(i));
+        }
         assertThat(lastValueFieldProducer.lastValue(), equalTo("aaa"));
         lastValueFieldProducer.reset();
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
@@ -42,7 +44,9 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Double[] { 10.20D, 17.30D, 12.60D });
-        lastValueFieldProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueFieldProducer.collect(values, docIdBuffer.get(i));
+        }
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10.20D));
         lastValueFieldProducer.reset();
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
@@ -53,7 +57,9 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Integer[] { 10, 17, 12 });
-        lastValueFieldProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueFieldProducer.collect(values, docIdBuffer.get(i));
+        }
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10));
         lastValueFieldProducer.reset();
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
@@ -64,7 +70,9 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Long[] { 10L, 17L, 12L });
-        lastValueFieldProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueFieldProducer.collect(values, docIdBuffer.get(i));
+        }
         assertThat(lastValueFieldProducer.lastValue(), equalTo(10L));
         lastValueFieldProducer.reset();
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
@@ -75,7 +83,9 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Boolean[] { true, false, false });
-        lastValueFieldProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            lastValueFieldProducer.collect(values, docIdBuffer.get(i));
+        }
         assertThat(lastValueFieldProducer.lastValue(), equalTo(true));
         lastValueFieldProducer.reset();
         assertThat(lastValueFieldProducer.lastValue(), nullValue());
@@ -107,7 +117,9 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
         values.iterator = Arrays.stream(multiValue).iterator();
         LastValueFieldProducer multiLastValueProducer = new LastValueFieldProducer(randomAlphanumericOfLength(10));
         assertThat(multiLastValueProducer.lastValue(), nullValue());
-        multiLastValueProducer.collect(values, docIdBuffer);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            multiLastValueProducer.collect(values, docIdBuffer.get(i));
+        }
         assertThat(multiLastValueProducer.lastValue(), equalTo(multiValue));
         // Ensure we read all the available values
         assertThat(values.iterator.hasNext(), equalTo(false));
@@ -141,7 +153,7 @@ public class LastValueFieldProducerTests extends AggregatorTestCase {
             }
         };
 
-        producer.collect(docValues, IntArrayList.from(1));
+        producer.collect(docValues, 1);
         assertFalse(producer.isEmpty());
         assertEquals("a\0value_a", (((Object[]) producer.lastValue())[0]).toString());
         assertEquals("b\0value_b", (((Object[]) producer.lastValue())[1]).toString());

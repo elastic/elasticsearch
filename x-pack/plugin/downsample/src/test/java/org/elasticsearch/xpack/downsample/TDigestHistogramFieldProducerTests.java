@@ -29,13 +29,16 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
+        IntArrayList docIdBuffer = IntArrayList.from(1, 2);
         var docValues = createValuesInstance(
-            IntArrayList.from(1, 2),
+            docIdBuffer,
             new HistogramValue[] {
                 histogram(new double[] { 1, 2 }, new long[] { 1, 2 }),
                 histogram(new double[] { 1, 4 }, new long[] { 3, 4 }) }
         );
-        producer.collect(docValues, IntArrayList.from(1, 2));
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            producer.collect(docValues, docIdBuffer.get(i));
+        }
         assertFalse(producer.isEmpty());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());
@@ -51,13 +54,16 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
+        IntArrayList docIdBuffer = IntArrayList.from(1, 2);
         var docValues = createValuesInstance(
-            IntArrayList.from(1, 2),
+            docIdBuffer,
             new HistogramValue[] {
                 histogram(new double[] { 1, 2 }, new long[] { 1, 2 }),
                 histogram(new double[] { 1, 4 }, new long[] { 3, 4 }) }
         );
-        producer.collect(docValues, IntArrayList.from(1, 2));
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            producer.collect(docValues, docIdBuffer.get(i));
+        }
         assertFalse(producer.isEmpty());
 
         var builder = new XContentBuilder(XContentType.JSON.xContent(), new ByteArrayOutputStream());

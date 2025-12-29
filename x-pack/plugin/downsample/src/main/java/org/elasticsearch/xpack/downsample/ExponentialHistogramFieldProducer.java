@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
@@ -75,19 +74,16 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
         }
 
         @Override
-        public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                if (merger == null) {
-                    merger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
-                }
-                ExponentialHistogram value = docValues.histogramValue();
-                merger.add(value);
+        public void collect(ExponentialHistogramValuesReader docValues, int docId) throws IOException {
+            if (docValues.advanceExact(docId) == false) {
+                return;
             }
+            isEmpty = false;
+            if (merger == null) {
+                merger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
+            }
+            ExponentialHistogram value = docValues.histogramValue();
+            merger.add(value);
         }
     }
 
@@ -109,20 +105,12 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
         }
 
         @Override
-        public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
+        public void collect(ExponentialHistogramValuesReader docValues, int docId) throws IOException {
+            if (isEmpty() == false || docValues.advanceExact(docId) == false) {
                 return;
             }
-
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                lastValue = docValues.histogramValue();
-                return;
-            }
+            isEmpty = false;
+            lastValue = docValues.histogramValue();
         }
 
         @Override

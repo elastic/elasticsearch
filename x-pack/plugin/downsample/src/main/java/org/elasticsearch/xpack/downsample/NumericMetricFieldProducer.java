@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,21 +42,18 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                int docValuesCount = docValues.docValueCount();
-                for (int j = 0; j < docValuesCount; j++) {
-                    double value = docValues.nextValue();
-                    this.max = Math.max(value, max);
-                    this.min = Math.min(value, min);
-                    sum.add(value);
-                    count++;
-                }
+        public void collect(SortedNumericDoubleValues docValues, int docId) throws IOException {
+            if (docValues.advanceExact(docId) == false) {
+                return;
+            }
+            isEmpty = false;
+            int docValuesCount = docValues.docValueCount();
+            for (int j = 0; j < docValuesCount; j++) {
+                double value = docValues.nextValue();
+                this.max = Math.max(value, max);
+                this.min = Math.min(value, min);
+                sum.add(value);
+                count++;
             }
         }
 
@@ -96,18 +92,14 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+        public void collect(SortedNumericDoubleValues docValues, int docId) throws IOException {
             if (isEmpty() == false) {
                 return;
             }
 
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId)) {
-                    isEmpty = false;
-                    lastValue = docValues.nextValue();
-                    return;
-                }
+            if (docValues.advanceExact(docId)) {
+                isEmpty = false;
+                lastValue = docValues.nextValue();
             }
         }
 

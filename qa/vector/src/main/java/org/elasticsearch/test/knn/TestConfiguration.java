@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -30,38 +31,29 @@ import java.util.Locale;
  * Command line arguments for the KNN index tester.
  * This class encapsulates all the parameters required to run the KNN index tests.
  */
-record CmdLineArgs(
+record TestConfiguration(
     List<Path> docVectors,
     Path queryVectors,
     int numDocs,
     int numQueries,
     KnnIndexTester.IndexType indexType,
-    int numCandidates,
-    int k,
-    double[] visitPercentages,
     int ivfClusterSize,
-    float overSamplingFactor,
     int hnswM,
     int hnswEfConstruction,
-    int searchThreads,
-    int numSearchers,
     int indexThreads,
     boolean reindex,
     boolean forceMerge,
-    float filterSelectivity,
-    long seed,
     VectorSimilarityFunction vectorSpace,
     int quantizeBits,
     VectorEncoding vectorEncoding,
     int dimensions,
-    boolean earlyTermination,
     KnnIndexTester.MergePolicyType mergePolicy,
     double writerBufferSizeInMb,
     int writerMaxBufferedDocs,
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
-    boolean filterCached
-) implements ToXContentObject {
+    List<SearchParameters> searchParams
+) {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
     static final ParseField QUERY_VECTORS_FIELD = new ParseField("query_vectors");
@@ -94,6 +86,7 @@ record CmdLineArgs(
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
+    static final ParseField SEARCH_PARAMS = new ParseField("search_params");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -102,12 +95,12 @@ record CmdLineArgs(
      */
     static final double DEFAULT_WRITER_BUFFER_MB = (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024.0 * 1024.0)) * 0.1;
 
-    static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
+    static TestConfiguration fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
         return builder.build();
     }
 
-    static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", false, Builder::new);
+    static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
@@ -115,16 +108,15 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setNumDocs, NUM_DOCS_FIELD);
         PARSER.declareInt(Builder::setNumQueries, NUM_QUERIES_FIELD);
         PARSER.declareString(Builder::setIndexType, INDEX_TYPE_FIELD);
-        PARSER.declareInt(Builder::setNumCandidates, NUM_CANDIDATES_FIELD);
-        PARSER.declareInt(Builder::setK, K_FIELD);
-        // PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
+        PARSER.declareIntArray(Builder::setNumCandidates, NUM_CANDIDATES_FIELD);
+        PARSER.declareIntArray(Builder::setK, K_FIELD);
         PARSER.declareDoubleArray(Builder::setVisitPercentages, VISIT_PERCENTAGE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
-        PARSER.declareFloat(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
+        PARSER.declareFloatArray(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
         PARSER.declareInt(Builder::setHnswEfConstruction, HNSW_EF_CONSTRUCTION_FIELD);
-        PARSER.declareInt(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
-        PARSER.declareInt(Builder::setNumSearchers, NUM_SEARCHERS_FIELD);
+        PARSER.declareIntArray(Builder::setSearchThreads, SEARCH_THREADS_FIELD);
+        PARSER.declareIntArray(Builder::setNumSearchers, NUM_SEARCHERS_FIELD);
         PARSER.declareInt(Builder::setIndexThreads, INDEX_THREADS_FIELD);
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
@@ -132,81 +124,52 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setQuantizeBits, QUANTIZE_BITS_FIELD);
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
-        PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
-        PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
-        PARSER.declareLong(Builder::setSeed, SEED_FIELD);
+        PARSER.declareFieldArray(
+            Builder::setEarlyTermination,
+            (p, c) -> p.booleanValue(),
+            EARLY_TERMINATION_FIELD,
+            ObjectParser.ValueType.VALUE_ARRAY
+        );
+        PARSER.declareFloatArray(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
+        PARSER.declareLongArray(Builder::setSeed, SEED_FIELD);
         PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
         PARSER.declareDouble(Builder::setWriterBufferMb, WRITER_BUFFER_MB_FIELD);
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
-        PARSER.declareBoolean(Builder::setFilterCached, FILTER_CACHED);
+        PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
+        PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (docVectors != null) {
-            List<String> docVectorsStrings = docVectors.stream().map(Path::toString).toList();
-            builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectorsStrings);
-        }
-        if (queryVectors != null) {
-            builder.field(QUERY_VECTORS_FIELD.getPreferredName(), queryVectors.toString());
-        }
-        builder.field(NUM_DOCS_FIELD.getPreferredName(), numDocs);
-        builder.field(NUM_QUERIES_FIELD.getPreferredName(), numQueries);
-        builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
-        builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
-        builder.field(K_FIELD.getPreferredName(), k);
-        // builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
-        builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentages);
-        builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
-        builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
-        builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
-        builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
-        builder.field(SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
-        builder.field(NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
-        builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
-        builder.field(REINDEX_FIELD.getPreferredName(), reindex);
-        builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
-        builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
-        builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
-        builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
-        builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
-        builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
-        builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
-        builder.field(SEED_FIELD.getPreferredName(), seed);
-        builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
-        builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
-        builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
-        builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
-        builder.field(FILTER_CACHED.getPreferredName(), filterCached);
-        if (mergePolicy != null) {
-            builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
-        }
-        return builder.endObject();
+    public int numberOfSearchRuns() {
+        return searchParams.size();
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this, false, false);
+    public static String exampleFormatForHelp() {
+        var b = new TestConfiguration.Builder().setDimensions(64)
+            .setDocVectors(List.of("/doc/vectors/path"))
+            .setQueryVectors("/query/vectors/path")
+            .setNumCandidates(List.of(100, 1000))
+            .setEarlyTermination(List.of(Boolean.TRUE, Boolean.FALSE));
+
+        return Strings.toString(b, true, false);
     }
 
-    static class Builder {
+    static class Builder implements ToXContentObject {
         private List<Path> docVectors;
         private Path queryVectors;
         private int numDocs = 1000;
         private int numQueries = 100;
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
-        private int numCandidates = 1000;
-        private int k = 10;
-        private double[] visitPercentages = new double[] { 1.0 };
+        private List<Integer> numCandidates = List.of(1000);
+        private List<Integer> k = List.of(10);
+        private List<Double> visitPercentages = List.of(1.0);
         private int ivfClusterSize = 1000;
-        private float overSamplingFactor = 0;
+        private List<Float> overSamplingFactor = List.of(0f);
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
-        private int searchThreads = 1;
-        private int numSearchers = 1;
+        private List<Integer> searchThreads = List.of(1);
+        private List<Integer> numSearchers = List.of(1);
         private int indexThreads = 1;
         private boolean reindex = false;
         private boolean forceMerge = false;
@@ -215,13 +178,14 @@ record CmdLineArgs(
         private int quantizeBits = 8;
         private VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
         private int dimensions;
-        private boolean earlyTermination;
-        private float filterSelectivity = 1f;
-        private long seed = 1751900822751L;
+        private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
+        private List<Float> filterSelectivity = List.of(1f);
+        private List<Long> seed = List.of(1751900822751L);
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
-        private boolean filterCached = true;
+        private List<Boolean> filterCached = List.of(Boolean.TRUE);
+        private List<SearchParameters.Builder> searchParams = null;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -258,18 +222,18 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setNumCandidates(int numCandidates) {
+        public Builder setNumCandidates(List<Integer> numCandidates) {
             this.numCandidates = numCandidates;
             return this;
         }
 
-        public Builder setK(int k) {
+        public Builder setK(List<Integer> k) {
             this.k = k;
             return this;
         }
 
         public Builder setVisitPercentages(List<Double> visitPercentages) {
-            this.visitPercentages = visitPercentages.stream().mapToDouble(Double::doubleValue).toArray();
+            this.visitPercentages = visitPercentages;
             return this;
         }
 
@@ -278,7 +242,7 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setOverSamplingFactor(float overSamplingFactor) {
+        public Builder setOverSamplingFactor(List<Float> overSamplingFactor) {
             this.overSamplingFactor = overSamplingFactor;
             return this;
         }
@@ -293,12 +257,12 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setSearchThreads(int searchThreads) {
+        public Builder setSearchThreads(List<Integer> searchThreads) {
             this.searchThreads = searchThreads;
             return this;
         }
 
-        public Builder setNumSearchers(int numSearchers) {
+        public Builder setNumSearchers(List<Integer> numSearchers) {
             this.numSearchers = numSearchers;
             return this;
         }
@@ -338,17 +302,17 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setEarlyTermination(Boolean patience) {
+        public Builder setEarlyTermination(List<Boolean> patience) {
             this.earlyTermination = patience;
             return this;
         }
 
-        public Builder setFilterSelectivity(float filterSelectivity) {
+        public Builder setFilterSelectivity(List<Float> filterSelectivity) {
             this.filterSelectivity = filterSelectivity;
             return this;
         }
 
-        public Builder setSeed(long seed) {
+        public Builder setSeed(List<Long> seed) {
             this.seed = seed;
             return this;
         }
@@ -378,12 +342,17 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setFilterCached(boolean filterCached) {
+        public Builder setFilterCached(List<Boolean> filterCached) {
             this.filterCached = filterCached;
             return this;
         }
 
-        public CmdLineArgs build() {
+        public Builder setSearchParams(List<SearchParameters.Builder> searchParams) {
+            this.searchParams = searchParams;
+            return this;
+        }
+
+        public TestConfiguration build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
             }
@@ -392,38 +361,178 @@ record CmdLineArgs(
                     "dimensions must be a positive integer or -1 for when dimension is available in the vector file"
                 );
             }
-            return new CmdLineArgs(
+
+            // length of the longest array parameter
+            int longestParam = longestParameter();
+            if (longestParam > 1 && (searchParams != null && searchParams.isEmpty() == false)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "The %1$s option is incompatible with setting multiple values of %2$s. Use %1$s to control %2$s",
+                        SEARCH_PARAMS,
+                        VISIT_PERCENTAGE_FIELD
+                    )
+                );
+            }
+
+            List<SearchParameters> searchRuns = new ArrayList<>();
+            if (searchParams == null || searchParams.isEmpty()) {
+                searchRuns.addAll(allCombinations());
+            } else {
+                // Using the search_param format.
+                // Create a search run for each search param object
+                var baseSearchParams = new SearchParameters(
+                    numCandidates.getFirst(),
+                    k.getFirst(),
+                    visitPercentages.getFirst(),
+                    overSamplingFactor.getFirst(),
+                    searchThreads.getFirst(),
+                    numSearchers.getFirst(),
+                    filterSelectivity.getFirst(),
+                    filterCached.getFirst(),
+                    earlyTermination.getFirst(),
+                    seed.getFirst()
+                );
+
+                for (var so : searchParams) {
+                    searchRuns.add(so.buildWithDefaults(baseSearchParams));
+                }
+            }
+
+            return new TestConfiguration(
                 docVectors,
                 queryVectors,
                 numDocs,
                 numQueries,
                 indexType,
-                numCandidates,
-                k,
-                visitPercentages,
                 ivfClusterSize,
-                overSamplingFactor,
                 hnswM,
                 hnswEfConstruction,
-                searchThreads,
-                numSearchers,
                 indexThreads,
                 reindex,
                 forceMerge,
-                filterSelectivity,
-                seed,
                 vectorSpace,
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
-                earlyTermination,
                 mergePolicy,
                 writerBufferSizeInMb,
                 writerMaxBufferedDocs,
                 forceMergeMaxNumSegments,
                 onDiskRescore,
-                filterCached
+                searchRuns
             );
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (docVectors != null) {
+                List<String> docVectorsStrings = docVectors.stream().map(Path::toString).toList();
+                builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectorsStrings);
+            }
+            if (queryVectors != null) {
+                builder.field(QUERY_VECTORS_FIELD.getPreferredName(), queryVectors.toString());
+            }
+            builder.field(NUM_DOCS_FIELD.getPreferredName(), numDocs);
+            builder.field(NUM_QUERIES_FIELD.getPreferredName(), numQueries);
+            builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
+            builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
+            builder.field(K_FIELD.getPreferredName(), k);
+            builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentages);
+            builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
+            builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
+            builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
+            builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
+            builder.field(SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
+            builder.field(NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
+            builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
+            builder.field(REINDEX_FIELD.getPreferredName(), reindex);
+            builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
+            builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
+            builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
+            builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
+            builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
+            builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
+            builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
+            builder.field(SEED_FIELD.getPreferredName(), seed);
+            builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
+            builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
+            builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
+            builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
+            builder.field(FILTER_CACHED.getPreferredName(), filterCached);
+            if (mergePolicy != null) {
+                builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
+            }
+            if (searchParams != null) {
+                builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
+            }
+            return builder.endObject();
+        }
+
+        int longestParameter() {
+            var lengths = List.of(
+                numCandidates.size(),
+                k.size(),
+                visitPercentages.size(),
+                overSamplingFactor.size(),
+                searchThreads.size(),
+                numSearchers.size(),
+                filterSelectivity.size(),
+                filterCached.size(),
+                earlyTermination.size(),
+                seed.size()
+            );
+            return lengths.stream().max(Integer::compareTo).get();
+        }
+
+        List<SearchParameters> allCombinations() {
+            return cartesianProduct(
+                List.of(
+                    numCandidates,
+                    k,
+                    visitPercentages,
+                    overSamplingFactor,
+                    searchThreads,
+                    numSearchers,
+                    filterSelectivity,
+                    filterCached,
+                    earlyTermination,
+                    seed
+                )
+            ).stream()
+                .map(
+                    params -> new SearchParameters(
+                        (Integer) params.get(0),
+                        (Integer) params.get(1),
+                        (Double) params.get(2),
+                        (Float) params.get(3),
+                        (Integer) params.get(4),
+                        (Integer) params.get(5),
+                        (Float) params.get(6),
+                        (Boolean) params.get(7),
+                        (Boolean) params.get(8),
+                        (Long) params.get(9)
+                    )
+                )
+                .toList();
+        }
+
+        private static List<List<Object>> cartesianProduct(List<List<?>> lists) {
+            List<List<Object>> result = new ArrayList<>();
+            result.add(new ArrayList<>());
+
+            for (List<?> list : lists) {
+                List<List<Object>> temp = new ArrayList<>();
+                for (List<Object> res : result) {
+                    for (Object item : list) {
+                        List<Object> newRes = new ArrayList<>(res);
+                        newRes.add(item);
+                        temp.add(newRes);
+                    }
+                }
+                result = temp;
+            }
+            return result;
         }
     }
 }

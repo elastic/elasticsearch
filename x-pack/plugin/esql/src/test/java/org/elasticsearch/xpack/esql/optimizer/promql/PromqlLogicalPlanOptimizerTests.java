@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,6 +27,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -54,6 +61,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -266,13 +275,15 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testPromqlMaxOfLongField() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1h (
-                max(network.bytes_in)
-              )
-            """);
+        var plan = planPromql("PROMQL index=k8s step=1h max(network.bytes_in)");
         // In PromQL, the output is always double
         assertThat(plan.output().getFirst().dataType(), equalTo(DataType.DOUBLE));
+        assertThat(plan.output().getFirst().name(), equalTo("max(network.bytes_in)"));
+    }
+
+    public void testPromqlExplicitOutputName() {
+        var plan = planPromql("PROMQL index=k8s step=1h max_bytes=(max(network.bytes_in))");
+        assertThat(plan.output().getFirst().name(), equalTo("max_bytes"));
     }
 
     public void testSort() {
@@ -474,6 +485,49 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(RegexMatch.class::isInstance), equalTo(true));
     }
 
+    public void testLabelSelectorNotEquals() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var not = filter.condition().collect(Not.class).getFirst();
+        var in = as(not.field(), In.class);
+        assertThat(as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(in.list(), hasSize(1));
+        assertThat(as(as(in.list().getFirst(), Literal.class).value(), BytesRef.class).utf8ToString(), equalTo("foo"));
+    }
+
+    public void testLabelSelectorRegexNegation() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var not = filter.condition().collect(Not.class).getFirst();
+        var rLike = as(not.field(), RLike.class);
+        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(rLike.pattern().pattern(), equalTo("f.o"));
+    }
+
+    public void testLabelSelectors() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
+
+        var filter = plan.collect(Filter.class).getFirst();
+        var and = as(filter.condition(), And.class);
+        if (and.left() instanceof IsNotNull) {
+            and = as(and.right(), And.class);
+        }
+        var left = as(and.left(), And.class);
+        var podNotFoo = as(as(left.left(), Not.class).field(), In.class);
+        assertThat(podNotFoo.list(), hasSize(1));
+        assertThat(as(podNotFoo.list().getFirst(), Literal.class).value(), equalTo(new BytesRef("foo")));
+
+        var clusterInBarBaz = as(left.right(), In.class);
+        assertThat(clusterInBarBaz.list(), hasSize(2));
+        assertThat(as(clusterInBarBaz.list().get(0), Literal.class).value(), equalTo(new BytesRef("bar")));
+        assertThat(as(clusterInBarBaz.list().get(1), Literal.class).value(), equalTo(new BytesRef("baz")));
+
+        var regionNotUs = as(as(and.right(), Not.class).field(), StartsWith.class);
+        assertThat(as(regionNotUs.prefix(), Literal.class).value(), equalTo(new BytesRef("us-")));
+    }
+
     @AwaitsFix(bugUrl = "This should never be called before the attribute is resolved")
     public void testFsUsageTop5() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
@@ -512,26 +566,50 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var plan = planPromql(testQuery);
     }
 
-    // public void testPromqlArithmetricOperators() {
-    // // TODO doesn't parse
-    // // line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (1+1)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m ( foo and bar )", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (1+foo)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (foo+bar)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // }
+    public void testScalarAndInstantVectorArithmeticOperators() {
+        LogicalPlan plan;
+        plan = planPromql("PROMQL index=k8s step=5m max(network.bytes_in / 1024) by (pod)");
+        Div div = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Div.class);
+        assertThat(div.left().sourceText(), equalTo("network.bytes_in"));
+        assertThat(as(div.right(), Literal.class).value(), equalTo(1024.0));
+    }
+
+    public void testConstantFoldingArithmeticOperators() {
+        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1");
+        var eval = plan.collect(Eval.class).getFirst();
+        var literal = as(eval.fields().getFirst().child(), Literal.class);
+        assertThat(literal.value(), equalTo(2.0));
+    }
+
+    public void testTopLevelArithmeticOperators() {
+        assertThat(
+            error("PROMQL index=k8s step=5m foo and bar", tsAnalyzer),
+            containsString("top-level binary operators are not supported at this time")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m 1+foo", tsAnalyzer),
+            containsString("top-level binary operators are not supported at this time")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m foo+bar", tsAnalyzer),
+            containsString("top-level binary operators are not supported at this time")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m max by (pod) (network.bytes_in) / 1024", tsAnalyzer),
+            containsString("top-level binary operators are not supported at this time")
+        );
+    }
+
+    public void testUnsupportedBinaryOperators() {
+        assertThat(
+            error("PROMQL index=k8s step=5m max(foo or bar)", tsAnalyzer),
+            containsString("VectorBinarySet queries are not supported at this time [foo or bar]")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m max(foo > bar)", tsAnalyzer),
+            containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
+        );
+    }
 
     protected LogicalPlan planPromql(String query) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');

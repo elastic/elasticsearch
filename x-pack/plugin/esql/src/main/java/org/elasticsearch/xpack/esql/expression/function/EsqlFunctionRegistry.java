@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -185,6 +186,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelop
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
@@ -470,6 +472,7 @@ public class EsqlFunctionRegistry {
                 def(StGeohash.class, StGeohash::new, "st_geohash"),
                 def(StGeotile.class, StGeotile::new, "st_geotile"),
                 def(StGeohex.class, StGeohex::new, "st_geohex"),
+                def(StNPoints.class, StNPoints::new, "st_npoints"),
                 def(StXMax.class, StXMax::new, "st_xmax"),
                 def(StXMin.class, StXMin::new, "st_xmin"),
                 def(StYMax.class, StYMax::new, "st_ymax"),
@@ -588,7 +591,8 @@ public class EsqlFunctionRegistry {
                 def(Last.class, bi(Last::new), "last"),
                 def(Term.class, bi(Term::new), "term"),
                 // dense vector functions
-                def(Magnitude.class, Magnitude::new, "v_magnitude") } };
+                def(Magnitude.class, Magnitude::new, "v_magnitude"),
+                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

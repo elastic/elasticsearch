@@ -321,16 +321,7 @@ public class SearchTransportService {
 
             // Capture authentication headers from current ThreadContext
             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-            Map<String, String> headers = new HashMap<>();
-
-            // Copy security-related headers
-            for (String header : threadContext.getHeaders().keySet()) {
-                if (header.startsWith("Authorization") ||
-                    header.startsWith("es-security") ||
-                    header.equals("_xpack_security_authentication")) {
-                    headers.put(header, threadContext.getHeader(header));
-                }
-            }
+            Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
 
             client.execute(
                 TransportFetchPhaseCoordinationAction.TYPE,

@@ -242,24 +242,20 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             }
         });
 
-        // Restore authentication headers before forwarding to data node
+        // Restore headers from the request into ThreadContext before forwarding to data node
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-
-        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            // Restore the headers from the original request
-            for (Map.Entry<String, String> header : request.getHeaders().entrySet()) {
-                threadContext.putHeader(header.getKey(), header.getValue());
-            }
-
-            // Forward request to data node with restored authentication context
-            transportService.sendChildRequest(
-                request.getDataNode(),
-                "indices:data/read/search[phase/fetch/id]",
-                fetchReq,
-                task,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(childListener, FetchSearchResult::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-            );
+        for (Map.Entry<String, String> header : request.getHeaders().entrySet()) {
+            threadContext.putHeader(header.getKey(), header.getValue());
         }
+
+        // Forward request to data node with restored authentication context
+        transportService.sendChildRequest(
+            request.getDataNode(),
+            "indices:data/read/search[phase/fetch/id]",
+            fetchReq,
+            task,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(childListener, FetchSearchResult::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+        );
     }
 }

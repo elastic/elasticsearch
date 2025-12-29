@@ -150,11 +150,9 @@ public class UngroupedQueueTests extends ESTestCase {
     }
 
     private void addRow(UngroupedQueue queue, int value) {
-        Row row = createRow(breaker, value);
-        Row result = queue.add(row);
-        if (result == row) {
-            row.close();
-        }
+        Row result = queue.add(createRow(breaker, value));
+        // This row is either the input or the evicted row, but either way it should be closed.
+        Releasables.close(result);
     }
 
     private void fillQueueToCapacity(UngroupedQueue queue, int capacity) {

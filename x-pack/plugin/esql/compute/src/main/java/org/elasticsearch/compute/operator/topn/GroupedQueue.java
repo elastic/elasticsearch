@@ -10,23 +10,19 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 class GroupedQueue implements TopNQueue {
     private final Map<BytesRef, UngroupedQueue> queuesByGroupKey = new HashMap<>();
-    private final SortedMap<BytesRef, Row> sortedRows = new TreeMap<>();
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNQueue.class);
     private final CircuitBreaker breaker;
     private final int topCount;
 
     static TopNQueue build(CircuitBreaker breaker, int topCount) {
-        // FIXME(gal, NOCOMMIT) is this computation correct?
-        breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "esql engine topn");
         return new GroupedQueue(breaker, topCount);
     }
 
@@ -52,33 +48,55 @@ class GroupedQueue implements TopNQueue {
     @Override
     public Row add(Row row) {
         var groupedRow = (GroupedRow) row;
-        BytesRef key = ((GroupedRow) row).groupKey().bytesRefView().clone();
-        var queue = queuesByGroupKey.computeIfAbsent(key, unused -> UngroupedQueue.build(breaker, topCount));
-        var result = queue.add(groupedRow);
+        return getQueue(groupedRow).add(groupedRow);
+    }
+
+    private UngroupedQueue getQueue(GroupedRow row) {
+        BytesRef keyView = row.groupKey().bytesRefView();
+        var result = queuesByGroupKey.get(keyView);
         if (result != null) {
-            if (result != row) {
-                // We don't need to close the row from sortedRows because it's the same instance as the one in the queue.
-                sortedRows.remove(key);
-            } else {
-                sortedRows.put(key, row);
+            return result;
+        }
+        boolean success = false;
+        UngroupedQueue newQueue = null;
+        BytesRef key = null;
+        try {
+            newQueue = UngroupedQueue.build(breaker, topCount);
+            breaker.addEstimateBytesAndMaybeBreak(keyView.length, "topn");
+            key = BytesRef.deepCopyOf(keyView);
+            queuesByGroupKey.put(key, newQueue);
+            success = true;
+            return newQueue;
+        } finally {
+            if (success == false) {
+                if (key != null) {
+                    breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(keyView.length));
+                }
+                Releasables.close(newQueue);
             }
         }
-        return result;
     }
 
     @Override
+    @Nullable
     public Row pop() {
-        var result = sortedRows.pollFirstEntry();
-        if (result == null) {
+        if (size() == 0) {
             return null;
         }
-        var resultFromQueue = queuesByGroupKey.get(result.getKey()).pop();
-        // The first entry in sortedRows has the first *global* key, and thus also has the first key in its own queue via Dictum de Omni (I
-        // just wanted an excuse to use that phrase).
-        if (result.getValue() != resultFromQueue) {
-            throw new IllegalStateException("Inconsistent state between sortedRows and queuesByGroupKey");
+        var iterator = queuesByGroupKey.entrySet().iterator();
+        var next = iterator.next();
+        var key = next.getKey();
+        UngroupedQueue queue = next.getValue();
+        if (queue.size() == 0) {
+            throw new IllegalStateException("Invariant violation: empty queue in grouped queue");
         }
-        return resultFromQueue;
+        var row = queue.pop();
+        if (queue.size() == 0) {
+            iterator.remove();
+            breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(key.length));
+            queue.close();
+        }
+        return row;
     }
 
     @Override
@@ -87,9 +105,6 @@ class GroupedQueue implements TopNQueue {
         total += RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
         );
-        for (Row r : sortedRows.values()) {
-            total += r.ramBytesUsed();
-        }
         return total;
     }
 
@@ -97,17 +112,18 @@ class GroupedQueue implements TopNQueue {
     public void close() {
         Releasables.close(
             // Release all entries in the topn
-            Releasables.wrap(queuesByGroupKey.values()),
-            // Release the array itself
-            () -> breaker.addWithoutBreaking(-sizeOf(topCount))
+            () -> breaker.addWithoutBreaking(-sizeOf(queuesByGroupKey.keySet())),
+            Releasables.wrap(queuesByGroupKey.values())
+        // Releasables.wrap(queuesByGroupKey.keySet()),
+        // Release the array itself
         );
     }
 
-    private static long sizeOf(int topCount) {
-        long total = SHALLOW_SIZE;
-        total += RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * (topCount + 1L)
-        );
+    private static long sizeOf(Iterable<BytesRef> bytes) {
+        long total = 0;
+        for (BytesRef b : bytes) {
+            total += b.length;
+        }
         return total;
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -45,7 +44,7 @@ public class GroupedQueueTests extends ESTestCase {
             assertThat(queue.size(), equalTo(0));
 
             for (int i = 0; i < topCount * 2; i++) {
-                addRow(queue, SORT_ORDER, i % 2, i * 10);
+                addRow(queue, SORT_ORDER, i % 3, i * 10);
             }
         }
     }
@@ -73,40 +72,30 @@ public class GroupedQueueTests extends ESTestCase {
             Row result = queue.add(topBefore);
             assertThat(result, nullValue());
 
-            Row evicted = queue.add(createRow(breaker, sortOrder, 0, 5));
-            assertThat(extractIntValue(evicted), equalTo(20));
-            Releasables.close(evicted);
+            try (Row evicted = queue.add(createRow(breaker, sortOrder, 0, 5))) {
+                assertThat(extractIntValue(evicted), equalTo(20));
+            }
         }
     }
 
     public void testAddWhenHeapFullAndRowDoesNotQualify() {
-        int topCount = 3;
-        try (TopNQueue queue = GroupedQueue.build(breaker, topCount)) {
+        try (TopNQueue queue = GroupedQueue.build(breaker, 3)) {
             addRows(queue, SORT_ORDER, 0, 30, 40, 50);
 
-            Row row = createRow(breaker, SORT_ORDER, 0, 60);
-            Row result = queue.add(row);
-            assertThat(result, sameInstance(row));
-            assertThat(extractIntValue(result), equalTo(60));
-            Releasables.close(result);
+            try (Row row = createRow(breaker, SORT_ORDER, 0, 60)) {
+                Row result = queue.add(row);
+                assertThat(result, sameInstance(row));
+                assertThat(extractIntValue(result), equalTo(60));
+            }
         }
     }
 
     public void testAddWithDifferentGroupKeys() {
-        int topCount = 2;
-        try (TopNQueue queue = GroupedQueue.build(breaker, topCount)) {
-            Row result1 = queue.add(createRow(breaker, SORT_ORDER, 0, 10));
-            assertThat(result1, nullValue());
-
-            Row result2 = queue.add(createRow(breaker, SORT_ORDER, 1, 20));
-            assertThat(result2, nullValue());
-
-            Row result3 = queue.add(createRow(breaker, SORT_ORDER, 0, 30));
-            assertThat(result3, nullValue());
-
-            Row result4 = queue.add(createRow(breaker, SORT_ORDER, 1, 40));
-            assertThat(result4, nullValue());
-
+        try (TopNQueue queue = GroupedQueue.build(breaker, 2)) {
+            assertThat(queue.add(createRow(breaker, SORT_ORDER, 0, 10)), nullValue());
+            assertThat(queue.add(createRow(breaker, SORT_ORDER, 1, 20)), nullValue());
+            assertThat(queue.add(createRow(breaker, SORT_ORDER, 0, 30)), nullValue());
+            assertThat(queue.add(createRow(breaker, SORT_ORDER, 1, 40)), nullValue());
             assertThat(queue.size(), equalTo(4));
         }
     }
@@ -127,17 +116,10 @@ public class GroupedQueueTests extends ESTestCase {
         return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
     }
 
-    private Row addRow(TopNQueue queue, TopNOperator.SortOrder sortOrder, int groupKey, int value) {
+    private void addRow(TopNQueue queue, TopNOperator.SortOrder sortOrder, int groupKey, int value) {
         Row row = createRow(breaker, sortOrder, groupKey, value);
-        Row result = queue.add(row);
-        if (result == row) {
-            row.close();
-            return null;
-        }
-        if (result != null) {
-            Releasables.close(result);
-        }
-        return null;
+        // This row is either the input or the evicted row, but either way it should be closed.
+        Releasables.close(queue.add(row));
     }
 
     private void fillQueueToCapacity(TopNQueue queue, TopNOperator.SortOrder sortOrder, int capacity) {
@@ -152,4 +134,3 @@ public class GroupedQueueTests extends ESTestCase {
 
     private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(0, true, false);
 }
-

@@ -69,8 +69,8 @@ final class GroupedRow implements Row {
 
     @Override
     public void close() {
+        Releasables.closeExpectNoException(() -> row.breaker.addWithoutBreaking(-SHALLOW_SIZE), groupKey);
         row.close();
-        Releasables.closeExpectNoException(groupKey);
     }
 
     public void writeGroupKey(int i, Row row) {

@@ -147,8 +147,8 @@ public final class RefCountingListener implements Releasable {
      * Acquire a listener which awaits a {@link Void} response. The delegate {@link ActionListener} is called when all such acquired
      * listeners are completed, on the thread that completes the last such listener.
      * <p>
-     * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
-     * will throw an {@link IllegalStateException} otherwise.
+     * It is invalid to call this method once all acquired listeners have been completed and the original try-with-resources block is
+     * closed. Doing so will trip an assertion if assertions are enabled, and will throw an {@link IllegalStateException} otherwise.
      * <p>
      * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
      * will be ignored otherwise.
@@ -182,8 +182,8 @@ public final class RefCountingListener implements Releasable {
      * If the {@code consumer} throws an exception then that exception is passed to the final listener as if the returned listener was
      * completed exceptionally.
      * <p>
-     * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
-     * will throw an {@link IllegalStateException} otherwise.
+     * It is invalid to call this method once all acquired listeners have been completed and the original try-with-resources block is
+     * closed. Doing so will trip an assertion if assertions are enabled, and will throw an {@link IllegalStateException} otherwise.
      * <p>
      * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
      * will be ignored otherwise.

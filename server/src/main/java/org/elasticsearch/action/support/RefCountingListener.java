@@ -86,22 +86,22 @@ public final class RefCountingListener implements Releasable {
     private final AtomicInteger droppedExceptionsRef = new AtomicInteger();
 
     /**
-     * Construct a {@link RefCountingListener} which completes {@code delegate} when all refs are released.
-     * @param delegate The listener to complete when all refs are released. This listener must not throw any exception on completion. If all
-     *                 the acquired listeners completed successfully then so is the delegate. If any of the acquired listeners completed
-     *                 with failure then the delegate is completed with the first exception received, with other exceptions added to its
-     *                 collection of suppressed exceptions.
+     * Construct a {@link RefCountingListener} which completes {@code delegate} when all acquired listeners have been completed.
+     * @param delegate The listener to complete when all acquired listeners are completed. This listener must not throw any exception on
+     *                 completion. If all the acquired listeners completed successfully then so is the delegate. If any of the acquired
+     *                 listeners completed exceptionally then the delegate is completed with the first exception received, with up to 10
+     *                 other exceptions added to its collection of suppressed exceptions.
      */
     public RefCountingListener(ActionListener<Void> delegate) {
         this(10, delegate);
     }
 
     /**
-     * Construct a {@link RefCountingListener} which completes {@code delegate} when all refs are released.
-     * @param delegate The listener to complete when all refs are released. This listener must not throw any exception on completion. If all
-     *                 the acquired listeners completed successfully then so is the delegate. If any of the acquired listeners completed
-     *                 with failure then the delegate is completed with the first exception received, with other exceptions added to its
-     *                 collection of suppressed exceptions.
+     * Construct a {@link RefCountingListener} which completes {@code delegate} when all acquired listeners have been completed.
+     * @param delegate The listener to complete when all acquired listeners are completed. This listener must not throw any exception on
+     *                 completion. If all the acquired listeners completed successfully then so is the delegate. If any of the acquired
+     *                 listeners completed exceptionally then the delegate is completed with the first exception received, with other
+     *                 exceptions added to its collection of suppressed exceptions.
      * @param maxExceptions The maximum number of exceptions to accumulate on failure.
      */
     public RefCountingListener(int maxExceptions, ActionListener<Void> delegate) {
@@ -114,7 +114,8 @@ public final class RefCountingListener implements Releasable {
     }
 
     /**
-     * Release the original reference to this object, which completes the delegate {@link ActionListener} if there are no other references.
+     * Release the original reference to this object, which completes the delegate {@link ActionListener} if there are no incomplete
+     * acquired listeners.
      * <p>
      * It is invalid to call this method more than once. Doing so will trip an assertion if assertions are enabled, but will be ignored
      * otherwise. This deviates from the contract of {@link java.io.Closeable}.
@@ -143,8 +144,8 @@ public final class RefCountingListener implements Releasable {
     }
 
     /**
-     * Acquire a reference to this object and return a listener which releases it. The delegate {@link ActionListener} is called when all
-     * acquired listeners have been completed, on the thread that completes the last such listener.
+     * Acquire a listener which awaits a {@link Void} response. The delegate {@link ActionListener} is called when all such acquired
+     * listeners are completed, on the thread that completes the last such listener.
      * <p>
      * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
      * will throw an {@link IllegalStateException} otherwise.
@@ -176,10 +177,10 @@ public final class RefCountingListener implements Releasable {
     }
 
     /**
-     * Acquire a reference to this object and return a listener which consumes a response and releases the reference. The delegate
-     * {@link ActionListener} is called when all its references have been released, on the thread that completes the last such listener. If
-     * the {@code consumer} throws an exception, the exception is passed to the final listener as if the returned listener was completed
-     * exceptionally.
+     * Acquire a listener which consumes a response, for instance by storing the response in some kind of data structure. The delegate
+     * {@link ActionListener} is called when all such acquired listeners are completed, on the thread that completes the last such listener.
+     * If the {@code consumer} throws an exception then that exception is passed to the final listener as if the returned listener was
+     * completed exceptionally.
      * <p>
      * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
      * will throw an {@link IllegalStateException} otherwise.

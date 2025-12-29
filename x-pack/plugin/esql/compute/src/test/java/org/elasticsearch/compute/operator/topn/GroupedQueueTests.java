@@ -103,17 +103,14 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
-    private Row createRow(CircuitBreaker breaker, TopNOperator.SortOrder sortOrder, int groupKey, int value) {
+    private Row createRow(CircuitBreaker breaker, TopNOperator.SortOrder sortOrder, int groupKey, int sortKey) {
         try (
             IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(groupKey).build();
-            IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(value).build();
-            IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(value * 2).build()
+            IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey).build();
+            IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey * 2).build()
         ) {
             TopNOperator.SortOrder adjustedSortOrder = new TopNOperator.SortOrder(1, sortOrder.asc(), sortOrder.nullsFirst());
-            Row row = new GroupedRow(
-                new UngroupedRow(breaker, List.of(adjustedSortOrder), 32, 64),
-                0
-            );
+            Row row = new GroupedRow(new UngroupedRow(breaker, List.of(adjustedSortOrder), 32, 64), 0);
             var filler = new GroupedRowFiller(
                 List.of(ElementType.INT, ElementType.INT, ElementType.INT),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),

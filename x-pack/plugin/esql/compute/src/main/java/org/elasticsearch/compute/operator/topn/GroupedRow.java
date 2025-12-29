@@ -72,7 +72,4 @@ final class GroupedRow implements Row {
         Releasables.closeExpectNoException(() -> row.breaker.addWithoutBreaking(-SHALLOW_SIZE), groupKey);
         row.close();
     }
-
-    public void writeGroupKey(int i, Row row) {
-        throw new AssertionError("TODO(gal) NOCOMMIT");
-    }
+}

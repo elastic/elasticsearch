@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
@@ -18,12 +20,17 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.time.Instant;
 
 public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
     private static final String USER = "admin-user";
     private static final String PASS = "x-pack-test-password";
 
     private static TestFeatureService oldClusterTestFeatureService;
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
 
     @Before
     public void retainOldClusterTestFeatureService() {

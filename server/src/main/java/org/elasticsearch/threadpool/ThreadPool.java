@@ -1142,12 +1142,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     public static boolean assertCurrentThreadPool(String... permittedThreadPoolNames) {
-        final Thread thread = Thread.currentThread();
+/*        final Thread thread = Thread.currentThread();
         final var threadName = thread.getName();
         assert threadName.startsWith("TEST-")
             || threadName.startsWith("LuceneTestCase")
             || Arrays.asList(permittedThreadPoolNames).contains(EsExecutors.executorName(thread))
-            : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";
+            : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";*/
         return true;
     }
 

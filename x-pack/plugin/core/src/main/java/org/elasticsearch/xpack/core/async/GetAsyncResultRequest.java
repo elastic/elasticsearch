@@ -19,6 +19,7 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
     private final String id;
     private TimeValue waitForCompletionTimeout = TimeValue.MINUS_ONE;
     private TimeValue keepAlive = TimeValue.MINUS_ONE;
+    private boolean returnPartialResults = true;
 
     /**
      * Creates a new request
@@ -34,6 +35,8 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         this.id = in.readString();
         this.waitForCompletionTimeout = TimeValue.timeValueMillis(in.readLong());
         this.keepAlive = in.readTimeValue();
+        // TODO handle transport versions
+        this.returnPartialResults = in.readBoolean();
     }
 
     @Override
@@ -42,6 +45,8 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         out.writeString(id);
         out.writeLong(waitForCompletionTimeout.millis());
         out.writeTimeValue(keepAlive);
+        // TODO handle transport versions
+        out.writeBoolean(returnPartialResults);
     }
 
     @Override
@@ -80,6 +85,18 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         return keepAlive;
     }
 
+    /**
+     * Sets whether partial results should be returned if the search is not yet complete.
+     */
+    public GetAsyncResultRequest setReturnPartialResults(boolean returnPartialResults) {
+        this.returnPartialResults = returnPartialResults;
+        return this;
+    }
+
+    public boolean getReturnPartialResults() {
+        return returnPartialResults;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -87,11 +104,12 @@ public class GetAsyncResultRequest extends LegacyActionRequest {
         GetAsyncResultRequest request = (GetAsyncResultRequest) o;
         return Objects.equals(id, request.id)
             && waitForCompletionTimeout.equals(request.waitForCompletionTimeout)
-            && keepAlive.equals(request.keepAlive);
+            && keepAlive.equals(request.keepAlive)
+            && returnPartialResults == request.returnPartialResults;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, waitForCompletionTimeout, keepAlive);
+        return Objects.hash(id, waitForCompletionTimeout, keepAlive, returnPartialResults);
     }
 }

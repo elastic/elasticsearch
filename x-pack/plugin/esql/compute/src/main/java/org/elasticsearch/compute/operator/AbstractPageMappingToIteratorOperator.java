@@ -142,6 +142,11 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return next != null && next.hasNext();
+    }
+
+    @Override
     public final Page getOutput() {
         if (next == null || next.hasNext() == false) {
             return null;

@@ -31,7 +31,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 
 /**
  * An operator that sorts "rows" of values by encoding the values to sort on, as bytes (using BytesRef). Each data type is encoded
@@ -467,31 +469,40 @@ public class TopNOperator implements Operator, Accountable {
 
     private void mergeSort(BoundedSortedVector sortedData, Page page) {
         var i = 0;
+        var j = 0;
         var maxSize = sortedData.maxSize;
         var merged = BoundedSortedVector.build(breaker, maxSize);
         RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+        Row scratchPage = null;
+        Row scratchSorted = null;
 
-        while (merged.size() < maxSize && (sortedData.isEmpty() == false || i < page.getPositionCount())) {
-            if (spare == null && i < page.getPositionCount()) {
-                spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
-                rowFiller.writeKey(i, spare);
-                rowFiller.writeValues(i, spare);
-                spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
-                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+        while (merged.size() < maxSize && (i < sortedData.size() || j < page.getPositionCount())) {
+            if (scratchPage == null && j < page.getPositionCount()) {
+                scratchPage = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+                rowFiller.writeKey(j, scratchPage);
+                rowFiller.writeValues(j, scratchPage);
+                spareKeysPreAllocSize = Math.max(scratchPage.keys.length(), spareKeysPreAllocSize / 2);
+                spareValuesPreAllocSize = Math.max(scratchPage.values.length(), spareValuesPreAllocSize / 2);
             }
 
-            if (spare != null && (sortedData.isEmpty() || compareRows(spare, sortedData.getFirst()) > 0)) {
-                merged.add(spare);
-                ++i;
-                spare = null;
+            if (scratchSorted == null && i < sortedData.size()) {
+                scratchSorted = sortedData.get(i);
+            }
+
+            if (scratchPage != null && (scratchSorted == null || compareRows(scratchPage, scratchSorted) > 0)) {
+                merged.add(scratchPage);
+                scratchPage = null;
+                ++j;
             } else {
-                merged.add(sortedData.removeFirst());
+                merged.add(scratchSorted);
+                scratchSorted = null;
+                sortedData.set(i, null);
+                ++i;
             }
         }
 
-        if (spare != null) {
-            spare.close();
-            spare = null;
+        if (scratchPage != null) {
+            scratchPage.close();
         }
         this.inputSortedVector.close();
         this.inputSortedVector = merged;
@@ -522,9 +533,8 @@ public class TopNOperator implements Operator, Accountable {
         boolean success = false;
         try {
             if (sortedInput) {
-                while (inputSortedVector.size() > 0) {
-                    list.add(inputSortedVector.removeFirst());
-                }
+                list.addAll(inputSortedVector);
+                inputSortedVector.clear();
                 inputSortedVector.close();
                 inputSortedVector = null;
             } else {
@@ -735,10 +745,6 @@ public class TopNOperator implements Operator, Accountable {
             this.maxSize = maxSize;
         }
 
-        public int getMaxSize() {
-            return maxSize;
-        }
-
         private void checkSize() {
             if (size() >= maxSize) {
                 throw new IllegalStateException("Cannot add more elements: maximum size of " + maxSize + " reached.");
@@ -784,13 +790,6 @@ public class TopNOperator implements Operator, Accountable {
                 total += r == null ? 0 : r.ramBytesUsed();
             }
             return total;
-        }
-
-        public void closeWithoutReleasingRows() {
-            Releasables.close(
-                // Release the array itself
-                () -> breaker.addWithoutBreaking(-BoundedSortedVector.sizeOf(maxSize))
-            );
         }
 
         @Override

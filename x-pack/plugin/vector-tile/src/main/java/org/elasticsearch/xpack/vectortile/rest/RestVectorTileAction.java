@@ -126,6 +126,8 @@ public class RestVectorTileAction extends BaseRestHandler {
                     .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                     .build()
             );
+        } else if (crossProjectEnabled == false && request.getProjectRouting() != null) {
+            throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
         }
 
         return channel -> searchRequestBuilder.execute(new RestResponseListener<>(channel) {

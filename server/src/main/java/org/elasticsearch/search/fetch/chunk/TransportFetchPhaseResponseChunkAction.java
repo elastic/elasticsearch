@@ -13,9 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -74,9 +76,12 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
     /**
      * Request wrapper containing the coordinating task ID and the chunk contents.
      */
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends LegacyActionRequest  implements IndicesRequest {
         private long coordinatingTaskId;
         private FetchPhaseResponseChunk chunkContents;
+
+        private String[] indices;
+        private IndicesOptions indicesOptions;
 
         /**
          * Creates a new chunk request.
@@ -84,15 +89,19 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
          * @param coordinatingTaskId the ID of the coordinating search task
          * @param chunkContents the chunk to deliver
          */
-        public Request(long coordinatingTaskId, FetchPhaseResponseChunk chunkContents) {
+        public Request(long coordinatingTaskId, FetchPhaseResponseChunk chunkContents, String[] indices, IndicesOptions indicesOptions) {
             this.coordinatingTaskId = coordinatingTaskId;
             this.chunkContents = Objects.requireNonNull(chunkContents);
+            this.indices = indices;
+            this.indicesOptions = indicesOptions;
         }
 
         Request(StreamInput in) throws IOException {
             super(in);
             coordinatingTaskId = in.readVLong();
             chunkContents = new FetchPhaseResponseChunk(in);
+            this.indices = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
@@ -100,6 +109,8 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
             super.writeTo(out);
             out.writeVLong(coordinatingTaskId);
             chunkContents.writeTo(out);
+            out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override
@@ -109,6 +120,16 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
 
         public FetchPhaseResponseChunk chunkContents() {
             return chunkContents;
+        }
+
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return indicesOptions;
         }
     }
 

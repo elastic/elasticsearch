@@ -19,6 +19,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -324,10 +325,15 @@ public class SearchTransportService {
             Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
             logger.info("sendExecuteFetch ThreadContext headers: {}", threadContext.getHeaders().keySet());
 
+            final var shardReq = shardFetchRequest.getShardSearchRequest();
+            final String concreteIndex = shardReq.shardId().getIndexName();
+            final String[] indices = new String[] { concreteIndex };
+            final var indicesOptions = shardReq.indicesOptions();
+
             transportService.sendChildRequest(
                 transportService.getConnection(transportService.getLocalNode()),
                 TransportFetchPhaseCoordinationAction.TYPE.name(),
-                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers, indices, indicesOptions),
                 task,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
@@ -651,6 +657,12 @@ public class SearchTransportService {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
                 logger.info("Using CHUNKED fetch path");
 
+                final var shardReq = fetchSearchReq.getShardSearchRequest();
+                assert shardReq != null;
+                final String concreteIndex = shardReq.shardId().getIndexName();
+                final String[] indices = new String[] { concreteIndex };
+                final IndicesOptions indicesOptions = shardReq.indicesOptions();
+
                 /// Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
                     .getThreadContext()
@@ -662,7 +674,11 @@ public class SearchTransportService {
                         transportService.sendChildRequest(
                             transportService.getConnection(fetchSearchReq.getCoordinatingNode()),
                             TransportFetchPhaseResponseChunkAction.TYPE.name(),
-                            new TransportFetchPhaseResponseChunkAction.Request(fetchSearchReq.getCoordinatingTaskId(), responseChunk),
+                            new TransportFetchPhaseResponseChunkAction.Request(
+                                fetchSearchReq.getCoordinatingTaskId(),
+                                responseChunk,
+                                indices,
+                                indicesOptions),
                             task,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(

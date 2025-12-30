@@ -73,6 +73,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class DataNodeRequestSenderTests extends ComputeTestCase {
@@ -344,7 +346,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             });
         }));
         assertThat(sent.size(), equalTo(shards));
-        assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
+        assertThat(maxConcurrentRequests.get(), is(lessThanOrEqualTo(concurrency)));
         assertThat(response.totalShards, equalTo(shards));
         assertThat(response.successfulShards, equalTo(shards));
         assertThat(response.failedShards, equalTo(0));

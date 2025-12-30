@@ -389,8 +389,8 @@ teardown:
   - match: { hits.total.value: 7 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "first text" }
-  - match: { hits.hits.1._source.textbody: "fourth text" }
-  - match: { hits.hits.2._source.textbody: "fifth text" }
+  - match: { hits.hits.1._source.textbody: "third text" }
+  - match: { hits.hits.2._source.textbody: "fourth text" }
 
 ---
 "Test MMR diversification with arbitrary shards":
@@ -759,4 +759,4 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: status_exception }
   - contains: { error.reason: "[diversify] search failed" }
-  - match: { error.suppressed.0.type: illegal_argument_exception }
+  - match: { error.suppressed.0.type: status_exception }

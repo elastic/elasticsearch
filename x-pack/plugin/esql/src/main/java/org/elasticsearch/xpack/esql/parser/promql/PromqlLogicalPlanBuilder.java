@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -479,7 +479,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
             PromqlBaseParser.LabelListContext labelListCtx = groupingContext.labelList();
             List<String> groupingKeys = visitLabelList(labelListCtx);
-            List<NamedExpression> groupings = new ArrayList<>(groupingKeys.size());
+            List<Attribute> groupings = new ArrayList<>(groupingKeys.size());
             for (int i = 0; i < groupingKeys.size(); i++) {
                 groupings.add(new UnresolvedAttribute(source(labelListCtx.labelName(i)), groupingKeys.get(i)));
             }

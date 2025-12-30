@@ -94,10 +94,13 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         private final String[] indices;
         private final IndicesOptions indicesOptions;
 
-        public Request(ShardFetchSearchRequest shardFetchRequest, DiscoveryNode dataNode,
-                       Map<String, String> headers,
-                       String[] indices,
-                       IndicesOptions indicesOptions) {
+        public Request(
+            ShardFetchSearchRequest shardFetchRequest,
+            DiscoveryNode dataNode,
+            Map<String, String> headers,
+            String[] indices,
+            IndicesOptions indicesOptions
+        ) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
             this.headers = headers;

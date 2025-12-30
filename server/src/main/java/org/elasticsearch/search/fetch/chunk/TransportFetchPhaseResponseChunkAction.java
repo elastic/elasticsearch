@@ -76,7 +76,7 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
     /**
      * Request wrapper containing the coordinating task ID and the chunk contents.
      */
-    public static class Request extends LegacyActionRequest  implements IndicesRequest {
+    public static class Request extends LegacyActionRequest implements IndicesRequest {
         private long coordinatingTaskId;
         private FetchPhaseResponseChunk chunkContents;
 

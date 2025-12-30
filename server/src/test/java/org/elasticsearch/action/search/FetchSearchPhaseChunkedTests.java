@@ -14,7 +14,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,11 +43,9 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -73,7 +70,7 @@ import static org.elasticsearch.action.search.FetchSearchPhaseTests.fetchProfile
 import static org.elasticsearch.action.search.FetchSearchPhaseTests.searchPhaseFactory;
 
 public class FetchSearchPhaseChunkedTests extends ESTestCase {
-    
+
     /**
      * Test that chunked fetch is used when all conditions are met:
      * - fetchPhaseChunked is true
@@ -81,7 +78,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
      * - not a CCS query (no cluster alias)
      * - not a scroll or reindex query
      */
-   /* public void testChunkedFetchUsedWhenConditionsMet() throws Exception {
+    /* public void testChunkedFetchUsedWhenConditionsMet() throws Exception {
         // Install 2 shards to avoid single-shard query-and-fetch optimization
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         ThreadPool threadPool = new TestThreadPool("test");

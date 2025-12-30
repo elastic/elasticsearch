@@ -90,7 +90,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
                     6,
                     List.of(new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f }))
                 )
-            )
+            ),
+            100
         );
 
         expectedDocIds.addAll(List.of(3, 4, 6));
@@ -127,7 +128,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
                     6,
                     List.of(new VectorData(new byte[] { 0x50, 0x50, 0x50, 0x50 }))
                 )
-            )
+            ),
+            100
         );
 
         expectedDocIds.addAll(List.of(3, 4, 6));

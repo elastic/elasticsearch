@@ -47,10 +47,6 @@ public abstract class ResultDiversificationContext {
         return size;
     }
 
-    public int setFieldVectors(FieldVectorSupplier fieldVectorSupplier) {
-        return setFieldVectors(fieldVectorSupplier, -1);
-    }
-
     public int setFieldVectors(FieldVectorSupplier fieldVectorSupplier, int topVectorsSize) {
         var vectors = fieldVectorSupplier.getFieldVectors();
         VectorData queryVector = this.getQueryVector();
@@ -67,11 +63,15 @@ public abstract class ResultDiversificationContext {
 
             List<Tuple<Integer, VectorData>> sortedTuples = new ArrayList<>();
             if (queryVector != null) {
-                // uuuugly sort - redo this later
+                // janky sort - redo this later
                 List<Tuple<Integer, Float>> scores = new ArrayList<>();
                 for (var vec : vectorTuples.entrySet()) {
+                    if (scores.size() >= topVectorsSize) {
+                        break;
+                    }
                     scores.add(new Tuple<>(vec.getKey(), getVectorSimilarity(useFloat, queryVector, vec.getValue())));
                 }
+
                 scores.sort(new Comparator<Tuple<Integer, Float>>() {
                     @Override
                     public int compare(Tuple<Integer, Float> o1, Tuple<Integer, Float> o2) {
@@ -84,18 +84,15 @@ public abstract class ResultDiversificationContext {
                     }
                 });
 
-                if (topVectorsSize >= 0) {
-                    scores = scores.subList(0, topVectorsSize);
-                }
-
                 for (var sortedTuple : scores) {
                     sortedTuples.add(new Tuple<>(sortedTuple.v1(), vectorTuples.get(sortedTuple.v1())));
                 }
             } else {
                 for (var vec : vectorTuples.entrySet()) {
-                    if (topVectorsSize >= 0 && sortedTuples.size() >= topVectorsSize) {
+                    if (sortedTuples.size() >= topVectorsSize) {
                         break;
                     }
+
                     sortedTuples.add(new Tuple<>(vec.getKey(), vec.getValue()));
                 }
             }

@@ -52,6 +52,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<DiversifyRetrieverBuilder> {
 
     public static final int DEFAULT_SIZE_VALUE = 10;
+    public static final int DEFAULT_TOP_N_CHUNKS = 100;
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
 
@@ -63,8 +64,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField LAMBDA_FIELD = new ParseField("lambda");
     public static final ParseField SIZE_FIELD = new ParseField("size");
-
-    // TODO -- add field for top_n_chunks for semantic_text
+    public static final ParseField TOP_N_CHUNKS_FIELD = new ParseField("top_n_chunks");
 
     public static class RankDocWithSearchHit extends RankDoc {
         private final SearchHit hit;
@@ -91,6 +91,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             QueryVectorBuilder queryVectorBuilder = args[5] == null ? null : (QueryVectorBuilder) args[5];
             Float lambda = args[6] == null ? null : (Float) args[6];
             Integer size = args[7] == null ? null : (Integer) args[7];
+            Integer topNChunks = args[8] == null ? null : (Integer) args[8];
 
             return new DiversifyRetrieverBuilder(
                 RetrieverSource.from((RetrieverBuilder) args[0]),
@@ -100,7 +101,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 size,
                 queryVector,
                 queryVectorBuilder,
-                lambda
+                lambda,
+                topNChunks
             );
         }
     );
@@ -127,6 +129,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         );
         PARSER.declareFloat(optionalConstructorArg(), LAMBDA_FIELD);
         PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), TOP_N_CHUNKS_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -136,6 +139,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     private final QueryVectorBuilder queryVectorBuilder;
     private final Float lambda;
     private final Integer size;
+    private final int topNChunks;
 
     DiversifyRetrieverBuilder(
         RetrieverSource innerRetriever,
@@ -145,7 +149,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         @Nullable Integer size,
         @Nullable VectorData queryVector,
         @Nullable QueryVectorBuilder queryVectorBuilder,
-        @Nullable Float lambda
+        @Nullable Float lambda,
+        @Nullable Integer topNChunks
     ) {
         super(List.of(innerRetriever), rankWindowSize);
         this.diversificationType = diversificationType;
@@ -154,6 +159,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.queryVectorBuilder = queryVectorBuilder;
         this.lambda = lambda;
         this.size = size == null ? Math.min(DEFAULT_SIZE_VALUE, rankWindowSize) : size;
+        this.topNChunks = topNChunks == null ? DEFAULT_TOP_N_CHUNKS : topNChunks;
     }
 
     DiversifyRetrieverBuilder(
@@ -164,7 +170,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         @Nullable Integer size,
         @Nullable Supplier<VectorData> queryVector,
         @Nullable QueryVectorBuilder queryVectorBuilder,
-        @Nullable Float lambda
+        @Nullable Float lambda,
+        @Nullable Integer topNChunks
     ) {
         super(innerRetrievers, rankWindowSize);
         assert innerRetrievers.size() == 1 : "ResultDiversificationRetrieverBuilder must have a single child retriever";
@@ -175,6 +182,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.queryVectorBuilder = queryVectorBuilder;
         this.lambda = lambda;
         this.size = size == null ? Math.min(DEFAULT_SIZE_VALUE, rankWindowSize) : size;
+        this.topNChunks = topNChunks == null ? DEFAULT_TOP_N_CHUNKS : topNChunks;
     }
 
     @Override
@@ -187,7 +195,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             size,
             queryVector,
             queryVectorBuilder,
-            lambda
+            lambda,
+            topNChunks
         );
     }
 
@@ -294,7 +303,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 size,
                 () -> toSet.get(),
                 null,
-                lambda
+                lambda,
+                topNChunks
             );
         }
 
@@ -372,7 +382,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier, 100);
         } else if (DenseVectorFieldVectorSupplier.canFieldBeDenseVector(diversificationField, results[0])) {
             FieldVectorSupplier fieldVectorSupplier = new DenseVectorFieldVectorSupplier(diversificationField, results);
-            vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier);
+            vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier, topNChunks);
         }
 
         if (vectorCount == 0) {
@@ -422,6 +432,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         builder.field(TYPE_FIELD.getPreferredName(), diversificationType.value);
         builder.field(FIELD_FIELD.getPreferredName(), diversificationField);
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        builder.field(TOP_N_CHUNKS_FIELD.getPreferredName(), topNChunks);
 
         if (queryVector != null) {
             builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.get());
@@ -452,6 +463,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             && this.diversificationType.equals(other.diversificationType)
             && this.diversificationField.equals(other.diversificationField)
             && Objects.equals(this.lambda, other.lambda)
+            && this.topNChunks == other.topNChunks
             && ((queryVector == null && other.queryVector == null)
                 || (queryVector != null && other.queryVector != null && Objects.equals(queryVector.get(), other.queryVector.get())))
             && Objects.equals(this.queryVectorBuilder, other.queryVectorBuilder);

@@ -67,7 +67,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             0,
             new VectorData(getRandomFloatQueryVector()),
             null,
-            0.3f
+            0.3f,
+            100
         );
         var validationZeroSize = retrieverWithZeroSize.validate(source, null, false, false);
         assertEquals(1, validationZeroSize.validationErrors().size());
@@ -84,7 +85,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             -1,
             new VectorData(getRandomFloatQueryVector()),
             null,
-            0.3f
+            0.3f,
+            100
         );
         var validationNegativeSize = retrieverWithNegativeSize.validate(source, null, false, false);
         assertEquals(1, validationNegativeSize.validationErrors().size());
@@ -101,7 +103,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             20,
             new VectorData(getRandomFloatQueryVector()),
             null,
-            0.3f
+            0.3f,
+            100
         );
         var validationSize = retrieverWithLargeSize.validate(source, null, false, false);
         assertEquals(1, validationSize.validationErrors().size());
@@ -122,7 +125,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             size,
             new VectorData(getRandomFloatQueryVector()),
             null,
-            2.0f
+            2.0f,
+            100
         );
         var validationLambda = retrieverHighLambda.validate(source, null, false, false);
         assertEquals(1, validationLambda.validationErrors().size());
@@ -139,7 +143,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             size,
             new VectorData(getRandomFloatQueryVector()),
             null,
-            -0.1f
+            -0.1f,
+            100
         );
         validationLambda = retrieverLowLambda.validate(source, null, false, false);
         assertEquals(1, validationLambda.validationErrors().size());
@@ -156,7 +161,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             size,
             new VectorData(getRandomFloatQueryVector()),
             null,
-            null
+            null,
+            100
         );
         validationLambda = retrieverNullLambda.validate(source, null, false, false);
         assertEquals(1, validationLambda.validationErrors().size());
@@ -173,7 +179,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             size,
             new VectorData(getRandomFloatQueryVector()),
             new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(getRandomFloatQueryVector()),
-            0.5f
+            0.5f,
+            100
         );
         var validationQueryVectors = retrieverWithBothQueryVectorAndBuilder.validate(source, null, false, false);
         assertEquals(1, validationQueryVectors.validationErrors().size());
@@ -223,7 +230,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             5,
             null,
             new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(queryVectorToUse),
-            0.7f
+            0.7f,
+            100
         );
         var builderRewritten = (DiversifyRetrieverBuilder) withQueryVectorBuilder.doRewrite(queryRewriteContext);
         assertNotSame(withQueryVectorBuilder, builderRewritten);
@@ -242,7 +250,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
                     5,
                     new VectorData(queryVectorToUse),
                     null,
-                    0.7f
+                    0.7f,
+                    100
                 );
 
                 assertEquals(withQueryVector, builderRewritten);
@@ -265,7 +274,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
             null,
-            0.3f
+            0.3f,
+            100
         );
 
         // run the rewrite to set the internal diversification context
@@ -290,7 +300,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
             null,
-            0.3f
+            0.3f,
+            100
         );
 
         retrieverWithoutRewrite.doRewrite(queryRewriteContext);
@@ -319,7 +330,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             3,
             new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f }),
             null,
-            0.3f
+            0.3f,
+            100
         );
 
         // run the rewrite to set the internal diversification context
@@ -441,7 +453,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             size,
             queryVector,
             null,
-            lambda
+            lambda,
+            100
         );
     }
 

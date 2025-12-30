@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -29,6 +30,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
@@ -209,5 +211,12 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
                 }));
             }
         };
+    }
+
+    public AggregateFunction withField(Expression newField) {
+        if (newField == this.field) {
+            return this;
+        }
+        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(newField, filter, window), parameters));
     }
 }

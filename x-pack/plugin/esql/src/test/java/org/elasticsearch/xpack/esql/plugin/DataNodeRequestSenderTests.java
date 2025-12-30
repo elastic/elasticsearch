@@ -352,6 +352,53 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.failedShards, equalTo(0));
     }
 
+    public void testLimitConcurrentNodesForced() {
+        final int shards = 10;
+        var targetShards = new ArrayList<DataNodeRequestSender.TargetShard>(shards);
+        for (int i = 0; i < shards; i++) {
+            targetShards.add(
+                targetShard(
+                    new DataNodeRequest.Shard(new ShardId("index", "n/a", i), SplitShardCountSummary.UNSET),
+                    DiscoveryNodeUtils.builder("node-" + i).roles(Set.of(DATA_HOT_NODE_ROLE)).build()
+                )
+            );
+        }
+
+        var concurrency = randomIntBetween(1, 2);
+        AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
+        AtomicInteger concurrentRequests = new AtomicInteger(0);
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        var response = safeGet(sendRequests(randomBoolean(), concurrency, targetShards, (node, shardIds, aliasFilters, listener) -> {
+            concurrentRequests.incrementAndGet();
+
+            while (true) {
+                var priorMax = maxConcurrentRequests.get();
+                var newMax = Math.max(priorMax, concurrentRequests.get());
+                if (newMax <= priorMax || maxConcurrentRequests.compareAndSet(priorMax, newMax)) {
+                    break;
+                }
+            }
+
+            sent.add(nodeRequest(node, shardIds));
+            runWithDelay(() -> {
+                while (maxConcurrentRequests.get() < concurrency) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                concurrentRequests.decrementAndGet();
+                listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
+            });
+        }));
+        assertThat(sent.size(), equalTo(shards));
+        assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
+        assertThat(response.totalShards, equalTo(shards));
+        assertThat(response.successfulShards, equalTo(shards));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
     public void testSkipNodes() {
         var targetShards = List.of(
             targetShard(shard1, node1),

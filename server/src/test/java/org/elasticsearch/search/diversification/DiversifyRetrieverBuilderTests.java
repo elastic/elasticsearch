@@ -278,8 +278,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         var result = retriever.combineInnerRetrieverResults(docs, false);
 
         assertEquals(3, result.length);
-        assertEquals(4, result[0].rank);
-        assertEquals(5, result[1].rank);
+        assertEquals(3, result[0].rank);
+        assertEquals(4, result[1].rank);
         assertEquals(6, result[2].rank);
 
         var retrieverWithoutRewrite = new DiversifyRetrieverBuilder(

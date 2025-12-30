@@ -93,7 +93,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
             )
         );
 
-        expectedDocIds.addAll(List.of(4, 5, 6));
+        expectedDocIds.addAll(List.of(3, 4, 6));
 
         return diversificationContext;
     }
@@ -130,7 +130,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
             )
         );
 
-        expectedDocIds.addAll(List.of(1, 4, 6));
+        expectedDocIds.addAll(List.of(3, 4, 6));
 
         return diversificationContext;
     }

@@ -124,7 +124,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
             return Float.NEGATIVE_INFINITY;
         }
 
-        float highestMMRScore = Float.NEGATIVE_INFINITY;
+        float highestSimilarityScore = Float.NEGATIVE_INFINITY;
+        int chunkWithHighestSimilarityScore = 0;
         for (Integer docRank : selectedDocRanks) {
             var compareDocVectors = context.getFieldVectorData(docRank);
             if (compareDocVectors == null || compareDocVectors.isEmpty()) {
@@ -135,42 +136,43 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
             int compareVectorSize = compareDocVectors.size();
             var cachedChunkScores = cachedScoresForDocsComparison.getOrDefault(docRank, null);
             if (cachedChunkScores == null) {
-                cachedChunkScores = new ArrayList<>(thisDocVectorsSize * compareVectorSize);
+                cachedChunkScores = new ArrayList<>(thisDocVectorsSize);
 
-                for (int r = 0; r < thisDocVectorsSize; r++) {
-                    for (int c = 0; c < compareVectorSize; c++) {
+                for (int chunk = 0; chunk < thisDocVectorsSize; chunk++) {
+                    float maxChunkScore = Float.NEGATIVE_INFINITY;
+                    for (int compareChunk = 0; compareChunk < compareVectorSize; compareChunk++) {
                         float score = getVectorComparisonScore(
                             similarityFunction,
-                            fieldVectorData.get(r).v2(),
-                            compareDocVectors.get(c).v2()
+                            fieldVectorData.get(chunk).v2(),
+                            compareDocVectors.get(compareChunk).v2()
                         );
-                        cachedChunkScores.add(score);
+                        if (score > maxChunkScore) {
+                            maxChunkScore = score;
+                        }
                     }
+                    cachedChunkScores.add(maxChunkScore);
                 }
 
                 cachedScoresForDocsComparison.put(docRank, cachedChunkScores);
             }
 
-            for (int r = 0; r < thisDocVectorsSize; r++) {
-                float querySimilarityScore = querySimilarity == null ? 0.0f : querySimilarity.get(r);
+            int chunkWithHighestSimilarity = 0;
+            for (int chunk = 0; chunk < thisDocVectorsSize; chunk++) {
+                chunkWithHighestSimilarity = cachedChunkScores.get(chunk) > chunkWithHighestSimilarity ? chunk : chunkWithHighestSimilarity;
+            }
 
-                float maxSimilarityScore = Float.NEGATIVE_INFINITY;
-                for (int c = 0; c < compareVectorSize; c++) {
-                    int position = (r * compareVectorSize) + c;
-                    float similarityScore = cachedChunkScores.get(position);
-                    if (similarityScore > maxSimilarityScore) {
-                        maxSimilarityScore = similarityScore;
-                    }
-                }
-
-                float mmrScore = (context.getLambda() * querySimilarityScore) - ((1 - context.getLambda()) * maxSimilarityScore);
-                if (mmrScore > highestMMRScore) {
-                    highestMMRScore = mmrScore;
-                }
+            if (cachedChunkScores.get(chunkWithHighestSimilarity) > highestSimilarityScore) {
+                highestSimilarityScore = cachedChunkScores.get(chunkWithHighestSimilarity);
+                chunkWithHighestSimilarityScore = chunkWithHighestSimilarity;
             }
         }
 
-        return highestMMRScore;
+        if (querySimilarity == null) {
+            return 0.0f - (1.0f - context.getLambda()) * highestSimilarityScore;
+        }
+
+        return (context.getLambda() * querySimilarity.get(chunkWithHighestSimilarityScore)) - ((1.0f - context.getLambda())
+            * highestSimilarityScore);
     }
 
     private Integer getHighestRelevantDocRank(RankDoc[] docs, Map<Integer, List<Float>> querySimilarity) {

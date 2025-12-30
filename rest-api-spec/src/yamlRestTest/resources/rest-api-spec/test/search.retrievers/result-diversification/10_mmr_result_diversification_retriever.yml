@@ -173,12 +173,14 @@ setup:
           {"index":{}}
           {"textbody": "more first text to add additional results text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test1_more", "rankfield": 8}
 
+  - do:
+      indices.refresh: { }
+
 ---
 teardown:
   - do:
       indices.delete:
         index: [ test-result-diversification-index, test-result-diversification-index-other, test-result-byte-diversification-index, any-shards-test-result-diversification-index ]
-        ignore: 404
 
   - do:
       indices.refresh: { }
@@ -323,7 +325,7 @@ teardown:
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "sixth text" }
-  - match: { hits.hits.1._source.textbody: "seventh text" }
+  - match: { hits.hits.1._source.textbody: "ninth text" }
   - match: { hits.hits.2._source.textbody: "eighth text" }
 
   - do:
@@ -389,8 +391,8 @@ teardown:
   - match: { hits.total.value: 7 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._source.textbody: "first text" }
-  - match: { hits.hits.1._source.textbody: "second text" }
-  - match: { hits.hits.2._source.textbody: "third text" }
+  - match: { hits.hits.1._source.textbody: "third text" }
+  - match: { hits.hits.2._source.textbody: "fourth text" }
 
 ---
 "Test MMR diversification with arbitrary shards":

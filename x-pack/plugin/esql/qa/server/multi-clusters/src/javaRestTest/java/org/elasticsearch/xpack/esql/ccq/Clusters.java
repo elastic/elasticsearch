@@ -13,12 +13,14 @@ import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 public class Clusters {
 
     static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
-    public static ElasticsearchCluster remoteCluster(Map<String, String> additionalSettings) {
+    static ElasticsearchCluster remoteCluster(Map<String, String> additionalSettings) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -32,20 +34,18 @@ public class Clusters {
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
-        if (additionalSettings != null && additionalSettings.isEmpty() == false) {
-            for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
-                cluster.setting(entry.getKey(), entry.getValue());
-            }
+        for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
+            cluster.setting(entry.getKey(), entry.getValue());
         }
         return cluster.build();
     }
 
     public static ElasticsearchCluster remoteCluster() {
-        return remoteCluster(null);
+        return remoteCluster(emptyMap());
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
-        return localCluster(remoteCluster, (Map<String, String>) null);
+        return localCluster(remoteCluster, emptyMap());
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Map<String, String> additionalSettings) {

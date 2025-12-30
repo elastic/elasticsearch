@@ -26,18 +26,13 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
         spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG"); // So we log a profile
-        if (LOGGING_CLUSTER_SETTINGS.isEmpty() == false) {
-            for (Map.Entry<String, String> entry : LOGGING_CLUSTER_SETTINGS.entrySet()) {
-                spec.setting(entry.getKey(), entry.getValue());
-            }
-        }
+        Clusters.addAdditionalLoggingSettings(spec);
     });
 
     @Override
@@ -70,7 +65,7 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsTDigestField() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V1.capabilityName()));
     }
 
     @Before

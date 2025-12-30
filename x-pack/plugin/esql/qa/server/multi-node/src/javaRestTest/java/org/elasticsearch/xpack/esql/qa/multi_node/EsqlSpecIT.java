@@ -19,10 +19,8 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
         spec.plugin("inference-service-test");
-        if (LOGGING_CLUSTER_SETTINGS.isEmpty() == false) {
-            for (Map.Entry<String, String> entry : LOGGING_CLUSTER_SETTINGS.entrySet()) {
-                spec.setting(entry.getKey(), entry.getValue());
-            }
+        for (Map.Entry<String, String> entry : LOGGING_CLUSTER_SETTINGS.entrySet()) {
+            spec.setting(entry.getKey(), entry.getValue());
         }
     });
 

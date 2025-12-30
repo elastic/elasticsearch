@@ -168,12 +168,7 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
                 }
             }
             validationException.throwIfValidationErrorsExist();
-            return new TestServiceSettings(
-                (String) modelValue,
-                (Integer) dimensionsValue,
-                similarityEnumValue,
-                elementTypeEnumValue
-            );
+            return new TestServiceSettings((String) modelValue, (Integer) dimensionsValue, similarityEnumValue, elementTypeEnumValue);
         }
     }
 

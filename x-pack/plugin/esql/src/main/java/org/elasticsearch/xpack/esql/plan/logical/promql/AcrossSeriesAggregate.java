@@ -29,6 +29,7 @@ import java.util.Objects;
  * Examples:
  * <pre>
  * sum(http_requests_total)
+ * sum(rate(http_requests_total[5m]))
  * avg(cpu_usage) by (host, env)
  * max(response_time) without (instance)
  * </pre>

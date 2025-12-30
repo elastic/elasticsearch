@@ -337,10 +337,7 @@ public class SearchTransportService {
                 task,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
-                    ActionListener.wrap(
-                        response -> listener.onResponse(response.getResult()),
-                        listener::onFailure
-                    ),
+                    ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure),
                     TransportFetchPhaseCoordinationAction.Response::new,
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 )

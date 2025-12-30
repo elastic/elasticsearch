@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
@@ -68,7 +67,6 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
@@ -129,7 +127,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
@@ -137,7 +136,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts, ts.estimatedRowSize())
+            maxPageSize
         );
     }
 
@@ -351,26 +350,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             try (DocVector indexDocVector = vector.filter(currentList.stream().mapToInt(Integer::intValue).toArray())) {
                 indexDocConsumer.accept(indexDocVector.asBlock());
             }
-        }
-    }
-
-    private class TestHashAggregationOperator extends HashAggregationOperator {
-
-        private final Attribute attribute;
-
-        TestHashAggregationOperator(
-            List<GroupingAggregator.Factory> aggregators,
-            Supplier<BlockHash> blockHash,
-            Attribute attribute,
-            DriverContext driverContext
-        ) {
-            super(aggregators, blockHash, driverContext);
-            this.attribute = attribute;
-        }
-
-        @Override
-        protected Page wrapPage(Page page) {
-            return page.appendBlock(getBlock(page.getBlock(0), attribute, FieldExtractPreference.NONE));
         }
     }
 

@@ -253,9 +253,7 @@ public class TopNOperator implements Operator, Accountable {
         List<SortOrder> sortOrders,
         int maxPageSize
     ) implements OperatorFactory {
-        public TopNOperatorFactory
-
-        {
+        public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
                 if (e == null) {
                     throw new IllegalArgumentException("ElementType not known");

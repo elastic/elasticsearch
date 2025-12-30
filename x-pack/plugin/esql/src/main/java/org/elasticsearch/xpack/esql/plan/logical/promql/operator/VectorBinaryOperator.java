@@ -25,7 +25,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public abstract class VectorBinaryOperator extends BinaryPlan {
+public abstract sealed class VectorBinaryOperator extends BinaryPlan permits VectorBinarySet, VectorBinaryComparison,
+    VectorBinaryArithmetic {
 
     private final VectorMatch match;
     private final boolean dropMetricName;

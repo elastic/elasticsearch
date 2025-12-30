@@ -68,7 +68,7 @@ public class UriParts extends CompoundOutputEval<UriParts> {
         if (input.resolved()) {
             DataType type = input.dataType();
             if (DataType.isString(type) == false) {
-                failures.add(fail(input, "Input for IP_LOOKUP must be of type [IP] or [String] but is [{}]", type.typeName()));
+                failures.add(fail(input, "Input for URI_PARTS must be of type [String] but is [{}]", type.typeName()));
             }
         }
     }

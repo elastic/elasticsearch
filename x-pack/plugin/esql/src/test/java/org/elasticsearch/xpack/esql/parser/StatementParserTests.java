@@ -31,10 +31,12 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
@@ -74,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -92,6 +95,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -3599,7 +3603,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "mv_expand",
             "rename",
             "sort",
-            "stats" };
+            "stats",
+            "uri_parts" };
         for (String keyword : keywords) {
             var plan = query("FROM test | STATS avg(" + keyword + ")");
             var aggregate = as(plan, Aggregate.class);
@@ -4321,5 +4326,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row a = 1 | sample 1",
             "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
         );
+    }
+
+    public void testUriPartsCommand() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan cmd = processingCommand("uri_parts_🐔 p = a");
+        UriParts parts = as(cmd, UriParts.class);
+        assertEqualsIgnoringIds(attribute("a"), parts.getInput());
+
+        // Verify the function is correct
+        CompoundOutputFunction function = parts.getFunction();
+        assertEquals(UriPartsFunction.getInstance(), function);
+
+        // Dynamically get expected field names
+        List<String> expectedFieldNames = function.getOutputColumns()
+            .keySet()
+            .stream()
+            .map(name -> "p." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = parts.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
     }
 }

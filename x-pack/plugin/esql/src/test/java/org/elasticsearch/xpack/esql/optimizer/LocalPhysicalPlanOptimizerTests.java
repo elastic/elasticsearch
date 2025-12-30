@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -2199,6 +2201,25 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
         assertNull(query.query());
+    }
+
+    public void testConstantFieldUriPartsFilter() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        String query = """
+            FROM test
+            | uri_parts_🐔 u = `constant_keyword-foo`
+            | WHERE `constant_keyword-foo` == "foo"
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, CONSTANT_K_STATS, analyzer);
+
+        var uriParts = as(plan, UriPartsExec.class);
+        var limit = as(uriParts.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+        assertNull(queryExec.query());
     }
 
     public void testMatchFunctionWithStatsWherePushable() {

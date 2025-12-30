@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -10669,5 +10670,55 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mvAvgAlias = mvAvgEval.fields().getFirst();
         assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
         as(leftEval.child(), EsRelation.class);
+    }
+
+    public void testPushDownSampleAndLimitThroughUriParts() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var query = "FROM test | URI_PARTS_🐔 parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";
+        var optimized = optimizedPlan(query);
+        // UriParts should be above Sample and Limit
+        var uriParts = as(optimized, UriParts.class);
+        var limit = as(uriParts.child(), Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+        as(sample.child(), EsRelation.class);
+    }
+
+    public void testPushDownUriPartsPastProject() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        String query = """
+            from test
+            | rename first_name as x
+            | keep x
+            | uri_parts_🐔 u = x
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        // UriParts should be pushed below Project
+        var keep = as(plan, Project.class);
+        var uriParts = as(keep.child(), UriParts.class);
+        assertThat(
+            uriParts.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("u.domain", "u.path", "u.port", "u.query", "u.scheme", "u.username", "u.password", "u.fragment")
+        );
+        // Limit should be pushed below UriParts
+        var limit = as(uriParts.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughUriParts() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        String query = """
+            from test
+            | sort emp_no
+            | uri_parts_🐔 u = first_name
+            | sort u.domain
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("u.domain"));
+        var uriParts = as(topN.child(), UriParts.class);
+        as(uriParts.child(), EsRelation.class);
     }
 }

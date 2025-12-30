@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -3169,6 +3170,14 @@ public class FieldNameUtilsTests extends ESTestCase {
             | KEEP emp_no, first_name, last_name, author, title
             | SORT emp_no, author
             """, Set.of("*"));
+    }
+
+    public void testUriPartsResolvesOnlyInput() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assertFieldNames("""
+            from employees
+            | uri_parts_🐔 u = first_name
+            | keep u.domain""", Set.of("_index", "first_name", "first_name.*"));
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

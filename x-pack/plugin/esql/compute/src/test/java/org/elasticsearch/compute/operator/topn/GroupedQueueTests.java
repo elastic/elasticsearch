@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class GroupedQueueTests extends ESTestCase {
-    /** Maximum allowed difference between expected and actual ramBytesUsed() values. */
-    public static final long MAX_DIFF = 0;
+    /** Maximum allowed difference between expected and actual ramBytesUsed() values. This is caused by the HashMap load factor. */
+    public static final long MAX_DIFF = 32;
 
     private final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1));
     private final CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -56,7 +56,7 @@ public class GroupedQueueTests extends ESTestCase {
             assertThat(queue.size(), equalTo(0));
 
             for (int i = 0; i < topCount * 2; i++) {
-                addRow(queue, SORT_ORDER, i % 3, i * 10);
+                addRow(queue, i % 3, i * 10);
             }
         }
     }
@@ -65,7 +65,7 @@ public class GroupedQueueTests extends ESTestCase {
         int topCount = 5;
         try (GroupedQueue queue = GroupedQueue.build(breaker, topCount)) {
             for (int i = 0; i < topCount; i++) {
-                Row row = createRow(breaker, SORT_ORDER, i % 2, i * 10);
+                Row row = createRow(breaker, i % 2, i * 10);
                 Row result = queue.add(row);
                 assertThat(result, nullValue());
                 assertThat(queue.size(), equalTo(i + 1));
@@ -76,15 +76,14 @@ public class GroupedQueueTests extends ESTestCase {
     public void testAddWhenHeapFullAndRowQualifies() {
         int topCount = 3;
         try (GroupedQueue queue = GroupedQueue.build(breaker, topCount)) {
-            TopNOperator.SortOrder sortOrder = SORT_ORDER;
-            fillQueueToCapacity(queue, sortOrder, topCount);
+            fillQueueToCapacity(queue, topCount);
 
             Row topBefore = queue.pop();
             assertThat(topBefore, notNullValue());
             Row result = queue.add(topBefore);
             assertThat(result, nullValue());
 
-            try (Row evicted = queue.add(createRow(breaker, sortOrder, 0, 5))) {
+            try (Row evicted = queue.add(createRow(breaker, 0, 5))) {
                 assertThat(extractIntValue(evicted), equalTo(20));
             }
         }
@@ -92,39 +91,38 @@ public class GroupedQueueTests extends ESTestCase {
 
     public void testAddWhenHeapFullAndRowDoesNotQualify() {
         try (GroupedQueue queue = GroupedQueue.build(breaker, 3)) {
-            addRows(queue, SORT_ORDER, 0, 30);
+            addRows(queue, 0, 30, 40, 50);
 
-            try (Row row = createRow(breaker, SORT_ORDER, 0, 60)) {
+            try (Row row = createRow(breaker, 0, 60)) {
                 Row result = queue.add(row);
                 assertThat(result, sameInstance(row));
-                assertThat(extractIntValue(result), equalTo(60));
             }
         }
     }
 
     public void testAddWithDifferentGroupKeys() {
         try (GroupedQueue queue = GroupedQueue.build(breaker, 2)) {
-            assertThat(queue.add(createRow(breaker, SORT_ORDER, 0, 10)), nullValue());
-            assertThat(queue.add(createRow(breaker, SORT_ORDER, 1, 20)), nullValue());
-            assertThat(queue.add(createRow(breaker, SORT_ORDER, 0, 30)), nullValue());
-            assertThat(queue.add(createRow(breaker, SORT_ORDER, 1, 40)), nullValue());
+            assertThat(queue.add(createRow(breaker, 0, 10)), nullValue());
+            assertThat(queue.add(createRow(breaker, 1, 20)), nullValue());
+            assertThat(queue.add(createRow(breaker, 0, 30)), nullValue());
+            assertThat(queue.add(createRow(breaker, 1, 40)), nullValue());
             assertThat(queue.size(), equalTo(4));
 
-            try (Row evicted = queue.add(createRow(breaker, SORT_ORDER, 0, 5))) {
+            try (Row evicted = queue.add(createRow(breaker, 0, 5))) {
                 assertThat(evicted, notNullValue());
                 assertThat(extractIntValue(evicted), equalTo(30));
             }
-            try (Row evicted = queue.add(createRow(breaker, SORT_ORDER, 1, 15))) {
+            try (Row evicted = queue.add(createRow(breaker, 1, 15))) {
                 assertThat(evicted, notNullValue());
                 assertThat(extractIntValue(evicted), equalTo(40));
             }
             assertThat(queue.size(), equalTo(4));
 
-            try (Row row = queue.add(createRow(breaker, SORT_ORDER, 0, 50))) {
+            try (Row row = queue.add(createRow(breaker, 0, 50))) {
                 assertThat(row, notNullValue());
                 assertThat(extractIntValue(row), equalTo(50));
             }
-            try (Row row = queue.add(createRow(breaker, SORT_ORDER, 1, 50))) {
+            try (Row row = queue.add(createRow(breaker, 1, 50))) {
                 assertThat(row, notNullValue());
                 assertThat(extractIntValue(row), equalTo(50));
             }
@@ -147,32 +145,32 @@ public class GroupedQueueTests extends ESTestCase {
 
     public void testRamBytesUsedPartiallyFilled() {
         try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
-            addRows(queue, SORT_ORDER, 0, 10, 20, 30, 40, 50);
-            // addRows(queue, SORT_ORDER, 1, 10, 20);
+            addRows(queue, 0, 10, 20, 30);
+            // addRows(queue, 1, 10, 20);
             assertRamUsageClose(queue);
         }
     }
 
     public void testRamBytesUsedAtCapacity() {
         try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
-            addRows(queue, SORT_ORDER, 0, 10, 20, 30, 40, 50);
-            addRows(queue, SORT_ORDER, 1, 10, 20, 30, 40, 50);
+            addRows(queue, 0, 10, 20, 30, 40, 50);
+            addRows(queue, 1, 10, 20, 30, 40, 50);
+            addRows(queue, 2, 10, 20, 30, 40, 50);
             assertRamUsageClose(queue);
         }
     }
 
-    private Row createRow(CircuitBreaker breaker, TopNOperator.SortOrder sortOrder, int groupKey, int sortKey) {
+    private Row createRow(CircuitBreaker breaker, int groupKey, int sortKey) {
         try (
             IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(groupKey).build();
             IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey).build();
             IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey * 2).build()
         ) {
-            TopNOperator.SortOrder adjustedSortOrder = new TopNOperator.SortOrder(1, sortOrder.asc(), sortOrder.nullsFirst());
-            Row row = new GroupedRow(new UngroupedRow(breaker, List.of(adjustedSortOrder), 32, 64), 16);
+            Row row = new GroupedRow(new UngroupedRow(breaker, List.of(SORT_ORDER), 32, 64), 0);
             var filler = new GroupedRowFiller(
                 List.of(ElementType.INT, ElementType.INT, ElementType.INT),
-                List.of(TopNEncoder.DEFAULT_UNSORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
-                List.of(adjustedSortOrder),
+                List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
+                List.of(SORT_ORDER),
                 List.of(0),
                 new Page(groupKeyBlock, keyBlock, valueBlock)
             );
@@ -187,23 +185,23 @@ public class GroupedQueueTests extends ESTestCase {
         return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
     }
 
-    private void addRow(GroupedQueue queue, TopNOperator.SortOrder sortOrder, int groupKey, int value) {
-        Row row = createRow(breaker, sortOrder, groupKey, value);
+    private void addRow(GroupedQueue queue, int groupKey, int value) {
+        Row row = createRow(breaker, groupKey, value);
         // This row is either the input or the evicted row, but either way it should be closed.
         Releasables.close(queue.add(row));
     }
 
-    private void fillQueueToCapacity(GroupedQueue queue, TopNOperator.SortOrder sortOrder, int capacity) {
-        addRows(queue, sortOrder, 0, IntStream.range(0, capacity).map(i -> i * 10).toArray());
+    private void fillQueueToCapacity(GroupedQueue queue, int capacity) {
+        addRows(queue, 0, IntStream.range(0, capacity).map(i -> i * 10).toArray());
     }
 
-    private void addRows(GroupedQueue queue, TopNOperator.SortOrder sortOrder, int groupKey, int... values) {
+    private void addRows(GroupedQueue queue, int groupKey, int... values) {
         for (int value : values) {
-            addRow(queue, sortOrder, groupKey, value);
+            addRow(queue, groupKey, value);
         }
     }
 
-    private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(0, true, false);
+    private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(1, true, false);
 
     private long expectedRamBytesUsed(GroupedQueue queue) {
         long expected = RamUsageTester.ramUsed(queue);

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -22,9 +21,9 @@ import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
 class GroupedQueue implements TopNQueue {
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(GroupedQueue.class) + shallowSizeOfInstance(HashMap.class);
-    public static final long BYTES_REF_HEADER_SIZE = shallowSizeOfInstance(BytesRef.class) + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+    public static final long BYTES_REF_HEADER_SIZE = shallowSizeOfInstance(BytesRef.class);
 
-    private final Map<BytesRef, UngroupedQueue> queuesByGroupKey = new HashMap<>();
+    private final Map<BytesRef, UngroupedQueue> queuesByGroupKey = new HashMap<>(0);
     private final CircuitBreaker breaker;
     private final int topCount;
 
@@ -119,15 +118,7 @@ class GroupedQueue implements TopNQueue {
             }
             total += entrySize;
             // Account for unused entries in the map's table, assuming current load of 0.5.
-            total += 2L * NUM_BYTES_OBJECT_REF;
-            System.out.println(
-                "total: "
-                    + total
-                    + ", queue: "
-                    + entry.getValue().ramBytesUsed()
-                    + ", total minus queue: "
-                    + (total - entry.getValue().ramBytesUsed())
-            );
+            total += NUM_BYTES_OBJECT_REF;
         }
 
         return total;

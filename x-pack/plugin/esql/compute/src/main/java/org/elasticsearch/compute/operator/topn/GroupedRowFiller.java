@@ -30,7 +30,7 @@ final class GroupedRowFiller implements RowFiller {
             valueExtractors[k] = ValueExtractor.extractorFor(
                 elementTypes.get(channel),
                 encoders.get(channel).toUnsortable(),
-                false, // FIXME(gal, NOCOMMIT) Temporary, this method should also accept a list of key extractors.
+                TopNOperator.channelInKey(sortOrders, channel),
                 page.getBlock(channel)
             );
         }

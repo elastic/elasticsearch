@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -37,8 +38,6 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
         ServiceSettings {
 
     public static final String NAME = "contextualai_rerank_service_settings";
-    private static final String API_KEY = "api_key";
-    private static final String MODEL_ID = "model_id";
 
     // TODO: Make this configurable instead of hardcoded. Should support custom endpoints or different ContextualAI regions.
     private static final String DEFAULT_URL = "https://api.contextual.ai/v1/rerank";
@@ -90,6 +89,11 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
 
     public String modelId() {
         return modelId;
+    }
+
+    @Override
+    public ContextualAiRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     public RateLimitSettings rateLimitSettings() {

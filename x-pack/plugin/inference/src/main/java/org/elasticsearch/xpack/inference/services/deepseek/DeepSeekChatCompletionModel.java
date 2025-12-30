@@ -78,11 +78,8 @@ public class DeepSeekChatCompletionModel extends Model {
         Map<String, Object> serviceSettingsMap
     ) {
         var validationException = new ValidationException();
+        var serviceSettings = buildDeepSeekServiceSettings(serviceSettingsMap, validationException);
 
-        var model = extractRequiredString(serviceSettingsMap, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = createOptionalUri(
-            extractOptionalString(serviceSettingsMap, URL, ModelConfigurations.SERVICE_SETTINGS, validationException)
-        );
         var secureApiToken = extractRequiredSecureString(
             serviceSettingsMap,
             "api_key",
@@ -90,11 +87,8 @@ public class DeepSeekChatCompletionModel extends Model {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        var serviceSettings = new DeepSeekServiceSettings(model, uri);
         var taskSettings = new EmptyTaskSettings();
         var secretSettings = new DefaultSecretSettings(secureApiToken);
         var modelConfigurations = new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
@@ -108,18 +102,7 @@ public class DeepSeekChatCompletionModel extends Model {
         Map<String, Object> serviceSettingsMap,
         Map<String, Object> secrets
     ) {
-        var validationException = new ValidationException();
-
-        var model = extractRequiredString(serviceSettingsMap, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = createOptionalUri(
-            extractOptionalString(serviceSettingsMap, "url", ModelConfigurations.SERVICE_SETTINGS, validationException)
-        );
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        var serviceSettings = new DeepSeekServiceSettings(model, uri);
+        var serviceSettings = buildAndValidateDeepSeekServiceSettings(serviceSettingsMap);
         var taskSettings = new EmptyTaskSettings();
         var secretSettings = DefaultSecretSettings.fromMap(secrets);
         var modelConfigurations = new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
@@ -155,6 +138,22 @@ public class DeepSeekChatCompletionModel extends Model {
 
     public RateLimitSettings rateLimitSettings() {
         return RATE_LIMIT_SETTINGS;
+    }
+
+    private static DeepSeekServiceSettings buildDeepSeekServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        var model = extractRequiredString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = createOptionalUri(extractOptionalString(serviceSettings, URL, ModelConfigurations.SERVICE_SETTINGS, validationException));
+        return new DeepSeekServiceSettings(model, uri);
+    }
+
+    private static DeepSeekServiceSettings buildAndValidateDeepSeekServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var deepSeekServiceSettings = buildDeepSeekServiceSettings(serviceSettings, validationException);
+        validationException.throwIfValidationErrorsExist();
+        return deepSeekServiceSettings;
     }
 
     private record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
@@ -204,6 +203,11 @@ public class DeepSeekChatCompletionModel extends Model {
                 builder.field(URL, uri.toString());
             }
             return builder.endObject();
+        }
+
+        @Override
+        public DeepSeekServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+            return buildAndValidateDeepSeekServiceSettings(serviceSettings);
         }
     }
 }

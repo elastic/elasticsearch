@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -36,7 +35,6 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     public static final String NAME = "jinaai_service_settings";
     public static final String MODEL_ID = "model_id";
-    private static final Logger logger = LogManager.getLogger(JinaAIServiceSettings.class);
     // See https://jina.ai/contact-sales/#rate-limit
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
 
@@ -94,6 +92,11 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
     @Override
     public String modelId() {
         return modelId;
+    }
+
+    @Override
+    public JinaAIServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     @Override

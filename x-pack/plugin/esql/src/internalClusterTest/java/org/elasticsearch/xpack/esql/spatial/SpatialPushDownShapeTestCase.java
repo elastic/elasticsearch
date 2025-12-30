@@ -309,25 +309,26 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
     private void statsExtentManyShards(int numShards) throws IOException, ParseException {
         assumeTrue("Test for shapes only", fieldType().contains("shape"));
         initIndexes(numShards);
+        boolean isCartesian = fieldType().equals("shape");
 
         ArrayList<ExtentTest> data = new ArrayList<>();
         // data that intersects and is within the polygon
-        data.add(new ExtentTest("LINESTRING(5 5,-5 5)", true, true, new Rectangle(0, 10, 5, 5)));
-        data.add(new ExtentTest("LINESTRING(0 1,1 0)", true, true, new Rectangle(-1, 1, 1, -1)));
-        data.add(new ExtentTest("POINT(9 9)", true, true, new Rectangle(9, 9, 9, 9)));
-        data.add(new ExtentTest("MULTIPOINT(-9 -9, 9 9)", true, true, new Rectangle(-9, 9, 9, -9)));
-        data.add(new ExtentTest("POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))", true, true, new Rectangle(-5, 5, 5, -5)));
+        data.add(new ExtentTest("LINESTRING(5 5,-5 5)", true, true, isCartesian));
+        data.add(new ExtentTest("LINESTRING(0 1,1 0)", true, true, isCartesian));
+        data.add(new ExtentTest("POINT(9 9)", true, true, isCartesian));
+        data.add(new ExtentTest("MULTIPOINT(-9 -9, 9 9)", true, true, isCartesian));
+        data.add(new ExtentTest("POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))", true, true, isCartesian));
         // data that intersects but is not within the polygon
-        data.add(new ExtentTest("LINESTRING(5 5,15 15)", true, false, new Rectangle(5, 15, 15, 5)));
-        data.add(new ExtentTest("LINESTRING(0 0, 11 11)", true, false, new Rectangle(0, 11, 11, 0)));
-        data.add(new ExtentTest("MULTIPOINT(-9 -19, 9 9)", true, false, new Rectangle(-9, 9, 9, -19)));
-        data.add(new ExtentTest("POLYGON ((-15 -15, 15 -15, 15 15, -15 15, -15 -15))", true, false, new Rectangle(-15, 15, 15, -15)));
+        data.add(new ExtentTest("LINESTRING(5 5,15 15)", true, false, isCartesian));
+        data.add(new ExtentTest("LINESTRING(0 0, 11 11)", true, false, isCartesian));
+        data.add(new ExtentTest("MULTIPOINT(-9 -19, 9 9)", true, false, isCartesian));
+        data.add(new ExtentTest("POLYGON ((-15 -15, 15 -15, 15 15, -15 15, -15 -15))", true, false, isCartesian));
         // data that does not intersect
-        data.add(new ExtentTest("LINESTRING(5 20,20 5)", false, false, new Rectangle(5, 20, 20, 5)));
-        data.add(new ExtentTest("LINESTRING(0 11, 11 11, 11 0)", false, false, new Rectangle(0, 11, 11, 0)));
-        data.add(new ExtentTest("POINT(19 9)", false, false, new Rectangle(19, 19, 9, 9)));
-        data.add(new ExtentTest("MULTIPOINT(-9 -19, 19 9)", false, false, new Rectangle(-9, 19, 9, -19)));
-        data.add(new ExtentTest("POLYGON ((11 11, 15 11, 15 15, 11 15, 11 11))", false, false, new Rectangle(11, 15, 15, 11)));
+        data.add(new ExtentTest("LINESTRING(5 20,20 5)", false, false, isCartesian));
+        data.add(new ExtentTest("LINESTRING(0 11, 11 11, 11 0)", false, false, isCartesian));
+        data.add(new ExtentTest("POINT(19 9)", false, false, isCartesian));
+        data.add(new ExtentTest("MULTIPOINT(-9 -19, 19 9)", false, false, isCartesian));
+        data.add(new ExtentTest("POLYGON ((11 11, 15 11, 15 15, 11 15, 11 11))", false, false, isCartesian));
         // Data that does not contain any geometries (to get null extents)
         data.add(new ExtentTest(null, false, false, null));
         data.add(new ExtentTest(null, false, false, null));
@@ -337,7 +338,6 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         int expectedIntersects = 0;
         int expectedWithin = 0;
         int expectedDisjoint = 0;
-        int expectedTotal = 0;
         TestExtentBuilder intersectsExtent = new TestExtentBuilder();
         TestExtentBuilder withinExtent = new TestExtentBuilder();
         TestExtentBuilder disjointExtent = new TestExtentBuilder();
@@ -349,9 +349,9 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
                 addToIndexes(i, "\"" + data.get(i).data + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
             }
             if (data.get(i).extent != null) {
-                expectedTotal++;
                 totalExtent.add(data.get(i).extent);
                 if (data.get(i).intersects) {
+                    data.get(i).checkIntersects("POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))", isCartesian);
                     expectedIntersects++;
                     intersectsExtent.add(data.get(i).extent);
                 } else {
@@ -359,6 +359,7 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
                     disjointExtent.add(data.get(i).extent);
                 }
                 if (data.get(i).within) {
+                    data.get(i).checkWithin("POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))", isCartesian);
                     expectedWithin++;
                     withinExtent.add(data.get(i).extent);
                 }
@@ -369,10 +370,10 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         for (String polygon : new String[] {
             "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))",
             "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))" }) {
-            // assertFunction("ST_WITHIN", polygon, expectedWithin, withinExtent.toRectangle(), numShards);
+            assertFunction("ST_WITHIN", polygon, expectedWithin, withinExtent.toRectangle(), numShards);
             assertFunction("ST_INTERSECTS", polygon, expectedIntersects, intersectsExtent.toRectangle(), numShards);
             assertFunction("ST_DISJOINT", polygon, expectedDisjoint, disjointExtent.toRectangle(), numShards);
-            assertFunction(null, polygon, expectedTotal, totalExtent.toRectangle(), numShards);
+            assertFunction(null, polygon, data.size(), totalExtent.toRectangle(), numShards);
         }
     }
 
@@ -405,23 +406,57 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         }
     }
 
-    private record ExtentTest(String data, boolean intersects, boolean within, Rectangle extent) {}
+    private record ExtentTest(String data, boolean intersects, boolean within, Rectangle extent) {
+        private ExtentTest(String data, boolean intersects, boolean within, boolean isCartesian) throws IOException, ParseException {
+            this(data, intersects, within, getExtent(data, isCartesian));
+        }
+
+        private void checkIntersects(String wkt, boolean isCartesian) throws IOException, ParseException {
+            Rectangle testBox = getExtent(WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt), isCartesian);
+            if (extent == null
+                || extent.getMaxX() < testBox.getMinX()
+                || extent.getMinX() > testBox.getMaxX()
+                || extent.getMaxY() < testBox.getMinY()
+                || extent.getMinY() > testBox.getMaxY()) {
+                fail("Extent[" + extent + "] does not intersect test box[" + testBox + "]");
+            }
+        }
+
+        private void checkWithin(String wkt, boolean isCartesian) throws IOException, ParseException {
+            Rectangle testBox = getExtent(WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt), isCartesian);
+            checkIntersects(wkt, isCartesian);
+            if (extent.getMaxX() > testBox.getMaxX()
+                || extent.getMinX() < testBox.getMinX()
+                || extent.getMaxY() > testBox.getMaxY()
+                || extent.getMinY() < testBox.getMinY()) {
+                fail("Extent[" + extent + "] is not within test box[" + testBox + "]");
+            }
+        }
+    }
 
     private Matcher<Rectangle> matchesExtent(Object result) throws IOException, ParseException {
         Geometry shape = WellKnownText.fromWKT(GeometryValidator.NOOP, false, result.toString());
         return matchesExtent(shape);
     }
 
-    private Matcher<Rectangle> matchesExtent(Geometry geometry) {
-        SpatialEnvelopeVisitor.PointVisitor pointVisitor = fieldType().equals("shape")
+    private static Rectangle getExtent(String wkt, boolean isCartesian) throws IOException, ParseException {
+        Geometry shape = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+        return getExtent(shape, isCartesian);
+    }
+
+    private static Rectangle getExtent(Geometry shape, boolean isCartesian) {
+        SpatialEnvelopeVisitor.PointVisitor pointVisitor = isCartesian
             ? new SpatialEnvelopeVisitor.CartesianPointVisitor()
             : new SpatialEnvelopeVisitor.GeoPointVisitor(SpatialEnvelopeVisitor.WrapLongitude.WRAP);
         SpatialEnvelopeVisitor envelopeVisitor = new SpatialEnvelopeVisitor(pointVisitor);
-        if (geometry.visit(envelopeVisitor)) {
-            Rectangle extent = pointVisitor.getResult();
-            return new TestExtentMatcher(extent);
+        if (shape.visit(envelopeVisitor)) {
+            return pointVisitor.getResult();
         }
         throw new IllegalArgumentException("Geometry is empty");
+    }
+
+    private Matcher<Rectangle> matchesExtent(Geometry geometry) {
+        return new TestExtentMatcher(getExtent(geometry, fieldType().equals("shape")));
     }
 
     private static class TestExtentMatcher extends TypeSafeMatcher<Rectangle> {

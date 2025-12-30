@@ -28,7 +28,6 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.EsExecutorServiceDecorator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
@@ -74,7 +73,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         );
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
-        //this.executor = threadPool.executor(UTILITY_THREAD_POOL_NAME);
+        // this.executor = threadPool.executor(UTILITY_THREAD_POOL_NAME);
         this.executor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name(UTILITY_THREAD_POOL_NAME + "[v]").factory());
         this.projectResolver = projectResolver;
     }

@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilit
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(EsqlSpecTestCase.LOGGING_CLUSTER_SETTINGS);
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 
     @Override
     protected String getTestRestCluster() {

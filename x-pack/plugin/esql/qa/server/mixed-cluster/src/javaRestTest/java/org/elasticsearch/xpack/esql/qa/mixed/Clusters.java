@@ -11,16 +11,8 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
-import java.util.Collections;
-import java.util.Map;
-
 public class Clusters {
-
     public static ElasticsearchCluster mixedVersionCluster() {
-        return mixedVersionCluster(Collections.emptyMap());
-    }
-
-    public static ElasticsearchCluster mixedVersionCluster(Map<String, String> additionalSettings) {
         String oldVersionString = System.getProperty("tests.old_cluster_version");
         Version oldVersion = Version.fromString(oldVersionString);
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
@@ -38,9 +30,6 @@ public class Clusters {
         if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
-        }
-        for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
-            cluster.setting(entry.getKey(), entry.getValue());
         }
         return cluster.build();
     }

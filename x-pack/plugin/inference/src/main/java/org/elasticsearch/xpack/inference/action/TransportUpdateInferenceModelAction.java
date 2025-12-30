@@ -211,6 +211,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         String serviceName,
         TaskType resolvedTaskType
     ) {
+        if (existingParsedModel.getTaskType().equals(resolvedTaskType) == false) {
+            throw new ElasticsearchStatusException("Task type must match the task type of the existing endpoint", RestStatus.BAD_REQUEST);
+        }
+
         ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
         TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
@@ -223,14 +227,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             newSecretSettings = existingSecretSettings.newSecretSettings(settingsToUpdate.serviceSettings());
         }
         if (settingsToUpdate.serviceSettings() != null) {
-            newServiceSettings = newServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings());
+            newServiceSettings = newServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings(), resolvedTaskType);
         }
         if (settingsToUpdate.taskSettings() != null && existingTaskSettings != null) {
             newTaskSettings = existingTaskSettings.updatedTaskSettings(settingsToUpdate.taskSettings());
-        }
-
-        if (existingParsedModel.getTaskType().equals(resolvedTaskType) == false) {
-            throw new ElasticsearchStatusException("Task type must match the task type of the existing endpoint", RestStatus.BAD_REQUEST);
         }
 
         ModelConfigurations newModelConfigs = new ModelConfigurations(

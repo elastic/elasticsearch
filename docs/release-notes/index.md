@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.2.3 [elasticsearch-9.2.3-release-notes]
-```{applies_to}
-stack: ga 9.2.3
-```
 
 ### Features and enhancements [elasticsearch-9.2.3-features-enhancements]
 
@@ -89,10 +86,8 @@ Vector Search:
 ## 9.1.9 [elasticsearch-9.1.9-release-notes]
 
 ### Features and enhancements [elasticsearch-9.1.9-features-enhancements]
-
 Infra/Core:
 * Bump lz4 dependency [#138806](https://github.com/elastic/elasticsearch/pull/138806)
-
 Infra/Logging:
 * Upgrade ECS logging layout [#138854](https://github.com/elastic/elasticsearch/pull/138854)
 
@@ -126,7 +121,6 @@ Infra/Core:
 
 Ingest Node:
 * Handle individual doc parsing failure in bulk request with pipeline [#138624](https://github.com/elastic/elasticsearch/pull/138624) (issue: [#138445](https://github.com/elastic/elasticsearch/issues/138445))
-
 Machine Learning:
 * Correctly handle empty inputs in `chunkedInfer()` [#138632](https://github.com/elastic/elasticsearch/pull/138632)
 
@@ -138,7 +132,6 @@ Security:
 
 Stats:
 * Improving performance of stats APIs when the number of shards is very large [#138126](https://github.com/elastic/elasticsearch/pull/138126) (issue: [#97222](https://github.com/elastic/elasticsearch/issues/97222))
-
 
 
 ## 9.2.2 [elasticsearch-9.2.2-release-notes]

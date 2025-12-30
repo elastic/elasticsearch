@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -101,6 +103,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
@@ -151,6 +154,7 @@ public class EsqlDataTypeConverter {
         typeToConverter.put(CARTESIAN_SHAPE, ToCartesianShape::new);
         typeToConverter.put(DATETIME, ToDatetime::new);
         typeToConverter.put(DATE_NANOS, ToDateNanos::new);
+        typeToConverter.put(DATE_RANGE, ToDateRange::new);
         // ToDegrees, typeless
         typeToConverter.put(DENSE_VECTOR, ToDenseVector::new);
         typeToConverter.put(DOUBLE, ToDouble::new);
@@ -669,6 +673,20 @@ public class EsqlDataTypeConverter {
 
     public static String nanoTimeToString(long dateTime, DateFormatter formatter) {
         return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
+    }
+
+    public static LongRangeBlockBuilder.LongRange parseDateRange(String s) {
+        var ss = s.split("\\.\\.");
+        assert ss.length == 2 : "can't parse range: " + s;
+        return new LongRangeBlockBuilder.LongRange(dateTimeToLong(ss[0]), dateTimeToLong(ss[1]) - 1);
+    }
+
+    public static String dateRangeToString(LongRangeBlockBuilder.LongRange range) {
+        return dateRangeToString(range.from(), range.to());
+    }
+
+    public static String dateRangeToString(long from, long to) {
+        return dateTimeToString(from) + ".." + dateTimeToString(to);
     }
 
     public static BytesRef numericBooleanToString(Object field) {

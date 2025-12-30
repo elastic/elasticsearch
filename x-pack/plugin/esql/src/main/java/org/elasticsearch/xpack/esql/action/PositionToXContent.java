@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -37,6 +38,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
@@ -199,6 +201,15 @@ public abstract class PositionToXContent {
                     ExponentialHistogram histogram = ((ExponentialHistogramBlock) block).getExponentialHistogram(valueIndex, scratch);
                     ExponentialHistogramXContent.serialize(builder, histogram);
                     return builder;
+                }
+            };
+            case DATE_RANGE -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    var from = ((LongRangeBlock) block).getFromBlock().getLong(valueIndex);
+                    var to = ((LongRangeBlock) block).getToBlock().getLong(valueIndex);
+                    return builder.value(dateRangeToString(from, to));
                 }
             };
             case NULL -> new PositionToXContent(block) {

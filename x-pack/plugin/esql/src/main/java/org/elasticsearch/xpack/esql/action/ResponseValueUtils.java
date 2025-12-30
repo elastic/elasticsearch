@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -39,6 +40,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
@@ -150,6 +152,11 @@ public final class ResponseValueUtils {
             case GEOHEX, GEOHASH, GEOTILE -> geoGridToString(((LongBlock) block).getLong(offset), dataType);
             case AGGREGATE_METRIC_DOUBLE -> aggregateMetricDoubleBlockToString((AggregateMetricDoubleBlock) block, offset);
             case EXPONENTIAL_HISTOGRAM -> exponentialHistogramBlockToString((ExponentialHistogramBlock) block, offset);
+            case DATE_RANGE -> {
+                var from = ((LongRangeBlock) block).getFromBlock().getLong(offset);
+                var to = ((LongRangeBlock) block).getToBlock().getLong(offset);
+                yield dateRangeToString(from, to);
+            }
             case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(offset);
             case HISTOGRAM -> EsqlDataTypeConverter.histogramToString(((BytesRefBlock) block).getBytesRef(offset, scratch));
             case UNSUPPORTED -> (String) null;

@@ -245,16 +245,20 @@ public class JobNodeSelector {
                     nodeNameAndMlAttributes(node),
                     "This node has insufficient available memory. Available memory for ML [%s (%s)], "
                         + "memory required by existing jobs [%s (%s)], "
-                        + "estimated memory required for this job [%s (%s)]. "
-                        + "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s] ",
+                        + "estimated memory required for this job [%s (%s)]. ",
                     currentLoad.getMaxMlMemory(),
                     ByteSizeValue.ofBytes(currentLoad.getMaxMlMemory()).toString(),
                     currentLoad.getAssignedJobMemory(),
                     ByteSizeValue.ofBytes(currentLoad.getAssignedJobMemory()).toString(),
                     requiredMemoryForJob,
-                    ByteSizeValue.ofBytes(requiredMemoryForJob).toString(),
-                    MACHINE_LEARNING_SETTINGS
+                    ByteSizeValue.ofBytes(requiredMemoryForJob).toString()
                 );
+                if (useAutoMemoryPercentage == false) {
+                    reason += format(
+                        "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]. ",
+                        MACHINE_LEARNING_SETTINGS
+                    );
+                }
                 logger.trace(reason);
                 reasons.put(node.getName(), reason);
                 continue;

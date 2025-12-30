@@ -624,7 +624,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(assignableNodes),
             createAssignmentRequest,
-            allocatedProcessorsScale
+            allocatedProcessorsScale,
+            useAuto
         );
 
         Set<String> shuttingDownNodeIds = nodesShuttingDown(currentState);

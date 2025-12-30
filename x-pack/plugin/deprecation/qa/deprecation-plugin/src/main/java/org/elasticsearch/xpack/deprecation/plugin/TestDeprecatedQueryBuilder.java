@@ -76,7 +76,7 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
             context.index().getName()
         );
 
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override

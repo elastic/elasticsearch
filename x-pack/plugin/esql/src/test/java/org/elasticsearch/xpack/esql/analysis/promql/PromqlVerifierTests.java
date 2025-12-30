@@ -17,8 +17,8 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assume.assumeTrue;
 
 public class PromqlVerifierTests extends ESTestCase {
 
@@ -30,19 +30,30 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlMissingAcrossSeriesAggregation() {
+        assertThat(error("""
+            PROMQL index=test step=5m (
+              rate(network.bytes_in[5m])
+            )""", tsdb), equalTo("2:3: top-level within-series aggregations are not supported at this time [rate(network.bytes_in[5m])]"));
+    }
+
+    public void testPromqlRangeVector() {
         assertThat(
-            error("""
-                PROMQL test step 5m (
-                  rate(network.bytes_in[5m])
-                )""", tsdb),
-            equalTo("2:3: only aggregations across timeseries are supported at this time (found [rate(network.bytes_in[5m])])")
+            error("PROMQL index=test step=5m network.bytes_in[5m]", tsdb),
+            equalTo("1:27: invalid expression type \"range vector\" for range query, must be scalar or instant vector")
+        );
+    }
+
+    public void testPromqlRangeVectorBinaryExpression() {
+        assertThat(
+            error("PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])", tsdb),
+            equalTo("1:31: binary expression must contain only scalar and instant vector types")
         );
     }
 
     public void testPromqlStepAndRangeMisaligned() {
         assertThat(
             error("""
-                PROMQL test step 1m (
+                PROMQL index=test step=1m (
                   avg(rate(network.bytes_in[5m]))
                 )""", tsdb),
             equalTo("2:29: the duration for range vector selector [5m] must be equal to the query's step for range queries at this time")
@@ -51,33 +62,34 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testPromqlIllegalNameLabelMatcher() {
         assertThat(
-            error("PROMQL test step 5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
-            equalTo("1:26: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
+            error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
+            equalTo("1:32: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
         );
     }
 
     public void testPromqlSubquery() {
         assertThat(
-            error("PROMQL test step 5m (avg(rate(network.bytes_in[5m:])))", tsdb),
-            equalTo("1:31: subqueries are not supported at this time [network.bytes_in[5m:]]")
+            error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:])))", tsdb),
+            equalTo("1:37: Subquery queries are not supported at this time [network.bytes_in[5m:]]")
         );
         assertThat(
-            error("PROMQL test step 5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
-            equalTo("1:31: subqueries are not supported at this time [network.bytes_in[5m:1m]]")
+            error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m:1m])))", tsdb),
+            equalTo("1:37: Subquery queries are not supported at this time [network.bytes_in[5m:1m]]")
         );
     }
 
-    @AwaitsFix(
-        bugUrl = "Doesn't parse: line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; "
-            + "expected LogicalPlan but found VectorBinaryArithmetic"
-    )
-    public void testPromqlArithmetricOperators() {
-        assertThat(error("PROMQL test step 5m (1+1)", tsdb), equalTo("1:27: arithmetic operators are not supported at this time [foo]"));
-        assertThat(error("PROMQL test step 5m (foo+1)", tsdb), equalTo("1:27: arithmetic operators are not supported at this time [foo]"));
-        assertThat(error("PROMQL test step 5m (1+foo)", tsdb), equalTo("1:27: arithmetic operators are not supported at this time [foo]"));
+    public void testTopLevelArithmeticOperators() {
         assertThat(
-            error("PROMQL test step 5m (foo+bar)", tsdb),
-            equalTo("1:27: arithmetic operators are not supported at this time [foo]")
+            error("PROMQL index=k8s step=5m 1+foo", tsdb),
+            containsString("top-level binary operators are not supported at this time")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m foo+bar", tsdb),
+            containsString("top-level binary operators are not supported at this time")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m max by (pod) (network.bytes_in) / 1024", tsdb),
+            containsString("top-level binary operators are not supported at this time")
         );
     }
 
@@ -87,35 +99,39 @@ public class PromqlVerifierTests extends ESTestCase {
     )
     public void testPromqlVectorMatching() {
         assertThat(
-            error("PROMQL test step 5m (method_code_http_errors_rate5m{code=\"500\"} / ignoring(code) method_http_requests_rate5m)", tsdb),
+            error(
+                "PROMQL index=test step=5m (method_code_http_errors_rate5m{code=\"500\"} / ignoring(code) method_http_requests_rate5m)",
+                tsdb
+            ),
             equalTo("")
         );
         assertThat(
-            error("PROMQL test step 5m (method_code_http_errors_rate5m / ignoring(code) group_left method_http_requests_rate5m)", tsdb),
+            error(
+                "PROMQL index=test step=5m (method_code_http_errors_rate5m / ignoring(code) group_left method_http_requests_rate5m)",
+                tsdb
+            ),
             equalTo("")
         );
     }
 
     public void testPromqlModifier() {
         assertThat(
-            error("PROMQL test step 5m (avg(rate(network.bytes_in[5m] offset 5m)))", tsdb),
-            equalTo("1:31: offset modifiers are not supported at this time [network.bytes_in[5m] offset 5m]")
+            error("PROMQL index=test step=5m (avg(rate(network.bytes_in[5m] offset 5m)))", tsdb),
+            equalTo("1:37: offset modifiers are not supported at this time [network.bytes_in[5m] offset 5m]")
         );
-        /* TODO
         assertThat(
-            error("PROMQL test step 5m (foo @ start())", tsdb),
-            equalTo("1:27: @ modifiers are not supported at this time [foo @ start()]")
-        );*/
+            error("PROMQL index=test step=5m start=0 end=1 (avg(foo @ start()))", tsdb),
+            equalTo("1:46: @ modifiers are not supported at this time [foo @ start()]")
+        );
     }
 
-    @AwaitsFix(
-        bugUrl = "Doesn't parse: line 1:27: Invalid query 'foo and bar'[LogicalBinaryContext] given; "
-            + "expected Expression but found InstantSelector"
-    )
     public void testLogicalSetBinaryOperators() {
-        assertThat(error("PROMQL test step 5m (foo and bar)", tsdb), equalTo(""));
-        assertThat(error("PROMQL test step 5m (foo or bar)", tsdb), equalTo(""));
-        assertThat(error("PROMQL test step 5m (foo unless bar)", tsdb), equalTo(""));
+        List.of("and", "or", "unless").forEach(op -> {
+            assertThat(
+                error("PROMQL index=test step=5m foo " + op + " bar", tsdb),
+                containsString("top-level binary operators are not supported at this time")
+            );
+        });
     }
 
     @Override

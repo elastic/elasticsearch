@@ -78,7 +78,7 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
         DataStreamOptions.Template fullyConfigured = new DataStreamOptions.Template(
             new DataStreamFailureStore.Template(
                 randomBoolean(),
-                DataStreamLifecycle.createFailuresLifecycleTemplate(randomBoolean(), randomTimeValue())
+                DataStreamLifecycle.failuresLifecycleBuilder().enabled(randomBoolean()).dataRetention(randomTimeValue()).buildTemplate()
             )
         );
 
@@ -113,7 +113,10 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
             new DataStreamFailureStore.Template(true, null)
         );
         DataStreamOptions.Template dataStreamOptionsWithLifecycle = new DataStreamOptions.Template(
-            new DataStreamFailureStore.Template(null, DataStreamLifecycle.createFailuresLifecycleTemplate(true, randomPositiveTimeValue()))
+            new DataStreamFailureStore.Template(
+                null,
+                DataStreamLifecycle.failuresLifecycleBuilder().enabled(true).dataRetention(randomPositiveTimeValue()).buildTemplate()
+            )
         );
         result = DataStreamOptions.builder(dataStreamOptionsWithLifecycle)
             .composeTemplate(dataStreamOptionsWithoutLifecycle)

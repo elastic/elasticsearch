@@ -76,7 +76,8 @@ public class BasicQueryClient implements QueryClient {
             log.trace("About to execute query {} on {}", StringUtils.toString(search.source()), indices);
         }
 
-        if (cfg.crossProjectEnabled()) {
+        // PIT contains the options already, and _search won't accept them a second time
+        if (usingPit() == false && cfg.crossProjectEnabled()) {
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
         client.search(search, listener);
@@ -95,7 +96,8 @@ public class BasicQueryClient implements QueryClient {
             }
             log.trace("About to execute multi-queries {} on {}", sj, indices);
         }
-        if (cfg.crossProjectEnabled()) {
+        // PIT contains the options already, and _search won't accept them a second time
+        if (usingPit() == false && cfg.crossProjectEnabled()) {
             search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
         }
         client.multiSearch(search, multiSearchLogListener(listener, allowPartialSearchResults, log));
@@ -195,5 +197,9 @@ public class BasicQueryClient implements QueryClient {
             multiSearchBuilder.add(request);
         }
         search(multiSearchBuilder.request(), allowPartialSearchResults, listener);
+    }
+
+    protected boolean usingPit() {
+        return false;
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -942,15 +941,10 @@ public record IndicesOptions(
         }
         // Until the feature flag is removed we access the field directly from the gatekeeper options.
         if (gatekeeperOptions().allowSelectors()) {
-            if (out.getTransportVersion().supports(TransportVersions.V_8_14_0)
-                && out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-                backwardsCompatibleOptions.add(Option.ALLOW_FAILURE_INDICES);
-            } else if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);
-            }
+            backwardsCompatibleOptions.add(Option.ALLOW_SELECTORS);
         }
 
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0) && gatekeeperOptions.includeFailureIndices()) {
+        if (gatekeeperOptions.includeFailureIndices()) {
             backwardsCompatibleOptions.add(Option.INCLUDE_FAILURE_INDICES);
         }
         out.writeEnumSet(backwardsCompatibleOptions);
@@ -966,19 +960,6 @@ public record IndicesOptions(
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
-        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-            out.writeBoolean(true);
-            out.writeBoolean(false);
-        }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_16_0)
-            && out.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-                out.writeVInt(1); // Enum set sized 1
-                out.writeVInt(0); // ordinal 0 (::data selector)
-            } else {
-                out.writeByte((byte) 0); // ordinal 0 (::data selector)
-            }
-        }
         out.writeWriteable(crossProjectModeOptions);
     }
 
@@ -989,19 +970,8 @@ public record IndicesOptions(
             options.contains(Option.ALLOW_EMPTY_WILDCARD_EXPRESSIONS),
             options.contains(Option.EXCLUDE_ALIASES)
         );
-        boolean allowSelectors = true;
-        if (in.getTransportVersion().supports(TransportVersions.V_8_14_0)
-            && in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            // We've effectively replaced the allow failure indices setting with allow selectors. If it is configured on an older version
-            // then use its value for allow selectors.
-            allowSelectors = options.contains(Option.ALLOW_FAILURE_INDICES);
-        } else if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            allowSelectors = options.contains(Option.ALLOW_SELECTORS);
-        }
-        boolean includeFailureIndices = false;
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            includeFailureIndices = options.contains(Option.INCLUDE_FAILURE_INDICES);
-        }
+        boolean allowSelectors = options.contains(Option.ALLOW_SELECTORS);
+        boolean includeFailureIndices = options.contains(Option.INCLUDE_FAILURE_INDICES);
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.builder()
             .allowClosedIndices(options.contains(Option.ERROR_WHEN_CLOSED_INDICES) == false)
             .allowAliasToMultipleIndices(options.contains(Option.ERROR_WHEN_ALIASES_TO_MULTIPLE_INDICES) == false)
@@ -1009,23 +979,6 @@ public record IndicesOptions(
             .includeFailureIndices(includeFailureIndices)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
-        if (in.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-            // Reading from an older node, which will be sending two booleans that we must read out and ignore.
-            in.readBoolean();
-            in.readBoolean();
-        }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_16_0)
-            && in.getTransportVersion().supports(TransportVersions.V_8_18_0) == false) {
-            // Reading from an older node, which will be sending either an enum set or a single byte that needs to be read out and ignored.
-            if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
-                int size = in.readVInt();
-                for (int i = 0; i < size; i++) {
-                    in.readVInt();
-                }
-            } else {
-                in.readByte();
-            }
-        }
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
                 ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS

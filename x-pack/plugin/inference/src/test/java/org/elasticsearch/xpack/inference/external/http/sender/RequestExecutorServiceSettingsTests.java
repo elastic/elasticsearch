@@ -40,6 +40,8 @@ public class RequestExecutorServiceSettingsTests {
     }
 
     public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(Settings settings) {
-        return new RequestExecutorServiceSettings(settings, mockClusterService(settings));
+        var executorServiceSettings = new RequestExecutorServiceSettings(settings);
+        executorServiceSettings.init(mockClusterService(settings));
+        return executorServiceSettings;
     }
 }

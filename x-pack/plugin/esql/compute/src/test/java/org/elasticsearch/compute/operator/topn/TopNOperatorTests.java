@@ -82,6 +82,8 @@ import static org.elasticsearch.compute.data.ElementType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
+import static org.elasticsearch.compute.data.ElementType.LONG_RANGE;
+import static org.elasticsearch.compute.data.ElementType.TDIGEST;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
@@ -202,7 +204,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testRamBytesUsed() {
-        for (var sortedInput : new boolean[]{true, false}) {
+        for (var sortedInput : new boolean[] { true, false }) {
             RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
                 @Override
                 public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
@@ -873,7 +875,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -945,7 +947,12 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM) {
+            if (e == ElementType.UNKNOWN
+                || e == COMPOSITE
+                || e == AGGREGATE_METRIC_DOUBLE
+                || e == EXPONENTIAL_HISTOGRAM
+                || e == TDIGEST
+                || e == LONG_RANGE) {
                 continue;
             }
             elementTypes.add(e);
@@ -1385,7 +1392,9 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == ElementType.DOC
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
-                    || t == EXPONENTIAL_HISTOGRAM,
+                    || t == EXPONENTIAL_HISTOGRAM
+                    || t == TDIGEST
+                    || t == LONG_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);

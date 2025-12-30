@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
@@ -297,7 +298,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     private static S3HttpHandler.S3Request parseRequest(HttpExchange exchange) {
-        return new S3HttpHandler("bucket").parseRequest(exchange);
+        return new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()).parseRequest(exchange);
     }
 
     public void testWriteBlobWithRetries() throws Exception {
@@ -1046,7 +1047,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         }
 
         ThrottlingDeleteHandler(int throttleTimesBeforeSuccess, IntConsumer onAttemptCallback, String errorCode) {
-            super("bucket");
+            super("bucket", S3ConsistencyModel.randomConsistencyModel());
             this.numberOfDeleteAttempts = new AtomicInteger();
             this.numberOfSuccessfulDeletes = new AtomicInteger();
             this.throttleTimesBeforeSuccess = new AtomicInteger(throttleTimesBeforeSuccess);
@@ -1353,12 +1354,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         @SuppressForbidden(reason = "use a http server")
         class RejectsUploadPartRequests extends S3HttpHandler {
             RejectsUploadPartRequests() {
-                super("bucket");
+                super("bucket", S3ConsistencyModel.randomConsistencyModel());
             }
 
             @Override
             public void handle(HttpExchange exchange) throws IOException {
-                if (parseRequest(exchange).isUploadPartRequest()) {
+                final var s3request = parseRequest(exchange);
+                if (s3request.isUploadPartRequest() || s3request.isPutObjectRequest()) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     super.handle(exchange);
@@ -1391,7 +1393,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         @SuppressForbidden(reason = "use a http server")
         class AwaitsListMultipartUploads extends S3HttpHandler {
             AwaitsListMultipartUploads() {
-                super("bucket");
+                super("bucket", S3ConsistencyModel.AWS_DEFAULT);
             }
 
             @Override
@@ -1460,15 +1462,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Override
     protected OperationPurpose randomRetryingPurpose() {
-        return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
+        return BlobStoreTestUtil.randomRetryingPurpose();
     }
 
     @Override
     protected OperationPurpose randomFiniteRetryingPurpose() {
-        return randomValueOtherThanMany(
-            purpose -> purpose == OperationPurpose.REPOSITORY_ANALYSIS || purpose == OperationPurpose.INDICES,
-            BlobStoreTestUtil::randomPurpose
-        );
+        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
     }
 
     private void assertMetricsForOpeningStream() {
@@ -1543,7 +1542,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     private static boolean isMultiDeleteRequest(HttpExchange exchange) {
-        return new S3HttpHandler("bucket").parseRequest(exchange).isMultiObjectDeleteRequest();
+        return new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()).parseRequest(exchange).isMultiObjectDeleteRequest();
     }
 
     /**

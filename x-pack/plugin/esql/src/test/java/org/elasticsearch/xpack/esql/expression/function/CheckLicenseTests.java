@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.containsString;
 
 public class CheckLicenseTests extends ESTestCase {
 
-    private final EsqlParser parser = new EsqlParser();
     private final String esql = "from test | eval license() | LIMIT 10";
 
     public void testLicense() {
@@ -79,7 +78,7 @@ public class CheckLicenseTests extends ESTestCase {
             }
         };
 
-        var plan = parser.createStatement(esql);
+        var plan = EsqlParser.INSTANCE.parseQuery(esql);
         plan = plan.transformDown(
             Limit.class,
             l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)

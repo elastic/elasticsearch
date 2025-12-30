@@ -10,69 +10,39 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Class that produces the last value of a field for downsampling.
+ * Class that produces the last value of a label field for downsampling.
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
-class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
-    // When downsampling metrics, we only keep one value even if the field was a multi-value field.
-    // For labels, we preserve all the values of the last occurrence.
-    private final boolean supportsMultiValue;
+class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDocValues> {
     Object lastValue = null;
 
-    LastValueFieldProducer(String name, boolean producesMultiValue) {
+    LastValueFieldProducer(String name) {
         super(name);
-        this.supportsMultiValue = producesMultiValue;
     }
 
     /**
-     * Creates a producer that can be used for downsampling labels. It works for all types apart from
-     * `aggregate_metric_double`, if the field type is aggregate metric double, please use
-     * {@link LastValueFieldProducer#createForAggregateSubMetricLabel(String, Metric)}.
+     * Creates a producer that can be used for downsampling labels.
      */
-    static LastValueFieldProducer createForLabel(String name, String fieldType) {
-        assert "aggregate_metric_double".equals(fieldType) == false
+    static LastValueFieldProducer create(String name, String fieldType) {
+        assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType) == false
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
-        if ("histogram".equals(fieldType)) {
-            return new LastValueFieldProducer.HistogramFieldProducer(name, true);
-        } else if ("flattened".equals(fieldType)) {
-            return new LastValueFieldProducer.FlattenedFieldProducer(name, true);
+        assert ExponentialHistogramFieldProducer.TYPE.equals(fieldType) == false
+            : "field type cannot be exponential histogram: " + fieldType + " for field " + name;
+        assert TDigestHistogramFieldProducer.TYPE.equals(fieldType) == false
+            : "field type cannot be histogram: " + fieldType + " for field " + name;
+        if ("flattened".equals(fieldType)) {
+            return new LastValueFieldProducer.FlattenedFieldProducer(name);
         }
-        return new LastValueFieldProducer(name, true);
-    }
-
-    /**
-     * Creates a producer that can be used for downsampling labels. It works for all types apart from
-     * `aggregate_metric_double`, if the field type is aggregate metric double, please use
-     * {@link LastValueFieldProducer#createForAggregateSubMetricMetric(String, Metric)} (String, Metric).}
-     */
-    static LastValueFieldProducer createForMetric(String name) {
-        return new LastValueFieldProducer(name, false);
-    }
-
-    /**
-     * Creates a producer that can be used for downsampling ONLY a sub-metric of an aggregate metric double labels. For
-     * other types of labels please use {@link LastValueFieldProducer#createForLabel(String, String)}.
-     */
-    static AggregateSubMetricFieldProducer createForAggregateSubMetricLabel(String name, Metric metric) {
-        return new AggregateSubMetricFieldProducer(name, metric, true);
-    }
-
-    /**
-     * Creates a producer that can be used for downsampling ONLY a sub-metric of an aggregate metric double metrics. For
-     * other types of metrics please use {@link LastValueFieldProducer#createForMetric(String)}.
-     */
-    static AggregateSubMetricFieldProducer createForAggregateSubMetricMetric(String name, Metric metric) {
-        return new AggregateSubMetricFieldProducer(name, metric, false);
+        return new LastValueFieldProducer(name);
     }
 
     @Override
@@ -101,7 +71,7 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
             int docValuesCount = docValues.docValueCount();
             assert docValuesCount > 0;
             isEmpty = false;
-            if (docValuesCount == 1 || supportsMultiValue == false) {
+            if (docValuesCount == 1) {
                 lastValue = docValues.nextValue();
             } else {
                 var values = new Object[docValuesCount];
@@ -127,47 +97,10 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
         return lastValue;
     }
 
-    /**
-     * This producer is used to downsample by keeping the last value the sub-metric of an aggregate metric double.
-     */
-    static final class AggregateSubMetricFieldProducer extends LastValueFieldProducer {
-
-        private final Metric metric;
-
-        private AggregateSubMetricFieldProducer(String name, Metric metric, boolean supportsMultiValue) {
-            super(name, supportsMultiValue);
-            this.metric = metric;
-        }
-
-        public String subMetric() {
-            return metric.name();
-        }
-    }
-
-    static final class HistogramFieldProducer extends LastValueFieldProducer {
-        private HistogramFieldProducer(String name, boolean producesMultiValue) {
-            super(name, producesMultiValue);
-        }
-
-        @Override
-        public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                final HistogramValue histogramValue = (HistogramValue) lastValue();
-                final List<Double> values = new ArrayList<>();
-                final List<Long> counts = new ArrayList<>();
-                while (histogramValue.next()) {
-                    values.add(histogramValue.value());
-                    counts.add(histogramValue.count());
-                }
-                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
-            }
-        }
-    }
-
     static final class FlattenedFieldProducer extends LastValueFieldProducer {
 
-        private FlattenedFieldProducer(String name, boolean producesMultiValue) {
-            super(name, producesMultiValue);
+        private FlattenedFieldProducer(String name) {
+            super(name);
         }
 
         @Override
@@ -199,4 +132,5 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
             }
         }
     }
+
 }

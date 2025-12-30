@@ -40,10 +40,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
-    static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
-    static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
+    protected static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    private static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
 
-    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
+    private static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
         this(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
@@ -67,7 +67,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    public void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -83,7 +83,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else if (statusCode == 429) {
             throw buildExceptionHandling429(request, result);
         } else if (isContentTooLarge(result)) {
-            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+            throw buildExceptionHandlingContentTooLarge(request, result);
         } else if (statusCode == 401) {
             throw new RetryException(false, buildError(AUTHENTICATION, request, result));
         } else if (statusCode >= 300 && statusCode < 400) {
@@ -101,6 +101,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
     }
 
+    protected RetryException buildExceptionHandlingContentTooLarge(Request request, HttpResult result) {
+        return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+    }
+
     private static String resourceNotFoundError(Request request) {
         return format("Resource not found at [%s]", request.getURI());
     }
@@ -109,7 +113,13 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
     }
 
-    private static boolean isContentTooLarge(HttpResult result) {
+    /**
+     * Determines if the given HTTP result indicates that the content is too large.
+     *
+     * @param result the HTTP result to check
+     * @return true if the content is too large, false otherwise
+     */
+    public boolean isContentTooLarge(HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
 
         if (statusCode == 413) {

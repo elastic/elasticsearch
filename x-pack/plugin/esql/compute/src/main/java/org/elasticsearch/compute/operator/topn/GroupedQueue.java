@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -109,16 +110,12 @@ class GroupedQueue implements TopNQueue {
     public long ramBytesUsed() {
         long total = SHALLOW_SIZE;
 
-        long entrySize = 0;
         for (var entry : queuesByGroupKey.entrySet()) {
             total += entry.getValue().ramBytesUsed();
             total += alignObjectSize(entry.getKey().length + BYTES_REF_HEADER_SIZE);
-            if (entrySize == 0) {
-                entrySize = shallowSizeOfInstance(entry.getClass());
-            }
-            total += entrySize;
+            total += HASH_MAP_NODE_SIZE;
             // Account for unused entries in the map's table, assuming current load of 0.5.
-            total += NUM_BYTES_OBJECT_REF;
+            total += 2L * NUM_BYTES_OBJECT_REF;
         }
 
         return total;
@@ -141,5 +138,14 @@ class GroupedQueue implements TopNQueue {
             total += b.length;
         }
         return total;
+    }
+
+    // Visible for testing.
+    static final long HASH_MAP_NODE_SIZE;
+
+    static {
+        var map = new HashMap<Integer, Integer>();
+        map.put(0, 0);
+        HASH_MAP_NODE_SIZE = RamUsageEstimator.shallowSizeOfInstance(map.entrySet().iterator().next().getClass());
     }
 }

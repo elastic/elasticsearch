@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.operator.topn.GroupedQueue.HASH_MAP_NODE_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -132,13 +133,13 @@ public class GroupedQueueTests extends ESTestCase {
 
     public void testRamBytesUsedEmpty() {
         try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
-            assertRamUsageClose(queue);
+            assertRamUsageClose(queue, 0);
         }
     }
 
-    private void assertRamUsageClose(GroupedQueue queue) {
+    private void assertRamUsageClose(GroupedQueue queue, int numGroups) {
         long actual = queue.ramBytesUsed();
-        long expected = expectedRamBytesUsed(queue);
+        long expected = expectedRamBytesUsed(queue, numGroups);
         var msg = Strings.format("Expected a difference of at most %d bytes; reported: %d, RamUsageTester: %d", MAX_DIFF, actual, expected);
         assertThat(msg, Math.abs(actual - expected), lessThanOrEqualTo(MAX_DIFF));
     }
@@ -147,7 +148,7 @@ public class GroupedQueueTests extends ESTestCase {
         try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
             addRows(queue, 0, 10, 20, 30);
             // addRows(queue, 1, 10, 20);
-            assertRamUsageClose(queue);
+            assertRamUsageClose(queue, 1);
         }
     }
 
@@ -156,7 +157,7 @@ public class GroupedQueueTests extends ESTestCase {
             addRows(queue, 0, 10, 20, 30, 40, 50);
             addRows(queue, 1, 10, 20, 30, 40, 50);
             addRows(queue, 2, 10, 20, 30, 40, 50);
-            assertRamUsageClose(queue);
+            assertRamUsageClose(queue, 3);
         }
     }
 
@@ -203,12 +204,16 @@ public class GroupedQueueTests extends ESTestCase {
 
     private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(1, true, false);
 
-    private long expectedRamBytesUsed(GroupedQueue queue) {
+    private long expectedRamBytesUsed(GroupedQueue queue, int numGroups) {
         long expected = RamUsageTester.ramUsed(queue);
         expected -= RamUsageTester.ramUsed(breaker);
         // RamUsageTester disagrees with the RamUsageEstimator on how much RAM an empty HashMap uses.
         expected -= RamUsageTester.ramUsed(new HashMap<BytesRef, UngroupedQueue>());
         expected += RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
+
+        // RamUsageTester ignores the internal structure of the map (nodes and table) for JDK Maps.
+        expected += numGroups * HASH_MAP_NODE_SIZE;
+
         if (queue.size() > 0) {
             var size = queue.size();
             Row rowSample = queue.pop();
@@ -219,14 +224,5 @@ public class GroupedQueueTests extends ESTestCase {
             queue.add(rowSample);
         }
         return expected;
-    }
-
-    private static void assertSameSize(Row sample, GroupedQueue queue) {
-        while (queue.size() > 0) {
-            try (Row row = queue.pop()) {
-                assertThat(row.ramBytesUsed(), equalTo(sample.ramBytesUsed()));
-                assertThat(RamUsageTester.ramUsed(row), equalTo(RamUsageTester.ramUsed(sample)));
-            }
-        }
     }
 }

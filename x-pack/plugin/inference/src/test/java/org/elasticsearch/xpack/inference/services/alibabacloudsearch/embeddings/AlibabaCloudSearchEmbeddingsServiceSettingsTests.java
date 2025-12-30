@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -23,39 +25,44 @@ import static org.hamcrest.Matchers.is;
 
 public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<
     AlibabaCloudSearchEmbeddingsServiceSettings> {
+
+    public static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.DOT_PRODUCT;
+    public static final int DIMS_VALUE = 1536;
+    public static final int MAX_INPUT_TOKENS_VALUE = 512;
+    public static final String SERVICE_ID_VALUE = "model";
+    public static final String HOST_VALUE = "host";
+    public static final String WORKSPACE_NAME_VALUE = "default";
+    public static final String HTTP_SCHEMA_VALUE = "https";
+    private static final long RATE_LIMIT_VALUE = 1L;
+
     public static AlibabaCloudSearchEmbeddingsServiceSettings createRandom() {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
-        var similarity = SimilarityMeasure.DOT_PRODUCT;
-        var dims = 1536;
-        var maxInputTokens = 512;
-        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonSettings, similarity, dims, maxInputTokens);
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(
+            commonSettings,
+            SIMILARITY_MEASURE_VALUE,
+            DIMS_VALUE,
+            MAX_INPUT_TOKENS_VALUE
+        );
     }
 
     public void testFromMap() {
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var model = "model";
-        var host = "host";
-        var workspaceName = "default";
-        var httpSchema = "https";
         var serviceSettings = AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.SIMILARITY,
-                    similarity,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     ServiceFields.DIMENSIONS,
-                    dims,
+                    DIMS_VALUE,
                     ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
+                    MAX_INPUT_TOKENS_VALUE,
                     AlibabaCloudSearchServiceSettings.HOST,
-                    host,
+                    HOST_VALUE,
                     AlibabaCloudSearchServiceSettings.SERVICE_ID,
-                    model,
+                    SERVICE_ID_VALUE,
                     AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
-                    workspaceName,
+                    WORKSPACE_NAME_VALUE,
                     AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME,
-                    httpSchema
+                    HTTP_SCHEMA_VALUE
                 )
             ),
             null
@@ -65,10 +72,59 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractWi
             serviceSettings,
             is(
                 new AlibabaCloudSearchEmbeddingsServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, null),
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dims,
-                    maxInputTokens
+                    new AlibabaCloudSearchServiceSettings(SERVICE_ID_VALUE, HOST_VALUE, WORKSPACE_NAME_VALUE, HTTP_SCHEMA_VALUE, null),
+                    SIMILARITY_MEASURE_VALUE,
+                    DIMS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        var serviceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
+            AlibabaCloudSearchServiceSettingsTests.createRandom(),
+            SimilarityMeasure.COSINE,
+            1,
+            1
+        ).updateServiceSettings(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.SIMILARITY,
+                    SIMILARITY_MEASURE_VALUE.toString(),
+                    ServiceFields.DIMENSIONS,
+                    DIMS_VALUE,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    MAX_INPUT_TOKENS_VALUE,
+                    AlibabaCloudSearchServiceSettings.HOST,
+                    HOST_VALUE,
+                    AlibabaCloudSearchServiceSettings.SERVICE_ID,
+                    SERVICE_ID_VALUE,
+                    AlibabaCloudSearchServiceSettings.WORKSPACE_NAME,
+                    WORKSPACE_NAME_VALUE,
+                    AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME,
+                    HTTP_SCHEMA_VALUE,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT_VALUE))
+                )
+            ),
+            TaskType.TEXT_EMBEDDING
+        );
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new AlibabaCloudSearchEmbeddingsServiceSettings(
+                    new AlibabaCloudSearchServiceSettings(
+                        SERVICE_ID_VALUE,
+                        HOST_VALUE,
+                        WORKSPACE_NAME_VALUE,
+                        HTTP_SCHEMA_VALUE,
+                        new RateLimitSettings(RATE_LIMIT_VALUE)
+                    ),
+                    SIMILARITY_MEASURE_VALUE,
+                    DIMS_VALUE,
+                    MAX_INPUT_TOKENS_VALUE
                 )
             )
         );

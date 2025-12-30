@@ -7,8 +7,12 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+
+import java.io.IOException;
 
 /**
  * Extends Page with batch metadata for bidirectional batch exchange.
@@ -66,5 +70,21 @@ public class BatchPage extends Page {
      */
     public Page asPage() {
         return this;
+    }
+
+    /**
+     * Constructor for deserialization from StreamInput.
+     */
+    public BatchPage(StreamInput in) throws IOException {
+        super(in);  // Call Page constructor to read positionCount and blocks
+        this.batchId = in.readLong();
+        this.isLastPageInBatch = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);  // Write Page data (positionCount and blocks)
+        out.writeLong(batchId);
+        out.writeBoolean(isLastPageInBatch);
     }
 }

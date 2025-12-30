@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -56,7 +57,7 @@ public class BatchDriverTests extends ESTestCase {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
-            int numBatches = between(2, 10000);
+            int numBatches = between(100, 10000);
             TestData testData = createSimpleTestBatches(driverContext, numBatches, 0, 10, 1, 10);
             runBatchTest(driverContext, threadPool, testData.batches(), testData.expectedOutputBatches(), numBatches);
         } finally {
@@ -75,6 +76,7 @@ public class BatchDriverTests extends ESTestCase {
             int numBatches = between(2, 10);
             TestData testData = createSimpleTestBatches(driverContext, numBatches, 0, 10, 1, 10);
             List<List<Page>> batches = testData.batches();
+            List<List<Page>> expectedOutputBatches = testData.expectedOutputBatches();
 
             // Track processed batches and callbacks
             AtomicInteger processedBatches = new AtomicInteger(0);
@@ -165,31 +167,235 @@ public class BatchDriverTests extends ESTestCase {
             }, "batch-feeding-thread");
             batchFeedingThread.start();
 
-            // Wait for driver to complete - expect IllegalStateException when batches are fed upfront
-            // because the driver will receive pages from the next batch while still processing the current batch
-            Exception driverException = expectThrows(Exception.class, () -> { driverFuture.actionGet(30, TimeUnit.SECONDS); });
-
-            // Unwrap the exception - actionGet wraps exceptions, so check the cause chain
-            Throwable cause = driverException;
-            while (cause != null) {
-                if (cause instanceof IllegalStateException) {
-                    break;
-                }
-                cause = cause.getCause();
-            }
-
-            assertThat(
-                "Driver should throw IllegalStateException when receiving pages from next batch. Exception: " + driverException,
-                cause,
-                instanceOf(IllegalStateException.class)
-            );
-            assertThat("Exception message should indicate batch mismatch", cause.getMessage(), containsString("Received page for batch"));
+            // Wait for driver to complete - batches sent upfront should now be handled correctly
+            driverFuture.actionGet(30, TimeUnit.SECONDS);
 
             // Wait for batch feeding thread to finish
             batchFeedingThread.join(30000);
             assertThat("Batch feeding thread should have completed", batchFeedingThread.isAlive(), equalTo(false));
 
-            // Don't verify results after exception - the driver failed, so results are incomplete
+            // Verify batch processing completion
+            verifyBasicBatchResults(batchesSent, processedBatches, callbackBatchIds, numBatches);
+
+            // Verify data correctness
+            verifyDataCorrectness(expectedOutputBatches, actualOutputBatches, numBatches, 1);
+
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * Test that verifies we fail when receiving a page for batch 2 while still processing batch 1,
+     * even after finish() is called. This ensures the driver processes all buffered pages before completing.
+     */
+    public void testOutOfOrderBatchPagesAfterFinish() throws Exception {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        try {
+            // Create test data: 3 batches
+            TestData testData = createSimpleTestBatches(driverContext, 3, 2, 2, 3, 3);
+            List<List<Page>> batches = testData.batches();
+
+            // Set up exchange
+            ExchangeSetup exchange = setupExchange(driverContext, threadPool);
+
+            // Create operators
+            EvalOperator addOneOperator = createAddOneOperator(driverContext);
+            List<Page> allOutputPages = new ArrayList<>();
+            TestResultPageSinkOperator sinkOperator = new TestResultPageSinkOperator(allOutputPages::add);
+
+            // Create BatchDriver
+            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator);
+
+            // Start driver
+            ThreadContext threadContext = threadPool.getThreadContext();
+            PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
+            Driver.start(threadContext, threadPool.executor("esql"), batchDriver, 1000, driverFuture);
+
+            // Feed batches in a way that triggers out-of-order error:
+            // 1. Send batch 0 completely
+            // 2. Send batch 1 pages but NOT the last page (so batch 1 is still processing)
+            // 3. Send batch 2 page (should trigger error)
+            // 4. Call finish() - driver should still process buffered pages and detect error
+            Thread batchFeedingThread = new Thread(() -> {
+                try {
+                    // Send batch 0 completely
+                    List<Page> batch0Pages = batches.get(0);
+                    for (int pageIdx = 0; pageIdx < batch0Pages.size(); pageIdx++) {
+                        Page page = batch0Pages.get(pageIdx);
+                        boolean isLastPageInBatch = (pageIdx == batch0Pages.size() - 1);
+                        BatchPage batchPage = new BatchPage(page, 0, isLastPageInBatch);
+                        waitForExchangeSink(exchange.exchangeSink);
+                        exchange.exchangeSink.addPage(batchPage);
+                    }
+
+                    // Send batch 1 pages but NOT the last page (so batch 1 is still processing)
+                    List<Page> batch1Pages = batches.get(1);
+                    for (int pageIdx = 0; pageIdx < batch1Pages.size() - 1; pageIdx++) {
+                        Page page = batch1Pages.get(pageIdx);
+                        BatchPage batchPage = new BatchPage(page, 1, false); // Not last page
+                        waitForExchangeSink(exchange.exchangeSink);
+                        exchange.exchangeSink.addPage(batchPage);
+                    }
+
+                    // Now send a page for batch 2 while batch 1 is still processing (not ended)
+                    // This should trigger the IllegalStateException
+                    List<Page> batch2Pages = batches.get(2);
+                    if (batch2Pages.isEmpty() == false) {
+                        Page page = batch2Pages.get(0);
+                        BatchPage batchPage = new BatchPage(page, 2, false);
+                        waitForExchangeSink(exchange.exchangeSink);
+                        exchange.exchangeSink.addPage(batchPage);
+                    } else {
+                        // If batch 2 is empty, send a marker
+                        BatchPage marker = BatchPage.createMarker(2);
+                        waitForExchangeSink(exchange.exchangeSink);
+                        exchange.exchangeSink.addPage(marker);
+                    }
+
+                    // Finish the sink - driver should still process buffered pages and detect error
+                    exchange.exchangeSink.finish();
+                } catch (Exception e) {
+                    logger.error("[TEST] Error in batch feeding thread", e);
+                    throw new AssertionError("Error in batch feeding thread", e);
+                }
+            }, "batch-feeding-thread");
+            batchFeedingThread.start();
+
+            // Wait for driver to fail with IllegalStateException
+            // Even though finish() was called, the driver should process all buffered pages
+            // and detect the out-of-order batch error
+            Exception driverException = expectThrows(Exception.class, () -> { driverFuture.actionGet(30, TimeUnit.SECONDS); });
+
+            // Unwrap the exception - actionGet wraps exceptions, so check the cause chain
+            Throwable cause = ExceptionsHelper.unwrap(driverException, IllegalStateException.class);
+            assertNotNull(
+                "Driver should throw IllegalStateException when receiving page for batch 2 while processing batch 1, even after finish()",
+                cause
+            );
+            assertThat("Cause should be IllegalStateException", cause, instanceOf(IllegalStateException.class));
+            assertThat(
+                "Exception message should indicate batch mismatch",
+                cause.getMessage(),
+                containsString("Received page for batch 2 but currently processing batch 1")
+            );
+
+            // Wait for batch feeding thread to finish
+            batchFeedingThread.join(30000);
+            assertThat("Batch feeding thread should have completed", batchFeedingThread.isAlive(), equalTo(false));
+
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * Test that verifies we fail when receiving a page for batch 2 while still processing batch 1.
+     * This tests the out-of-order batch page detection.
+     */
+    public void testOutOfOrderBatchPages() throws Exception {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        try {
+            // Create test data: 3 batches
+            TestData testData = createSimpleTestBatches(driverContext, 3, 2, 2, 3, 3);
+            List<List<Page>> batches = testData.batches();
+
+            // Track processed batches and callbacks
+            AtomicInteger processedBatches = new AtomicInteger(0);
+            List<Long> callbackBatchIds = new ArrayList<>();
+            List<List<Page>> actualOutputBatches = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                actualOutputBatches.add(new ArrayList<>());
+            }
+
+            // Set up exchange
+            ExchangeSetup exchange = setupExchange(driverContext, threadPool);
+
+            // Create operators
+            EvalOperator addOneOperator = createAddOneOperator(driverContext);
+            List<Page> allOutputPages = new ArrayList<>();
+            TestResultPageSinkOperator sinkOperator = createSinkOperatorWithBatchDetection(allOutputPages, actualOutputBatches, 3);
+
+            // Create BatchDriver
+            BatchDriver batchDriver = createBatchDriver(driverContext, exchange.sourceOperator, addOneOperator, sinkOperator);
+
+            // Set up callback
+            setupBatchDoneCallback(batchDriver, threadPool, () -> {
+                // No-op - we expect failure before callbacks
+            }, processedBatches, callbackBatchIds);
+
+            // Start driver
+            ThreadContext threadContext = threadPool.getThreadContext();
+            PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
+            Driver.start(threadContext, threadPool.executor("esql"), batchDriver, 1000, driverFuture);
+
+            // Feed batches in a way that triggers out-of-order error:
+            // 1. Send batch 0 completely
+            // 2. Send batch 1 pages but NOT the last page (so batch 1 is still processing)
+            // 3. Send batch 2 page (should trigger error)
+            Thread batchFeedingThread = new Thread(() -> {
+                try {
+                    // Send batch 0 completely
+                    List<Page> batch0Pages = batches.get(0);
+                    for (int pageIdx = 0; pageIdx < batch0Pages.size(); pageIdx++) {
+                        Page page = batch0Pages.get(pageIdx);
+                        boolean isLastPageInBatch = (pageIdx == batch0Pages.size() - 1);
+                        BatchPage batchPage = new BatchPage(page, 0, isLastPageInBatch);
+                        waitForExchangeSink(exchange.exchangeSink);
+                        exchange.exchangeSink.addPage(batchPage);
+                    }
+
+                    // Send batch 1 pages but NOT the last page (so batch 1 is still processing)
+                    List<Page> batch1Pages = batches.get(1);
+                    for (int pageIdx = 0; pageIdx < batch1Pages.size() - 1; pageIdx++) {
+                        Page page = batch1Pages.get(pageIdx);
+                        BatchPage batchPage = new BatchPage(page, 1, false); // Not last page
+                        waitForExchangeSink(exchange.exchangeSink);
+                        exchange.exchangeSink.addPage(batchPage);
+                    }
+
+                    // Now send a page for batch 2 while batch 1 is still processing (not ended)
+                    // This should trigger the IllegalStateException
+                    List<Page> batch2Pages = batches.get(2);
+                    if (batch2Pages.isEmpty() == false) {
+                        Page page = batch2Pages.get(0);
+                        BatchPage batchPage = new BatchPage(page, 2, false);
+                        waitForExchangeSink(exchange.exchangeSink);
+                        exchange.exchangeSink.addPage(batchPage);
+                    } else {
+                        // If batch 2 is empty, send a marker
+                        BatchPage marker = BatchPage.createMarker(2);
+                        waitForExchangeSink(exchange.exchangeSink);
+                        exchange.exchangeSink.addPage(marker);
+                    }
+
+                    // Finish the sink
+                    exchange.exchangeSink.finish();
+                } catch (Exception e) {
+                    logger.error("[TEST] Error in batch feeding thread", e);
+                    throw new AssertionError("Error in batch feeding thread", e);
+                }
+            }, "batch-feeding-thread");
+            batchFeedingThread.start();
+
+            // Wait for driver to fail with IllegalStateException
+            Exception driverException = expectThrows(Exception.class, () -> { driverFuture.actionGet(30, TimeUnit.SECONDS); });
+
+            // Unwrap the exception - actionGet wraps exceptions, so check the cause chain
+            Throwable cause = ExceptionsHelper.unwrap(driverException, IllegalStateException.class);
+            assertNotNull("Driver should throw IllegalStateException when receiving page for batch 2 while processing batch 1", cause);
+            assertThat("Cause should be IllegalStateException", cause, instanceOf(IllegalStateException.class));
+            assertThat(
+                "Exception message should indicate batch mismatch",
+                cause.getMessage(),
+                containsString("Received page for batch 2 but currently processing batch 1")
+            );
+
+            // Wait for batch feeding thread to finish
+            batchFeedingThread.join(30000);
+            assertThat("Batch feeding thread should have completed", batchFeedingThread.isAlive(), equalTo(false));
 
         } finally {
             terminate(threadPool);

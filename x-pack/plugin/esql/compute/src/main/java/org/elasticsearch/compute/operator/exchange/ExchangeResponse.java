@@ -36,7 +36,14 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     public ExchangeResponse(BlockStreamInput in) throws IOException {
         this.blockFactory = in.blockFactory();
-        this.page = in.readOptionalWriteable(Page::new);
+        // Read type indicator and page presence
+        boolean isBatchPage = in.readBoolean();
+        boolean hasPage = in.readBoolean();
+        if (hasPage) {
+            this.page = isBatchPage ? new BatchPage(in) : new Page(in);
+        } else {
+            this.page = null;
+        }
         this.finished = in.readBoolean();
     }
 
@@ -47,7 +54,19 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize exchange response");
             reservedBytes += bytes;
         }
-        out.writeOptionalWriteable(page);
+        // Write type indicator for BatchPage
+        boolean isBatchPage = page instanceof BatchPage;
+        out.writeBoolean(isBatchPage);
+        if (page != null) {
+            out.writeBoolean(true);
+            if (isBatchPage) {
+                ((BatchPage) page).writeTo(out);
+            } else {
+                page.writeTo(out);
+            }
+        } else {
+            out.writeBoolean(false);
+        }
         out.writeBoolean(finished);
     }
 

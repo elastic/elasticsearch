@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,6 +29,7 @@ import java.util.function.Supplier;
  * Source operator implementation that retrieves data from an {@link ExchangeSource}
  */
 public class ExchangeSourceOperator extends SourceOperator {
+    private static final Logger logger = LogManager.getLogger(ExchangeSourceOperator.class);
 
     private final ExchangeSource source;
     private IsBlockedResult isBlocked = NOT_BLOCKED;
@@ -56,13 +59,26 @@ public class ExchangeSourceOperator extends SourceOperator {
         if (page != null) {
             pagesEmitted++;
             rowsEmitted += page.getPositionCount();
+            // Log when we receive a BatchPage (marker page) - DEBUG level to reduce noise
+            if (page instanceof BatchPage batchPage) {
+                logger.debug(
+                    "[CLIENT] ExchangeSourceOperator.getOutput() received BatchPage: batchId={}, isLastPageInBatch={}, positions={}",
+                    batchPage.batchId(),
+                    batchPage.isLastPageInBatch(),
+                    page.getPositionCount()
+                );
+            }
         }
         return page;
     }
 
     @Override
     public boolean isFinished() {
-        return source.isFinished();
+        boolean finished = source.isFinished();
+        if (finished) {
+            logger.debug("[CLIENT] ExchangeSourceOperator.isFinished() returning true");
+        }
+        return finished;
     }
 
     @Override
@@ -79,6 +95,14 @@ public class ExchangeSourceOperator extends SourceOperator {
             }
         }
         return isBlocked;
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        // Check if there are buffered pages that can be produced
+        // Even if the source is finished, there might be buffered pages that need processing
+        // This is important when finish() is called but pages are still buffered
+        return source.bufferSize() > 0;
     }
 
     @Override

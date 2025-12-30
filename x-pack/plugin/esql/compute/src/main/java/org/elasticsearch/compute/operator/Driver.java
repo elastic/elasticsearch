@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -189,9 +190,14 @@ public class Driver implements Releasable, Describable {
             try {
                 assert driverContext.assertBeginRunLoop();
                 isBlocked = runSingleLoopIteration();
-            } catch (DriverEarlyTerminationException unused) {
+            } catch (DriverEarlyTerminationException e) {
                 closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
-                assert isFinished() : "not finished after early termination";
+                if (isFinished() == false) {
+                    // If driver is not finished after early termination, this is an error condition
+                    // Re-throw the exception so it propagates to the caller
+                    throw e;
+                }
+                // Driver finished successfully, continue normally
             } catch (TaskCancelledException e) {
                 LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
                 throw e;
@@ -283,7 +289,7 @@ public class Driver implements Releasable, Describable {
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
-                } else if (page.getPositionCount() == 0) {
+                } else if (page.getPositionCount() == 0 && (page instanceof BatchPage) == false) {
                     // Empty result, release any memory it holds immediately and move to the next iteration
                     page.releaseBlocks();
                 } else {
@@ -360,6 +366,16 @@ public class Driver implements Releasable, Describable {
             }
         }
         return -1;
+    }
+
+    /**
+     * Finish all active operators. This is used before throwing DriverEarlyTerminationException
+     * to ensure all operators are properly finished and can be closed.
+     */
+    protected void finishAllActiveOperators() {
+        for (Operator op : activeOperators) {
+            op.finish();
+        }
     }
 
     public void cancel(String reason) {

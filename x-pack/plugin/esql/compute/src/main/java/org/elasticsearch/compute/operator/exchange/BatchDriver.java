@@ -44,7 +44,8 @@ public final class BatchDriver extends Driver {
     private static final Logger logger = LogManager.getLogger(BatchDriver.class);
     private static final long UNDEFINED_BATCH_ID = -999;
 
-    private final AtomicLong detectedBatchIdRef = new AtomicLong(UNDEFINED_BATCH_ID);
+    private final AtomicLong detectedBatchIdRef;
+
     private final BatchDoneNotifier batchDoneNotifier = new BatchDoneNotifier();
     private volatile boolean batchEnded = false; // Set to true when isLastPageInBatch page is received
     private volatile boolean callbackInProgress = false; // Set to true when callback is being called
@@ -59,7 +60,7 @@ public final class BatchDriver extends Driver {
         long startNanos,
         DriverContext driverContext,
         Supplier<String> description,
-        SourceOperator source,
+        ExchangeSourceOperator source,
         List<Operator> intermediateOperators,
         SinkOperator sink,
         TimeValue statusInterval,
@@ -80,6 +81,8 @@ public final class BatchDriver extends Driver {
             statusInterval,
             releasable
         );
+        this.detectedBatchIdRef = new AtomicLong(UNDEFINED_BATCH_ID);
+
         // Set driver reference after super() call
         // We require the first operator to be a WrappedSourceOperator - throw if it's not
         if (activeOperators.isEmpty()) {
@@ -93,18 +96,32 @@ public final class BatchDriver extends Driver {
                 "BatchDriver requires the first operator to be a WrappedSourceOperator, but got: " + firstOperator.getClass().getName()
             );
         }
+
+        // Set driver on PageToBatchPageOperator if the sink is wrapped
+        if (sink instanceof PageToBatchPageOperator wrappedSink) {
+            wrappedSink.setDriver(this);
+        }
     }
 
-    private static SourceOperator wrapSource(SourceOperator source) {
+    private static SourceOperator wrapSource(ExchangeSourceOperator source) {
         // Wrap source to detect BatchPage with isLastPageInBatch=true and extract batchId
         return new WrappedSourceOperator(source);
     }
 
+    /**
+     * Wraps a sink operator to convert Pages to BatchPages before sending to the sink.
+     * This ensures all output pages have batch metadata attached.
+     * The driver reference must be set after BatchDriver construction via setDriver().
+     */
+    static PageToBatchPageOperator wrapSink(SinkOperator sink) {
+        return new PageToBatchPageOperator(sink);
+    }
+
     private static class WrappedSourceOperator extends SourceOperator {
-        private final SourceOperator delegate;
+        private final ExchangeSourceOperator delegate;
         private BatchDriver driver;
 
-        WrappedSourceOperator(SourceOperator delegate) {
+        WrappedSourceOperator(ExchangeSourceOperator delegate) {
             this.delegate = delegate;
         }
 
@@ -114,93 +131,61 @@ public final class BatchDriver extends Driver {
 
         @Override
         public Page getOutput() {
-            // Block new pages if batch has ended and callback is in progress
-            if (driver != null && driver.batchEnded && driver.callbackInProgress) {
-                logger.debug("[SERVER] BatchDriver: Batch ended, blocking new pages until callback completes");
+            // If batch has ended or callback is in progress, don't poll new pages
+            // This prevents pages from the next batch from being polled before the current batch completes
+            if (driver.batchEnded || driver.callbackInProgress) {
                 return null;
             }
 
             Page page = delegate.getOutput();
             if (page != null) {
                 // Mark that we've received the first page
-                if (driver != null && driver.firstBatchStarted == false) {
-                    synchronized (driver) {
-                        if (driver.firstBatchStarted == false) {
-                            driver.firstBatchStarted = true;
-                            logger.debug("[SERVER] BatchDriver: First batch started - first page received");
-                        }
-                    }
+                if (driver.firstBatchStarted == false) {
+                    driver.firstBatchStarted = true;
                 }
 
-                // Unwrap BatchPage to regular Page - other operators may not handle BatchPage
-                if (page instanceof BatchPage batchPage) {
-                    long pageBatchId = batchPage.batchId();
-                    if (driver != null) {
-                        long currentBatchId = driver.detectedBatchIdRef.get();
-                        // If we have a current batch ID and this page is from a different batch,
-                        // and we're still processing the current batch or in callback, throw an exception
-                        if (currentBatchId != UNDEFINED_BATCH_ID && pageBatchId != currentBatchId) {
-                            synchronized (driver) {
-                                if (driver.batchEnded || driver.callbackInProgress) {
-                                    throw new IllegalStateException(
-                                        Strings.format(
-                                            "Received page for batch %d while still processing batch %d "
-                                                + "(batchEnded=%s, callbackInProgress=%s)",
-                                            pageBatchId,
-                                            currentBatchId,
-                                            driver.batchEnded,
-                                            driver.callbackInProgress
-                                        )
-                                    );
-                                }
-                            }
-                        }
-                    }
-
-                    if (batchPage.isLastPageInBatch()) {
-                        // This is the last page in batch - extract batchId and mark batch as ended
-                        long batchId = batchPage.batchId();
-                        if (driver != null) {
-                            driver.detectedBatchIdRef.set(batchId);
-                            synchronized (driver) {
-                                driver.batchEnded = true;
-                            }
-                            logger.info("[SERVER] BatchDriver: Detected batchId={} from last page in batch, blocking new input", batchId);
-                        }
-                    }
-
-                    // Unwrap BatchPage to regular Page - extract blocks and create new Page
-                    // This ensures other operators don't need to handle BatchPage
-                    // Skip unwrapping for marker pages (empty pages used to signal batch completion)
-                    if (batchPage.isBatchMarker()) {
-                        // Marker page - release it and return null (no data to process)
-                        batchPage.releaseBlocks();
-                        page = null;
-                    } else if (batchPage.getBlockCount() > 0) {
-                        // Regular BatchPage with blocks - unwrap it
-                        Block[] blocks = new Block[batchPage.getBlockCount()];
-                        for (int i = 0; i < blocks.length; i++) {
-                            blocks[i] = batchPage.getBlock(i);
-                            // Increment ref count for each block since we're sharing them with the new Page
-                            blocks[i].incRef();
-                        }
-                        // Create a new regular Page with the same blocks
-                        Page unwrappedPage = new Page(blocks);
-                        // Release the BatchPage - blocks are safe because we've incremented their ref count
-                        batchPage.releaseBlocks();
-                        page = unwrappedPage;
-                    } else {
-                        // Empty BatchPage (shouldn't happen, but handle it safely)
-                        batchPage.releaseBlocks();
-                        page = null;
-                    }
+                // Only accept BatchPage - throw if not
+                if ((page instanceof BatchPage) == false) {
+                    page.releaseBlocks();
+                    throw new IllegalArgumentException(
+                        Strings.format("BatchDriver only accepts BatchPage, but received: %s", page.getClass().getName())
+                    );
                 }
+
+                BatchPage batchPage = (BatchPage) page;
+                long pageBatchId = batchPage.batchId();
+                long currentBatchId = driver.detectedBatchIdRef.get();
+
+                // Handle batch ID logic
+                if (currentBatchId == UNDEFINED_BATCH_ID) {
+                    // No current batch - set to new batch ID
+                    driver.detectedBatchIdRef.set(pageBatchId);
+                } else if (pageBatchId != currentBatchId) {
+                    // Got a page for a different batch - this is an error
+                    batchPage.releaseBlocks();
+                    throw new IllegalStateException(
+                        Strings.format("Received page for batch %d but currently processing batch %d", pageBatchId, currentBatchId)
+                    );
+                }
+
+                if (batchPage.isLastPageInBatch()) {
+                    // This is the last page in batch - mark batch as ended
+                    driver.batchEnded = true;
+                }
+
+                // Unwrap BatchPage to regular Page - extract blocks and create new Page
+                // This ensures other operators don't need to handle BatchPage
+                page = driver.unwrapBatchPage(batchPage);
             }
             return page;
         }
 
         @Override
         public boolean isFinished() {
+            // Delegate to the source - it correctly reports finished only when:
+            // 1. The source is explicitly finished, OR
+            // 2. The buffer is finished (client called finish() and buffer is empty)
+            // The source should NOT report as finished when it's empty and waiting for pages.
             return delegate.isFinished();
         }
 
@@ -216,8 +201,14 @@ public final class BatchDriver extends Driver {
 
         @Override
         public boolean canProduceMoreDataWithoutExtraInput() {
-            // return false, as it does not hold any buffered data
-            return false;
+            // If batch has ended or callback is in progress, we're blocking new pages
+            // So we can't produce more data even if there are buffered pages
+            if (driver.batchEnded || driver.callbackInProgress) {
+                return false;
+            }
+            // Delegate to the underlying ExchangeSourceOperator to check if it can produce more data
+            // This will check if there are buffered pages that need processing
+            return delegate.canProduceMoreDataWithoutExtraInput();
         }
 
         @Override
@@ -246,16 +237,17 @@ public final class BatchDriver extends Driver {
     /**
      * Override onNoPagesMoved() to detect batch completion and call callback.
      * This is called by the base Driver class when movedPage == false.
+     * Note: No synchronization needed - driver runs single-threaded.
      */
     @Override
-    protected synchronized void onNoPagesMoved() {
+    protected void onNoPagesMoved() {
         if (batchEnded == false) {
-            logger.info("[SERVER] Callback onNoPagesMoved but batch not ended yet - continuing");
+            logger.debug("[SERVER] Callback onNoPagesMoved but batch not ended yet - continuing");
             return; // Batch not ended yet
         }
 
         if (callbackInProgress) {
-            logger.info("[SERVER] Callback onNoPagesMoved but callback already in progress - waiting");
+            logger.debug("[SERVER] Callback onNoPagesMoved but callback already in progress - waiting");
             return; // Callback already in progress
         }
 
@@ -263,7 +255,7 @@ public final class BatchDriver extends Driver {
         // If so, don't declare batch complete yet - there may be buffered data to process
         for (Operator operator : activeOperators) {
             if (operator.canProduceMoreDataWithoutExtraInput()) {
-                logger.info(
+                logger.debug(
                     "[SERVER] BatchDriver: Operator {} can produce more data without extra input - not declaring batch complete yet",
                     operator
                 );
@@ -274,9 +266,7 @@ public final class BatchDriver extends Driver {
         // No pages moved and batch has ended - check if source is blocked or finished
         if (activeOperators.isEmpty()) {
             // Driver finished - all pages processed, batch is complete
-            long completedBatchId = detectedBatchIdRef.get();
-            logger.info("[SERVER] BatchDriver: Batch {} is complete (driver finished, no pages moving)", completedBatchId);
-            callBatchDoneCallback(completedBatchId);
+            completeBatch("driver finished, no pages moving");
             return;
         }
 
@@ -287,18 +277,62 @@ public final class BatchDriver extends Driver {
             // Check if source is finished or blocked
             if (source.isFinished() || source.isBlocked().listener().isDone() == false) {
                 // Batch is complete - no pages moving and source is blocked/finished
-                long completedBatchId = detectedBatchIdRef.get();
-                logger.info("[SERVER] BatchDriver: Batch {} is complete (no pages moved, source blocked/finished)", completedBatchId);
-                callBatchDoneCallback(completedBatchId);
-            } else if (batchEnded) {
+                completeBatch("no pages moved, source blocked/finished");
+            } else {
                 // Batch ended and source is not blocked/finished
                 // Since batchEnded is true, getOutput() will return null (blocking new pages)
                 // and no pages are moving, so the batch is complete
-                long completedBatchId = detectedBatchIdRef.get();
-                logger.info("[SERVER] BatchDriver: Batch {} is complete (no pages moved, batch ended)", completedBatchId);
-                callBatchDoneCallback(completedBatchId);
+                completeBatch("no pages moved, batch ended");
             }
         }
+    }
+
+    /**
+     * Complete the current batch by calling the callback.
+     * Extracted to avoid code duplication.
+     */
+    private void completeBatch(String reason) {
+        long completedBatchId = detectedBatchIdRef.get();
+        logger.debug("[SERVER] BatchDriver: Batch {} is complete ({})", completedBatchId, reason);
+        callBatchDoneCallback(completedBatchId);
+    }
+
+    /**
+     * Reset batch state to allow processing the next batch.
+     */
+    private void resetBatchState() {
+        callbackInProgress = false;
+        batchEnded = false;
+        detectedBatchIdRef.set(UNDEFINED_BATCH_ID);
+    }
+
+    /**
+     * Unwrap BatchPage to regular Page, handling marker pages and empty pages.
+     */
+    private Page unwrapBatchPage(BatchPage batchPage) {
+        // Skip unwrapping for marker pages (empty pages used to signal batch completion)
+        if (batchPage.isBatchMarker()) {
+            // Marker page - release it and return null (no data to process)
+            batchPage.releaseBlocks();
+            return null;
+        }
+        if (batchPage.getBlockCount() > 0) {
+            // Regular BatchPage with blocks - unwrap it
+            Block[] blocks = new Block[batchPage.getBlockCount()];
+            for (int i = 0; i < blocks.length; i++) {
+                blocks[i] = batchPage.getBlock(i);
+                // Increment ref count for each block since we're sharing them with the new Page
+                blocks[i].incRef();
+            }
+            // Create a new regular Page with the same blocks
+            Page unwrappedPage = new Page(blocks);
+            // Release the BatchPage - blocks are safe because we've incremented their ref count
+            batchPage.releaseBlocks();
+            return unwrappedPage;
+        }
+        // Empty BatchPage (shouldn't happen, but handle it safely)
+        batchPage.releaseBlocks();
+        return null;
     }
 
     /**
@@ -312,23 +346,19 @@ public final class BatchDriver extends Driver {
         }
 
         callbackInProgress = true;
-        logger.info("[SERVER] BatchDriver: Calling batch done callback for batchId={}", batchId);
+        logger.debug("[SERVER] BatchDriver: Calling batch done callback for batchId={}", batchId);
 
         // Call all registered listeners
-        long finalBatchId = batchId != UNDEFINED_BATCH_ID ? batchId : UNDEFINED_BATCH_ID;
         if (batchId == UNDEFINED_BATCH_ID) {
             logger.warn("[SERVER] BatchDriver: No batchId detected, using {}", UNDEFINED_BATCH_ID);
         }
-        batchDoneNotifier.notifyBatchDone(finalBatchId);
+        batchDoneNotifier.notifyBatchDone(batchId);
 
         // Reset state after callback completes
-        // Note: We can't wait for the callback to complete here, but the callback listener
-        // should handle resetting batchEnded and callbackInProgress when it's done
-        // For now, we'll reset immediately since the callback is fire-and-forget
-        // If we need to wait for callback completion, we'd need to track that separately
-        batchEnded = false;
-        callbackInProgress = false;
-        logger.info("[SERVER] BatchDriver: Batch done callback completed, allowing new pages");
+        // Reset both batchEnded and callbackInProgress to allow the next batch
+        // Reset batchId to UNDEFINED_BATCH_ID to indicate we're ready for a new batch
+        resetBatchState();
+        logger.debug("[SERVER] BatchDriver: Batch done callback completed, ready for next batch");
     }
 
     /**
@@ -363,4 +393,68 @@ public final class BatchDriver extends Driver {
         }
     }
 
+    /**
+     * Operator that wraps a sink and converts Pages to BatchPages before passing them to the sink.
+     * This ensures all output pages have batch metadata attached.
+     */
+    static class PageToBatchPageOperator extends SinkOperator {
+        private final SinkOperator delegate;
+        private BatchDriver driver;
+
+        PageToBatchPageOperator(SinkOperator delegate) {
+            this.delegate = delegate;
+        }
+
+        void setDriver(BatchDriver driver) {
+            this.driver = driver;
+        }
+
+        @Override
+        public boolean needsInput() {
+            return delegate.needsInput();
+        }
+
+        @Override
+        protected void doAddInput(Page page) {
+            // If page is already a BatchPage, pass it through directly
+            if (page instanceof BatchPage) {
+                delegate.addInput(page);
+                return;
+            }
+
+            // Convert Page to BatchPage only if it's not already a BatchPage
+            if (driver == null) {
+                throw new IllegalStateException("Cannot convert Page to BatchPage: driver not set on PageToBatchPageOperator");
+            }
+
+            long batchId = driver.detectedBatchIdRef.get();
+            if (batchId == UNDEFINED_BATCH_ID) {
+                throw new IllegalStateException("Cannot convert Page to BatchPage: no batch ID detected yet");
+            }
+
+            // Convert Page to BatchPage
+            // Mark as last page in batch if this is the last page before batch ends
+            // For now, we'll mark all pages as not last, and let the marker page handle batch completion
+            boolean isLastPageInBatch = false;
+            BatchPage batchPage = new BatchPage(page, batchId, isLastPageInBatch);
+
+            // Pass BatchPage to delegate sink
+            delegate.addInput(batchPage);
+        }
+
+        @Override
+        public void finish() {
+            delegate.finish();
+        }
+
+        @Override
+        public boolean isFinished() {
+            return delegate.isFinished();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
 }

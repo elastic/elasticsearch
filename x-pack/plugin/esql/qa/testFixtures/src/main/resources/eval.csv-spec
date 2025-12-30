@@ -834,7 +834,17 @@ foo       | 1         | 9
 
 foldCoalesce
 required_capability: fix_fold_coalesce
-ROW x = null|  EVAL append_coalesce = MV_APPEND("2", COALESCE(x, "1"))
+ROW x = null |  EVAL append_coalesce = MV_APPEND("2", COALESCE(x, "1"))
+;
+
+x:null | append_coalesce:keyword
+null   | [2, 1]
+;
+
+
+foldCoalesceLiteral
+required_capability: fix_fold_coalesce
+ROW x = null |  EVAL append_coalesce = MV_APPEND("2", COALESCE(null, "1"))
 ;
 
 x:null | append_coalesce:keyword

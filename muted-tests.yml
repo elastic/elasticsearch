@@ -333,9 +333,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139527
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654
@@ -351,15 +348,9 @@ tests:
 - class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139741
-- class: org.elasticsearch.test.rest.yaml.CssSearchYamlTestSuiteIT
-  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/139826
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:stats_all_first_all_last.All_last_long_by_date}
   issue: https://github.com/elastic/elasticsearch/issues/139841
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/139848
 - class: org.elasticsearch.search.vectors.RescoreKnnVectorQueryTests
   method: testRescoreDocs
   issue: https://github.com/elastic/elasticsearch/issues/139859

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -87,8 +86,8 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
      * <p>
      *     Every node in the plan in the plan can be traced "down" to a leaf - the source
      *     of all of its data. This rule can only push expressions into {@link EsRelation},
-     *     but there are lots of other kinds of leaf nodes like {@link StubRelation} and
-     *     {@link Row}. If a node has any of those unsupported ancestors then {@link #primariesFor}
+     *     but there are lots of other kinds of leaf nodes like {@link StubRelation}. If a
+     *     node has any of those unsupported ancestors then {@link #primariesFor}
      *     will return an empty {@link List}. This is the signal the rest of the code uses
      *     for "can't push".
      * </p>

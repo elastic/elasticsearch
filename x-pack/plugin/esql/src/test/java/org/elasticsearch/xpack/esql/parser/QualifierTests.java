@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Rows;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
@@ -54,7 +54,7 @@ public class QualifierTests extends AbstractStatementParserTests {
         LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
         LookupJoin join = as(filter.child(), LookupJoin.class);
-        Row row = as(join.left(), Row.class);
+        Rows rows = as(join.left(), Rows.class);
         UnresolvedRelation relation = as(join.right(), UnresolvedRelation.class);
 
         UnresolvedAttribute filterExpr = as(filter.condition(), UnresolvedAttribute.class);

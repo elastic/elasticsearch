@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Rows;
 
 import java.util.List;
 
@@ -26,7 +26,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     public void testSet() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = statement("SET foo = \"bar\"; row a = 1", new QueryParams());
-        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.plan(), is(instanceOf(Rows.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"));
 
@@ -46,12 +46,12 @@ public class SetParserTests extends AbstractStatementParserTests {
     public void testSetWithTripleQuotes() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = statement("SET foo = \"\"\"bar\"baz\"\"\"; row a = 1", new QueryParams());
-        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.plan(), is(instanceOf(Rows.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar\"baz"));
 
         query = statement("SET foo = \"\"\"bar\"\"\"\"; row a = 1", new QueryParams());
-        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.plan(), is(instanceOf(Rows.class)));
         assertThat(query.settings().size(), is(1));
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar\""));
 
@@ -67,7 +67,7 @@ public class SetParserTests extends AbstractStatementParserTests {
             "SET foo = \"bar\"; SET bar = 2; SET foo = \"baz\"; SET x = 3.5; SET y = false; SET z = null; row a = 1",
             new QueryParams()
         );
-        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.plan(), is(instanceOf(Rows.class)));
         assertThat(query.settings().size(), is(6));
 
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz"));
@@ -81,7 +81,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     public void testSetArrays() {
         assumeTrue("SET command available in snapshot only", EsqlCapabilities.Cap.SET_COMMAND.isEnabled());
         EsqlStatement query = statement("SET foo = [\"bar\", \"baz\"]; SET bar = [1, 2, 3]; row a = 1", new QueryParams());
-        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.plan(), is(instanceOf(Rows.class)));
         assertThat(query.settings().size(), is(2));
 
         checkSetting(query, 0, "foo", List.of(BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz")));
@@ -99,7 +99,7 @@ public class SetParserTests extends AbstractStatementParserTests {
                 )
             )
         );
-        assertThat(query.plan(), is(instanceOf(Row.class)));
+        assertThat(query.plan(), is(instanceOf(Rows.class)));
         assertThat(query.settings().size(), is(4));
 
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz"));
@@ -120,8 +120,8 @@ public class SetParserTests extends AbstractStatementParserTests {
                 )
             )
         );
-        assertThat(query.plan(), is(instanceOf(Row.class)));
-        assertThat(((Row) query.plan()).fields().get(0).child().fold(FoldContext.small()), is(8));
+        assertThat(query.plan(), is(instanceOf(Rows.class)));
+        assertThat(((Rows) query.plan()).getFirst().fields().get(0).child().fold(FoldContext.small()), is(8));
         assertThat(query.settings().size(), is(4));
 
         checkSetting(query, 0, "foo", BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("baz"));

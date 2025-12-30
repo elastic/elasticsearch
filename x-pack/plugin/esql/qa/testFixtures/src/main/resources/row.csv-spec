@@ -17,6 +17,38 @@ a:integer | b:keyword  | c:null
 // end::example-result[]
 ;
 
+multipleRows
+ROW a = 1 \;
+ROW a = 2 \;
+ROW a = 3 \;
+;
+
+a:integer 
+1         
+2
+3
+;
+
+multipleRowsDifferentColumns
+ROW a = 1 \;
+ROW b = "two" \;
+;
+
+a:integer | b:keyword 
+1         | null      
+null      | "two"     
+;
+
+multipleRowsWithRowColumn
+ROW a = 1 \;
+ROW row = 2 \;
+;
+
+a:integer | row:integer
+1         | null
+null      | 2
+;
+
 implicitNames
 row 100, 10, c = 1;
 

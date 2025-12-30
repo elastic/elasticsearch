@@ -82,7 +82,7 @@ dataType
     ;
 
 rowCommand
-    : ROW fields
+    : ROW fields (SEMICOLON ROW fields)* SEMICOLON?
     ;
 
 fields

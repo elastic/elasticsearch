@@ -103,7 +103,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Rows;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -293,7 +293,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(
             new Eval(
                 EMPTY,
-                new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, INTEGER)))),
+                Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, INTEGER)))),
                 List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))
             )
         );
@@ -314,8 +314,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("e", e.name());
         assertThat(e, instanceOf(ReferenceAttribute.class));
 
-        Row row = (Row) eval.child();
-        ReferenceAttribute rowEmpNo = (ReferenceAttribute) row.output().get(0);
+        Rows rows = (Rows) eval.child();
+        ReferenceAttribute rowEmpNo = (ReferenceAttribute) rows.output().get(0);
         assertEquals(rowEmpNo.id(), empNo.id());
     }
 

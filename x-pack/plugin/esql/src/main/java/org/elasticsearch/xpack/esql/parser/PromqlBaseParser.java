@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.Iterator;
 import java.util.ArrayList;
 
-@SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue"})
+@SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue", "this-escape"})
 public class PromqlBaseParser extends ParserConfig {
-  static { RuntimeMetaData.checkVersion("4.13.1", RuntimeMetaData.VERSION); }
+  static { RuntimeMetaData.checkVersion("4.13.2", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
   protected static final PredictionContextCache _sharedContextCache =

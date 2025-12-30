@@ -136,7 +136,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Rows;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -5435,7 +5435,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPushShadowingGeneratingPlanPastProject() {
         Alias x = new Alias(EMPTY, "x", Literal.keyword(EMPTY, "1"));
         Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
-        LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
+        LogicalPlan initialRow = Rows.singleRow(EMPTY, List.of(x, y));
         LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), x.toAttribute()));
 
         for (PushdownShadowingGeneratingPlanTestCase testCase : PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES) {
@@ -5486,7 +5486,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPushShadowingGeneratingPlanPastRenamingProject() {
         Alias x = new Alias(EMPTY, "x", Literal.keyword(EMPTY, "1"));
         Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
-        LogicalPlan initialRow = new Row(EMPTY, List.of(x, y));
+        LogicalPlan initialRow = Rows.singleRow(EMPTY, List.of(x, y));
         LogicalPlan initialProject = new Project(
             EMPTY,
             initialRow,
@@ -5548,7 +5548,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPushShadowingGeneratingPlanPastRenamingProjectWithResolution() {
         Alias y = new Alias(EMPTY, "y", Literal.keyword(EMPTY, "2"));
         Alias yAliased = new Alias(EMPTY, "x", y.toAttribute());
-        LogicalPlan initialRow = new Row(EMPTY, List.of(y));
+        LogicalPlan initialRow = Rows.singleRow(EMPTY, List.of(y));
         LogicalPlan initialProject = new Project(EMPTY, initialRow, List.of(y.toAttribute(), yAliased));
 
         for (PushdownShadowingGeneratingPlanTestCase testCase : PUSHDOWN_SHADOWING_GENERATING_PLAN_TEST_CASES) {
@@ -8765,7 +8765,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var orderBy = as(limit.child(), OrderBy.class);
         var mvExpand = as(orderBy.child(), MvExpand.class);
         var mvExpand2 = as(mvExpand.child(), MvExpand.class);
-        as(mvExpand2.child(), Row.class);
+        as(mvExpand2.child(), Rows.class);
     }
 
     /**

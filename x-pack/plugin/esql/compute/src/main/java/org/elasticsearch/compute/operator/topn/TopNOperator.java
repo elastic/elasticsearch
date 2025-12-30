@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
@@ -489,9 +488,9 @@ public class TopNOperator implements Operator, Accountable {
             inputQueue,
             /*
              * If we're in the process of outputting pages then output will contain all
-             * allocated but un-emitted pages.
+             * allocated but un-emitted rows.
              */
-            output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
+            output
         );
     }
 

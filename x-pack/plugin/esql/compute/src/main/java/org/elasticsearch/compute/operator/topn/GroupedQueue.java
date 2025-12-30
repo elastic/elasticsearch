@@ -16,13 +16,19 @@ import org.elasticsearch.core.Releasables;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
+import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
+
 class GroupedQueue implements TopNQueue {
+    private static final long SHALLOW_SIZE = shallowSizeOfInstance(GroupedQueue.class) + shallowSizeOfInstance(HashMap.class);
+    public static final long BYTES_REF_HEADER_SIZE = shallowSizeOfInstance(BytesRef.class) + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+
     private final Map<BytesRef, UngroupedQueue> queuesByGroupKey = new HashMap<>();
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNQueue.class);
     private final CircuitBreaker breaker;
     private final int topCount;
 
-    static TopNQueue build(CircuitBreaker breaker, int topCount) {
+    static GroupedQueue build(CircuitBreaker breaker, int topCount) {
         return new GroupedQueue(breaker, topCount);
     }
 
@@ -62,6 +68,7 @@ class GroupedQueue implements TopNQueue {
         BytesRef key = null;
         try {
             newQueue = UngroupedQueue.build(breaker, topCount);
+            // FIXME(gal, NOCOMMIT) Inaccurate count here.
             breaker.addEstimateBytesAndMaybeBreak(keyView.length, "topn");
             key = BytesRef.deepCopyOf(keyView);
             queuesByGroupKey.put(key, newQueue);
@@ -85,15 +92,15 @@ class GroupedQueue implements TopNQueue {
         }
         var iterator = queuesByGroupKey.entrySet().iterator();
         var next = iterator.next();
-        var key = next.getKey();
         UngroupedQueue queue = next.getValue();
         if (queue.size() == 0) {
             throw new IllegalStateException("Invariant violation: empty queue in grouped queue");
         }
         var row = queue.pop();
         if (queue.size() == 0) {
+            // FIXME(gal, NOCOMMIT) Inaccurate count here.
+            breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(next.getKey().length));
             iterator.remove();
-            breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(key.length));
             queue.close();
         }
         return row;
@@ -102,9 +109,19 @@ class GroupedQueue implements TopNQueue {
     @Override
     public long ramBytesUsed() {
         long total = SHALLOW_SIZE;
-        total += RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
-        );
+
+        long entrySize = 0;
+        for (var entry : queuesByGroupKey.entrySet()) {
+            total += entry.getValue().ramBytesUsed();
+            total += alignObjectSize(entry.getKey().length + BYTES_REF_HEADER_SIZE);
+            if (entrySize == 0) {
+                entrySize = shallowSizeOfInstance(entry.getClass());
+            }
+            total += entrySize;
+            // Account for unused entries in the map's table, assuming current load of 0.5.
+            total += 2L * NUM_BYTES_OBJECT_REF;
+        }
+
         return total;
     }
 

@@ -10,6 +10,10 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -43,6 +47,24 @@ public class UngroupedRowTests extends ESTestCase {
     public void testRamBytesUsedPreAllocated() {
         Row row = new UngroupedRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(), 64, 128);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
+    }
+
+    public void testCloseReleasesAllTestsNoPreAllocation() throws Exception {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1));
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        var row = new UngroupedRow(breaker, sortOrders(), 0, 0);
+        row.close();
+        MockBigArrays.ensureAllArraysAreReleased();
+        assertThat("Not all memory was released", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCloseReleasesAllTestsWithPreAllocation() throws Exception {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1));
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        var row = new UngroupedRow(breaker, sortOrders(), 16, 32);
+        row.close();
+        MockBigArrays.ensureAllArraysAreReleased();
+        assertThat("Not all memory was released", breaker.getUsed(), equalTo(0L));
     }
 
     private static List<TopNOperator.SortOrder> sortOrders() {

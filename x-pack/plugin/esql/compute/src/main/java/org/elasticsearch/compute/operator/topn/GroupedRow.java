@@ -16,17 +16,19 @@ import org.elasticsearch.core.Releasables;
 final class GroupedRow implements Row {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(GroupedRow.class);
     private final UngroupedRow row;
+    // FIXME(gal, NOCOMMIT) This isn't actually needed, since we already maintain this in the hash table's key!
     private final BreakingBytesRefBuilder groupKey;
 
     GroupedRow(UngroupedRow row, int preAllocatedGroupKeySize) {
-        row.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
         this.row = row;
+        row.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
         boolean success = false;
         try {
             this.groupKey = new BreakingBytesRefBuilder(row.breaker, "topn", preAllocatedGroupKeySize);
             success = true;
         } finally {
             if (success == false) {
+                // FIXME(gal, NOCOMMIT) calling a virtual method from the constructor;w
                 close();
             }
         }

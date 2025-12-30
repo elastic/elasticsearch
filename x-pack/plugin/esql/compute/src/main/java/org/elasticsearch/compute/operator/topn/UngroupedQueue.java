@@ -72,6 +72,7 @@ final class UngroupedQueue implements TopNQueue {
     @Override
     public long ramBytesUsed() {
         long total = SHALLOW_SIZE;
+        // TODO extract this to a constant.
         total += RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
         );

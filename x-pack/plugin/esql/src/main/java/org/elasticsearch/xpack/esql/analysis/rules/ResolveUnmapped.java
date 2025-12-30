@@ -47,13 +47,14 @@ import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 /**
  * The rule handles fields that don't show up in the index mapping, but are used within the query. These fields can either be missing
- * entirely, or be present in the document, but not in the mapping (which can happen with non-dynamic mappings).
+ * entirely, or be present in the document, but not in the mapping (which can happen with non-dynamic mappings). The handling strategy is
+ * driven by the {@link AnalyzerContext#unmappedResolution()} setting.
  * <p>
- * In the case of the former ones, the rule introducees {@code EVAL missing = NULL} commands (null-aliasing / null-Eval'ing).
+ * In the case of the former ones, the rule introduces {@code EVAL missing = NULL} commands (null-aliasing / null-Eval'ing).
  * <p>
  * In the case of the latter ones, it introduces field extractors in the source (where this supports it).
  * <p>
- * In both cases, the rule takes care of propagation of the aliases, where needed (i.e., through "artifical" projections introduced within
+ * In both cases, the rule takes care of propagation of the aliases, where needed (i.e., through "artificial" projections introduced within
  * the analyzer itself; vs. the KEEP/RENAME/DROP-introduced projections). Note that this doesn't "boost" the visibility of such an
  * attribute: if, for instance, referencing a mapping-missing attribute occurs after a STATS that doesn't group by it, that attribute will
  * remain unresolved and fail the verification. The language remains semantically consistent.
@@ -96,12 +97,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // insert an Eval on top of every LeafPlan, if there's a UnaryPlan atop it
         var transformed = plan.transformUp(
             n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan,
-            p -> evalUnresolved((UnaryPlan) p, nullAliases)
+            p -> evalUnresolvedUnary((UnaryPlan) p, nullAliases)
         );
         // insert an Eval on top of those LeafPlan that are children of n-ary plans (could happen with UnionAll)
         transformed = transformed.transformUp(
             n -> n instanceof UnaryPlan == false && n instanceof LeafPlan == false,
-            nAry -> evalUnresolved(nAry, nullAliases)
+            nAry -> evalUnresolvedNary(nAry, nullAliases)
         );
 
         return transformed.transformUp(Fork.class, f -> patchFork(f, Expressions.asAttributes(nullAliases)));
@@ -115,9 +116,11 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
      */
     private static LogicalPlan load(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
-        // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't extraction from specific sources
-        var transformed = plan.transformUp(n -> n instanceof EsRelation esr && esr.indexMode() != IndexMode.LOOKUP, n -> {
-            EsRelation esr = (EsRelation) n;
+        // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
+        var transformed = plan.transformUp(EsRelation.class, esr -> {
+            if (esr.indexMode() == IndexMode.LOOKUP) {
+                return esr;
+            }
             List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, esr.outputSet().names());
             // there shouldn't be any duplicates, we can just merge the two lists
             return fieldsToLoad.isEmpty() ? esr : esr.withAttributes(combine(esr.output(), fieldsToLoad));
@@ -217,7 +220,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     /**
      * Inserts an Eval atop each child of the given {@code nAry}, if the child is a LeafPlan.
      */
-    private static LogicalPlan evalUnresolved(LogicalPlan nAry, List<Alias> nullAliases) {
+    private static LogicalPlan evalUnresolvedNary(LogicalPlan nAry, List<Alias> nullAliases) {
         List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
         boolean changed = false;
         for (var child : nAry.children()) {
@@ -234,7 +237,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     /**
      * Inserts an Eval atop the given {@code unaryAtopSource}, if this isn't an Eval already. Otherwise it merges the nullAliases into it.
      */
-    private static LogicalPlan evalUnresolved(UnaryPlan unaryAtopSource, List<Alias> nullAliases) {
+    private static LogicalPlan evalUnresolvedUnary(UnaryPlan unaryAtopSource, List<Alias> nullAliases) {
         assertSourceType(unaryAtopSource.child());
         if (unaryAtopSource instanceof Eval eval && eval.resolved()) { // if this Eval isn't resolved, insert a new (resolved) one
             List<Alias> pre = new ArrayList<>(nullAliases.size());
@@ -270,11 +273,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     private static List<Alias> nullAliases(List<UnresolvedAttribute> unresolved) {
         Map<String, Alias> aliasesMap = new LinkedHashMap<>(unresolved.size());
-        for (var u : unresolved) {
-            if (aliasesMap.containsKey(u.name()) == false) {
-                aliasesMap.put(u.name(), nullAlias(u));
-            }
-        }
+        unresolved.forEach(u -> aliasesMap.computeIfAbsent(u.name(), k -> nullAlias(u)));
         return new ArrayList<>(aliasesMap.values());
     }
 
@@ -282,7 +281,10 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return new Alias(attribute.source(), attribute.name(), NULLIFIED);
     }
 
-    // collect all UAs in the node
+    /**
+     * @return all the {@link UnresolvedAttribute}s in the given node / {@code plan}, but excluding the {@link UnresolvedPattern} and
+     * {@link UnresolvedTimestamp} subtypes.
+     */
     private static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
         List<UnresolvedAttribute> unresolved = new ArrayList<>();
         plan.forEachExpression(UnresolvedAttribute.class, ua -> {

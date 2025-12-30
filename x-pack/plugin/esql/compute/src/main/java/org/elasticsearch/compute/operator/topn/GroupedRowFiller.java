@@ -14,19 +14,23 @@ import java.util.List;
 
 final class GroupedRowFiller implements RowFiller {
     private final UngroupedRowFiller ungroupedRowFiller;
-    private final KeyExtractor[] groupKeyExtractors;
+    private final ValueExtractor[] valueExtractors;
 
-    GroupedRowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<TopNOperator.SortOrder> sortOrders, List<Integer> groupChannels, Page page) {
+    GroupedRowFiller(
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<TopNOperator.SortOrder> sortOrders,
+        List<Integer> groupChannels,
+        Page page
+    ) {
         this.ungroupedRowFiller = new UngroupedRowFiller(elementTypes, encoders, sortOrders, page);
-        this.groupKeyExtractors = new KeyExtractor[groupChannels.size()];
-        for (int k = 0; k < groupKeyExtractors.length; k++) {
+        this.valueExtractors = new ValueExtractor[groupChannels.size()];
+        for (int k = 0; k < valueExtractors.length; k++) {
             int channel = groupChannels.get(k);
-            groupKeyExtractors[k] = KeyExtractor.extractorFor(
+            valueExtractors[k] = ValueExtractor.extractorFor(
                 elementTypes.get(channel),
-                encoders.get(channel).toSortable(),
-                true,
-                (byte) 0,
-                (byte) 1,
+                encoders.get(channel).toUnsortable(),
+                false, // FIXME(gal, NOCOMMIT) Temporary, this method should also accept a list of key extractors.
                 page.getBlock(channel)
             );
         }
@@ -35,8 +39,8 @@ final class GroupedRowFiller implements RowFiller {
     @Override
     public void writeKey(int i, Row row) {
         ungroupedRowFiller.writeKey(i, row);
-        for (KeyExtractor extractor : groupKeyExtractors) {
-            extractor.writeKey(((GroupedRow) row).groupKey(), i);
+        for (ValueExtractor extractor : valueExtractors) {
+            extractor.writeValue(((GroupedRow) row).groupKey(), i);
         }
     }
 

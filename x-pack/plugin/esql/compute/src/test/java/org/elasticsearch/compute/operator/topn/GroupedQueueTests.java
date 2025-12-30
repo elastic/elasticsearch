@@ -29,13 +29,14 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class GroupedQueueTests extends ESTestCase {
     /** Maximum allowed difference between expected and actual ramBytesUsed() values. */
-    public static final long MAX_DIFF = 32L;
+    public static final long MAX_DIFF = 0;
 
     private final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1));
     private final CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -141,12 +142,12 @@ public class GroupedQueueTests extends ESTestCase {
         long actual = queue.ramBytesUsed();
         long expected = expectedRamBytesUsed(queue);
         var msg = Strings.format("Expected a difference of at most %d bytes; reported: %d, RamUsageTester: %d", MAX_DIFF, actual, expected);
-        // assertThat(msg, Math.abs(actual - expected), lessThanOrEqualTo(MAX_DIFF));
+        assertThat(msg, Math.abs(actual - expected), lessThanOrEqualTo(MAX_DIFF));
     }
 
     public void testRamBytesUsedPartiallyFilled() {
         try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
-            addRows(queue, SORT_ORDER, 0, 10);
+            addRows(queue, SORT_ORDER, 0, 10, 20, 30, 40, 50);
             // addRows(queue, SORT_ORDER, 1, 10, 20);
             assertRamUsageClose(queue);
         }
@@ -167,10 +168,10 @@ public class GroupedQueueTests extends ESTestCase {
             IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey * 2).build()
         ) {
             TopNOperator.SortOrder adjustedSortOrder = new TopNOperator.SortOrder(1, sortOrder.asc(), sortOrder.nullsFirst());
-            Row row = new GroupedRow(new UngroupedRow(breaker, List.of(adjustedSortOrder), 32, 64), 0);
+            Row row = new GroupedRow(new UngroupedRow(breaker, List.of(adjustedSortOrder), 32, 64), 16);
             var filler = new GroupedRowFiller(
                 List.of(ElementType.INT, ElementType.INT, ElementType.INT),
-                List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
+                List.of(TopNEncoder.DEFAULT_UNSORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
                 List.of(adjustedSortOrder),
                 List.of(0),
                 new Page(groupKeyBlock, keyBlock, valueBlock)
@@ -213,13 +214,11 @@ public class GroupedQueueTests extends ESTestCase {
         if (queue.size() > 0) {
             var size = queue.size();
             Row rowSample = queue.pop();
-            assertSameSize(rowSample, queue);
             // FIXME(gal, NOCOMMIT) Reduce code duplication with UngroupedQueueTests.expectedRamBytesUsed
             expected -= size * (RamUsageTester.ramUsed(rowSample) - rowSample.ramBytesUsed());
             expected += size * RamUsageTester.ramUsed(breaker);
             expected += (size - 1) * (RamUsageTester.ramUsed(SORT_ORDER) + RamUsageTester.ramUsed("topn"));
             queue.add(rowSample);
-            // rowSample.close();
         }
         return expected;
     }

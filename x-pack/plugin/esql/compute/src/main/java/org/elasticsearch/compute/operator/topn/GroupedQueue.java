@@ -77,7 +77,7 @@ class GroupedQueue implements TopNQueue {
         } finally {
             if (success == false) {
                 if (key != null) {
-                    breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(keyView.length));
+                    breaker.addWithoutBreaking(-keyView.length);
                 }
                 Releasables.close(newQueue);
             }
@@ -99,7 +99,7 @@ class GroupedQueue implements TopNQueue {
         var row = queue.pop();
         if (queue.size() == 0) {
             // FIXME(gal, NOCOMMIT) Inaccurate count here.
-            breaker.addWithoutBreaking(-RamUsageEstimator.sizeOf(next.getKey().length));
+            breaker.addWithoutBreaking(-next.getKey().length);
             iterator.remove();
             queue.close();
         }
@@ -120,6 +120,14 @@ class GroupedQueue implements TopNQueue {
             total += entrySize;
             // Account for unused entries in the map's table, assuming current load of 0.5.
             total += 2L * NUM_BYTES_OBJECT_REF;
+            System.out.println(
+                "total: "
+                    + total
+                    + ", queue: "
+                    + entry.getValue().ramBytesUsed()
+                    + ", total minus queue: "
+                    + (total - entry.getValue().ramBytesUsed())
+            );
         }
 
         return total;

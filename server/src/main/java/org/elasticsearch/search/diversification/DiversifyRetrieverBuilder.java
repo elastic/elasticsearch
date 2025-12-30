@@ -64,6 +64,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     public static final ParseField LAMBDA_FIELD = new ParseField("lambda");
     public static final ParseField SIZE_FIELD = new ParseField("size");
 
+    // TODO -- add field for top_n_chunks for semantic_text
+
     public static class RankDocWithSearchHit extends RankDoc {
         private final SearchHit hit;
 

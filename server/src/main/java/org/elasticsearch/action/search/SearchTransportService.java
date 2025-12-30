@@ -319,10 +319,25 @@ public class SearchTransportService {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(task.getId());
 
-            client.execute(
-                TransportFetchPhaseCoordinationAction.TYPE,
-                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode()),
-                ActionListener.wrap(response -> listener.onResponse(response.getResult()), listener::onFailure)
+            // Capture headers from current ThreadContext
+            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
+            logger.info("sendExecuteFetch ThreadContext headers: {}", threadContext.getHeaders().keySet());
+
+            transportService.sendChildRequest(
+                transportService.getConnection(transportService.getLocalNode()),
+                TransportFetchPhaseCoordinationAction.TYPE.name(),
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),
+                task,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(
+                    ActionListener.wrap(
+                        response -> listener.onResponse(response.getResult()),
+                        listener::onFailure
+                    ),
+                    TransportFetchPhaseCoordinationAction.Response::new,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                )
             );
         } else {
             sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, shardFetchRequest, task, listener);
@@ -598,6 +613,10 @@ public class SearchTransportService {
         );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
+
+            ThreadContext threadContext3 = transportService.getThreadPool().getThreadContext();
+            logger.info("DataNode handler ThreadContext headers: {}", threadContext3.getHeaders().keySet());
+
             boolean fetchPhaseChunkedEnabled = searchService.fetchPhaseChunked();
             boolean hasCoordinator = request instanceof ShardFetchSearchRequest fetchSearchReq
                 && fetchSearchReq.getCoordinatingNode() != null;

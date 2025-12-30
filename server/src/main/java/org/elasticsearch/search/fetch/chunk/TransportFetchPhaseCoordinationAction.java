@@ -88,16 +88,19 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
     public static class Request extends ActionRequest {
         private final ShardFetchSearchRequest shardFetchRequest;
         private final DiscoveryNode dataNode;
+        private final Map<String, String> headers;
 
-        public Request(ShardFetchSearchRequest shardFetchRequest, DiscoveryNode dataNode) {
+        public Request(ShardFetchSearchRequest shardFetchRequest, DiscoveryNode dataNode, Map<String, String> headers) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
+            this.headers = headers;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.shardFetchRequest = new ShardFetchSearchRequest(in);
             this.dataNode = new DiscoveryNode(in);
+            this.headers = in.readMap(StreamInput::readString);
         }
 
         @Override
@@ -105,6 +108,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             super.writeTo(out);
             shardFetchRequest.writeTo(out);
             dataNode.writeTo(out);
+            out.writeMap(headers, StreamOutput::writeString);
         }
 
         @Override
@@ -118,6 +122,10 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         public DiscoveryNode getDataNode() {
             return dataNode;
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
         }
     }
 
@@ -234,14 +242,20 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             }
         });
 
-        // Forward request to data node with restored authentication context
-        transportService.sendChildRequest(
-            request.getDataNode(),
-            "indices:data/read/search[phase/fetch/id]",
-            fetchReq,
-            task,
-            TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(childListener, FetchSearchResult::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-        );
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        logger.info("CoordinationAction ThreadContext headers: {}", threadContext.getHeaders().keySet());
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(request.getHeaders());
+
+            transportService.sendChildRequest(
+                request.getDataNode(),
+                "indices:data/read/search[phase/fetch/id]",
+                fetchReq,
+                task,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(childListener, FetchSearchResult::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            );
+        }
     }
 }

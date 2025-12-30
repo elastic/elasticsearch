@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openshiftai.completion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -98,5 +99,10 @@ public class OpenShiftAiChatCompletionServiceSettings extends OpenShiftAiService
     @Override
     public int hashCode() {
         return Objects.hash(modelId, uri, rateLimitSettings);
+    }
+
+    @Override
+    public OpenShiftAiChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 }

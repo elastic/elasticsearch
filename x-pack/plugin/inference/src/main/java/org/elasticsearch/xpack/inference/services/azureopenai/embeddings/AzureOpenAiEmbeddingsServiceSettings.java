@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -224,6 +225,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         return dimensions;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }
@@ -245,6 +247,11 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     @Override
     public String modelId() {
         return null;
+    }
+
+    @Override
+    public AzureOpenAiEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     @Override

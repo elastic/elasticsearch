@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -49,6 +50,11 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
     ) {
         final var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
         return new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(baseSettings);
+    }
+
+    @Override
+    public AzureAiStudioRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     private record AzureAiStudioRerankCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}

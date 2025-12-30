@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -46,6 +47,11 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
     ) {
         var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
         return new AzureAiStudioCompletionCommonFields(baseSettings);
+    }
+
+    @Override
+    public AzureAiStudioChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     private record AzureAiStudioCompletionCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}

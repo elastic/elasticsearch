@@ -86,6 +86,11 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     }
 
     @Override
+    public ElasticInferenceServiceCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return fromMap(serviceSettings, ConfigurationParseContext.PERSISTENT);
+    }
+
+    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }

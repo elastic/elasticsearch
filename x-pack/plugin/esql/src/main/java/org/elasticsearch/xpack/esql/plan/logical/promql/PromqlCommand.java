@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
@@ -269,13 +268,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 // The limitation is in TS|STATS aggregation translation, not in PromQL support.
                 // We do support VectorBinaryArithmetic operators as nested expressions, but not at the top-level of a query.
                 fail(p, "top-level binary operators are not supported at this time [{}]", p.sourceText())
-            );
-            // TODO add support for group by all
-            case InstantSelector instantSelector -> failures.add(
-                fail(p, "top-level instant vector selectors are not supported at this time [{}]", p.sourceText())
-            );
-            case WithinSeriesAggregate withinSeriesAggregate -> failures.add(
-                fail(p, "top-level within-series aggregations are not supported at this time [{}]", p.sourceText())
             );
             case RangeSelector rangeSelector -> {
                 if (isRangeQuery()) {

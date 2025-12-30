@@ -65,6 +65,7 @@ import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.fail;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
@@ -344,6 +345,40 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
+    }
+
+    /**
+     * Test that PromQL range selector duration is correctly wired to the window parameter
+     * when step != range.
+     */
+    public void testRangeSelectorWithDifferentStep() {
+        // This test will fail initially because:
+        // 1. Validation enforces range == step (will be removed)
+        // 2. Window parameter is not wired from range selector (will be implemented)
+        var plan = planPromql("""
+            PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))
+            """);
+
+        // Navigate to TimeSeriesAggregate to verify window parameter
+        var project = as(plan, Project.class);
+        var aggregate = as(project.child(), Aggregate.class);
+        var evalMiddle = as(aggregate.child(), Eval.class);
+        var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
+
+        // Find the avg_over_time aggregate function and verify window is set to 10m
+        for (NamedExpression agg : tsAggregate.aggregates()) {
+            var unwrapped = Alias.unwrap(agg);
+            if (unwrapped instanceof org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime avgOverTime) {
+                var window = avgOverTime.window();
+                assertThat(
+                    "Window parameter should be wired from range selector [10m]",
+                    window.fold(FoldContext.small()),
+                    equalTo(Duration.ofMinutes(10))
+                );
+                return;
+            }
+        }
+        fail("Expected to find AvgOverTime aggregate function with window parameter");
     }
 
     /**

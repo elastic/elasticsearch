@@ -58,3 +58,21 @@ cost:double | step:datetime            | cluster:keyword
 10277.0     | 2024-05-10T00:00:00.000Z | prod
 ;
 
+range_selector_different_from_step
+required_capability: promql_pre_tech_preview_v10
+required_capability: time_series_window_v1
+PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]));
+
+events:double      | step:datetime            | pod:keyword
+15.746543778801843 | 2024-05-10T00:00:00.000Z | one
+15.396284829721363 | 2024-05-10T00:00:00.000Z | three
+14.19994204578383  | 2024-05-10T00:00:00.000Z | two
+17.711405529953918 | 2024-05-10T00:05:00.000Z | one
+14.625735294117646 | 2024-05-10T00:05:00.000Z | three
+15.605820105820106 | 2024-05-10T00:05:00.000Z | two
+19.01010101010101  | 2024-05-10T00:10:00.000Z | one
+15.045454545454547 | 2024-05-10T00:10:00.000Z | three
+16.944444444444443 | 2024-05-10T00:10:00.000Z | two
+16.485714285714288 | 2024-05-10T00:15:00.000Z | one
+;
+

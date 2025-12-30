@@ -10,7 +10,6 @@
 package org.elasticsearch.action.datastreams.lifecycle;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -177,12 +176,9 @@ public class ExplainDataStreamLifecycleAction {
                 var defaultFailuresRetention = in.readOptionalTimeValue();
                 dataGlobalRetention = DataStreamGlobalRetention.create(defaultRetention, maxRetention);
                 failureGlobalRetention = DataStreamGlobalRetention.create(defaultFailuresRetention, maxRetention);
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            } else {
                 dataGlobalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
                 failureGlobalRetention = dataGlobalRetention;
-            } else {
-                dataGlobalRetention = null;
-                failureGlobalRetention = null;
             }
         }
 
@@ -217,7 +213,7 @@ public class ExplainDataStreamLifecycleAction {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.maxRetention());
                 out.writeOptionalTimeValue(failureGlobalRetention == null ? null : failureGlobalRetention.defaultRetention());
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            } else {
                 out.writeOptionalWriteable(getDataGlobalRetention());
             }
         }

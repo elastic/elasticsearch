@@ -184,9 +184,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsIndexModeLookup(),
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
-                false,
+                timeSeriesOnly(),
                 supportsExponentialHistograms(),
-                supportsTDigestField()
+                supportsTDigestField(),
+                supportsHistogramDataType(),
+                supportsBFloat16ElementType()
             );
             return null;
         });
@@ -299,6 +301,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
+    protected boolean timeSeriesOnly() {
+        return Boolean.getBoolean("tests.esql.csv.timeseries_only");
+    }
+
     protected boolean supportsIndexModeLookup() throws IOException {
         return true;
     }
@@ -315,7 +321,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsTDigestField() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V2.capabilityName()));
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
+    }
+
+    protected boolean supportsHistogramDataType() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()));
+    }
+
+    protected boolean supportsBFloat16ElementType() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()));
     }
 
     protected void doTest() throws Throwable {

@@ -10,9 +10,13 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.HnswConcurrentMergeBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.OnHeapHnswGraph;
@@ -21,6 +25,9 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
@@ -31,11 +38,19 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
 
     public static NeighborHood[] computeNeighborhoods(float[][] centers, int clustersPerNeighborhood) throws IOException {
         assert centers.length > clustersPerNeighborhood;
+        return computeNeighborhoods(null, 1, centers, clustersPerNeighborhood);
+    }
+
+    public static NeighborHood[] computeNeighborhoods(TaskExecutor executor, int numWorkers, float[][] centers, int clustersPerNeighborhood)
+        throws IOException {
+        assert centers.length > clustersPerNeighborhood;
         // experiments shows that below 10k, we better use brute force, otherwise hnsw gives us a nice speed up
         if (centers.length < 10_000) {
             return computeNeighborhoodsBruteForce(centers, clustersPerNeighborhood);
-        } else {
+        } else if (executor == null || numWorkers < 2) {
             return computeNeighborhoodsGraph(centers, clustersPerNeighborhood);
+        } else {
+            return computeNeighborhoodsGraph(executor, numWorkers, centers, clustersPerNeighborhood);
         }
     }
 
@@ -85,83 +100,150 @@ public record NeighborHood(int[] neighbors, float maxIntraDistance) {
     }
 
     public static NeighborHood[] computeNeighborhoodsGraph(float[][] centers, int clustersPerNeighborhood) throws IOException {
-        final UpdateableRandomVectorScorer scorer = new UpdateableRandomVectorScorer() {
-            int scoringOrdinal;
-            private final float[] distances = new float[4];
-
-            @Override
-            public float score(int node) {
-                return VectorUtil.normalizeDistanceToUnitInterval(VectorUtil.squareDistance(centers[scoringOrdinal], centers[node]));
-            }
-
-            @Override
-            public void bulkScore(int[] nodes, float[] scores, int numNodes) {
-                int i = 0;
-                final int limit = numNodes - 3;
-                for (; i < limit; i += 4) {
-                    ESVectorUtil.squareDistanceBulk(
-                        centers[scoringOrdinal],
-                        centers[nodes[i]],
-                        centers[nodes[i + 1]],
-                        centers[nodes[i + 2]],
-                        centers[nodes[i + 3]],
-                        distances
-                    );
-                    for (int j = 0; j < 4; j++) {
-                        scores[i + j] = VectorUtil.normalizeDistanceToUnitInterval(distances[j]);
-                    }
-                }
-                for (; i < numNodes; i++) {
-                    scores[i] = score(nodes[i]);
-                }
-            }
-
-            @Override
-            public int maxOrd() {
-                return centers.length;
-            }
-
-            @Override
-            public void setScoringOrdinal(int node) {
-                scoringOrdinal = node;
-            }
-        };
-        final RandomVectorScorerSupplier supplier = new RandomVectorScorerSupplier() {
-            @Override
-            public UpdateableRandomVectorScorer scorer() {
-                return scorer;
-            }
-
-            @Override
-            public RandomVectorScorerSupplier copy() {
-                return this;
-            }
-        };
-        final OnHeapHnswGraph graph = HnswGraphBuilder.create(supplier, M, EF_CONSTRUCTION, 42L).build(centers.length);
+        final RandomVectorScorerSupplier supplier = new CentersScorerSupplier(centers);
+        final OnHeapHnswGraph graph = HnswGraphBuilder.create(supplier, M, EF_CONSTRUCTION, 42L, centers.length).build(centers.length);
         final NeighborHood[] neighborhoods = new NeighborHood[centers.length];
-        // oversample the number of neighbors we collect to improve recall
-        final ReusableKnnCollector collector = new ReusableKnnCollector(2 * clustersPerNeighborhood);
-        for (int i = 0; i < centers.length; i++) {
-            collector.reset(i);
-            scorer.setScoringOrdinal(i);
-            HnswGraphSearcher.search(scorer, collector, graph, null);
-            NeighborQueue queue = collector.queue;
-            if (queue.size() == 0) {
+        populateNeighboursFromGraph(graph, clustersPerNeighborhood, neighborhoods, supplier, 0, centers.length);
+        return neighborhoods;
+    }
+
+    public static NeighborHood[] computeNeighborhoodsGraph(
+        TaskExecutor executor,
+        int numWorkers,
+        float[][] centers,
+        int clustersPerNeighborhood
+    ) throws IOException {
+        final RandomVectorScorerSupplier supplier = new CentersScorerSupplier(centers);
+        // what we want here is really is call "new OnHeapHnswGraph(M, ceneters.length)" but the constructor is package private
+        final OnHeapHnswGraph initGraph = HnswGraphBuilder.create(supplier, M, EF_CONSTRUCTION, 42L, centers.length).build(0);
+        final OnHeapHnswGraph graph = new HnswConcurrentMergeBuilder(executor, numWorkers, supplier, M, EF_CONSTRUCTION, initGraph, null)
+            .build(centers.length);
+        final NeighborHood[] neighborhoods = new NeighborHood[centers.length];
+        final int len = centers.length / numWorkers;
+        final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
+        for (int i = 0; i < numWorkers; i++) {
+            final int start = i * len;
+            final int end = i == numWorkers - 1 ? centers.length : (i + 1) * len;
+            runners.add(() -> {
+                populateNeighboursFromGraph(graph, clustersPerNeighborhood, neighborhoods, supplier.copy(), start, end);
+                return null;
+            });
+        }
+        executor.invokeAll(runners);
+        return neighborhoods;
+    }
+
+    private static void populateNeighboursFromGraph(
+        OnHeapHnswGraph graph,
+        int clustersPerNeighborhood,
+        NeighborHood[] neighborhoods,
+        RandomVectorScorerSupplier supplier,
+        int start,
+        int end
+    ) throws IOException {
+        ReusableBits bits = new ReusableBits(graph.size());
+        for (int i = start; i < end; i++) {
+            supplier.scorer().setScoringOrdinal(i);
+            bits.currentOrd = i;
+            // oversample the number of neighbors we collect to improve recall
+            final KnnCollector collector = HnswGraphSearcher.search(
+                supplier.scorer(),
+                2 * clustersPerNeighborhood,
+                graph,
+                bits,
+                Integer.MAX_VALUE
+            );
+            ScoreDoc[] scoreDocs = collector.topDocs().scoreDocs;
+            int len = Math.min(clustersPerNeighborhood, scoreDocs.length);
+            if (len == 0) {
                 // no neighbors, skip
                 neighborhoods[i] = NeighborHood.EMPTY;
                 continue;
             }
-            while (queue.size() > clustersPerNeighborhood) {
-                queue.pop();
-            }
-            final float minScore = queue.topScore();
-            final int[] neighbors = new int[queue.size()];
-            for (int j = 1; j <= neighbors.length; j++) {
-                neighbors[neighbors.length - j] = queue.pop();
+            final float minScore = scoreDocs[len - 1].score;
+            final int[] neighbors = new int[len];
+            for (int j = 0; j < len; j++) {
+                neighbors[j] = scoreDocs[j].doc;
             }
             neighborhoods[i] = new NeighborHood(neighbors, (1f / minScore) - 1);
         }
-        return neighborhoods;
+    }
+
+    private static class ReusableBits implements Bits {
+
+        final int size;
+        int currentOrd;
+
+        ReusableBits(int size) {
+            this.size = size;
+        }
+
+        @Override
+        public boolean get(int index) {
+            return index != currentOrd;
+        }
+
+        @Override
+        public int length() {
+            return size;
+        }
+    }
+
+    private record CentersScorerSupplier(float[][] centers, UpdateableRandomVectorScorer scorer) implements RandomVectorScorerSupplier {
+
+        CentersScorerSupplier(float[][] centers) {
+            this(centers, new UpdateableRandomVectorScorer() {
+                private int scoringOrdinal;
+                private final float[] distances = new float[4];
+
+                @Override
+                public float score(int node) {
+                    return VectorUtil.normalizeDistanceToUnitInterval(VectorUtil.squareDistance(centers[scoringOrdinal], centers[node]));
+                }
+
+                @Override
+                public void bulkScore(int[] nodes, float[] scores, int numNodes) {
+                    int i = 0;
+                    final int limit = numNodes - 3;
+                    for (; i < limit; i += 4) {
+                        ESVectorUtil.squareDistanceBulk(
+                            centers[scoringOrdinal],
+                            centers[nodes[i]],
+                            centers[nodes[i + 1]],
+                            centers[nodes[i + 2]],
+                            centers[nodes[i + 3]],
+                            distances
+                        );
+                        for (int j = 0; j < 4; j++) {
+                            scores[i + j] = VectorUtil.normalizeDistanceToUnitInterval(distances[j]);
+                        }
+                    }
+                    for (; i < numNodes; i++) {
+                        scores[i] = score(nodes[i]);
+                    }
+                }
+
+                @Override
+                public int maxOrd() {
+                    return centers.length;
+                }
+
+                @Override
+                public void setScoringOrdinal(int node) {
+                    scoringOrdinal = node;
+                }
+            });
+        }
+
+        @Override
+        public UpdateableRandomVectorScorer scorer() {
+            return scorer;
+        }
+
+        @Override
+        public RandomVectorScorerSupplier copy() {
+            return new CentersScorerSupplier(centers);
+        }
     }
 
     private static class ReusableKnnCollector implements KnnCollector {

@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -67,7 +67,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
 
     public void testNoMatchingField() throws IOException {
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             iw -> { iw.addDocument(singleton(histogramFieldDocValues("wrong_number", new double[] { 7, 1 }))); },
             hdr -> {
                 // assertEquals(0L, hdr.state.getTotalCount());
@@ -77,7 +77,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
     }
 
     public void testEmptyField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[0]))); }, hdr -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[0]))); }, hdr -> {
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }

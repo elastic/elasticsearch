@@ -79,12 +79,22 @@ public class DenseVectorFieldVectorSupplier implements FieldVectorSupplier {
             return null;
         }
 
-        if (fieldValues.getFirst() instanceof Float) {
+        var firstValue = fieldValues.getFirst();
+
+        if (firstValue instanceof float[] floatArray) {
+            return new VectorData(floatArray);
+        }
+
+        if (firstValue instanceof byte[] byteArray) {
+            return new VectorData(byteArray);
+        }
+
+        if (firstValue instanceof Float) {
             Float[] asFloatArray = fieldValues.stream().map(x -> (Float) x).toArray(Float[]::new);
             return new VectorData(unboxedFloatArray(asFloatArray));
         }
 
-        if (fieldValues.getFirst() instanceof Byte) {
+        if (firstValue instanceof Byte) {
             Byte[] asByteArray = fieldValues.stream().map(x -> (Byte) x).toArray(Byte[]::new);
             return new VectorData(unboxedByteArray(asByteArray));
         }

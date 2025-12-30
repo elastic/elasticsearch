@@ -365,7 +365,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         // TODO - make this once single way to get the vectors
         if (SemanticTextFieldVectorSupplier.isFieldSemanticTextVector(diversificationField, results[0])) {
             FieldVectorSupplier fieldVectorSupplier = new SemanticTextFieldVectorSupplier(diversificationField, results);
-            vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier);
+            // here we take the top 100 (maximum) vectors by relevance to the query vector
+            // TODO - make this configurable
+            vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier, 100);
         } else if (DenseVectorFieldVectorSupplier.canFieldBeDenseVector(diversificationField, results[0])) {
             FieldVectorSupplier fieldVectorSupplier = new DenseVectorFieldVectorSupplier(diversificationField, results);
             vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier);

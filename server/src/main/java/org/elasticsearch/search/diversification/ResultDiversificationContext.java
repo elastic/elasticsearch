@@ -48,6 +48,10 @@ public abstract class ResultDiversificationContext {
     }
 
     public int setFieldVectors(FieldVectorSupplier fieldVectorSupplier) {
+        return setFieldVectors(fieldVectorSupplier, -1);
+    }
+
+    public int setFieldVectors(FieldVectorSupplier fieldVectorSupplier, int topVectorsSize) {
         var vectors = fieldVectorSupplier.getFieldVectors();
         VectorData queryVector = this.getQueryVector();
         Boolean useFloat = null;
@@ -80,11 +84,18 @@ public abstract class ResultDiversificationContext {
                     }
                 });
 
+                if (topVectorsSize >= 0) {
+                    scores = scores.subList(0, topVectorsSize);
+                }
+
                 for (var sortedTuple : scores) {
                     sortedTuples.add(new Tuple<>(sortedTuple.v1(), vectorTuples.get(sortedTuple.v1())));
                 }
             } else {
                 for (var vec : vectorTuples.entrySet()) {
+                    if (topVectorsSize >= 0 && sortedTuples.size() >= topVectorsSize) {
+                        break;
+                    }
                     sortedTuples.add(new Tuple<>(vec.getKey(), vec.getValue()));
                 }
             }

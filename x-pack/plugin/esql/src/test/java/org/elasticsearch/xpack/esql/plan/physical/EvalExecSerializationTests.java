@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+
 public class EvalExecSerializationTests extends AbstractPhysicalPlanSerializationTests<EvalExec> {
     public static EvalExec randomEvalExec(int depth) {
         Source source = randomSource();
@@ -32,7 +34,8 @@ public class EvalExecSerializationTests extends AbstractPhysicalPlanSerializatio
         Expression child = new Add(
             randomSource(),
             FieldAttributeTests.createFieldAttribute(0, true),
-            FieldAttributeTests.createFieldAttribute(0, true)
+            FieldAttributeTests.createFieldAttribute(0, true),
+            TEST_CFG
         );
         return new Alias(randomSource(), randomAlphaOfLength(5), child);
     }

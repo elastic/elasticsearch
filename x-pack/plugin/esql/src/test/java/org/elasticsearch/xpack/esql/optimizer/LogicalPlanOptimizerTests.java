@@ -174,6 +174,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
@@ -5353,7 +5354,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // | EVAL y = to_integer(x), y = y + 1
         new PushdownShadowingGeneratingPlanTestCase((plan, attr) -> {
             Alias y1 = new Alias(EMPTY, "y", new ToInteger(EMPTY, attr));
-            Alias y2 = new Alias(EMPTY, "y", new Add(EMPTY, y1.toAttribute(), new Literal(EMPTY, 1, INTEGER)));
+            Alias y2 = new Alias(EMPTY, "y", new Add(EMPTY, y1.toAttribute(), new Literal(EMPTY, 1, INTEGER), TEST_CFG));
             return new Eval(EMPTY, plan, List.of(y1, y2));
         }, new PushDownEval()),
         // | DISSECT x "%{y} %{y}"

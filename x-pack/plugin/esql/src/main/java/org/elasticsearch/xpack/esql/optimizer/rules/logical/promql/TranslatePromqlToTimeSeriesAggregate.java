@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryAri
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.time.Duration;
@@ -275,10 +276,21 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         List<Expression> labelFilterConditions
     ) {
         Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions);
+
+        Expression window = null;
+        if (functionCall.child() instanceof RangeSelector rangeSelector) {
+            window = rangeSelector.range();
+        }
+
+        if (window == null) {
+            window = AggregateFunction.NO_WINDOW;
+        }
+
         List<Expression> params = switch (functionCall) {
-            case WithinSeriesAggregate within -> List.of(target, promqlCommand.timestamp());
+            case WithinSeriesAggregate within -> List.of(target, promqlCommand.timestamp(), window);
             case AcrossSeriesAggregate across -> List.of(target);
         };
+
         return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(functionCall.functionName(), functionCall.source(), params);
     }
 

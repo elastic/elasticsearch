@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -65,7 +66,7 @@ import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.junit.Assert.fail;
+import static org.hamcrest.Matchers.notNullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
@@ -348,37 +349,44 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
-     * Test that PromQL range selector duration is correctly wired to the window parameter
-     * when step != range.
+     * Expect the logical plan structure:
+     * Project
+     * \_Eval
+     *   \_Limit
+     *     \_Aggregate
+     *       \_Eval
+     *         \_TimeSeriesAggregate[[...],[SUM(...,PT10M,...), COUNT(...,PT10M,...), ...], BUCKET(@timestamp,PT5M)]
      */
     public void testRangeSelectorWithDifferentStep() {
-        // This test will fail initially because:
-        // 1. Validation enforces range == step (will be removed)
-        // 2. Window parameter is not wired from range selector (will be implemented)
         var plan = planPromql("""
             PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))
             """);
 
-        // Navigate to TimeSeriesAggregate to verify window parameter
         var project = as(plan, Project.class);
-        var aggregate = as(project.child(), Aggregate.class);
+        var evalOuter = as(project.child(), Eval.class);
+        var limit = as(evalOuter.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
         var evalMiddle = as(aggregate.child(), Eval.class);
         var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
 
-        // Find the avg_over_time aggregate function and verify window is set to 10m
+        // Verify bucket is 5 minutes
+        Bucket bucket = tsAggregate.timeBucket();
+        assertThat(bucket.buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+
+        // Verify window is 10 minutes
+        boolean foundWindowedAggregate = false;
         for (NamedExpression agg : tsAggregate.aggregates()) {
             var unwrapped = Alias.unwrap(agg);
-            if (unwrapped instanceof org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime avgOverTime) {
-                var window = avgOverTime.window();
+            if (unwrapped instanceof Sum sum) {
                 assertThat(
-                    "Window parameter should be wired from range selector [10m]",
-                    window.fold(FoldContext.small()),
+                    "Window should be PT10M (from [10m] range selector)",
+                    sum.window().fold(FoldContext.small()),
                     equalTo(Duration.ofMinutes(10))
                 );
-                return;
+                foundWindowedAggregate = true;
             }
         }
-        fail("Expected to find AvgOverTime aggregate function with window parameter");
+        assertThat(foundWindowedAggregate, equalTo(true));
     }
 
     /**

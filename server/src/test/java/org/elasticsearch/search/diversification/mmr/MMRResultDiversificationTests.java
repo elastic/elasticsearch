@@ -30,7 +30,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
     public void testMMRDiversification() throws IOException {
         for (int x = 0; x < 10; x++) {
             List<Integer> expectedDocIds = new ArrayList<>();
-            MMRResultDiversificationContext diversificationContext = getRandomContext(expectedDocIds);
+            DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits = getTestSearchHits();
+            MMRResultDiversificationContext diversificationContext = getRandomContext(expectedDocIds, searchHits);
 
             RankDoc[] docs = new RankDoc[] {
                 new RankDoc(1, 2.0f, 1),
@@ -47,6 +48,11 @@ public class MMRResultDiversificationTests extends ESTestCase {
 
             MMRResultDiversification resultDiversification = new MMRResultDiversification(diversificationContext);
             RankDoc[] diversifiedTopDocs = resultDiversification.diversify(docs);
+
+            // need to clean for GC
+            cleanSearchHits(searchHits);
+            searchHits = null;
+
             assertNotSame(docs, diversifiedTopDocs);
 
             assertEquals(expectedDocIds.size(), diversifiedTopDocs.length);
@@ -56,14 +62,36 @@ public class MMRResultDiversificationTests extends ESTestCase {
         }
     }
 
-    private MMRResultDiversificationContext getRandomContext(List<Integer> expectedDocIds) {
-        if (randomBoolean()) {
-            return getRandomFloatContext(expectedDocIds);
-        }
-        return getRandomByteContext(expectedDocIds);
+    private DiversifyRetrieverBuilder.RankDocWithSearchHit[] getTestSearchHits() {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            new DiversifyRetrieverBuilder.RankDocWithSearchHit(1, 1.0f, 1, new SearchHit(1)),
+            new DiversifyRetrieverBuilder.RankDocWithSearchHit(2, 1.0f, 1, new SearchHit(2)),
+            new DiversifyRetrieverBuilder.RankDocWithSearchHit(3, 1.0f, 1, new SearchHit(3)),
+            new DiversifyRetrieverBuilder.RankDocWithSearchHit(4, 1.0f, 1, new SearchHit(4)),
+            new DiversifyRetrieverBuilder.RankDocWithSearchHit(5, 1.0f, 1, new SearchHit(5)),
+            new DiversifyRetrieverBuilder.RankDocWithSearchHit(6, 1.0f, 1, new SearchHit(6)) };
     }
 
-    private MMRResultDiversificationContext getRandomFloatContext(List<Integer> expectedDocIds) {
+    private void cleanSearchHits(DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits) {
+        for (int i = 0; i < searchHits.length; i++) {
+            searchHits[i].hit().decRef();
+        }
+    }
+
+    private MMRResultDiversificationContext getRandomContext(
+        List<Integer> expectedDocIds,
+        DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits
+    ) {
+        if (randomBoolean()) {
+            return getRandomFloatContext(expectedDocIds, searchHits);
+        }
+        return getRandomByteContext(expectedDocIds, searchHits);
+    }
+
+    private MMRResultDiversificationContext getRandomFloatContext(
+        List<Integer> expectedDocIds,
+        DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits
+    ) {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
         DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
@@ -77,16 +105,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
         Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
 
-        DiversifyRetrieverBuilder.RankDocWithSearchHit[] results = new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(1, 1.0f, 1, new SearchHit(1)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(2, 1.0f, 1, new SearchHit(2)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(3, 1.0f, 1, new SearchHit(3)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(4, 1.0f, 1, new SearchHit(4)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(5, 1.0f, 1, new SearchHit(5)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(6, 1.0f, 1, new SearchHit(6)), };
-
         diversificationContext.setFieldVectors(
-            results,
+            searchHits,
             new MockFieldVectorSuppler(
                 Map.of(
                     1,
@@ -111,7 +131,10 @@ public class MMRResultDiversificationTests extends ESTestCase {
         return diversificationContext;
     }
 
-    private MMRResultDiversificationContext getRandomByteContext(List<Integer> expectedDocIds) {
+    private MMRResultDiversificationContext getRandomByteContext(
+        List<Integer> expectedDocIds,
+        DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits
+    ) {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
         DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())

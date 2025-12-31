@@ -22,6 +22,7 @@ import org.hamcrest.Matchers;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
@@ -31,10 +32,13 @@ import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 
+import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
+import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -247,6 +251,21 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
             )
         );
 
+        // Set the timezone to UTC for test cases up to here
+        suppliers = TestCaseSupplier.mapTestCases(
+            suppliers,
+            tc -> tc.withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+        );
+
+        // Date tests with timezones
+        // -5 to -4 at 2025-03-09T02:00:00-05:00
+        suppliers.addAll(suppliersForDate("2025-03-10T01:00:00-05:00", Period.ofDays(1), "Z", "2025-03-09T01:00:00-05:00"));
+        suppliers.addAll(suppliersForDate("2025-03-10T01:00:00-04:00", Period.ofDays(1), "America/New_York", "2025-03-09T01:00:00-05:00"));
+        // 24h should do nothing for timezones
+        suppliers.addAll(
+            suppliersForDate("2025-03-10T01:00:00-05:00", Duration.ofHours(24), "America/New_York", "2025-03-09T01:00:00-05:00")
+        );
+
         suppliers = errorsForCasesWithoutExamples(anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
             if (nullValueDataType == DataType.NULL) {
                 return original.getData().get(nullPosition == 0 ? 1 : 0).type();
@@ -279,6 +298,48 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
         }
+    }
+
+    private static List<TestCaseSupplier> suppliersForDate(
+        String dateString,
+        TemporalAmount period,
+        String zoneIdString,
+        String expectedResultString
+    ) {
+        Instant inputDate = Instant.parse(dateString);
+        long dateAsMillis = DateUtils.toLongMillis(inputDate);
+        long dateAsNanos = DateUtils.toLong(inputDate);
+        DataType periodType = period instanceof Period ? DataType.DATE_PERIOD : DataType.TIME_DURATION;
+        ZoneId zoneId = ZoneId.of(zoneIdString);
+
+        return List.of(
+            new TestCaseSupplier(
+                "millis " + dateString + ", " + period + ", " + zoneIdString,
+                List.of(DataType.DATETIME, periodType),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(dateAsMillis, DataType.DATETIME, "date"),
+                        new TestCaseSupplier.TypedData(period, periodType, "period").forceLiteral()
+                    ),
+                    "SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount=" + period + ", zoneId=" + zoneId + "]",
+                    DataType.DATETIME,
+                    matchesDateMillis(expectedResultString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            ),
+            new TestCaseSupplier(
+                "nanos " + dateString + ", " + period + ", " + zoneIdString,
+                List.of(DataType.DATE_NANOS, periodType),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(dateAsNanos, DataType.DATE_NANOS, "date"),
+                        new TestCaseSupplier.TypedData(period, periodType, "period").forceLiteral()
+                    ),
+                    "SubDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount=" + period + ", zoneId=" + zoneId + "]",
+                    DataType.DATE_NANOS,
+                    matchesDateNanos(expectedResultString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            )
+        );
     }
 
     @Override

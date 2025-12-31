@@ -27,7 +27,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;

@@ -11,13 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.test.ReadableMatchers;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTruncTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.math.BigInteger;
@@ -26,7 +24,6 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
@@ -306,7 +303,9 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
         suppliers.addAll(suppliersForDate("2025-03-09T01:00:00-05:00", Period.ofDays(1), "Z", "2025-03-10T01:00:00-05:00"));
         suppliers.addAll(suppliersForDate("2025-03-09T01:00:00-05:00", Period.ofDays(1), "America/New_York", "2025-03-10T01:00:00-04:00"));
         // 24h should do nothing for timezones
-        suppliers.addAll(suppliersForDate("2025-03-09T01:00:00-05:00", Duration.ofHours(24), "America/New_York", "2025-03-10T01:00:00-05:00"));
+        suppliers.addAll(
+            suppliersForDate("2025-03-09T01:00:00-05:00", Duration.ofHours(24), "America/New_York", "2025-03-10T01:00:00-05:00")
+        );
 
         // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
         // Datetime + Period/Duration, since the expression will take the non-null arg's type.
@@ -331,7 +330,12 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
         }
     }
 
-    private static List<TestCaseSupplier> suppliersForDate(String dateString, TemporalAmount period, String zoneIdString, String expectedResultString) {
+    private static List<TestCaseSupplier> suppliersForDate(
+        String dateString,
+        TemporalAmount period,
+        String zoneIdString,
+        String expectedResultString
+    ) {
         Instant inputDate = Instant.parse(dateString);
         long dateAsMillis = DateUtils.toLongMillis(inputDate);
         long dateAsNanos = DateUtils.toLong(inputDate);

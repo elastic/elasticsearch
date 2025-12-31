@@ -128,7 +128,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(boolean limited) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append("[filter=");

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -45,6 +46,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -218,13 +220,19 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static Test.TestResult createNewOutput(Path output, QueryPlan<?> plan) throws IOException {
         Files.createDirectories(output.getParent());
-        Files.writeString(output, plan.goldenTestToString(), StandardCharsets.UTF_8);
+        Files.writeString(output, toString(plan), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }
 
+    private static String toString(Node<?> plan) {
+        return IDENTIFIER_PATTERN.matcher(plan.toString(false)).replaceAll("");
+    }
+
+    private static Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
+
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
         String read = Files.readString(output);
-        String testString = normalize(plan.goldenTestToString());
+        String testString = normalize(toString(plan));
         if (normalize(testString).equals(normalize(read))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 File file = getActualFile(output).toFile();

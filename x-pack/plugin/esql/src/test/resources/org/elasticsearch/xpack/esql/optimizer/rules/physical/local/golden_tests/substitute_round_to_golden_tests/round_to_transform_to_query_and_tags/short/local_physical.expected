@@ -2,7 +2,7 @@ LimitExec[1000[INTEGER],null]
 \_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
   \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
     \_FilterExec[$$count(*)$count{r} > 0[LONG]]
-      \_EsStatsQueryExec[test,null,null,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
+      \_EsStatsQueryExec[test], statsByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "short",
     "next" : {
@@ -68,4 +68,4 @@ LimitExec[1000[INTEGER],null]
     ],
     "boost" : 1.0
   }
-}, tags=[null]]]}]
+}, tags=[null]]]}], query[][x{r}, $$count(*)$count{r}, $$count(*)$seen{r}], limit[], 

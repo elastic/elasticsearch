@@ -77,7 +77,7 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(boolean limited) {
         return toString();
     }
 

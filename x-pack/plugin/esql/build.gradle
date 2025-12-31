@@ -617,18 +617,13 @@ tasks.named('stringTemplates').configure {
 
 
 test {
-  System.getProperties().each { key, value ->
-    if (key.toString().startsWith("golden.")) {
-      systemProperty key.toString(), value
-    }
-  }
-  if (project.hasProperty("golden.noactual")) {
+  if (System.getProperty("golden.noactual") != null || project.hasProperty("golden.noactual")) {
     systemProperty "golden.noactual", "true"
   }
-  if (project.hasProperty("golden.cleanactual")) {
+  if (System.getProperty("golden.cleanactual") != null || project.hasProperty("golden.cleanactual")) {
     systemProperty "golden.cleanactual", "true"
   }
-  if (project.hasProperty("golden.bulldoze")) {
+  if (System.getProperty("golden.bulldoze") != null || project.hasProperty("golden.bulldoze")) {
     systemProperty "golden.bulldoze", "true"
   }
   systemProperty "policy.directory", file("${projectDir}").absolutePath

@@ -164,7 +164,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(boolean limited) {
         return toString();
     }
 

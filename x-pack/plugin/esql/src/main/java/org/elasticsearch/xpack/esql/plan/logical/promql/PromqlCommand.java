@@ -244,7 +244,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(boolean limited) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append(" start=[").append(start);

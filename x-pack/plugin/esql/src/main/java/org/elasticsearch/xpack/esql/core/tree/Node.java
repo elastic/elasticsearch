@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
@@ -366,18 +367,26 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return info().properties();
     }
 
-    public String nodeString() {
+    public final String nodeString() {
+        return nodeString(true);
+    }
+
+    public String nodeString(boolean limited) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append("[");
-        sb.append(propertiesToString(true));
+        sb.append(propertiesToString(true, limited));
         sb.append("]");
         return sb.toString();
     }
 
     @Override
     public String toString() {
-        return treeString(new StringBuilder(), 0, new BitSet()).toString();
+        return toString(true);
+    }
+
+    public String toString(boolean limited) {
+        return treeString(new StringBuilder(), 0, new BitSet(), limited).toString();
     }
 
     /**
@@ -391,7 +400,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * }
      * </pre>
      */
-    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth) {
+    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth, boolean limited) {
         if (depth > 0) {
             // draw children
             for (int column = 0; column < depth; column++) {
@@ -410,7 +419,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             sb.append("_");
         }
 
-        sb.append(nodeString());
+        sb.append(nodeString(limited));
 
         @SuppressWarnings("HiddenField")
         List<T> children = children();
@@ -420,7 +429,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         for (int i = 0; i < children.size(); i++) {
             T t = children.get(i);
             hasParentPerDepth.set(depth, i < children.size() - 1);
-            t.treeString(sb, depth + 1, hasParentPerDepth);
+            t.treeString(sb, depth + 1, hasParentPerDepth, limited);
             if (i < children.size() - 1) {
                 sb.append("\n");
             }
@@ -433,23 +442,27 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * one like {@code foo bar baz}. These go inside the
      * {@code [} and {@code ]} of the output of {@link #treeString}.
      */
-    public String propertiesToString(boolean skipIfChild) {
+    protected String propertiesToString(boolean skipIfChild, boolean limited) {
         StringBuilder sb = new StringBuilder();
 
         @SuppressWarnings("HiddenField")
         List<?> children = children();
         // eliminate children (they are rendered as part of the tree)
-        int remainingProperties = TO_STRING_MAX_PROP;
-        int maxWidth = 0;
+        int maxProperties = limited ? TO_STRING_MAX_PROP : Integer.MAX_VALUE;
+        int remainingProperties = maxProperties;
+        int currentMaxWidth = 0;
         boolean needsComma = false;
 
         List<Object> props = nodeProperties();
         for (Object prop : props) {
+            if (prop instanceof NameId) {
+                continue;
+            }
             // consider a property if it is not ignored AND
             // it's not a child (optional)
             if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
                 if (remainingProperties-- < 0) {
-                    sb.append("...").append(props.size() - TO_STRING_MAX_PROP).append("fields not shown");
+                    sb.append("...").append(props.size() - maxProperties).append("fields not shown");
                     break;
                 }
 
@@ -457,17 +470,18 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                     sb.append(",");
                 }
 
-                String stringValue = toString(prop);
+                String stringValue = toString(prop, limited);
 
                 // : Objects.toString(prop);
-                if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
-                    int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
-                    sb.append(stringValue.substring(0, cutoff));
+                int maxWidth = limited ? TO_STRING_MAX_WIDTH : Integer.MAX_VALUE;
+                if (currentMaxWidth + stringValue.length() > maxWidth) {
+                    int cutoff = Math.max(0, maxWidth - currentMaxWidth);
+                    sb.append(stringValue, 0, cutoff);
                     sb.append("\n");
                     stringValue = stringValue.substring(cutoff);
-                    maxWidth = 0;
+                    currentMaxWidth = 0;
                 }
-                maxWidth += stringValue.length();
+                currentMaxWidth += stringValue.length();
                 sb.append(stringValue);
 
                 needsComma = true;
@@ -477,27 +491,27 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return sb.toString();
     }
 
-    private static String toString(Object obj) {
+    private static String toString(Object obj, boolean limited) {
         StringBuilder sb = new StringBuilder();
-        toString(sb, obj);
+        toString(sb, obj, limited);
         return sb.toString();
     }
 
-    private static void toString(StringBuilder sb, Object obj) {
+    private static void toString(StringBuilder sb, Object obj, boolean limited) {
         if (obj instanceof Iterable) {
             sb.append("[");
             for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
                 Object o = it.next();
-                toString(sb, o);
+                toString(sb, o, limited);
                 if (it.hasNext()) {
                     sb.append(", ");
                 }
             }
             sb.append("]");
         } else if (obj instanceof Node<?>) {
-            sb.append(((Node<?>) obj).nodeString());
+            sb.append(((Node<?>) obj).nodeString(limited));
         } else {
-            sb.append(Objects.toString(obj));
+            sb.append(obj);
         }
     }
 

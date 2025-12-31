@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -156,6 +157,27 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
+    public void testPopAllSortedBySortKey() {
+        try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
+            addRows(queue, 0, 30, 10, 50);
+            addRows(queue, 1, 20, 40);
+            addRows(queue, 2, 15, 25, 35);
+            assertQueueContents(
+                queue,
+                List.of(
+                    Tuple.tuple(0, 10),
+                    Tuple.tuple(2, 15),
+                    Tuple.tuple(1, 20),
+                    Tuple.tuple(2, 25),
+                    Tuple.tuple(0, 30),
+                    Tuple.tuple(2, 35),
+                    Tuple.tuple(1, 40),
+                    Tuple.tuple(0, 50)
+                )
+            );
+        }
+    }
+
     private Row createRow(CircuitBreaker breaker, int groupKey, int sortKey) {
         try (
             IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(groupKey).build();
@@ -214,6 +236,16 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(1, true, false);
+
+    private static void assertQueueContents(GroupedQueue queue, List<Tuple<Integer, Integer>> groupAndSortKeys) {
+        assertThat(queue.size(), equalTo(groupAndSortKeys.size()));
+        List<Row> actual = queue.popAll();
+        for (int i = 0; i < groupAndSortKeys.size(); i++) {
+            Tuple<Integer, Integer> expectedTuple = groupAndSortKeys.get(i);
+            assertRowValues(actual.get(i), expectedTuple.v1(), expectedTuple.v2(), expectedTuple.v2() * 2);
+        }
+        Releasables.close(actual);
+    }
 
     private long expectedRamBytesUsed(GroupedQueue queue, int numGroups) {
         long expected = RamUsageTester.ramUsed(queue);

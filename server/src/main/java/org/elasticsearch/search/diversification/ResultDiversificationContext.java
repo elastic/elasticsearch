@@ -26,8 +26,8 @@ public abstract class ResultDiversificationContext {
 
     private final String field;
     private final int size;
-    private final Supplier<VectorData> queryVector;
-    private final Map<Integer, List<Tuple<Integer, VectorData>>> fieldVectors = new HashMap<>();
+    private final Supplier<VectorData> queryVectorSupplier;
+    private final Map<Integer, List<VectorData>> fieldVectors = new HashMap<>();
 
     private boolean retrievedQueryVector = false;
     private VectorData realizedQueryVector = null;
@@ -35,7 +35,7 @@ public abstract class ResultDiversificationContext {
     protected ResultDiversificationContext(String field, int size, @Nullable Supplier<VectorData> queryVector) {
         this.field = field;
         this.size = size;
-        this.queryVector = queryVector;
+        this.queryVectorSupplier = queryVector;
     }
 
     public String getField() {
@@ -51,74 +51,72 @@ public abstract class ResultDiversificationContext {
         FieldVectorSupplier fieldVectorSupplier,
         int numVectorsLimit
     ) {
-        var vectors = fieldVectorSupplier.getFieldVectors(searchHits);
         VectorData queryVector = this.getQueryVector();
-        Boolean useFloat = null;
-        for (var vector : vectors.entrySet()) {
-            Map<Integer, VectorData> vectorTuples = new HashMap<>();
-            var fieldVector = vector.getValue();
-            for (int i = 0; i < fieldVector.size(); i++) {
-                if (useFloat == null) {
-                    useFloat = fieldVector.get(i).isFloat();
-                }
-                vectorTuples.put(i, fieldVector.get(i));
-            }
 
-            List<Tuple<Integer, VectorData>> sortedTuples = new ArrayList<>();
-            if (queryVector != null) {
-                // janky sort - redo this later
-                List<Tuple<Integer, Float>> scores = new ArrayList<>();
-                for (var vec : vectorTuples.entrySet()) {
-                    if (scores.size() >= numVectorsLimit) {
-                        break;
-                    }
-                    scores.add(new Tuple<>(vec.getKey(), getVectorSimilarity(useFloat, queryVector, vec.getValue())));
-                }
-
-                scores.sort(new Comparator<Tuple<Integer, Float>>() {
-                    @Override
-                    public int compare(Tuple<Integer, Float> o1, Tuple<Integer, Float> o2) {
-                        if (o1.v2() > o2.v2()) {
-                            return -1;
-                        } else if (o1.v2() < o2.v2()) {
-                            return 1;
-                        }
-                        return 0;
-                    }
-                });
-
-                for (var sortedTuple : scores) {
-                    sortedTuples.add(new Tuple<>(sortedTuple.v1(), vectorTuples.get(sortedTuple.v1())));
-                }
-            } else {
-                for (var vec : vectorTuples.entrySet()) {
-                    if (sortedTuples.size() >= numVectorsLimit) {
-                        break;
-                    }
-
-                    sortedTuples.add(new Tuple<>(vec.getKey(), vec.getValue()));
-                }
-            }
-            this.fieldVectors.put(vector.getKey(), sortedTuples);
+        var documentFieldVectors = fieldVectorSupplier.getFieldVectors(searchHits);
+        for (var documentFieldVector : documentFieldVectors.entrySet()) {
+            List<VectorData> vectorData = getHitVectorData(documentFieldVector, queryVector, numVectorsLimit);
+            this.fieldVectors.put(documentFieldVector.getKey(), vectorData);
         }
         return this.fieldVectors.size();
+    }
+
+    private List<VectorData> getHitVectorData(
+        Map.Entry<Integer, List<VectorData>> documentFieldVector,
+        VectorData queryVector,
+        int numVectorsLimit
+    ) {
+
+        var fieldVectors = documentFieldVector.getValue();
+
+        if (queryVector != null) {
+            List<Tuple<Integer, Float>> scores = new ArrayList<>();
+            for (int v = 0; v < fieldVectors.size(); v++) {
+                scores.add(new Tuple<>(v, getVectorSimilarity(queryVector, fieldVectors.get(v))));
+            }
+
+            // sort chunks by score descending
+            scores.sort(new Comparator<Tuple<Integer, Float>>() {
+                @Override
+                public int compare(Tuple<Integer, Float> o1, Tuple<Integer, Float> o2) {
+                    if (o1.v2() > o2.v2()) {
+                        return -1;
+                    } else if (o1.v2() < o2.v2()) {
+                        return 1;
+                    }
+                    return 0;
+                }
+            });
+
+            List<VectorData> topSimilarVectors = new ArrayList<>();
+            for (int i = 0; i < scores.size() && i < numVectorsLimit; i++) {
+                topSimilarVectors.add(fieldVectors.get(scores.get(i).v1()));
+            }
+            return topSimilarVectors;
+        }
+
+        if (fieldVectors.size() <= numVectorsLimit) {
+            return fieldVectors;
+        }
+
+        return fieldVectors.subList(0, numVectorsLimit);
     }
 
     public VectorData getQueryVector() {
         if (retrievedQueryVector) {
             return realizedQueryVector;
         }
-        realizedQueryVector = queryVector == null ? null : queryVector.get();
+        realizedQueryVector = queryVectorSupplier == null ? null : queryVectorSupplier.get();
         retrievedQueryVector = true;
         return realizedQueryVector;
     }
 
-    public List<Tuple<Integer, VectorData>> getFieldVectorData(int rank) {
+    public List<VectorData> getFieldVectorData(int rank) {
         return fieldVectors.getOrDefault(rank, null);
     }
 
-    protected float getVectorSimilarity(boolean useFloat, VectorData first, VectorData second) {
-        return useFloat ? getFloatVectorComparisonScore(first, second) : getByteVectorComparisonScore(first, second);
+    protected float getVectorSimilarity(VectorData first, VectorData second) {
+        return first.isFloat() ? getFloatVectorComparisonScore(first, second) : getByteVectorComparisonScore(first, second);
     }
 
     protected float getFloatVectorComparisonScore(VectorData thisDocVector, VectorData comparisonVector) {

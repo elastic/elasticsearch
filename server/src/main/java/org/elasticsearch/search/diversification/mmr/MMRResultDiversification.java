@@ -11,7 +11,6 @@ package org.elasticsearch.search.diversification.mmr;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.diversification.ResultDiversification;
 import org.elasticsearch.search.diversification.ResultDiversificationContext;
 import org.elasticsearch.search.rank.RankDoc;
@@ -66,13 +65,14 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                     continue;
                 }
 
-                var fieldVectorData = context.getFieldVectorData(docRank);
+                List<VectorData> fieldVectorData = context.getFieldVectorData(docRank);
                 if (fieldVectorData == null || fieldVectorData.isEmpty()) {
                     continue;
                 }
 
                 var cachedScoresForDocsComparison = cachedSimilarities.getOrDefault(docRank, new HashMap<>());
 
+                // compute MMR
                 float docMMRScore = getMMRScoreForDoc(
                     context,
                     selectedDocRanks,
@@ -81,7 +81,6 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                     querySimilarity.getOrDefault(docRank, null)
                 );
 
-                // compute MMR
                 if (docMMRScore > thisMaxMMRScore) {
                     thisMaxMMRScore = docMMRScore;
                     thisMaxMMRDocRank = docRank;
@@ -115,7 +114,7 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
     private float getMMRScoreForDoc(
         MMRResultDiversificationContext context,
         List<Integer> selectedDocRanks,
-        List<Tuple<Integer, VectorData>> fieldVectorData,
+        List<VectorData> fieldVectorData,
         Map<Integer, List<Float>> cachedScoresForDocsComparison,
         @Nullable List<Float> querySimilarity
     ) {
@@ -143,8 +142,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
                     for (int compareChunk = 0; compareChunk < compareVectorSize; compareChunk++) {
                         float score = getVectorComparisonScore(
                             similarityFunction,
-                            fieldVectorData.get(chunk).v2(),
-                            compareDocVectors.get(compareChunk).v2()
+                            fieldVectorData.get(chunk),
+                            compareDocVectors.get(compareChunk)
                         );
                         if (score > maxChunkScore) {
                             maxChunkScore = score;
@@ -215,8 +214,8 @@ public class MMRResultDiversification extends ResultDiversification<MMRResultDiv
             }
 
             List<Float> docQueryVectorSimilarities = new ArrayList<>();
-            for (Tuple<Integer, VectorData> vec : fieldVectorData) {
-                docQueryVectorSimilarities.add(getVectorComparisonScore(similarityFunction, vec.v2(), queryVector));
+            for (VectorData vec : fieldVectorData) {
+                docQueryVectorSimilarities.add(getVectorComparisonScore(similarityFunction, vec, queryVector));
             }
             querySimilarity.put(doc.rank, docQueryVectorSimilarities);
         }

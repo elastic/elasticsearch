@@ -27,7 +27,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
@@ -141,19 +141,14 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
-        return asMillis(asDateTime(datetime).plus(temporalAmount));
+        return asMillis(asDateTime(datetime, zoneId).plus(temporalAmount));
     }
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
     static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount, @Fixed ZoneId zoneId) {
         // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
         try {
-            return DateUtils.toLong(
-                Instant.from(
-                    ZonedDateTime.ofInstant(DateUtils.toInstant(dateNanos), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
-                        .plus(temporalAmount)
-                )
-            );
+            return DateUtils.toLong(Instant.from(asDateTime(DateUtils.toInstant(dateNanos), zoneId).plus(temporalAmount)));
         } catch (IllegalArgumentException e) {
             /*
              toLong will throw IllegalArgumentException for out of range dates, but that includes the actual value which we want

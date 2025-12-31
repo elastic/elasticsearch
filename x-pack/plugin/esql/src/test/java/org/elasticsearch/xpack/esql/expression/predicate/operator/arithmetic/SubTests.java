@@ -22,6 +22,7 @@ import org.hamcrest.Matchers;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
@@ -129,7 +130,7 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
                 ),
                 Matchers.startsWith("SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 DataType.DATETIME,
-                equalTo(asMillis(asDateTime(lhs).minus(rhs)))
+                equalTo(asMillis(asDateTime(lhs, ZoneOffset.UTC).minus(rhs)))
             );
         }));
 
@@ -186,7 +187,7 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
                 ),
                 Matchers.startsWith("SubDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 DataType.DATETIME,
-                equalTo(asMillis(asDateTime(lhs).minus(rhs)))
+                equalTo(asMillis(asDateTime(lhs, ZoneOffset.UTC).minus(rhs)))
             );
             return testCase;
         }));

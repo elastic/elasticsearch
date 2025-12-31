@@ -372,18 +372,19 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         ResultDiversificationContext diversificationContext = getResultDiversificationContext();
 
-        // temporary
-        int vectorCount = 0;
-        // TODO - make this once single way to get the vectors
-        if (SemanticTextFieldVectorSupplier.isFieldSemanticTextVector(diversificationField, results[0])) {
-            FieldVectorSupplier fieldVectorSupplier = new SemanticTextFieldVectorSupplier(diversificationField, results);
-            // here we take the top 100 (maximum) vectors by relevance to the query vector
-            // TODO - make this configurable
-            vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier, 100);
-        } else if (DenseVectorFieldVectorSupplier.canFieldBeDenseVector(diversificationField, results[0])) {
-            FieldVectorSupplier fieldVectorSupplier = new DenseVectorFieldVectorSupplier(diversificationField, results);
-            vectorCount = diversificationContext.setFieldVectors(fieldVectorSupplier, topNChunks);
+        FieldVectorSupplier fieldVectorSupplier = FieldVectorSupplierFactory.getVectorSupplier(diversificationField, results[0]);
+        if (fieldVectorSupplier == null) {
+            throw new ElasticsearchStatusException(
+                String.format(
+                    Locale.ROOT,
+                    "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?",
+                    diversificationField
+                ),
+                RestStatus.BAD_REQUEST
+            );
         }
+
+        int vectorCount = diversificationContext.setFieldVectors(results, fieldVectorSupplier, topNChunks);
 
         if (vectorCount == 0) {
             throw new ElasticsearchStatusException(

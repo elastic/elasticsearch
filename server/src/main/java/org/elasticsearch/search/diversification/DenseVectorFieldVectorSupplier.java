@@ -18,16 +18,14 @@ import java.util.Map;
 public class DenseVectorFieldVectorSupplier implements FieldVectorSupplier {
 
     private final String diversificationField;
-    private final DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits;
     private Map<Integer, List<VectorData>> fieldVectors = null;
 
-    public DenseVectorFieldVectorSupplier(String diversificationField, DiversifyRetrieverBuilder.RankDocWithSearchHit[] hits) {
+    public DenseVectorFieldVectorSupplier(String diversificationField) {
         this.diversificationField = diversificationField;
-        this.searchHits = hits;
     }
 
     @Override
-    public Map<Integer, List<VectorData>> getFieldVectors() {
+    public Map<Integer, List<VectorData>> getFieldVectors(DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits) {
         if (fieldVectors != null) {
             return fieldVectors;
         }

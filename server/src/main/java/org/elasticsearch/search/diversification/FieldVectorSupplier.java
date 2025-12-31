@@ -15,5 +15,5 @@ import java.util.List;
 import java.util.Map;
 
 public interface FieldVectorSupplier {
-    Map<Integer, List<VectorData>> getFieldVectors();
+    Map<Integer, List<VectorData>> getFieldVectors(DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits);
 }

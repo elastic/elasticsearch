@@ -19,7 +19,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 public abstract class ResultDiversificationContext {
@@ -47,8 +46,12 @@ public abstract class ResultDiversificationContext {
         return size;
     }
 
-    public int setFieldVectors(FieldVectorSupplier fieldVectorSupplier, int topVectorsSize) {
-        var vectors = fieldVectorSupplier.getFieldVectors();
+    public int setFieldVectors(
+        DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits,
+        FieldVectorSupplier fieldVectorSupplier,
+        int numVectorsLimit
+    ) {
+        var vectors = fieldVectorSupplier.getFieldVectors(searchHits);
         VectorData queryVector = this.getQueryVector();
         Boolean useFloat = null;
         for (var vector : vectors.entrySet()) {
@@ -66,7 +69,7 @@ public abstract class ResultDiversificationContext {
                 // janky sort - redo this later
                 List<Tuple<Integer, Float>> scores = new ArrayList<>();
                 for (var vec : vectorTuples.entrySet()) {
-                    if (scores.size() >= topVectorsSize) {
+                    if (scores.size() >= numVectorsLimit) {
                         break;
                     }
                     scores.add(new Tuple<>(vec.getKey(), getVectorSimilarity(useFloat, queryVector, vec.getValue())));
@@ -89,7 +92,7 @@ public abstract class ResultDiversificationContext {
                 }
             } else {
                 for (var vec : vectorTuples.entrySet()) {
-                    if (sortedTuples.size() >= topVectorsSize) {
+                    if (sortedTuples.size() >= numVectorsLimit) {
                         break;
                     }
 
@@ -112,10 +115,6 @@ public abstract class ResultDiversificationContext {
 
     public List<Tuple<Integer, VectorData>> getFieldVectorData(int rank) {
         return fieldVectors.getOrDefault(rank, null);
-    }
-
-    public Set<Map.Entry<Integer, List<Tuple<Integer, VectorData>>>> getFieldVectorsEntrySet() {
-        return fieldVectors.entrySet();
     }
 
     protected float getVectorSimilarity(boolean useFloat, VectorData first, VectorData second) {

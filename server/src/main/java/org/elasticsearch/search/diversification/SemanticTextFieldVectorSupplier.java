@@ -18,16 +18,14 @@ import java.util.Map;
 public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
 
     private final String diversificationField;
-    private final DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits;
     private Map<Integer, List<VectorData>> fieldVectors = null;
 
-    public SemanticTextFieldVectorSupplier(String diversificationField, DiversifyRetrieverBuilder.RankDocWithSearchHit[] hits) {
+    public SemanticTextFieldVectorSupplier(String diversificationField) {
         this.diversificationField = diversificationField;
-        this.searchHits = hits;
     }
 
     @Override
-    public Map<Integer, List<VectorData>> getFieldVectors() {
+    public Map<Integer, List<VectorData>> getFieldVectors(DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits) {
         if (fieldVectors != null) {
             return fieldVectors;
         }
@@ -35,57 +33,38 @@ public class SemanticTextFieldVectorSupplier implements FieldVectorSupplier {
         fieldVectors = new HashMap<>();
 
         for (DiversifyRetrieverBuilder.RankDocWithSearchHit hit : searchHits) {
-            var inferenceFieldValue = hit.hit().getFields().getOrDefault("_inference_fields", null);
-            if (inferenceFieldValue == null) {
-                continue;
-            }
-
-            var fieldValues = inferenceFieldValue.getValues();
-            if (fieldValues == null || fieldValues.isEmpty()) {
-                continue;
-            }
-
-            if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
-                var fieldValue = mappedValues.getOrDefault(diversificationField, null);
-                if (fieldValue instanceof DenseVectorSupplierField vectorSupplier) {
-                    List<VectorData> vectorData = vectorSupplier.getVectorData(diversificationField);
-                    if (vectorData != null && vectorData.isEmpty() == false) {
-                        fieldVectors.put(hit.rank, vectorData);
-                    }
-                }
+            List<VectorData> vectorData = extractVectorDataFromHSearchHit(diversificationField, hit);
+            if (vectorData != null && vectorData.isEmpty() == false) {
+                fieldVectors.put(hit.rank, vectorData);
             }
         }
 
         return fieldVectors;
     }
 
-    private static float[] toFloatArray(byte[] values) {
-        float[] floatArray = new float[values.length];
-        for (int i = 0; i < values.length; i++) {
-            floatArray[i] = ((Byte) values[i]).floatValue();
-        }
-        return floatArray;
+    public static boolean isFieldSemanticTextVector(String fieldName, DiversifyRetrieverBuilder.RankDocWithSearchHit hit) {
+        List<VectorData> vectorData = extractVectorDataFromHSearchHit(fieldName, hit);
+        return (vectorData != null && vectorData.isEmpty() == false);
     }
 
-    public static boolean isFieldSemanticTextVector(String fieldName, DiversifyRetrieverBuilder.RankDocWithSearchHit hit) {
+    private static List<VectorData> extractVectorDataFromHSearchHit(String fieldName, DiversifyRetrieverBuilder.RankDocWithSearchHit hit) {
         var inferenceFieldValue = hit.hit().getFields().getOrDefault("_inference_fields", null);
         if (inferenceFieldValue == null) {
-            return false;
+            return null;
         }
 
         var fieldValues = inferenceFieldValue.getValues();
         if (fieldValues == null || fieldValues.isEmpty()) {
-            return false;
+            return null;
         }
 
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
             var fieldValue = mappedValues.getOrDefault(fieldName, null);
             if (fieldValue instanceof DenseVectorSupplierField vectorSupplier) {
-                List<VectorData> vectorData = vectorSupplier.getVectorData(fieldName);
-                return (vectorData != null && vectorData.isEmpty() == false);
+                return vectorSupplier.getVectorData(fieldName);
             }
         }
 
-        return false;
+        return null;
     }
 }

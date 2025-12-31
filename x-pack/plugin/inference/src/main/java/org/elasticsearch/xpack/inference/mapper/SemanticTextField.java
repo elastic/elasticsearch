@@ -85,91 +85,6 @@ public record SemanticTextField(
 
     public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
 
-    @Override
-    public List<VectorData> getVectorData(String key) {
-        if (this.inference == null) {
-            return Collections.emptyList();
-        }
-
-        if (this.inference.chunks() == null) {
-            return Collections.emptyList();
-        }
-
-        var elementType = this.inference().modelSettings().elementType();
-        var dimensions = this.inference().modelSettings().dimensions();
-        if (elementType == null || dimensions == null) {
-            return Collections.emptyList();
-        }
-
-        int embeddingLength = getEmbeddingLength(elementType, dimensions);
-
-        List<Chunk> chunks = this.inference.chunks().getOrDefault(key, Collections.emptyList());
-        List<VectorData> theseVectors = new ArrayList<>();
-        for (Chunk chunk : chunks) {
-            BytesReference embeddingsBytes = chunk.rawEmbeddings();
-            if (embeddingsBytes == null) {
-                continue;
-            }
-            double[] values = parseDenseVector(chunk.rawEmbeddings(), embeddingLength, this.contentType());
-            if (values == null) {
-                continue;
-            }
-
-            switch (elementType) {
-                case FLOAT, BFLOAT16 -> theseVectors.add(new VectorData(floatArrayOf(values)));
-                case BYTE, BIT -> theseVectors.add(new VectorData(byteArrayOf(values)));
-            }
-        }
-        return theseVectors;
-    }
-
-    public static float[] floatArrayOf(double[] doublesArray) {
-        var floatArray = new float[doublesArray.length];
-        for (int i = 0; i < doublesArray.length; i++) {
-            floatArray[i] = (float) doublesArray[i];
-        }
-        return floatArray;
-    }
-
-    private static byte[] byteArrayOf(double[] doublesArray) {
-        // It's fine to not check if the double values are out of range here because if any are, equality assertions on the expected vs.
-        // actual chunks will fail downstream
-        byte[] byteArray = new byte[doublesArray.length];
-        for (int i = 0; i < doublesArray.length; i++) {
-            byteArray[i] = (byte) doublesArray[i];
-        }
-        return byteArray;
-    }
-
-    private static int getEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
-        return switch (elementType) {
-            case FLOAT, BFLOAT16, BYTE -> dimensions;
-            case BIT -> {
-                assert dimensions % Byte.SIZE == 0;
-                yield dimensions / Byte.SIZE;
-            }
-        };
-    }
-
-    private static double[] parseDenseVector(BytesReference value, int numDims, XContentType contentType) {
-        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, value, contentType)) {
-            parser.nextToken();
-            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-                return null;
-            }
-            double[] values = new double[numDims];
-            for (int i = 0; i < numDims; i++) {
-                if (parser.nextToken() == XContentParser.Token.END_ARRAY) {
-                    return values;
-                }
-                values[i] = parser.doubleValue();
-            }
-            return values;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;
     }
@@ -423,5 +338,90 @@ public record SemanticTextField(
     public static Chunk toSemanticTextFieldChunkLegacy(String input, org.elasticsearch.inference.ChunkedInference.Chunk chunk) {
         var text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
         return new Chunk(text, -1, -1, chunk.bytesReference());
+    }
+
+    @Override
+    public List<VectorData> getVectorData(String key) {
+        if (this.inference == null) {
+            return Collections.emptyList();
+        }
+
+        if (this.inference.chunks() == null) {
+            return Collections.emptyList();
+        }
+
+        DenseVectorFieldMapper.ElementType elementType = this.inference().modelSettings().elementType();
+        Integer dimensions = this.inference().modelSettings().dimensions();
+        if (elementType == null || dimensions == null) {
+            return Collections.emptyList();
+        }
+
+        int embeddingLength = getEmbeddingLength(elementType, dimensions);
+
+        List<Chunk> chunks = this.inference.chunks().getOrDefault(key, Collections.emptyList());
+        List<VectorData> theseVectors = new ArrayList<>();
+        for (Chunk chunk : chunks) {
+            BytesReference embeddingsBytes = chunk.rawEmbeddings();
+            if (embeddingsBytes == null) {
+                continue;
+            }
+            double[] values = parseDenseVector(chunk.rawEmbeddings(), embeddingLength, this.contentType());
+            if (values == null) {
+                continue;
+            }
+
+            switch (elementType) {
+                case FLOAT, BFLOAT16 -> theseVectors.add(new VectorData(floatArrayOf(values)));
+                case BYTE, BIT -> theseVectors.add(new VectorData(byteArrayOf(values)));
+            }
+        }
+        return theseVectors;
+    }
+
+    private static float[] floatArrayOf(double[] doublesArray) {
+        var floatArray = new float[doublesArray.length];
+        for (int i = 0; i < doublesArray.length; i++) {
+            floatArray[i] = (float) doublesArray[i];
+        }
+        return floatArray;
+    }
+
+    private static byte[] byteArrayOf(double[] doublesArray) {
+        // It's fine to not check if the double values are out of range here because if any are, equality assertions on the expected vs.
+        // actual chunks will fail downstream
+        byte[] byteArray = new byte[doublesArray.length];
+        for (int i = 0; i < doublesArray.length; i++) {
+            byteArray[i] = (byte) doublesArray[i];
+        }
+        return byteArray;
+    }
+
+    private static int getEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
+        return switch (elementType) {
+            case FLOAT, BFLOAT16, BYTE -> dimensions;
+            case BIT -> {
+                assert dimensions % Byte.SIZE == 0;
+                yield dimensions / Byte.SIZE;
+            }
+        };
+    }
+
+    private static double[] parseDenseVector(BytesReference value, int numDims, XContentType contentType) {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, value, contentType)) {
+            parser.nextToken();
+            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+                return null;
+            }
+            double[] values = new double[numDims];
+            for (int i = 0; i < numDims; i++) {
+                if (parser.nextToken() == XContentParser.Token.END_ARRAY) {
+                    return values;
+                }
+                values[i] = parser.doubleValue();
+            }
+            return values;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

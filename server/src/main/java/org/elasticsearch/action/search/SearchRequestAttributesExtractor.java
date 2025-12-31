@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -71,7 +72,13 @@ public final class SearchRequestAttributesExtractor {
             nowInMillis,
             shardSearchRequest.shardId().getIndexName()
         );
+
         boolean isSystem = true; // ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
+
+        if (Thread.currentThread() instanceof EsExecutors.EsThread) {
+            isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
+        }
+
         attributes.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
         return attributes;
     }

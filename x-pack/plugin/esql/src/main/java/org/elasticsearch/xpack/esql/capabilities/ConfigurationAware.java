@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Interface for plan nodes that require the Configuration at parsing time.
@@ -51,4 +55,18 @@ public interface ConfigurationAware extends ConfigurationFunction {
     Configuration configuration();
 
     Expression withConfiguration(Configuration configuration);
+
+    /**
+     * Used in the verifiers to ensure the marker configuration is not present in the plan.
+     * <p>
+     *     This should never happen, and a failure here means that we're injecting the marker after the Analyzer, where it's being replaced.
+     * </p>
+     */
+    static void verifyNoMarkerConfiguration(QueryPlan<?> plan, Failures failures) {
+        plan.forEachExpressionDown(Expression.class, e -> {
+            if (e instanceof ConfigurationAware ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
+                failures.add(fail(plan, "Configuration marker found in plan: %s", plan.nodeString()));
+            }
+        });
+    }
 }

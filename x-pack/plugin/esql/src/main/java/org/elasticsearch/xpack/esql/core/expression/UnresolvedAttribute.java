@@ -144,7 +144,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public String nodeString(boolean limited) {
+    public String nodeString(NodeStringFormat format) {
         return toString();
     }
 

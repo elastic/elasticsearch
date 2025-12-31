@@ -225,7 +225,7 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static String toString(Node<?> plan) {
-        return IDENTIFIER_PATTERN.matcher(plan.toString(false)).replaceAll("");
+        return IDENTIFIER_PATTERN.matcher(plan.toString(Node.NodeStringFormat.FULL)).replaceAll("");
     }
 
     private static Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");

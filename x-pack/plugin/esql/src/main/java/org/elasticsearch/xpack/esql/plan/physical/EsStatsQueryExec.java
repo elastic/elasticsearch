@@ -164,7 +164,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString(boolean limited) {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern
@@ -173,9 +173,9 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
             + "], query["
             + (query != null ? Strings.toString(query, false, true) : "")
             + "]"
-            + (limited ? NodeUtils.limitedToString(attrs) : NodeUtils.unlimitedToString(attrs))
+            + (format == NodeStringFormat.LIMITED ? NodeUtils.limitedToString(attrs) : NodeUtils.unlimitedToString(attrs))
             + ", limit["
-            + (limit != null ? limit.toString(limited) : "")
+            + (limit != null ? limit.toString(format) : "")
             + "], ";
     }
 }

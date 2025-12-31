@@ -367,26 +367,31 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return info().properties();
     }
 
-    public final String nodeString() {
-        return nodeString(true);
+    public enum NodeStringFormat {
+        FULL,
+        LIMITED
     }
 
-    public String nodeString(boolean limited) {
+    public final String nodeString() {
+        return nodeString(NodeStringFormat.LIMITED);
+    }
+
+    public String nodeString(NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append("[");
-        sb.append(propertiesToString(true, limited));
+        sb.append(propertiesToString(true, format));
         sb.append("]");
         return sb.toString();
     }
 
     @Override
     public String toString() {
-        return toString(true);
+        return toString(NodeStringFormat.LIMITED);
     }
 
-    public String toString(boolean limited) {
-        return treeString(new StringBuilder(), 0, new BitSet(), limited).toString();
+    public String toString(NodeStringFormat format) {
+        return treeString(new StringBuilder(), 0, new BitSet(), format).toString();
     }
 
     /**
@@ -400,7 +405,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * }
      * </pre>
      */
-    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth, boolean limited) {
+    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth, NodeStringFormat format) {
         if (depth > 0) {
             // draw children
             for (int column = 0; column < depth; column++) {
@@ -419,7 +424,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             sb.append("_");
         }
 
-        sb.append(nodeString(limited));
+        sb.append(nodeString(format));
 
         @SuppressWarnings("HiddenField")
         List<T> children = children();
@@ -429,7 +434,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         for (int i = 0; i < children.size(); i++) {
             T t = children.get(i);
             hasParentPerDepth.set(depth, i < children.size() - 1);
-            t.treeString(sb, depth + 1, hasParentPerDepth, limited);
+            t.treeString(sb, depth + 1, hasParentPerDepth, format);
             if (i < children.size() - 1) {
                 sb.append("\n");
             }
@@ -442,13 +447,16 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * one like {@code foo bar baz}. These go inside the
      * {@code [} and {@code ]} of the output of {@link #treeString}.
      */
-    protected String propertiesToString(boolean skipIfChild, boolean limited) {
+    protected String propertiesToString(boolean skipIfChild, NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
 
         @SuppressWarnings("HiddenField")
         List<?> children = children();
         // eliminate children (they are rendered as part of the tree)
-        int maxProperties = limited ? TO_STRING_MAX_PROP : Integer.MAX_VALUE;
+        int maxProperties = switch (format) {
+            case LIMITED -> TO_STRING_MAX_PROP;
+            case FULL -> Integer.MAX_VALUE;
+        };
         int remainingProperties = maxProperties;
         int currentMaxWidth = 0;
         boolean needsComma = false;
@@ -470,10 +478,13 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                     sb.append(",");
                 }
 
-                String stringValue = toString(prop, limited);
+                String stringValue = toString(prop, format);
 
                 // : Objects.toString(prop);
-                int maxWidth = limited ? TO_STRING_MAX_WIDTH : Integer.MAX_VALUE;
+                int maxWidth = switch (format) {
+                    case LIMITED -> TO_STRING_MAX_WIDTH;
+                    case FULL -> Integer.MAX_VALUE;
+                };
                 if (currentMaxWidth + stringValue.length() > maxWidth) {
                     int cutoff = Math.max(0, maxWidth - currentMaxWidth);
                     sb.append(stringValue, 0, cutoff);
@@ -491,25 +502,25 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return sb.toString();
     }
 
-    private static String toString(Object obj, boolean limited) {
+    private static String toString(Object obj, NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
-        toString(sb, obj, limited);
+        toString(sb, obj, format);
         return sb.toString();
     }
 
-    private static void toString(StringBuilder sb, Object obj, boolean limited) {
+    private static void toString(StringBuilder sb, Object obj, NodeStringFormat format) {
         if (obj instanceof Iterable) {
             sb.append("[");
             for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
                 Object o = it.next();
-                toString(sb, o, limited);
+                toString(sb, o, format);
                 if (it.hasNext()) {
                     sb.append(", ");
                 }
             }
             sb.append("]");
         } else if (obj instanceof Node<?>) {
-            sb.append(((Node<?>) obj).nodeString(limited));
+            sb.append(((Node<?>) obj).nodeString(format));
         } else {
             sb.append(obj);
         }

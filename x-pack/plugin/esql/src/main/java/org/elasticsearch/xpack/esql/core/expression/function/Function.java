@@ -59,10 +59,10 @@ public abstract class Function extends Expression {
     }
 
     @Override
-    public String nodeString(boolean limited) {
+    public String nodeString(NodeStringFormat format) {
         StringJoiner sj = new StringJoiner(",", functionName() + "(", ")");
         for (Expression ex : arguments()) {
-            sj.add(ex.nodeString(limited));
+            sj.add(ex.nodeString(format));
         }
         return sj.toString();
     }

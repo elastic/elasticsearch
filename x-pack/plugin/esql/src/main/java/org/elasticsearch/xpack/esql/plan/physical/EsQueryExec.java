@@ -347,7 +347,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString(boolean limited) {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern
@@ -355,9 +355,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + "indexMode["
             + indexMode
             + "], "
-            + (limited ? NodeUtils.limitedToString(attrs) : NodeUtils.unlimitedToString(attrs))
+            + (format == NodeStringFormat.LIMITED ? NodeUtils.limitedToString(attrs) : NodeUtils.unlimitedToString(attrs))
             + ", limit["
-            + (limit != null ? limit.toString(limited) : "")
+            + (limit != null ? limit.toString(format) : "")
             + "], sort["
             + (sorts != null ? sorts.toString() : "")
             + "] estimatedRowSize["

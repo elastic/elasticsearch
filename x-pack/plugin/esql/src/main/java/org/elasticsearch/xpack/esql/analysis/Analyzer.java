@@ -1457,7 +1457,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformExpressionsOnly(expression -> resolveConfigurationAware(expression, context.configuration()));
+            return plan.transformExpressionsUp(
+                Expression.class,
+                expression -> resolveConfigurationAware(expression, context.configuration())
+            );
         }
 
         public static Expression resolveConfigurationAware(Expression expression, Configuration configuration) {

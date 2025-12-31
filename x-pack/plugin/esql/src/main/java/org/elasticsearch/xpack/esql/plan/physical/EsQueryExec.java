@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final EsField DOC_ID_FIELD = new EsField(
@@ -80,8 +79,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
          * geo distance will be {@link DataType#DOUBLE}.
          */
         DataType resulType();
-
-        String goldenTestToString();
     }
 
     public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Sort {
@@ -98,11 +95,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         public DataType resulType() {
             return field.dataType();
         }
-
-        @Override
-        public String goldenTestToString() {
-            return "FieldSort[" + "field=" + field.goldenTestToString() + ", direction=" + direction + ", nulls=" + nulls + "]";
-        }
     }
 
     public record GeoDistanceSort(FieldAttribute field, Order.OrderDirection direction, double lat, double lon) implements Sort {
@@ -116,20 +108,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         @Override
         public DataType resulType() {
             return DataType.DOUBLE;
-        }
-
-        @Override
-        public String goldenTestToString() {
-            return "GeoDistanceSort["
-                + "field="
-                + field.goldenTestToString()
-                + ", direction="
-                + direction
-                + ", lat="
-                + lat
-                + ", lon="
-                + lon
-                + "]";
         }
     }
 
@@ -148,11 +126,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         @Override
         public DataType resulType() {
             return DataType.DOUBLE;
-        }
-
-        @Override
-        public String goldenTestToString() {
-            return toString();
         }
     }
 
@@ -232,11 +205,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         return attrs;
-    }
-
-    @Override
-    public String goldenTestToString() {
-        return "";
     }
 
     public Expression limit() {
@@ -380,15 +348,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public String nodeString() {
-        return nodeString(NodeUtils.limitedToString(attrs), Expression::nodeString, Object::toString);
-    }
-
-    @Override
-    public String goldenTestNodeString() {
-        return nodeString(NodeUtils.unlimitedToString(attrs), Expression::goldenTestNodeString, Sort::goldenTestToString);
-    }
-
-    private String nodeString(String attrsString, Function<Expression, String> limitToString, Function<Sort, String> sortToString) {
         return nodeName()
             + "["
             + indexPattern
@@ -396,11 +355,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + "indexMode["
             + indexMode
             + "], "
-            + attrsString
+            + NodeUtils.limitedToString(attrs)
             + ", limit["
-            + (limit != null ? limitToString.apply(limit) : "")
+            + (limit != null ? limit.toString() : "")
             + "], sort["
-            + (sorts != null ? sorts.stream().map(sortToString).toList().toString() : "")
+            + (sorts != null ? sorts.toString() : "")
             + "] estimatedRowSize["
             + estimatedRowSize
             + "] queryBuilderAndTags ["

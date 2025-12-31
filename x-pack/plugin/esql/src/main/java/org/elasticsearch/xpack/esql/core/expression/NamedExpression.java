@@ -120,9 +120,4 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
     public String nodeString() {
         return name();
     }
-
-    @Override
-    public String goldenTestNodeString() {
-        return name();
-    }
 }

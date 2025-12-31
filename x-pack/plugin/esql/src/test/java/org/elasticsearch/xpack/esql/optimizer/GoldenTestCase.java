@@ -300,4 +300,5 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
         throw new IllegalStateException("Could not extract test name from stack trace");
     }
+
 }

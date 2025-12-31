@@ -171,18 +171,8 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     @Override
-    public String goldenTestToString() {
-        return toString();
-    }
-
-    @Override
     public String nodeString() {
-        return this + "[" + dataType + "]";
-    }
-
-    @Override
-    public String goldenTestNodeString() {
-        return nodeString();
+        return toString() + "[" + dataType + "]";
     }
 
     @Override

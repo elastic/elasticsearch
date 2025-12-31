@@ -127,11 +127,6 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public String goldenTestToString() {
-        return toString();
-    }
-
-    @Override
     protected String label() {
         return UNRESOLVED_PREFIX;
     }
@@ -151,11 +146,6 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     @Override
     public String nodeString() {
         return toString();
-    }
-
-    @Override
-    public String goldenTestNodeString() {
-        return goldenTestToString();
     }
 
     @Override

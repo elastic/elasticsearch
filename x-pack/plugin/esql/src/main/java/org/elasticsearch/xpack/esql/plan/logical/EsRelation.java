@@ -162,21 +162,12 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public String nodeString() {
-        return nodeString(NodeUtils.limitedToString(attrs));
-    }
-
-    @Override
-    public String goldenTestNodeString() {
-        return nodeString(NodeUtils.unlimitedToString(attrs));
-    }
-
-    private String nodeString(String attrsToString) {
         return nodeName()
             + "["
             + indexPattern
             + "]"
             + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
-            + attrsToString;
+            + NodeUtils.limitedToString(attrs);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {

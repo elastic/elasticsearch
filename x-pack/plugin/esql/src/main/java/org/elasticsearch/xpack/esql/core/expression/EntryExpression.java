@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Represent a key-value pair.
@@ -106,15 +105,6 @@ public class EntryExpression extends Expression {
 
     @Override
     public String toString() {
-        return toString(Expression::toString);
-    }
-
-    @Override
-    public String goldenTestToString() {
-        return toString(Expression::goldenTestToString);
-    }
-
-    private String toString(Function<Expression, String> expressionString) {
-        return expressionString.apply(key) + ":" + expressionString.apply(value);
+        return key.toString() + ":" + value.toString();
     }
 }

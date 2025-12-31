@@ -6,11 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.stream.Collectors;
 
 public abstract class NodeUtils {
     public static <A extends Node<A>, B extends Node<B>> String diffString(A left, B right) {
@@ -85,9 +82,5 @@ public abstract class NodeUtils {
             }
             sb.append(',').append(' ');
         }
-    }
-
-    public static String unlimitedToString(Collection<Attribute> c) {
-        return c.stream().map(s -> s != null ? s.goldenTestToString() : "null").collect(Collectors.joining(", ", "[", "]"));
     }
 }

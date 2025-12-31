@@ -507,10 +507,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     @Override
-    public String goldenTestToString() {
-        return toString();
-    }
-
     public int hashCode() {
         return Objects.hash(getClass(), children(), configuration);
     }

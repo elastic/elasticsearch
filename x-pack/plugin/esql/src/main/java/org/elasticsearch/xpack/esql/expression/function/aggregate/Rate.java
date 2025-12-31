@@ -143,11 +143,6 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     }
 
     @Override
-    public String goldenTestToString() {
-        return toString();
-    }
-
-    @Override
     public Expression timestamp() {
         return timestamp;
     }

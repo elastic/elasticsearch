@@ -80,7 +80,7 @@ public class GroupedQueueTests extends ESTestCase {
             fillQueueToCapacity(queue, topCount);
 
             try (Row evicted = queue.add(createRow(breaker, 0, 5))) {
-                assertThat(extractIntValue(evicted), equalTo(20));
+                assertRowValues(evicted, 0, 20, 40);
             }
         }
     }
@@ -106,21 +106,21 @@ public class GroupedQueueTests extends ESTestCase {
 
             try (Row evicted = queue.add(createRow(breaker, 0, 5))) {
                 assertThat(evicted, notNullValue());
-                assertThat(extractIntValue(evicted), equalTo(30));
+                assertRowValues(evicted, 0, 30, 60);
             }
             try (Row evicted = queue.add(createRow(breaker, 1, 15))) {
                 assertThat(evicted, notNullValue());
-                assertThat(extractIntValue(evicted), equalTo(40));
+                assertRowValues(evicted, 1, 40, 80);
             }
             assertThat(queue.size(), equalTo(4));
 
             try (Row row = queue.add(createRow(breaker, 0, 50))) {
                 assertThat(row, notNullValue());
-                assertThat(extractIntValue(row), equalTo(50));
+                assertRowValues(row, 0, 50, 100);
             }
             try (Row row = queue.add(createRow(breaker, 1, 50))) {
                 assertThat(row, notNullValue());
-                assertThat(extractIntValue(row), equalTo(50));
+                assertRowValues(row, 1, 50, 100);
             }
             assertThat(queue.size(), equalTo(4));
         }
@@ -176,9 +176,25 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
-    private static int extractIntValue(Row row) {
+    private static void assertRowValues(Row row, int expectedGroupKey, int expectedSortKey, int expectedValue) {
+        BytesRef groupKey = ((GroupedRow) row).groupKey().bytesRefView();
+        BytesRef groupKeyReader = new BytesRef(groupKey.bytes, groupKey.offset, groupKey.length);
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(groupKeyReader), equalTo(1));
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(groupKeyReader), equalTo(expectedGroupKey));
+
         BytesRef keys = row.keys().bytesRefView();
-        return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
+        assertThat(
+            TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1)),
+            equalTo(expectedSortKey)
+        );
+
+        BytesRef values = row.values().bytesRefView();
+        BytesRef reader = new BytesRef(values.bytes, values.offset, values.length);
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
+        TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(reader);
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(reader), equalTo(expectedValue));
     }
 
     private void addRow(GroupedQueue queue, int groupKey, int value) {

@@ -99,6 +99,7 @@ class GroupedQueue implements TopNQueue {
                 iterator.remove();
             }
         }
+        allRows.sort(TopNOperator::compareRows);
         return allRows;
     }
 

@@ -8,8 +8,9 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+
+import java.util.List;
 
 interface TopNQueue extends Accountable, Releasable {
     /** The current number of rows in the queue. */
@@ -26,11 +27,9 @@ interface TopNQueue extends Accountable, Releasable {
      */
     Row add(Row row);
 
-    // FIXME(gal, NOCOMMIT) Just have a single method that returns and removes all the rows.
     /**
-     * Removes and returns the <b>least</b> row in the queue, or {@code null} if the queue is empty. For an ascending order, the least row
-     * is the largest one, and vice versa.
+     * Removes and returns all rows in the queue. For an ascending order, the first element will be the smallest elements in the queue (or
+     * last in the priority queue), and vice versa.
      */
-    @Nullable
-    Row pop();
+    List<Row> popAll();
 }

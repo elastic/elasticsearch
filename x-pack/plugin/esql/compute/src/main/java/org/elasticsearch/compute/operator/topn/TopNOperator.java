@@ -316,16 +316,12 @@ public class TopNOperator implements Operator, Accountable {
         if (inputQueue.size() == 0) {
             return Collections.emptyIterator();
         }
-        List<Row> list = new ArrayList<>(inputQueue.size());
         List<Page> result = new ArrayList<>();
+        List<Row> list = null;
         ResultBuilder[] builders = null;
         boolean success = false;
         try {
-            while (inputQueue.size() > 0) {
-                list.add(inputQueue.pop());
-            }
-            Collections.reverse(list);
-            inputQueue.close();
+            list = inputQueue.popAll();
             inputQueue = null;
 
             int p = 0;

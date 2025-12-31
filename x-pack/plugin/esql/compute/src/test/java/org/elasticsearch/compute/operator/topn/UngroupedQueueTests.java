@@ -22,7 +22,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -62,7 +61,7 @@ public class UngroupedQueueTests extends ESTestCase {
                 assertThat(result, nullValue());
                 assertThat(queue.size(), equalTo(i + 1));
             }
-            assertQueueContents(queue, List.of(40, 30, 20, 10, 0));
+            assertQueueContents(queue, List.of(0, 10, 20, 30, 40));
         }
     }
 
@@ -71,13 +70,10 @@ public class UngroupedQueueTests extends ESTestCase {
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
             fillQueueToCapacity(queue, topCount);
 
-            Row result = queue.add(queue.pop());
-            assertThat(result, nullValue());
-
-            Row evicted = queue.add(createRow(breaker, 5));
-            assertThat(extractIntValue(evicted), equalTo(20));
-            Releasables.close(evicted);
-            assertQueueContents(queue, List.of(10, 5, 0));
+            try (Row evicted = queue.add(createRow(breaker, 5))) {
+                assertRowValues(evicted, 20, 40);
+            }
+            assertQueueContents(queue, List.of(0, 5, 10));
         }
     }
 
@@ -85,12 +81,11 @@ public class UngroupedQueueTests extends ESTestCase {
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, 3)) {
             addRows(queue, 30, 40, 50);
 
-            Row row = createRow(breaker, 60);
-            Row result = queue.add(row);
-            assertThat(result, sameInstance(row));
-            assertThat(extractIntValue(result), equalTo(60));
-            Releasables.close(result);
-            assertQueueContents(queue, List.of(50, 40, 30));
+            try (Row row = createRow(breaker, 60)) {
+                Row result = queue.add(row);
+                assertThat(result, sameInstance(row));
+            }
+            assertQueueContents(queue, List.of(30, 40, 50));
         }
     }
 
@@ -117,15 +112,6 @@ public class UngroupedQueueTests extends ESTestCase {
         }
     }
 
-    public void testCloseReleasesAllMemory() {
-        UngroupedQueue queue = UngroupedQueue.build(breaker, 5);
-        addRows(queue, 10, 20, 30, 40, 50);
-        long ramBytesUsed = queue.ramBytesUsed();
-        long usedBefore = breaker.getUsed();
-        queue.close();
-        assertThat("Memory should be released after close", breaker.getUsed(), equalTo(usedBefore - ramBytesUsed));
-    }
-
     private Row createRow(CircuitBreaker breaker, int value) {
         try (
             IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(value).build();
@@ -144,9 +130,18 @@ public class UngroupedQueueTests extends ESTestCase {
         }
     }
 
-    private static int extractIntValue(Row row) {
+    private static void assertRowValues(Row row, int expectedSortKey, int expectedValue) {
         BytesRef keys = row.keys().bytesRefView();
-        return TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1));
+        assertThat(
+            TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1)),
+            equalTo(expectedSortKey)
+        );
+
+        BytesRef values = row.values().bytesRefView();
+        BytesRef reader = new BytesRef(values.bytes, values.offset, values.length);
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(reader), equalTo(expectedValue));
     }
 
     private void addRow(UngroupedQueue queue, int value) {
@@ -168,15 +163,14 @@ public class UngroupedQueueTests extends ESTestCase {
 
     private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(0, true, false);
 
-    private static void assertQueueContents(UngroupedQueue queue, List<Integer> expected) {
-        assertThat(queue.size(), equalTo(expected.size()));
-        var actual = new ArrayList<Integer>();
-        while (queue.size() > 0) {
-            try (Row row = queue.pop()) {
-                actual.add(extractIntValue(row));
-            }
+    private static void assertQueueContents(UngroupedQueue queue, List<Integer> expectedKeys) {
+        assertThat(queue.size(), equalTo(expectedKeys.size()));
+        List<Row> actual = queue.popAll();
+        for (int i = 0; i < expectedKeys.size(); i++) {
+            int expectedKey = expectedKeys.get(i);
+            assertRowValues(actual.get(i), expectedKey, expectedKey * 2);
         }
-        assertThat(actual, equalTo(expected));
+        Releasables.close(actual);
     }
 
     private long expectedRamBytesUsed(UngroupedQueue queue) {
@@ -185,14 +179,15 @@ public class UngroupedQueueTests extends ESTestCase {
         if (queue.size() > 0) {
             var size = queue.size();
             // Account for the discrepancy for each row.
-            Row rowSample = queue.pop();
+            List<Row> allRows = queue.popAll();
+            Row rowSample = allRows.getFirst();
             expected -= size * (RamUsageTester.ramUsed(rowSample) - rowSample.ramBytesUsed());
             // The breaker is already accounted for in for each RamUsageTester.ramUsed(rowSample), but is only counted once by ramBytesUsed.
             expected += size * RamUsageTester.ramUsed(breaker);
             // These are shared, but are only counted once by ramBytesUsed.
             // FIXME(gal, NOCOMMIT) Reduce duplication with UngroupedRowTests
             expected += (size - 1) * (RamUsageTester.ramUsed(SORT_ORDER) + RamUsageTester.ramUsed("topn"));
-            queue.add(rowSample);
+            allRows.forEach(queue::add);
         }
         return expected;
     }

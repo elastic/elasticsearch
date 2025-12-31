@@ -79,11 +79,6 @@ public class GroupedQueueTests extends ESTestCase {
         try (GroupedQueue queue = GroupedQueue.build(breaker, topCount)) {
             fillQueueToCapacity(queue, topCount);
 
-            Row topBefore = queue.pop();
-            assertThat(topBefore, notNullValue());
-            Row result = queue.add(topBefore);
-            assertThat(result, nullValue());
-
             try (Row evicted = queue.add(createRow(breaker, 0, 5))) {
                 assertThat(extractIntValue(evicted), equalTo(20));
             }
@@ -216,12 +211,13 @@ public class GroupedQueueTests extends ESTestCase {
 
         if (queue.size() > 0) {
             var size = queue.size();
-            Row rowSample = queue.pop();
+            List<Row> allRows = queue.popAll();
+            Row rowSample = allRows.getFirst();
             // FIXME(gal, NOCOMMIT) Reduce code duplication with UngroupedQueueTests.expectedRamBytesUsed
             expected -= size * (RamUsageTester.ramUsed(rowSample) - rowSample.ramBytesUsed());
             expected += size * RamUsageTester.ramUsed(breaker);
             expected += (size - 1) * (RamUsageTester.ramUsed(SORT_ORDER) + RamUsageTester.ramUsed("topn"));
-            queue.add(rowSample);
+            allRows.forEach(Releasables::close);
         }
         return expected;
     }

@@ -12,6 +12,10 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
 final class UngroupedQueue implements TopNQueue {
@@ -65,8 +69,13 @@ final class UngroupedQueue implements TopNQueue {
     }
 
     @Override
-    public Row pop() {
-        return pq.pop();
+    public List<Row> popAll() {
+        var results = new ArrayList<Row>(size());
+        while (size() > 0) {
+            results.add(pq.pop());
+        }
+        Collections.reverse(results);
+        return results;
     }
 
     @Override

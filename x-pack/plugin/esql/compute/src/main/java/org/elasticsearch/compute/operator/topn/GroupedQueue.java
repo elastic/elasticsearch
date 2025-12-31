@@ -10,10 +10,11 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
@@ -85,25 +86,20 @@ class GroupedQueue implements TopNQueue {
     }
 
     @Override
-    @Nullable
-    public Row pop() {
-        if (size() == 0) {
-            return null;
-        }
+    public List<Row> popAll() {
+        List<Row> allRows = new ArrayList<>(size());
         var iterator = queuesByGroupKey.entrySet().iterator();
-        var next = iterator.next();
-        UngroupedQueue queue = next.getValue();
-        if (queue.size() == 0) {
-            throw new IllegalStateException("Invariant violation: empty queue in grouped queue");
+        while (iterator.hasNext()) {
+            var next = iterator.next();
+            try (UngroupedQueue queue = next.getValue()) {
+                // FIXME(gal, NOCOMMIT) Use regular pop here.
+                allRows.addAll(queue.popAll());
+                // FIXME(gal, NOCOMMIT) Inaccurate count here.
+                breaker.addWithoutBreaking(-next.getKey().length);
+                iterator.remove();
+            }
         }
-        var row = queue.pop();
-        if (queue.size() == 0) {
-            // FIXME(gal, NOCOMMIT) Inaccurate count here.
-            breaker.addWithoutBreaking(-next.getKey().length);
-            iterator.remove();
-            queue.close();
-        }
-        return row;
+        return allRows;
     }
 
     @Override

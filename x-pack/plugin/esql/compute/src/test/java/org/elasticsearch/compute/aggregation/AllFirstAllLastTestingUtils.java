@@ -54,7 +54,8 @@ public class AllFirstAllLastTestingUtils {
     }
 
     /**
-     * Unpacks the timestamps and values, of the passed blocks at the given position, into two lists.
+     * Unpacks values of the passed two blocks, at the given position, into two lists. If there are no values for a particular block
+     * at that position, the corresponding list is empty.
      */
     private static Tuple<List<Long>, List<Object>> unpack(LongBlock timestamps, Block values, int p) {
         // extract all timestamps at this position into a list
@@ -72,12 +73,12 @@ public class AllFirstAllLastTestingUtils {
      */
     static class GroundTruthFirstLastAggregator {
         /**
-         * A container for all values associated with the best timestamp, across all pages and positions. Elements can be either single
-         * values (i.e.: {@code Object}), or multivalues (i.e.: {@code List<Object>}). In the latter case, the list must be sorted to
-         * allow for proper comparisons later during the check phase, which also performs the same operation if the result from the real
-         * aggregator was multivalued.
+         * A container for all values associated with the best timestamp, across all pages and positions. Elements within each list
+         * represent the values found at a particular (block, position) combination, and can be empty if no values were found.
+         * The lists are sorted before insertion into this set to allow for proper comparisons later during the check phase, which also
+         * performs the same sorting operation on the result coming from the real aggregator.
          */
-        private final Set<Object> expectedValues = new HashSet<>();
+        private final Set<List<Object>> expectedValues = new HashSet<>();
 
         /**
          * Whether this is a FIRST or LAST aggregator
@@ -111,11 +112,11 @@ public class AllFirstAllLastTestingUtils {
             if (observed == false || (first ? timestamp < expectedTimestamp : timestamp > expectedTimestamp)) {
                 expectedTimestamp = timestamp;
                 expectedValues.clear();
-                values.sort(null);
+                Collections.sort(values, null);
                 expectedValues.add(values);
                 observed = true;
             } else if (timestamp == expectedTimestamp) {
-                values.sort(null);
+                Collections.sort(values, null);
                 expectedValues.add(values);
             }
         }
@@ -136,7 +137,7 @@ public class AllFirstAllLastTestingUtils {
                 List<Object> actualValues = new ArrayList<>();
                 if (actual instanceof List<?> list) {
                     actualValues.addAll(list);
-                    actualValues.sort(null);
+                    Collections.sort(actualValues, null);
                 } else if (actual != null) {
                     actualValues.add(actual);
                 }

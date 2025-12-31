@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBooleanByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
@@ -49,7 +50,7 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         preview = true,
-        returnType = { "long", "integer", "double", "keyword" },
+        returnType = { "long", "integer", "double", "keyword", "ip", "boolean" },
         description = "Calculates the earliest value of a field, and can operate on null values.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
         examples = @Example(file = "stats_all_first_all_last", tag = "all_first")
@@ -58,7 +59,7 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(
             name = "value",
-            type = { "long", "integer", "double", "keyword", "text" },
+            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean" },
             description = "Values to return"
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
@@ -121,6 +122,7 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
                 || DataType.isString(dt)
+                || dt == DataType.IP
                 || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
             sourceText(),
             FIRST,
@@ -148,7 +150,8 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
             case INTEGER -> new AllFirstIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
+            case KEYWORD, TEXT, IP -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
+            case BOOLEAN -> new AllFirstBooleanByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

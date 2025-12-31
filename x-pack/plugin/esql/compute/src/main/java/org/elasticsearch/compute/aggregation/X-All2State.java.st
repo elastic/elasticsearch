@@ -9,7 +9,11 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+$if(v2_boolean)$
+import org.elasticsearch.common.util.ByteArray;
+$else$
 import org.elasticsearch.common.util.$v2_Type$Array;
+$endif$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.$v2_Type$Block;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -23,17 +27,25 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class All$v1_Type$$v2_Type$State implements AggregatorState {
-    // Whether an observation was recorded in this state
+    /**
+     * Whether an observation was recorded in this state
+     */
     private boolean observed;
 
-    // The timestamp
+    /**
+     * The timestamp
+     */
     private $v1_type$ v1;
 
-    // Tells whether the observed timestamp was null
+    /**
+     * Whether the observed timestamp was null
+     */
     private boolean v1Seen;
 
-    // The value can be null, single valued of multivalued.
-    private $v2_Type$Array v2;
+    /**
+     * The value can be null, single valued of multivalued.
+     */
+    private $if(v2_boolean)$ByteArray$else$$v2_Type$Array$endif$ v2;
 
     boolean observed() {
         return observed;
@@ -59,11 +71,11 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
         this.v1Seen = v1Seen;
     }
 
-    $v2_Type$Array v2() {
+    $if(v2_boolean)$ByteArray$else$$v2_Type$Array$endif$ v2() {
         return v2;
     }
 
-    void v2($v2_Type$Array v2) {
+    void v2($if(v2_boolean)$ByteArray$else$$v2_Type$Array$endif$ v2) {
         this.v2 = v2;
     }
 
@@ -88,7 +100,7 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
         $else$
         $v2_type$[] values = new $v2_type$[size];
         for (int i = 0; i < size; ++i) {
-            values[i] = v2.get(i);
+            values[i] = $if(v2_boolean)$v2.get(i) == 1$else$v2.get(i)$endif$;
         }
         return driverContext.blockFactory().new$v2_Type$ArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
         $endif$

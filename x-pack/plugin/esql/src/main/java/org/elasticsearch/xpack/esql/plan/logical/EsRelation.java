@@ -167,7 +167,7 @@ public class EsRelation extends LeafPlan {
             + indexPattern
             + "]"
             + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
-            + (format == NodeStringFormat.LIMITED ? NodeUtils.limitedToString(attrs) : NodeUtils.unlimitedToString(attrs));
+            + NodeUtils.toString(attrs, format);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {

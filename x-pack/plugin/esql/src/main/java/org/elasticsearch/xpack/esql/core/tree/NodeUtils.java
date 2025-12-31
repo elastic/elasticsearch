@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.stream.Collectors;
@@ -61,7 +59,14 @@ public abstract class NodeUtils {
 
     private static final int TO_STRING_LIMIT = 52;
 
-    public static <E> String limitedToString(Collection<E> c) {
+    public static String toString(Collection<?> c, Node.NodeStringFormat format) {
+        return switch (format) {
+            case LIMITED -> limitedToString(c);
+            case FULL -> unlimitedToString(c);
+        };
+    }
+
+    private static <E> String limitedToString(Collection<E> c) {
         Iterator<E> it = c.iterator();
         if (it.hasNext() == false) {
             return "[]";
@@ -87,7 +92,7 @@ public abstract class NodeUtils {
         }
     }
 
-    public static String unlimitedToString(Collection<Attribute> c) {
+    private static String unlimitedToString(Collection<?> c) {
         return c.stream().map(s -> s != null ? s.toString() : "null").collect(Collectors.joining(", ", "[", "]"));
     }
 }

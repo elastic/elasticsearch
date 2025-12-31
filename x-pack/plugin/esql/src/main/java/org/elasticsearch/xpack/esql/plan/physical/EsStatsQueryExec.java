@@ -173,7 +173,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
             + "], query["
             + (query != null ? Strings.toString(query, false, true) : "")
             + "]"
-            + (format == NodeStringFormat.LIMITED ? NodeUtils.limitedToString(attrs) : NodeUtils.unlimitedToString(attrs))
+            + NodeUtils.toString(attrs, format)
             + ", limit["
             + (limit != null ? limit.toString(format) : "")
             + "], ";

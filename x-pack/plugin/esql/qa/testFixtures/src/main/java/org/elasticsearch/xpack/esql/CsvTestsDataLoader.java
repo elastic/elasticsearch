@@ -558,9 +558,11 @@ public class CsvTestsDataLoader {
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets, logger);
-        logger.info("Loading enrich policies");
-        for (var policy : ENRICH_POLICIES) {
-            loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+        if (timeSeriesOnly == false) {
+            logger.info("Loading enrich policies");
+            for (var policy : ENRICH_POLICIES) {
+                loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+            }
         }
     }
 

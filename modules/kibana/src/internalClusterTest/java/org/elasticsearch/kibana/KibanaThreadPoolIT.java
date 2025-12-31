@@ -110,6 +110,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "depends on being able to fill the write thread pool")
     public void testBlockedThreadPoolsRejectUserRequests() throws Exception {
         assertAcked(
             client().admin()

@@ -44,8 +44,8 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())
-                    && t.getName().equals("elasticsearch-error-rethrower")) {
+                if ((t.getThreadGroup().getName().contains(getTestClass().getSimpleName())
+                    || t.getThreadGroup().getName().contains("VirtualThreads")) && t.getName().equals("elasticsearch-error-rethrower")) {
                     for (StackTraceElement element : e.getStackTrace()) {
                         if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
                             if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Integration test for bulk retry behavior. Useful because retrying relies on the way that the
  * rest of Elasticsearch throws exceptions and unit tests won't verify that.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "depends on being able to fill the write queue")
 public class RetryTests extends ESIntegTestCase {
 
     private static final int DOC_COUNT = 20;

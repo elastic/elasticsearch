@@ -33,7 +33,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     // https://github.com/elastic/elasticsearch/issues/124667
     // note, this is intentionally not a lambda to avoid this ever be turned into a compile time constant
     // matching similar lambdas coming from other places
-    static final Runnable WORKER_PROBE = new Runnable() {
+    public static final Runnable WORKER_PROBE = new Runnable() {
         @Override
         public void run() {}
     };

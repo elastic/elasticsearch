@@ -224,7 +224,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 }
 
                 table.addCell(entry.getKey());
-                table.addCell(poolInfo == null ? null : poolInfo.getThreadPoolType().getType());
+                table.addCell(
+                    poolInfo == null ? null : ThreadPool.ThreadPoolType.bwcType(poolInfo.getName(), poolInfo.getThreadPoolType()).getType()
+                );
                 table.addCell(poolStats == null ? null : poolStats.active());
                 table.addCell(poolStats == null ? null : poolStats.threads());
                 table.addCell(poolStats == null ? null : poolStats.queue());

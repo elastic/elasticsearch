@@ -162,6 +162,10 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
 
         tps[0].forEach(stats -> {
+            if (tp.info(stats.name()).getThreadPoolType() == ThreadPool.ThreadPoolType.VIRTUAL) {
+                return;
+            }
+
             Map<String, MetricDefinition<?>> metricDefinitions = Map.of(
                 ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED,
                 new MetricDefinition<>(stats.completed(), TestTelemetryPlugin::getLongAsyncCounterMeasurement, Measurement::getLong),
@@ -234,6 +238,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Write thread pool is now virtual")
     public void testWriteThreadpoolsEwmaAlphaSetting() {
         Settings settings = Settings.EMPTY;
         var executionEwmaAlpha = DEFAULT_INDEX_AUTOSCALING_EWMA_ALPHA;

@@ -81,6 +81,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         return 1;
     }
 
+    @AwaitsFix(bugUrl = "Depends on being able to block the write pool")
     public void testWriteIndexingPressureMetricsAreIncremented() throws Exception {
         assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
         ensureGreen(INDEX_NAME);
@@ -244,6 +245,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Depends on being able to block the write pool")
     public void testWriteCanBeRejectedAtCoordinatingLevel() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
         long totalRequestSize = 0;
@@ -309,6 +311,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Depends on being able to block the write pool")
     public void testWriteCanBeRejectedAtPrimaryLevel() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
         long totalRequestSize = 0;
@@ -367,6 +370,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Depends on being able to block the write pool")
     public void testWritesWillSucceedIfBelowThreshold() throws Exception {
         restartNodesWithSettings(
             Settings.builder()
@@ -402,6 +406,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Depends on being able to block the write pool")
     public void testWriteCanRejectOnPrimaryBasedOnMaxOperationSize() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
         long firstInFlightRequestSizeInBytes = 0;

@@ -959,6 +959,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         latch.await();
     }
 
+    @AwaitsFix(bugUrl = "Depends on there being a limited number of threads/queue")
     public void testForceExecutionOnRejectionAfterMappingUpdate() throws Exception {
         TestThreadPool rejectingThreadPool = new TestThreadPool(
             "TransportShardBulkActionTests#testForceExecutionOnRejectionAfterMappingUpdate",

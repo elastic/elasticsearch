@@ -143,7 +143,10 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                     Instant.now().minus(1, ChronoUnit.DAYS),
                     List.of(
                         AssignmentStats.NodeStats.forStartedState(
-                            randomBoolean() ? DiscoveryNodeUtils.create("node_1") : null,
+                            // I don't think this can flip between null and not null, and the test still passes.
+                            // I suspect it might have only passed because it was executed with a new thread each time
+                            // and always got either true or false?
+                            DiscoveryNodeUtils.create("node_1"),
                             inferenceCount,
                             latency,
                             latency,

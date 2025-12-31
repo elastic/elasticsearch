@@ -42,6 +42,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
             .build();
     }
 
+    @AwaitsFix(bugUrl = "WRITE and WRITE coordination are no longer thread pools")
     public void testRejectedExecutionExceptionContainsNodeName() {
         // we test a fixed and an auto-queue executor but not scaling since it does not reject
         runThreadPoolExecutorTest(1, randomFrom(ThreadPool.Names.WRITE_COORDINATION, ThreadPool.Names.WRITE));

@@ -87,8 +87,7 @@ public class WorkflowOperator implements Operator {
         try {
             // Build the output page by processing each row
             int positionCount = currentPage.getPositionCount();
-            BytesRefBlock.Builder outputBlockBuilder = driverContext.blockFactory()
-                .newBytesRefBlockBuilder(positionCount);
+            BytesRefBlock.Builder outputBlockBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount);
 
             // Evaluate inputs for all rows
             Block[] evaluatedInputs = new Block[inputEvaluators.size()];
@@ -168,9 +167,9 @@ public class WorkflowOperator implements Operator {
         if (block.isNull(position)) {
             return "null";
         }
-        
+
         int valueCount = block.getValueCount(position);
-        
+
         // For POC, handle common types
         if (block instanceof BytesRefBlock bytesRefBlock) {
             // Handle multi-valued fields (e.g., from VALUES() aggregation)
@@ -190,7 +189,7 @@ public class WorkflowOperator implements Operator {
                 arrayJson.append("]");
                 return arrayJson.toString();
             }
-            
+
             // Single value
             org.apache.lucene.util.BytesRef value = new org.apache.lucene.util.BytesRef();
             bytesRefBlock.getBytesRef(bytesRefBlock.getFirstValueIndex(position), value);
@@ -205,11 +204,7 @@ public class WorkflowOperator implements Operator {
      * Simple JSON string escaping.
      */
     private String escapeJson(String str) {
-        return str.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t");
+        return str.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
     @Override
@@ -240,18 +235,8 @@ public class WorkflowOperator implements Operator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            List<ExpressionEvaluator> evaluators = inputEvaluatorFactories.stream()
-                .map(f -> f.get(driverContext))
-                .toList();
-            return new WorkflowOperator(
-                driverContext,
-                workflowId,
-                evaluators,
-                inputNames,
-                errorHandling,
-                workflowClient
-            );
+            List<ExpressionEvaluator> evaluators = inputEvaluatorFactories.stream().map(f -> f.get(driverContext)).toList();
+            return new WorkflowOperator(driverContext, workflowId, evaluators, inputNames, errorHandling, workflowClient);
         }
     }
 }
-

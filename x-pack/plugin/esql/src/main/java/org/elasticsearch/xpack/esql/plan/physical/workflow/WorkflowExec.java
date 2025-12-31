@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -25,7 +26,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
@@ -145,4 +145,3 @@ public class WorkflowExec extends UnaryExec {
         return Objects.hash(super.hashCode(), workflowId, inputs, targetField, errorHandling);
     }
 }
-

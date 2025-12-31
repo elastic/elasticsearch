@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,18 +34,16 @@ import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
  * Logical plan for the WORKFLOW command.
  * Executes a Kibana workflow synchronously and returns its output as a JSON column.
- * 
+ *
  * Syntax: WORKFLOW "workflow_id" WITH (input1 = expr1, input2 = expr2, ...) AS target [ON ERROR NULL|FAIL]
  */
 public class Workflow extends UnaryPlan
@@ -60,11 +59,7 @@ public class Workflow extends UnaryPlan
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "workflow";
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        LogicalPlan.class,
-        "Workflow",
-        Workflow::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Workflow", Workflow::new);
 
     /**
      * Error handling mode for workflow execution.
@@ -170,15 +165,7 @@ public class Workflow extends UnaryPlan
     @Override
     public Workflow withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Workflow(
-            source(),
-            child(),
-            workflowId,
-            inputs,
-            renameTargetField(newNames.get(0)),
-            rowLimit,
-            errorHandling
-        );
+        return new Workflow(source(), child(), workflowId, inputs, renameTargetField(newNames.get(0)), rowLimit, errorHandling);
     }
 
     private Attribute renameTargetField(String newName) {
@@ -217,27 +204,14 @@ public class Workflow extends UnaryPlan
     public void postAnalysisVerification(Failures failures) {
         // Validate workflowId is a string
         if (workflowId.resolved() && DataType.isString(workflowId.dataType()) == false) {
-            failures.add(
-                fail(
-                    workflowId,
-                    "workflow_id must be of type [keyword] or [text] but is [{}]",
-                    workflowId.dataType().typeName()
-                )
-            );
+            failures.add(fail(workflowId, "workflow_id must be of type [keyword] or [text] but is [{}]", workflowId.dataType().typeName()));
         }
 
         // Validate all input values can be serialized to JSON (representable types)
         for (Alias input : inputs) {
             Expression value = input.child();
             if (value.resolved() && DataType.isRepresentable(value.dataType()) == false) {
-                failures.add(
-                    fail(
-                        value,
-                        "workflow input [{}] has unsupported type [{}]",
-                        input.name(),
-                        value.dataType().typeName()
-                    )
-                );
+                failures.add(fail(value, "workflow input [{}] has unsupported type [{}]", input.name(), value.dataType().typeName()));
             }
         }
     }
@@ -265,4 +239,3 @@ public class Workflow extends UnaryPlan
         return Objects.hash(super.hashCode(), workflowId, inputs, targetField, rowLimit, errorHandling);
     }
 }
-

@@ -88,10 +88,10 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.workflow.Workflow;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plan.logical.workflow.Workflow;
 import org.joni.exception.SyntaxException;
 
 import java.time.Duration;
@@ -1213,7 +1213,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Check feature flag - for POC, we'll use a simple check
         // TODO: Add proper workflow settings check when WorkflowSettings is implemented
         // if (context.workflowSettings().workflowEnabled() == false) {
-        //     throw new ParsingException(source, "WORKFLOW command is disabled in settings.");
+        // throw new ParsingException(source, "WORKFLOW command is disabled in settings.");
         // }
 
         // Parse workflow ID (must be a string literal)
@@ -1266,11 +1266,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if ("FAIL".equals(text)) {
                 return Workflow.ErrorHandling.FAIL;
             }
-            throw new ParsingException(
-                source(ctx),
-                "Invalid error handling mode [{}], expected NULL or FAIL",
-                text
-            );
+            throw new ParsingException(source(ctx), "Invalid error handling mode [{}], expected NULL or FAIL", text);
         }
         return Workflow.ErrorHandling.FAIL; // fallback
     }

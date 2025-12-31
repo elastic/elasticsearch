@@ -94,9 +94,7 @@ public class HttpWorkflowClient implements WorkflowClient {
                 }
 
                 if (responseCode >= 400) {
-                    throw new WorkflowExecutionException(
-                        "Workflow execution failed with status " + responseCode + ": " + response
-                    );
+                    throw new WorkflowExecutionException("Workflow execution failed with status " + responseCode + ": " + response);
                 }
 
                 // Extract output from response
@@ -224,4 +222,3 @@ public class HttpWorkflowClient implements WorkflowClient {
         );
     }
 }
-

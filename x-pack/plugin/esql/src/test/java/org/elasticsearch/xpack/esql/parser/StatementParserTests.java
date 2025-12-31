@@ -3940,10 +3940,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testWorkflowBasicWithStringId() {
         assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
-        var plan = as(
-            processingCommand("WORKFLOW \"my-workflow-id\" WITH (message = field_a)"),
-            Workflow.class
-        );
+        var plan = as(processingCommand("WORKFLOW \"my-workflow-id\" WITH (message = field_a)"), Workflow.class);
 
         assertThat(plan.workflowId(), equalTo(literalString("my-workflow-id")));
         assertThat(plan.targetField(), equalToIgnoringIds(attribute("workflow")));
@@ -3953,30 +3950,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testWorkflowOnErrorNull() {
         assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
-        var plan = as(
-            processingCommand("WORKFLOW \"my-workflow\" WITH (msg = field_a) ON ERROR NULL"),
-            Workflow.class
-        );
+        var plan = as(processingCommand("WORKFLOW \"my-workflow\" WITH (msg = field_a) ON ERROR NULL"), Workflow.class);
 
         assertThat(plan.errorHandling(), equalTo(Workflow.ErrorHandling.NULL));
     }
 
     public void testWorkflowOnErrorFail() {
         assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
-        var plan = as(
-            processingCommand("WORKFLOW \"my-workflow\" WITH (msg = field_a) ON ERROR FAIL"),
-            Workflow.class
-        );
+        var plan = as(processingCommand("WORKFLOW \"my-workflow\" WITH (msg = field_a) ON ERROR FAIL"), Workflow.class);
 
         assertThat(plan.errorHandling(), equalTo(Workflow.ErrorHandling.FAIL));
     }
 
     public void testWorkflowWithNamedInputs() {
         assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
-        var plan = as(
-            processingCommand("WORKFLOW \"my-workflow\" WITH (message = field_a, count = 42)"),
-            Workflow.class
-        );
+        var plan = as(processingCommand("WORKFLOW \"my-workflow\" WITH (message = field_a, count = 42)"), Workflow.class);
 
         assertThat(plan.workflowId(), equalTo(literalString("my-workflow")));
         assertThat(plan.inputs().size(), equalTo(2));
@@ -3987,10 +3975,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testWorkflowWithFunctionAsInput() {
         assumeTrue("WORKFLOW requires corresponding capability", EsqlCapabilities.Cap.WORKFLOW.isEnabled());
-        var plan = as(
-            processingCommand("WORKFLOW \"my-workflow\" WITH (prompt = CONCAT(fieldA, fieldB))"),
-            Workflow.class
-        );
+        var plan = as(processingCommand("WORKFLOW \"my-workflow\" WITH (prompt = CONCAT(fieldA, fieldB))"), Workflow.class);
 
         assertThat(plan.workflowId(), equalTo(literalString("my-workflow")));
         assertThat(plan.inputs().size(), equalTo(1));

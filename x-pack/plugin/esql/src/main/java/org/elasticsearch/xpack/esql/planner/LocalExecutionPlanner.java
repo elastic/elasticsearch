@@ -130,14 +130,14 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.plan.physical.workflow.WorkflowExec;
-import org.elasticsearch.xpack.esql.workflow.HttpWorkflowClient;
-import org.elasticsearch.xpack.esql.workflow.WorkflowClient;
-import org.elasticsearch.xpack.esql.workflow.WorkflowOperator;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
+import org.elasticsearch.xpack.esql.workflow.HttpWorkflowClient;
+import org.elasticsearch.xpack.esql.workflow.WorkflowClient;
+import org.elasticsearch.xpack.esql.workflow.WorkflowOperator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -355,25 +355,19 @@ public class LocalExecutionPlanner {
         // Create workflow client - POC uses HTTP client with hardcoded URL
         // TODO: Read Kibana URL from settings
         String kibanaUrl = "http://localhost:5601";
-        
+
         // Get auth header from environment variable, with dev fallback
         String authHeader = System.getenv("ESQL_KIBANA_AUTH");
         if (authHeader == null || authHeader.isEmpty()) {
             // Fallback for dev - use same creds as Kibana connects with
-            authHeader = "Basic " + java.util.Base64.getEncoder().encodeToString(
-                "elastic-admin:elastic-password".getBytes(java.nio.charset.StandardCharsets.UTF_8)
-            );
+            authHeader = "Basic "
+                + java.util.Base64.getEncoder()
+                    .encodeToString("elastic-admin:elastic-password".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
         WorkflowClient workflowClient = HttpWorkflowClient.create(kibanaUrl, authHeader);
 
         return source.with(
-            new WorkflowOperator.Factory(
-                workflowId,
-                inputEvaluatorFactories,
-                inputNames,
-                workflow.errorHandling(),
-                workflowClient
-            ),
+            new WorkflowOperator.Factory(workflowId, inputEvaluatorFactories, inputNames, workflow.errorHandling(), workflowClient),
             outputLayout
         );
     }

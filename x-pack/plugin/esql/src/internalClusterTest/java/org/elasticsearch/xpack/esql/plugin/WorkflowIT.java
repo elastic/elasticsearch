@@ -22,11 +22,11 @@ import static org.hamcrest.Matchers.containsString;
 
 /**
  * Integration tests for the ESQL WORKFLOW command.
- * 
+ *
  * NOTE: These tests require a mock Kibana workflow service to be available.
  * For the POC, tests that require actual workflow execution are marked with
  * @AwaitsFix or skipped until the mock service is implemented.
- * 
+ *
  * Tests cover:
  * - Parsing validation (works without Kibana)
  * - Error handling for missing workflows
@@ -54,9 +54,12 @@ public class WorkflowIT extends AbstractEsqlIntegTestCase {
             bulkRequest.add(
                 new IndexRequest(TEST_INDEX).id(String.valueOf(i))
                     .source(
-                        "id", i,
-                        "alert_message", "Alert " + i + " detected",
-                        "severity", i % 3 == 0 ? "high" : (i % 2 == 0 ? "medium" : "low")
+                        "id",
+                        i,
+                        "alert_message",
+                        "Alert " + i + " detected",
+                        "severity",
+                        i % 3 == 0 ? "high" : (i % 2 == 0 ? "medium" : "low")
                     )
             );
         }
@@ -72,7 +75,7 @@ public class WorkflowIT extends AbstractEsqlIntegTestCase {
     /**
      * Test that the WORKFLOW command with inputs parses correctly.
      * This test validates the grammar without executing the workflow.
-     * 
+     *
      * Grammar: WORKFLOW workflowId=string WITH LP workflowInputs RP (AS targetField)?
      */
     public void testWorkflowCommandParsing() {

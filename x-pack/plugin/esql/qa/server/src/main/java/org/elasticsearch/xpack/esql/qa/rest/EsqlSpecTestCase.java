@@ -104,6 +104,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final Mode mode;
     protected static Boolean supportsTook;
 
+    public static final Map<String, String> LOGGING_CLUSTER_SETTINGS = Map.of(
+        // additional logging for https://github.com/elastic/elasticsearch/issues/139262 investigation
+        "logger.org.elasticsearch.compute.operator.ChangePointOperator",
+        "DEBUG",
+        "logger.org.elasticsearch.xpack.esql.expression.function.scalar.convert",
+        "TRACE"
+    );
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");

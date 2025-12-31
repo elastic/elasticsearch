@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.workflow.Workflow;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -1203,6 +1204,75 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "invalid value for SAMPLE probability [" + BytesRefs.toString(val) + "], expecting a number between 0 and 1, exclusive"
             );
         }
+    }
+
+    @Override
+    public PlanFactory visitWorkflowCommand(EsqlBaseParser.WorkflowCommandContext ctx) {
+        Source source = source(ctx);
+
+        // Check feature flag - for POC, we'll use a simple check
+        // TODO: Add proper workflow settings check when WorkflowSettings is implemented
+        // if (context.workflowSettings().workflowEnabled() == false) {
+        //     throw new ParsingException(source, "WORKFLOW command is disabled in settings.");
+        // }
+
+        // Parse workflow ID (must be a string literal)
+        Expression workflowId = expression(ctx.workflowId);
+
+        // Parse workflow inputs as a list of Alias (name = expression)
+        List<Alias> inputs = parseWorkflowInputs(ctx.workflowInputs());
+
+        // Parse target field name (default: "workflow")
+        Attribute targetField = ctx.targetField != null
+            ? visitQualifiedName(ctx.targetField)
+            : new UnresolvedAttribute(source, Workflow.DEFAULT_OUTPUT_FIELD_NAME);
+
+        if (targetField.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
+        }
+
+        // Row limit - use default for now (100)
+        // TODO: Read from WorkflowSettings when implemented
+        Literal rowLimit = Literal.integer(source, 100);
+
+        // Parse error handling mode
+        Workflow.ErrorHandling errorHandling = parseWorkflowErrorHandling(ctx.workflowOnError());
+
+        return p -> new Workflow(source, p, workflowId, inputs, targetField, rowLimit, errorHandling);
+    }
+
+    private List<Alias> parseWorkflowInputs(EsqlBaseParser.WorkflowInputsContext ctx) {
+        if (ctx == null) {
+            return List.of();
+        }
+        List<Alias> inputs = new ArrayList<>();
+        for (EsqlBaseParser.WorkflowInputContext inputCtx : ctx.workflowInput()) {
+            String name = visitIdentifier(inputCtx.name);
+            Expression value = expression(inputCtx.value);
+            inputs.add(new Alias(source(inputCtx), name, value));
+        }
+        return inputs;
+    }
+
+    private Workflow.ErrorHandling parseWorkflowErrorHandling(EsqlBaseParser.WorkflowOnErrorContext ctx) {
+        if (ctx == null) {
+            return Workflow.ErrorHandling.FAIL; // default
+        }
+        if (ctx instanceof EsqlBaseParser.WorkflowOnErrorNullContext) {
+            return Workflow.ErrorHandling.NULL;
+        }
+        if (ctx instanceof EsqlBaseParser.WorkflowOnErrorStrategyContext strategyCtx) {
+            String text = visitIdentifier(strategyCtx.errorStrategy).toUpperCase(Locale.ROOT);
+            if ("FAIL".equals(text)) {
+                return Workflow.ErrorHandling.FAIL;
+            }
+            throw new ParsingException(
+                source(ctx),
+                "Invalid error handling mode [{}], expected NULL or FAIL",
+                text
+            );
+        }
+        return Workflow.ErrorHandling.FAIL; // fallback
     }
 
     @Override

@@ -449,6 +449,38 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#workflowCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitWorkflowCommand(EsqlBaseParser.WorkflowCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#workflowInputs}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitWorkflowInputs(EsqlBaseParser.WorkflowInputsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#workflowInput}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitWorkflowInput(EsqlBaseParser.WorkflowInputContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code workflowOnErrorNull}
+   * labeled alternative in {@link EsqlBaseParser#workflowOnError}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitWorkflowOnErrorNull(EsqlBaseParser.WorkflowOnErrorNullContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code workflowOnErrorStrategy}
+   * labeled alternative in {@link EsqlBaseParser#workflowOnError}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitWorkflowOnErrorStrategy(EsqlBaseParser.WorkflowOnErrorStrategyContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#inlineStatsCommand}.
    * @param ctx the parse tree
    * @return the visitor result

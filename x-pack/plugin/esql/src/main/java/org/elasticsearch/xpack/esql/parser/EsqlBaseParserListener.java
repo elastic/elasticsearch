@@ -736,6 +736,60 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#workflowCommand}.
+   * @param ctx the parse tree
+   */
+  void enterWorkflowCommand(EsqlBaseParser.WorkflowCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#workflowCommand}.
+   * @param ctx the parse tree
+   */
+  void exitWorkflowCommand(EsqlBaseParser.WorkflowCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#workflowInputs}.
+   * @param ctx the parse tree
+   */
+  void enterWorkflowInputs(EsqlBaseParser.WorkflowInputsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#workflowInputs}.
+   * @param ctx the parse tree
+   */
+  void exitWorkflowInputs(EsqlBaseParser.WorkflowInputsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#workflowInput}.
+   * @param ctx the parse tree
+   */
+  void enterWorkflowInput(EsqlBaseParser.WorkflowInputContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#workflowInput}.
+   * @param ctx the parse tree
+   */
+  void exitWorkflowInput(EsqlBaseParser.WorkflowInputContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code workflowOnErrorNull}
+   * labeled alternative in {@link EsqlBaseParser#workflowOnError}.
+   * @param ctx the parse tree
+   */
+  void enterWorkflowOnErrorNull(EsqlBaseParser.WorkflowOnErrorNullContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code workflowOnErrorNull}
+   * labeled alternative in {@link EsqlBaseParser#workflowOnError}.
+   * @param ctx the parse tree
+   */
+  void exitWorkflowOnErrorNull(EsqlBaseParser.WorkflowOnErrorNullContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code workflowOnErrorStrategy}
+   * labeled alternative in {@link EsqlBaseParser#workflowOnError}.
+   * @param ctx the parse tree
+   */
+  void enterWorkflowOnErrorStrategy(EsqlBaseParser.WorkflowOnErrorStrategyContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code workflowOnErrorStrategy}
+   * labeled alternative in {@link EsqlBaseParser#workflowOnError}.
+   * @param ctx the parse tree
+   */
+  void exitWorkflowOnErrorStrategy(EsqlBaseParser.WorkflowOnErrorStrategyContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#inlineStatsCommand}.
    * @param ctx the parse tree
    */

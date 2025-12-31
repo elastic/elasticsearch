@@ -277,21 +277,22 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
     ) {
         Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions);
 
-        Expression window = null;
+        final Expression window;
         if (functionCall.child() instanceof RangeSelector rangeSelector) {
             window = rangeSelector.range();
-        }
-
-        if (window == null) {
+        } else {
             window = AggregateFunction.NO_WINDOW;
         }
 
-        List<Expression> params = switch (functionCall) {
-            case WithinSeriesAggregate within -> List.of(target, promqlCommand.timestamp(), window);
-            case AcrossSeriesAggregate across -> List.of(target);
-        };
-
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(functionCall.functionName(), functionCall.source(), params);
+        List<Expression> extraParams = functionCall.parameters();
+        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            functionCall.functionName(),
+            functionCall.source(),
+            target,
+            promqlCommand.timestamp(),
+            window,
+            extraParams
+        );
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {

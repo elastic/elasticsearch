@@ -46,13 +46,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 
 /**
  * A registry for PromQL functions that maps function names to their respective definitions.
  */
 public class PromqlFunctionRegistry {
     private static final FunctionDefinition[] FUNCTION_DEFINITIONS = new FunctionDefinition[] {
+        //
         withinSeries("delta", Delta::new),
         withinSeries("idelta", Idelta::new),
         withinSeries("increase", Increase::new),
@@ -61,27 +61,25 @@ public class PromqlFunctionRegistry {
         withinSeries("first_over_time", FirstOverTime::new),
         withinSeries("last_over_time", LastOverTime::new),
         //
-        overTime("avg_over_time", AvgOverTime::new),
-        overTime("count_over_time", CountOverTime::new),
-        overTime("max_over_time", MaxOverTime::new),
-        overTime("min_over_time", MinOverTime::new),
-        overTime("sum_over_time", SumOverTime::new),
-        overTime("stddev_over_time", StddevOverTime::new),
-        overTime("stdvar_over_time", VarianceOverTime::new),
-        overTime("absent_over_time", AbsentOverTime::new),
-        overTime("present_over_time", PresentOverTime::new),
+        withinSeriesOverTime1("avg_over_time", AvgOverTime::new),
+        withinSeriesOverTime1("count_over_time", CountOverTime::new),
+        withinSeriesOverTime1("max_over_time", MaxOverTime::new),
+        withinSeriesOverTime1("min_over_time", MinOverTime::new),
+        withinSeriesOverTime1("sum_over_time", SumOverTime::new),
+        withinSeriesOverTime1("stddev_over_time", StddevOverTime::new),
+        withinSeriesOverTime1("stdvar_over_time", VarianceOverTime::new),
+        withinSeriesOverTime1("absent_over_time", AbsentOverTime::new),
+        withinSeriesOverTime1("present_over_time", PresentOverTime::new),
+        withinSeriesOverTime2("quantile_over_time", PercentileOverTime::new),
         //
-        overTimeBinary("quantile_over_time", PercentileOverTime::new),
-        //
-        acrossSeries("avg", Avg::new),
-        acrossSeries("count", Count::new),
-        acrossSeries("max", Max::new),
-        acrossSeries("min", Min::new),
-        acrossSeries("sum", Sum::new),
-        acrossSeries("stddev", StdDev::new),
-        acrossSeries("stdvar", Variance::new),
-        //
-        acrossSeriesBinary("quantile", Percentile::new)
+        acrossSeries1("avg", Avg::new),
+        acrossSeries1("count", Count::new),
+        acrossSeries1("max", Max::new),
+        acrossSeries1("min", Min::new),
+        acrossSeries1("sum", Sum::new),
+        acrossSeries1("stddev", StdDev::new),
+        acrossSeries1("stdvar", Variance::new),
+        acrossSeries2("quantile", Percentile::new)
     };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
@@ -140,15 +138,15 @@ public class PromqlFunctionRegistry {
         }
     }
 
+    @FunctionalInterface
+    public interface EsqlFunctionBuilder {
+        Function build(Source source, Expression target, Expression timestamp, Expression window, List<Expression> extraParams);
+    }
+
     /**
      * Function definition record for registration and metadata.
      */
-    public record FunctionDefinition(
-        String name,
-        FunctionType functionType,
-        Arity arity,
-        BiFunction<Source, List<Expression>, Function> esqlBuilder
-    ) {
+    public record FunctionDefinition(String name, FunctionType functionType, Arity arity, EsqlFunctionBuilder esqlBuilder) {
         public FunctionDefinition {
             Objects.requireNonNull(name, "name cannot be null");
             Objects.requireNonNull(functionType, "functionType cannot be null");
@@ -168,82 +166,73 @@ public class PromqlFunctionRegistry {
     }
 
     @FunctionalInterface
-    protected interface OverTimeBinary<T extends TimeSeriesAggregateFunction> {
-        T build(Source source, Expression field, Expression filter, Expression window, Expression param);
-    }
-
-    @FunctionalInterface
     protected interface AcrossSeriesUnary<T extends AggregateFunction> {
         T build(Source source, Expression field);
     }
 
     @FunctionalInterface
+    protected interface OverTimeBinary<T extends TimeSeriesAggregateFunction> {
+        T build(Source source, Expression field, Expression filter, Expression window, Expression param);
+    }
+
+    @FunctionalInterface
     protected interface AcrossSeriesBinary<T extends AggregateFunction> {
-        T build(Source source, Expression field, Expression param);
+        T build(Source source, Expression field, Expression filter, Expression window, Expression param);
     }
 
     private static FunctionDefinition withinSeries(String name, WithinSeries<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.range(1,3),
-            (source, params) -> {
-                Expression field = params.get(0);
-                Expression timestamp = params.get(1);
-                Expression window = params.get(2);
-                return builder.build(source, field, window, timestamp);
+            Arity.ONE,
+            (source, target, timestamp, window, extraParams) -> {
+                return builder.build(source, target, window, timestamp);
             }
         );
     }
 
-    private static FunctionDefinition overTime(String name, OverTime<?> builder) {
+    private static FunctionDefinition withinSeriesOverTime1(String name, OverTime<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.range(1,2),
-            (source, params) -> {
-                Expression field = params.get(0);
-                Expression window = params.get(2);
-                return builder.build(source, field, Literal.TRUE, window);
+            Arity.ONE,
+            (source, target, timestamp, window, extraParams) -> {
+                return builder.build(source, target, Literal.TRUE, window);
             }
         );
     }
 
-    private static FunctionDefinition overTimeBinary(String name, OverTimeBinary<?> builder) {
+    private static FunctionDefinition withinSeriesOverTime2(String name, OverTimeBinary<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
             Arity.TWO,
-            (source, params) -> {
-                Expression field = params.get(0);
-                Expression percentile = params.get(1);
-                Expression window = params.get(2);
-                return builder.build(source, field, Literal.TRUE, window, percentile);
+            (source, target, timestamp, window, extraParams) -> {
+                Expression param = extraParams.getFirst();
+                return builder.build(source, target, Literal.TRUE, window, param);
             }
         );
     }
 
-    private static FunctionDefinition acrossSeries(String name, AcrossSeriesUnary<?> builder) {
+    private static FunctionDefinition acrossSeries1(String name, AcrossSeriesUnary<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.ACROSS_SERIES_AGGREGATION,
             Arity.ONE,
-            (source, params) -> {
-                Expression field = params.get(0);
-                return builder.build(source, field);
+            (source, target, timestamp, window, extraParams) -> {
+                return builder.build(source, target);
             }
         );
     }
 
-    private static FunctionDefinition acrossSeriesBinary(String name, AcrossSeriesBinary<?> builder) {
+    private static FunctionDefinition acrossSeries2(String name, AcrossSeriesBinary<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.ACROSS_SERIES_AGGREGATION,
             Arity.TWO,
-            (source, params) -> {
-                Expression param = params.get(0);
-                Expression field = params.get(1);
-                return builder.build(source, field, param);
+            (source, target, timestamp, window, extraParams) -> {
+                Expression param = extraParams.getFirst();
+                return builder.build(source, target, Literal.TRUE, window, param);
             }
         );
     }
@@ -355,11 +344,18 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    public Function buildEsqlFunction(String name, Source source, List<Expression> params) {
+    public Function buildEsqlFunction(
+        String name,
+        Source source,
+        Expression target,
+        Expression timestamp,
+        Expression window,
+        List<Expression> extraParams
+    ) {
         checkFunction(source, name);
         FunctionDefinition metadata = functionMetadata(name);
         try {
-            return metadata.esqlBuilder().apply(source, params);
+            return metadata.esqlBuilder().build(source, target, timestamp, window, extraParams);
         } catch (Exception e) {
             throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, e.getMessage());
         }

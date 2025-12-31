@@ -362,31 +362,16 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))
             """);
 
-        var project = as(plan, Project.class);
-        var evalOuter = as(project.child(), Eval.class);
-        var limit = as(evalOuter.child(), Limit.class);
-        var aggregate = as(limit.child(), Aggregate.class);
-        var evalMiddle = as(aggregate.child(), Eval.class);
-        var tsAggregate = as(evalMiddle.child(), TimeSeriesAggregate.class);
+        var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+
+
 
         // Verify bucket is 5 minutes
-        Bucket bucket = tsAggregate.timeBucket();
-        assertThat(bucket.buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
 
         // Verify window is 10 minutes
-        boolean foundWindowedAggregate = false;
-        for (NamedExpression agg : tsAggregate.aggregates()) {
-            var unwrapped = Alias.unwrap(agg);
-            if (unwrapped instanceof Sum sum) {
-                assertThat(
-                    "Window should be PT10M (from [10m] range selector)",
-                    sum.window().fold(FoldContext.small()),
-                    equalTo(Duration.ofMinutes(10))
-                );
-                foundWindowedAggregate = true;
-            }
-        }
-        assertThat(foundWindowedAggregate, equalTo(true));
+        var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
+        assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }
 
     /**

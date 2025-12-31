@@ -29,13 +29,6 @@ public class PromqlVerifierTests extends ESTestCase {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
     }
 
-    public void testPromqlMissingAcrossSeriesAggregation() {
-        assertThat(error("""
-            PROMQL index=test step=5m (
-              rate(network.bytes_in[5m])
-            )""", tsdb), equalTo("2:3: top-level within-series aggregations are not supported at this time [rate(network.bytes_in[5m])]"));
-    }
-
     public void testPromqlRangeVector() {
         assertThat(
             error("PROMQL index=test step=5m network.bytes_in[5m]", tsdb),

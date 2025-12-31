@@ -1461,7 +1461,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         public static Expression resolveConfigurationAware(Expression expression, Configuration configuration) {
-            if (expression instanceof ConfigurationAware<?> ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
+            if (expression instanceof ConfigurationAware ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
                 return ca.withConfiguration(configuration);
             }
             return expression;

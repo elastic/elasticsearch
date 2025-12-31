@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.capabilities;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -26,7 +27,7 @@ import java.util.Map;
  *   See <a href="https://github.com/elastic/elasticsearch/issues/138203">https://github.com/elastic/elasticsearch/issues/138203</a>
  * </p>
  */
-public interface ConfigurationAware<T extends Expression> {
+public interface ConfigurationAware extends ConfigurationFunction {
 
     // Configuration placeholder used by the Analyzer to replace
     Configuration CONFIGURATION_MARKER = new Configuration(
@@ -49,5 +50,5 @@ public interface ConfigurationAware<T extends Expression> {
 
     Configuration configuration();
 
-    T withConfiguration(Configuration configuration);
+    Expression withConfiguration(Configuration configuration);
 }

@@ -31,7 +31,7 @@ import java.util.Objects;
  * The range vector selects all samples within the specified duration for each
  * matching time series, preparing data for range functions like rate() or avg_over_time().
  */
-public class RangeSelector extends Selector {
+public final class RangeSelector extends Selector {
     // Time_Period or Duration
     private final Expression range;
 

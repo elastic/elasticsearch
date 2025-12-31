@@ -17,7 +17,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -36,15 +35,15 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
     @ParametersFactory(argumentFormatting = "%s -> %s")
     public static Iterable<Object[]> parameters() {
         return List.of(
-            new Object[] { new MatchAllDocsQuery(), LuceneSliceQueue.PartitioningStrategy.DOC },
-            new Object[] { new ConstantScoreQuery(new MatchAllDocsQuery()), LuceneSliceQueue.PartitioningStrategy.DOC },
+            new Object[] { Queries.ALL_DOCS_INSTANCE, LuceneSliceQueue.PartitioningStrategy.DOC },
+            new Object[] { new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), LuceneSliceQueue.PartitioningStrategy.DOC },
 
             /*
              * FROM test | WHERE @timestamp > \"2025-01-01T00:00:00Z\" | ....
              * when all @timestamps are in range
              */
             new Object[] {
-                new BoostQuery(new ConstantScoreQuery(new MatchAllDocsQuery()), 0.0F),
+                new BoostQuery(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), 0.0F),
                 LuceneSliceQueue.PartitioningStrategy.DOC },
             new Object[] { Queries.NO_DOCS_INSTANCE, LuceneSliceQueue.PartitioningStrategy.SHARD },
 
@@ -54,8 +53,8 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
              */
             new Object[] {
                 new BooleanQuery.Builder() // formatter
-                    .add(new BoostQuery(new ConstantScoreQuery(new MatchAllDocsQuery()), 0.0F), BooleanClause.Occur.MUST)
-                    .add(new BoostQuery(new ConstantScoreQuery(new MatchAllDocsQuery()), 0.0F), BooleanClause.Occur.MUST)
+                    .add(new BoostQuery(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), 0.0F), BooleanClause.Occur.MUST)
+                    .add(new BoostQuery(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), 0.0F), BooleanClause.Occur.MUST)
                     .build(),
                 LuceneSliceQueue.PartitioningStrategy.DOC },
 
@@ -75,24 +74,24 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
                         0.0F
                     ),
                     BooleanClause.Occur.MUST
-                ).add(new BoostQuery(new ConstantScoreQuery(new MatchAllDocsQuery()), 0.0F), BooleanClause.Occur.MUST).build(),
+                ).add(new BoostQuery(new ConstantScoreQuery(Queries.ALL_DOCS_INSTANCE), 0.0F), BooleanClause.Occur.MUST).build(),
                 LuceneSliceQueue.PartitioningStrategy.SEGMENT },
 
             new Object[] {
                 new BooleanQuery.Builder() // formatter
-                    .add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST)
+                    .add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST)
                     .add(new TermQuery(new Term("a", "a")), BooleanClause.Occur.SHOULD)
                     .build(),
                 LuceneSliceQueue.PartitioningStrategy.SEGMENT },
             new Object[] {
                 new BooleanQuery.Builder() // formatter
                     .add(new TermQuery(new Term("a", "a")), BooleanClause.Occur.SHOULD)
-                    .add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT)
+                    .add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.MUST_NOT)
                     .build(),
                 LuceneSliceQueue.PartitioningStrategy.SHARD },
             new Object[] {
                 new BooleanQuery.Builder() // formatter
-                    .add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD)
+                    .add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.SHOULD)
                     .add(new TermQuery(new Term("a", "a")), BooleanClause.Occur.SHOULD)
                     .build(),
                 LuceneSliceQueue.PartitioningStrategy.SEGMENT },

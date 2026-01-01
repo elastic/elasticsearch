@@ -1,0 +1,7 @@
+pr: 139175
+summary: "ESQL: Prevent circular alias references in `DeduplicateAggs`"
+area: ES|QL
+type: bug
+issues:
+  - 138346
+  - 139541

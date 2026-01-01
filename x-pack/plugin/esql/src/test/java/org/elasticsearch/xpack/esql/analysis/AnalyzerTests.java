@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -5766,10 +5765,7 @@ public class AnalyzerTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         UriParts parts = as(limit.child(), UriParts.class);
 
-        CompoundOutputFunction function = parts.getFunction();
-        assertEquals(UriPartsFunction.getInstance(), function);
-
-        Map<String, DataType> expectedColumns = function.getOutputColumns();
+        Map<String, DataType> expectedColumns = UriPartsFunction.getInstance().outputFields();
         final List<Attribute> attributes = parts.generatedAttributes();
         // verify that the attributes list is unmodifiable
         assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));

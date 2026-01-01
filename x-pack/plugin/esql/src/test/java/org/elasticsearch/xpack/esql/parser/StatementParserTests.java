@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -4334,12 +4333,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         UriParts parts = as(cmd, UriParts.class);
         assertEqualsIgnoringIds(attribute("a"), parts.getInput());
 
-        // Verify the function is correct
-        CompoundOutputFunction function = parts.getFunction();
-        assertEquals(UriPartsFunction.getInstance(), function);
-
         // Dynamically get expected field names
-        List<String> expectedFieldNames = function.getOutputColumns()
+        List<String> expectedFieldNames = UriPartsFunction.getInstance()
+            .outputFields()
             .keySet()
             .stream()
             .map(name -> "p." + name)

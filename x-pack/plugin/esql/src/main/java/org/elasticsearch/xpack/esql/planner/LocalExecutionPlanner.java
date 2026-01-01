@@ -340,6 +340,7 @@ public class LocalExecutionPlanner {
 
         Layout layout = layoutBuilder.build();
 
+        final Map<String, DataType> functionOutputFields = coe.getFunctionOutputFields();
         final CompoundOutputFunction function = coe.function();
         final DataType inputType = coe.input().dataType();
         final Warnings warnings = Warnings.createWarnings(
@@ -354,7 +355,7 @@ public class LocalExecutionPlanner {
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout),
                 // The supplier creates our existing CompoundOutputEvaluator
-                () -> new CompoundOutputEvaluator(function, inputType, warnings)
+                () -> new CompoundOutputEvaluator(functionOutputFields, function, inputType, warnings)
             ),
             layout
         );

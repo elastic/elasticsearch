@@ -23,8 +23,8 @@ import java.util.Map;
 public interface CompoundOutputFunction {
 
     /**
-     * Returns an ordered map of output column names and their corresponding data types.
-     * The column names must match the keys produced in the map returned by the {@link #evaluate(String)} method.
+     * Returns an ordered map of output field names and their corresponding data types.
+     * The set of field names must be equal to the key-set produced in the map returned by the {@link #evaluate(String)} method.
      * <p><b>
      * NOTE: the returned map and the order of its entries map must be 100% consistent across multiple invocations as it defines the
      * output schema, and because it may be invoked multiple times during query planning and execution. It is recommended to compute the
@@ -32,7 +32,7 @@ public interface CompoundOutputFunction {
      *</b>
      * @return An ordered map where keys are output column names and values are their data types.
      */
-    LinkedHashMap<String, DataType> getOutputColumns();
+    LinkedHashMap<String, DataType> outputFields();
 
     /**
      * Evaluates the input and produces a compound output as a map of key-value pairs.

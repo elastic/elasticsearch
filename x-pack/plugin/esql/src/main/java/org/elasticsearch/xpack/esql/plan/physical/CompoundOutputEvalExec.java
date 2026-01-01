@@ -14,11 +14,14 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
@@ -28,19 +31,46 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  */
 public abstract class CompoundOutputEvalExec extends UnaryExec implements EstimatesRowSize {
 
+    /**
+     * The input by which the evaluation is performed.
+     */
     protected final Expression input;
-    protected final List<Attribute> outputFields;
+
+    /**
+     * An ordered map of the output fields expected by the {@link CompoundOutputFunction} that corresponds the concrete subclass.
+     * From the fields that are actually returned by {@link CompoundOutputFunction#evaluate(String)}, this list defines the ones that
+     * should be used to popolate the {@link #outputFields} list. The key-set of this map is not guaranteed to be exactly equal to the
+     * output fields returned by the function. In case of a mismatch, the missing fields will be populated with null values.
+     * The {@link #outputFields} entries ARE guaranteed to be equivalent to the keys of this map in order, type, and count. Names in the
+     * {@link #outputFields} list are also corresponding the keys of this map, but they are prefixed with a common prefix.
+     */
+    private final Map<String, DataType> functionOutputFields;
+
+    /**
+     * The output columns of this command. Fully corresponding to the keys of {@link #functionOutputFields} in order, types, and count.
+     * Names are also corresponding, though not equivalent as they would have a common prefix added to them.
+     */
+    private final List<Attribute> outputFields;
+
     protected final CompoundOutputFunction function;
 
     protected CompoundOutputEvalExec(
         Source source,
         PhysicalPlan child,
         Expression input,
+        Map<String, DataType> functionOutputFields,
         List<Attribute> outputFields,
         CompoundOutputFunction function
     ) {
         super(source, child);
+        if (functionOutputFields instanceof LinkedHashMap == false) {
+            throw new IllegalArgumentException("functionOutputFields must be an ordered map");
+        }
+        if (functionOutputFields.size() != outputFields.size()) {
+            throw new IllegalArgumentException("functionOutputFields and outputFields must have the same size");
+        }
         this.input = input;
+        this.functionOutputFields = functionOutputFields;
         this.outputFields = List.copyOf(outputFields);
         this.function = function;
     }
@@ -50,6 +80,7 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
+            in.readOrderedMap(StreamInput::readString, i -> i.readEnum(DataType.class)),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             function
         );
@@ -60,6 +91,7 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
         source().writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(input);
+        out.writeMap(functionOutputFields, StreamOutput::writeString, StreamOutput::writeEnum);
         out.writeNamedWriteableCollection(outputFields);
     }
 
@@ -70,6 +102,7 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
         Source source,
         PhysicalPlan child,
         Expression input,
+        Map<String, DataType> functionOutputFields,
         List<Attribute> outputFields
     );
 
@@ -85,6 +118,10 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
 
     public Expression input() {
         return input;
+    }
+
+    public Map<String, DataType> getFunctionOutputFields() {
+        return functionOutputFields;
     }
 
     public List<Attribute> outputFields() {
@@ -103,12 +140,12 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return createNewInstance(source(), newChild, input, outputFields);
+        return createNewInstance(source(), newChild, input, functionOutputFields, outputFields);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, this::createNewInstance, child(), input, outputFields);
+        return NodeInfo.create(this, this::createNewInstance, child(), input, functionOutputFields, outputFields);
     }
 
     protected abstract boolean configOptionsEqual(CompoundOutputEvalExec other);
@@ -126,6 +163,7 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
         }
         CompoundOutputEvalExec that = (CompoundOutputEvalExec) o;
         return Objects.equals(input, that.input)
+            && Objects.equals(functionOutputFields, that.functionOutputFields)
             && Objects.equals(outputFields, that.outputFields)
             && Objects.equals(function, that.function)
             && configOptionsEqual(that);
@@ -135,7 +173,6 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, outputFields, function, configOptionsHashCode());
+        return Objects.hash(super.hashCode(), input, functionOutputFields, outputFields, function, configOptionsHashCode());
     }
-
 }

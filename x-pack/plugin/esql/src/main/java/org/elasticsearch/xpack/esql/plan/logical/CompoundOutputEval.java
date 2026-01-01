@@ -19,13 +19,16 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
@@ -47,35 +50,55 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         GeneratingPlan<CompoundOutputEval<T>>,
         PostAnalysisVerificationAware {
 
+    /**
+     * The input by which the evaluation is performed.
+     */
     protected final Expression input;
+
+    /**
+     * An ordered map of the output fields expected by the {@link CompoundOutputFunction} corresponding the concrete subclass.
+     * Keys represent the name of the keys returned by {@link CompoundOutputFunction#evaluate(String)}. They are NOT equivalent to the
+     * name of the corresponding output attributes, which would have a common prefix added to them.
+     * See {@link #computeOutputAttributes} for the conversion from function output fields to output attributes.
+     * We must keep the original map by which the output fields are computed to propagate it so to ensure they are fully in sync, even if
+     * the eventual computation is executed on a data node different from the one where the plan is created.
+     */
+    private final Map<String, DataType> functionOutputFields;
+
+    /**
+     * The output columns of this command. Fully corresponding to the keys of {@link #functionOutputFields} in order, types, and count.
+     * Names are also corresponding, though not equivalent as they would have a common prefix added to them.
+     * See {@link #computeOutputAttributes} for the conversion from function output fields to output attributes.
+     */
     private final List<Attribute> outputFields;
 
     /**
-     * Provides the actual functionality logic that corresponds the concrete {@link CompoundOutputEval} subclass.
-     */
-    private final CompoundOutputFunction function;
-
-    /**
      * This constructor directly accepts the output fields. It should be used for deserialization, regeneration with new names,
-     * child replacement or other scenarios where the output fields are already known.
+     * child replacement, or other scenarios where the output fields are already known.
      *
-     * @param source        the source information
-     * @param child         the child logical plan
-     * @param input         the input expression
-     * @param outputFields  the output attributes
-     * @param function     the function instance
+     * @param source                the source information
+     * @param child                 the child logical plan
+     * @param input                 the input expression
+     * @param functionOutputFields  the output fields of the function corresponding to this command.
+     * @param outputFields          the output attributes
      */
     protected CompoundOutputEval(
         Source source,
         LogicalPlan child,
         Expression input,
-        List<Attribute> outputFields,
-        CompoundOutputFunction function
+        Map<String, DataType> functionOutputFields,
+        List<Attribute> outputFields
     ) {
         super(source, child);
+        if (functionOutputFields instanceof LinkedHashMap == false) {
+            throw new IllegalArgumentException("functionOutputFields must be an ordered map");
+        }
+        if (functionOutputFields.size() != outputFields.size()) {
+            throw new IllegalArgumentException("functionOutputFields and outputFields must have the same size");
+        }
         this.input = input;
+        this.functionOutputFields = functionOutputFields;
         this.outputFields = List.copyOf(outputFields);
-        this.function = function;
     }
 
     /**
@@ -83,16 +106,15 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
      * Subclasses should call this constructor from their own deserialization constructor.
      *
      * @param in the input stream to read from
-     * @param function the function instance to be used
      * @throws IOException if an I/O error occurs
      */
-    protected CompoundOutputEval(StreamInput in, final CompoundOutputFunction function) throws IOException {
+    protected CompoundOutputEval(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            function
+            in.readOrderedMap(StreamInput::readString, i -> i.readEnum(DataType.class)),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
@@ -101,23 +123,24 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         source().writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(input);
+        out.writeMap(functionOutputFields, StreamOutput::writeString, StreamOutput::writeEnum);
         out.writeNamedWriteableCollection(outputFields);
     }
 
     /**
      * Computes the output attributes based on the provided output columns and prefix.
      *
-     * @param function          the compound output function providing the output columns
-     * @param outputFieldPrefix the prefix to be used for the output field names
-     * @param source            the source information for the attributes
+     * @param outputColumns         the output columns by which the output attributes should be named and typed
+     * @param outputFieldPrefix     the prefix to be used for the output field names
+     * @param source                the source information for the attributes
      * @return a list of computed output attributes
      */
     protected static List<Attribute> computeOutputAttributes(
-        final CompoundOutputFunction function,
+        final LinkedHashMap<String, DataType> outputColumns,
         final String outputFieldPrefix,
         final Source source
     ) {
-        return function.getOutputColumns()
+        return outputColumns
             .entrySet()
             .stream()
             .map(
@@ -138,14 +161,20 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
      * Creates a new instance of the specific {@link CompoundOutputEval} subclass with the provided parameters.
      * Subclasses should call their corresponding constructor with the provided arguments and the concrete evaluator instance.
      */
-    public abstract T createNewInstance(Source source, LogicalPlan child, Expression input, List<Attribute> outputFields);
+    public abstract T createNewInstance(
+        Source source,
+        LogicalPlan child,
+        Expression input,
+        Map<String, DataType> functionOutputFields,
+        List<Attribute> outputFields
+    );
 
     public Expression getInput() {
         return input;
     }
 
-    public CompoundOutputFunction getFunction() {
-        return function;
+    public Map<String, DataType> getFunctionOutputFields() {
+        return functionOutputFields;
     }
 
     @Override
@@ -178,7 +207,7 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
             }
         }
 
-        return createNewInstance(source(), child(), input, renamedFields);
+        return createNewInstance(source(), child(), input, functionOutputFields, renamedFields);
     }
 
     @Override
@@ -188,7 +217,7 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
 
     @Override
     public T replaceChild(LogicalPlan newChild) {
-        return createNewInstance(source(), newChild, input, outputFields);
+        return createNewInstance(source(), newChild, input, functionOutputFields, outputFields);
     }
 
     @Override
@@ -198,14 +227,14 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, this::createNewInstance, child(), input, outputFields);
+        return NodeInfo.create(this, this::createNewInstance, child(), input, functionOutputFields, outputFields);
     }
 
     protected abstract int configOptionsHashCode();
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, configOptionsHashCode(), outputFields, getClass());
+        return Objects.hash(super.hashCode(), input, configOptionsHashCode(), functionOutputFields, outputFields, getClass());
     }
 
     protected abstract boolean configOptionsEqual(CompoundOutputEval<?> other);
@@ -220,6 +249,7 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         }
         CompoundOutputEval<?> other = (CompoundOutputEval<?>) obj;
         return Objects.equals(input, other.input)
+            && Objects.equals(functionOutputFields, other.functionOutputFields)
             && Objects.equals(outputFields, other.outputFields)
             && Objects.equals(this.getClass(), other.getClass())
             && configOptionsEqual(other);

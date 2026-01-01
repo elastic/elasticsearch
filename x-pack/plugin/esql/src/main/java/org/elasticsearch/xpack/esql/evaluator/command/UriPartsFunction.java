@@ -47,8 +47,8 @@ public class UriPartsFunction implements CompoundOutputFunction {
     }
 
     @Override
-    public LinkedHashMap<String, DataType> getOutputColumns() {
-        return uriPartsOutputColumns();
+    public LinkedHashMap<String, DataType> outputFields() {
+        return uriPartsOutputFields();
     }
 
     @Override
@@ -142,7 +142,7 @@ public class UriPartsFunction implements CompoundOutputFunction {
         return uriParts;
     }
 
-    private static LinkedHashMap<String, DataType> uriPartsOutputColumns() {
+    private static LinkedHashMap<String, DataType> uriPartsOutputFields() {
         LinkedHashMap<String, DataType> outputColumns = new LinkedHashMap<>();
         outputColumns.put("domain", DataType.KEYWORD);
         outputColumns.put("fragment", DataType.KEYWORD);

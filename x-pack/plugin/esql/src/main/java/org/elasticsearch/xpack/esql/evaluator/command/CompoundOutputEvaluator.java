@@ -23,25 +23,58 @@ import org.elasticsearch.xpack.esql.evaluator.CompoundOutputFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * An evaluator that extracts compound output based on a {@link CompoundOutputFunction}.
+ */
 public class CompoundOutputEvaluator implements ColumnExtractOperator.Evaluator {
+
+    /**
+     * A map of output fields to use from the evaluating {@link CompoundOutputFunction}.
+     * The actual output of the evaluating function may not fully match the required fields for the expected output as it is reflected
+     * in {@link #computeRow}. This may happen if the actual execution occurs on a data node that has a different version from the
+     * coordinating node (e.g. during cluster upgrade).
+     */
+    private final Map<String, DataType> functionOutputFields;
 
     private final CompoundOutputFunction function;
     private final DataType inputType;
     private final Warnings warnings;
 
-    public CompoundOutputEvaluator(CompoundOutputFunction function, DataType inputType, Warnings warnings) {
+    public CompoundOutputEvaluator(
+        Map<String, DataType> functionOutputFields,
+        CompoundOutputFunction function,
+        DataType inputType,
+        Warnings warnings
+    ) {
+        this.functionOutputFields = functionOutputFields;
         this.function = function;
         this.inputType = inputType;
         this.warnings = warnings;
     }
 
-    @SuppressWarnings("SpellCheckingInspection")
+    /**
+     * Executes the evaluation of the {@link CompoundOutputFunction} on the provided input.
+     * The {@code target} output array must have the same size as {@link #functionOutputFields} and its elements must match the
+     * {@link #functionOutputFields} entries in type and order. Otherwise, this method will throw an exception.
+     * If an expected output field is missing from the actual output of the function, a null value will be appended to the corresponding
+     * target block. If the actual output of the function contains an entry that is not expected, it will be ignored.
+     * @param input the input to evaluate the function on
+     * @param row row index in the input
+     * @param target the output column blocks
+     * @param spare the {@link BytesRef} to use for value retrieval
+     * @throws EsqlIllegalArgumentException if the {@code target} array does not have the correct size or its elements do not match the
+     *                                      expected output fields
+     */
     @Override
     public void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare) {
-        // if the input is null or invalid we return nulls for all output fields
+        if (target.length != functionOutputFields.size()) {
+            throw new EsqlIllegalArgumentException("Incorrect number of target blocks for function [" + function + "]");
+        }
+
+        // if the input is null or invalid, we return nulls for all output fields
+
         Map<String, Object> result = Collections.emptyMap();
         if (input.isNull(row) == false) {
             try {
@@ -54,8 +87,7 @@ public class CompoundOutputEvaluator implements ColumnExtractOperator.Evaluator 
         }
 
         int i = 0;
-        LinkedHashMap<String, DataType> outputColumns = function.getOutputColumns();
-        for (Map.Entry<String, DataType> entry : outputColumns.entrySet()) {
+        for (Map.Entry<String, DataType> entry : functionOutputFields.entrySet()) {
             String relativeKey = entry.getKey();
             DataType dataType = entry.getValue();
             Object value = result.get(relativeKey);
@@ -145,8 +177,7 @@ public class CompoundOutputEvaluator implements ColumnExtractOperator.Evaluator 
         } else if (DataType.isString(inputType)) {
             return input.utf8ToString();
         } else {
-            // todo - report a warning
-            return null;
+            throw new IllegalArgumentException("Unsupported input type [" + inputType + "]");
         }
     }
 }

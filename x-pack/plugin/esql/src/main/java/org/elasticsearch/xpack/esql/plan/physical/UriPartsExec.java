@@ -12,10 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunction;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Physical plan for the URI_PARTS command.
@@ -28,8 +30,14 @@ public class UriPartsExec extends CompoundOutputEvalExec {
         UriPartsExec::new
     );
 
-    public UriPartsExec(Source source, PhysicalPlan child, Expression input, List<Attribute> outputFields) {
-        super(source, child, input, outputFields, UriPartsFunction.getInstance());
+    public UriPartsExec(
+        Source source,
+        PhysicalPlan child,
+        Expression input,
+        Map<String, DataType> functionOutputFields,
+        List<Attribute> outputFields
+    ) {
+        super(source, child, input, functionOutputFields, outputFields, UriPartsFunction.getInstance());
     }
 
     public UriPartsExec(StreamInput in) throws IOException {
@@ -42,8 +50,14 @@ public class UriPartsExec extends CompoundOutputEvalExec {
     }
 
     @Override
-    public CompoundOutputEvalExec createNewInstance(Source source, PhysicalPlan child, Expression input, List<Attribute> outputFields) {
-        return new UriPartsExec(source, child, input, outputFields);
+    public CompoundOutputEvalExec createNewInstance(
+        Source source,
+        PhysicalPlan child,
+        Expression input,
+        Map<String, DataType> functionOutputFields,
+        List<Attribute> outputFields
+    ) {
+        return new UriPartsExec(source, child, input, functionOutputFields, outputFields);
     }
 
     @Override

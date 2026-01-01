@@ -45,7 +45,6 @@ public class BlockLoaderTestRunner {
     private final BlockLoaderTestCase.Params params;
     private final boolean allowDummyDocs;
 
-
     public BlockLoaderTestRunner(BlockLoaderTestCase.Params params, boolean allowDummyDocs) {
         this.params = params;
         this.allowDummyDocs = allowDummyDocs;

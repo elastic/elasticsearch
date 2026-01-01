@@ -140,8 +140,7 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         final String outputFieldPrefix,
         final Source source
     ) {
-        return outputColumns
-            .entrySet()
+        return outputColumns.entrySet()
             .stream()
             .map(
                 entry -> (Attribute) new ReferenceAttribute(

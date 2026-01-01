@@ -224,11 +224,11 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 );
             }
             if (defaultMetric.getValue() == Metric.avg
-                && (metrics.getValue().contains(Metric.sum) == false && metrics.getValue().contains(Metric.value_count) == false)) {
+                && (metrics.getValue().contains(Metric.sum) == false || metrics.getValue().contains(Metric.value_count) == false)) {
                 throw new IllegalArgumentException(
                     "Default metric ["
                         + defaultMetric.getValue()
-                        + "] requires metrics sum and count to be defined in metrics of field ["
+                        + "] requires metrics sum and value count to be defined in metrics of field ["
                         + leafName()
                         + "]."
                 );
@@ -416,67 +416,18 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     return new LeafAggregateMetricDoubleFieldData() {
                         @Override
                         public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) {
-                            if (metric == Metric.avg) {
-                                try {
-                                    final SortedNumericDocValues sumValues = DocValues.getSortedNumeric(
-                                        context.reader(),
-                                        subfieldName(getFieldName(), Metric.sum)
-                                    );
-                                    final SortedNumericDocValues countValues = DocValues.getSortedNumeric(
-                                        context.reader(),
-                                        subfieldName(getFieldName(), Metric.value_count)
-                                    );
-                                    return new SortedNumericDoubleValues() {
-                                        @Override
-                                        public int docValueCount() {
-                                            return Math.min(sumValues.docValueCount(), countValues.docValueCount());
-                                        }
-
-                                        @Override
-                                        public boolean advanceExact(int doc) throws IOException {
-                                            boolean advance = sumValues.advanceExact(doc);
-                                            return countValues.advanceExact(doc) && advance;
-                                        }
-
-                                        @Override
-                                        public double nextValue() throws IOException {
-                                            return NumericUtils.sortableLongToDouble(sumValues.nextValue()) / countValues.nextValue();
-                                        }
-                                    };
-
-                                } catch (IOException e) {
-                                    throw new IllegalStateException("Cannot load doc values", e);
-                                }
-                            }
                             try {
-                                final SortedNumericDocValues values = DocValues.getSortedNumeric(
-                                    context.reader(),
-                                    subfieldName(getFieldName(), metric)
-                                );
-
-                                return new SortedNumericDoubleValues() {
-                                    @Override
-                                    public int docValueCount() {
-                                        return values.docValueCount();
-                                    }
-
-                                    @Override
-                                    public boolean advanceExact(int doc) throws IOException {
-                                        return values.advanceExact(doc);
-                                    }
-
-                                    @Override
-                                    public double nextValue() throws IOException {
-                                        long v = values.nextValue();
-                                        if (metric == Metric.value_count) {
-                                            // Only value_count metrics are encoded as integers
-                                            return v;
-                                        } else {
-                                            // All other metrics are encoded as doubles
-                                            return NumericUtils.sortableLongToDouble(v);
-                                        }
-                                    }
-                                };
+                                if (metric == Metric.avg) {
+                                    return new AggregateMetricAvgValues(
+                                        DocValues.getSortedNumeric(context.reader(), subfieldName(getFieldName(), Metric.sum)),
+                                        DocValues.getSortedNumeric(context.reader(), subfieldName(getFieldName(), Metric.value_count))
+                                    );
+                                } else {
+                                    return new AggregateMetricValues(
+                                        DocValues.getSortedNumeric(context.reader(), subfieldName(getFieldName(), metric)),
+                                        metric
+                                    );
+                                }
                             } catch (IOException e) {
                                 throw new IllegalStateException("Cannot load doc values", e);
                             }
@@ -535,6 +486,64 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Can't sort on the [" + CONTENT_TYPE + "] field");
                 }
             };
+        }
+
+        private static class AggregateMetricValues extends SortedNumericDoubleValues {
+            final SortedNumericDocValues values;
+            final Metric metric;
+
+            private AggregateMetricValues(SortedNumericDocValues values, Metric metric) {
+                this.values = values;
+                this.metric = metric;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public double nextValue() throws IOException {
+                long v = values.nextValue();
+                if (metric == Metric.value_count) {
+                    // Only value_count metrics are encoded as integers
+                    return v;
+                } else {
+                    // All other metrics are encoded as doubles
+                    return NumericUtils.sortableLongToDouble(v);
+                }
+            }
+        }
+
+        private static class AggregateMetricAvgValues extends SortedNumericDoubleValues {
+            final SortedNumericDocValues sumValues;
+            final SortedNumericDocValues countValues;
+
+            private AggregateMetricAvgValues(SortedNumericDocValues sumValues, SortedNumericDocValues countValues) {
+                this.sumValues = sumValues;
+                this.countValues = countValues;
+            }
+
+            @Override
+            public int docValueCount() {
+                return sumValues.docValueCount();
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                boolean advance = sumValues.advanceExact(doc);
+                return countValues.advanceExact(doc) && advance;
+            }
+
+            @Override
+            public double nextValue() throws IOException {
+                return NumericUtils.sortableLongToDouble(sumValues.nextValue()) / countValues.nextValue();
+            }
         }
 
         @Override

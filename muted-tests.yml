@@ -384,6 +384,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
   method: testResolvesDateMath
   issue: https://github.com/elastic/elasticsearch/issues/140105
+- class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
+  method: testLocalDateMathExpression
+  issue: https://github.com/elastic/elasticsearch/issues/140106
 
 # Examples:
 #

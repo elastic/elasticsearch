@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -44,6 +46,7 @@ public class ConfigurationBuilder {
     private long queryStartTimeNanos;
 
     private String projectRouting;
+    private List<QuerySetting> querySettings = List.of();
 
     public ConfigurationBuilder(Configuration configuration) {
         clusterName = configuration.clusterName();
@@ -61,6 +64,7 @@ public class ConfigurationBuilder {
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
         projectRouting = configuration.projectRouting();
+        querySettings = configuration.querySettings();
     }
 
     public ConfigurationBuilder clusterName(String clusterName) {
@@ -138,6 +142,11 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder querySettings(List<QuerySetting> settings) {
+        this.querySettings = List.copyOf(settings);
+        return this;
+    }
+
     public Configuration build() {
         return new Configuration(
             zoneId,
@@ -154,7 +163,8 @@ public class ConfigurationBuilder {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting
+            projectRouting,
+            querySettings
         );
     }
 }

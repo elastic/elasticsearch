@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -71,6 +72,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     implements
         EvaluatorMapper,
         TranslationAware.SingleValueTranslationAware {
+
+    private static final TransportVersion ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE = TransportVersion.fromName(
+        "esql_binary_comparison_remove_timezone"
+    );
 
     private static final Logger logger = LogManager.getLogger(EsqlBinaryComparison.class);
 
@@ -179,8 +184,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         EsqlBinaryComparison.BinaryComparisonOperation operation = EsqlBinaryComparison.BinaryComparisonOperation.readFromStream(in);
         var left = in.readNamedWriteable(Expression.class);
         var right = in.readNamedWriteable(Expression.class);
-        // TODO: Remove zoneId entirely
-        var zoneId = in.readOptionalZoneId();
+        if (ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE.supports(in.getTransportVersion()) == false) {
+            var zoneId = in.readOptionalZoneId();
+        }
         return operation.buildNewInstance(source, left, right);
     }
 
@@ -190,8 +196,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         functionType.writeTo(out);
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
-        // TODO: Remove zoneId entirely
-        out.writeOptionalZoneId(null);
+        if (ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE.supports(out.getTransportVersion()) == false) {
+            out.writeOptionalZoneId(null);
+        }
     }
 
     public BinaryComparisonOperation getFunctionType() {

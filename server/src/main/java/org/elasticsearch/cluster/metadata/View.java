@@ -55,20 +55,15 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
 
     private final String name;
     private final String query;
-    private final Index viewIndex;
 
     public View(String name, String query) {
         this.name = Objects.requireNonNull(name, "view name must not be null");
         this.query = Objects.requireNonNull(query, "view query must not be null");
-        // The view generates an index only because the IndexAbstraction interface requires one.
-        // It won't be resolved, though, because we disallow using views outside of ESQL.
-        this.viewIndex = new Index(name, "_na-" + name + "_");
     }
 
     public View(StreamInput in) throws IOException {
         this.name = in.readString();
         this.query = in.readString();
-        this.viewIndex = new Index(name, "_na-" + name + "_");
     }
 
     public static View fromXContent(XContentParser parser) throws IOException {
@@ -127,12 +122,12 @@ public final class View implements Writeable, ToXContentObject, IndexAbstraction
 
     @Override
     public List<Index> getIndices() {
-        return List.of(viewIndex);
+        return List.of();
     }
 
     @Override
     public Index getWriteIndex() {
-        return viewIndex;
+        return null;
     }
 
     @Override

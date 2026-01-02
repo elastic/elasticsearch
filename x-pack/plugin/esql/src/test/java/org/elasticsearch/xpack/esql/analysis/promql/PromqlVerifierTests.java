@@ -124,7 +124,6 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());

@@ -427,7 +427,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *               \_EsRelation[k8s][@timestamp{f}#7, client.ip{f}#11, cluster{f}#8, eve..]
      */
 
-
     @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelector() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=

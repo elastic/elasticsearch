@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -347,6 +348,30 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
+     * Expect the logical plan structure:
+     * Project
+     * \_Eval
+     *   \_Limit
+     *     \_Aggregate
+     *       \_Eval
+     *         \_TimeSeriesAggregate[[...],[SUM(...,PT10M,...), COUNT(...,PT10M,...), ...], BUCKET(@timestamp,PT5M)]
+     */
+    public void testRangeSelectorWithDifferentStep() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))
+            """);
+
+        var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+
+        // Verify bucket is 5 minutes
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+
+        // Verify window is 10 minutes
+        var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
+        assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
+    /**
      * Expect the following logical plan
      *
      * Project[[avg(avg_over_time(network.bytes_in[5m])){r}#423, TBUCKET{r}#424]]
@@ -609,6 +634,16 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             error("PROMQL index=k8s step=5m max(foo > bar)", tsAnalyzer),
             containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
         );
+    }
+
+    public void testGroupByAllInstantSelector() {
+        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("network.bytes_in", "step", "_timeseries")));
+    }
+
+    public void testGroupByAllInstantSelectorRate() {
+        var plan = planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
     }
 
     protected LogicalPlan planPromql(String query) {

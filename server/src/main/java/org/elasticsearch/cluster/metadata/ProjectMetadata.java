@@ -1664,7 +1664,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             }
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
-                // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
+                // no changes to the names of indices, datastreams, aliases, and ESQL views so we can reuse the previous lookup
                 assert assertIndicesLookupDoesNotNeedToBeRebuilt(previousIndicesLookup, indicesMap);
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {

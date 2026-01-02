@@ -66,7 +66,6 @@ import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
@@ -363,8 +362,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """);
 
         var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
-
-
 
         // Verify bucket is 5 minutes
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));

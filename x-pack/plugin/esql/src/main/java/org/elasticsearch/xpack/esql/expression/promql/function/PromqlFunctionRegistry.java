@@ -79,8 +79,7 @@ public class PromqlFunctionRegistry {
         acrossSeriesUnary("sum", Sum::new),
         acrossSeriesUnary("stddev", StdDev::new),
         acrossSeriesUnary("stdvar", Variance::new),
-        acrossSeriesBinary("quantile", Percentile::new)
-    };
+        acrossSeriesBinary("quantile", Percentile::new) };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 

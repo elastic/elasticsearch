@@ -3,9 +3,7 @@
 **Example**
 
 ```esql
-TS datenanos-k8s
-| WHERE pod == "three"
-| STATS max_deriv = MAX(DERIV(network.cost)) BY time_bucket = BUCKET(@timestamp,5minute), pod
+PROMQL index=k8s step=5m max by (pod) (deriv(network.cost[5m]))
 ```
 
 | max_deriv:double | time_bucket:date_nanos | pod:keyword |

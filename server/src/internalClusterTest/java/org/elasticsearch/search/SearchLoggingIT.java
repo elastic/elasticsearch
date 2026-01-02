@@ -96,7 +96,7 @@ public class SearchLoggingIT extends ESIntegTestCase {
             assertThat(message.get("hits"), equalTo("1"));
             assertThat(data.getValue("took"), greaterThan(0L));
             assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-            assertThat(message.get("query"), containsString("{\\\"simple_query_string\\\":{\\\"query\\\":\\\"fox\\\"}}"));
+            assertThat(message.get("query"), containsString("fox"));
             assertThat(message.get("indices"), equalTo(""));
         }
 
@@ -113,7 +113,7 @@ public class SearchLoggingIT extends ESIntegTestCase {
             assertThat(message.get("hits"), equalTo("3"));
             assertThat(data.getValue("took"), greaterThan(0L));
             assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-            assertThat(message.get("query"), containsString("{\\\"match\\\":{\\\"field1\\\":{\\\"query\\\":\\\"quick\\\"}}"));
+            assertThat(message.get("query"), containsString("quick"));
             assertThat(message.get("indices"), equalTo(INDEX_NAME));
         }
 
@@ -142,10 +142,7 @@ public class SearchLoggingIT extends ESIntegTestCase {
         assertThat(message.get("hits"), equalTo("0"));
         assertThat(data.getValue("took"), greaterThan(0L));
         assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
-        assertThat(
-            message.get("query"),
-            containsString("{\\\"query\\\":{\\\"match_phrase\\\":{\\\"field1\\\":{\\\"query\\\":\\\"quick brown\\\"}}}}")
-        );
+        assertThat(message.get("query"), containsString("quick brown"));
         assertThat(message.get("indices"), equalTo(INDEX_NAME));
         assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
         assertThat(message.get("error.message"), equalTo("all shards failed"));

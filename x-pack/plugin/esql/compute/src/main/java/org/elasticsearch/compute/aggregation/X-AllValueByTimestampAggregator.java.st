@@ -65,6 +65,9 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         return new $Prefix$Long$Type$State();
     }
 
+    $if(long || int)$
+    private static void overrideState($Prefix$Long$Type$State current, boolean timestampPresent, long timestamp, $Type$Block values, int position) {
+    $else$
     private static void overrideState(
         $Prefix$Long$Type$State current,
         boolean timestampPresent,
@@ -72,6 +75,7 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         $Type$Block values,
         int position
     ) {
+    $endif$
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);

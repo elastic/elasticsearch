@@ -6,7 +6,7 @@
     "@timestamp": {
       "type": "date"
     },
-    "distance": {
+    "distance_to_earth": {
       "type": "long"
     },
     "active_instruments": {

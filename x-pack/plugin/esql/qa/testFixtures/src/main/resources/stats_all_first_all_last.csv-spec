@@ -79,7 +79,7 @@ required_capability: all_last_with_ip_boolean_support
 FROM voyager
 | STATS 
     # ALL_FIRST
-    f_distance = ALL_FIRST(distance, @timestamp),
+    f_distance = ALL_FIRST(distance_to_earth, @timestamp),
     f_active_instruments = ALL_FIRST(active_instruments, @timestamp),
     f_collision_risk = ALL_FIRST(collision_risk, @timestamp),
     f_ack_station_ip = ALL_FIRST(ack_station_ip, @timestamp),
@@ -88,7 +88,7 @@ FROM voyager
     f_notes = ALL_FIRST(notes, @timestamp),
     
     # ALL_LAST
-    l_distance = ALL_LAST(distance, @timestamp),
+    l_distance = ALL_LAST(distance_to_earth, @timestamp),
     l_active_instruments = ALL_LAST(active_instruments, @timestamp),
     l_collision_risk = ALL_LAST(collision_risk, @timestamp),
     l_ack_station_ip = ALL_LAST(ack_station_ip, @timestamp),
@@ -113,7 +113,7 @@ FROM voyager
 | WHERE row_no IN (6, -1)
 | STATS 
     # ALL_FIRST
-    f_distance = ALL_FIRST(distance, @timestamp),
+    f_distance = ALL_FIRST(distance_to_earth, @timestamp),
     f_active_instruments = ALL_FIRST(active_instruments, @timestamp),
     f_collision_risk = ALL_FIRST(collision_risk, @timestamp),
     f_ack_station_ip = ALL_FIRST(ack_station_ip, @timestamp),
@@ -121,7 +121,7 @@ FROM voyager
     f_notes = ALL_FIRST(notes, @timestamp),
     
     # ALL_LAST
-    l_distance = ALL_LAST(distance, @timestamp),
+    l_distance = ALL_LAST(distance_to_earth, @timestamp),
     l_active_instruments = ALL_LAST(active_instruments, @timestamp),
     l_collision_risk = ALL_LAST(collision_risk, @timestamp),
     l_ack_station_ip = ALL_LAST(ack_station_ip, @timestamp),
@@ -141,7 +141,7 @@ required_capability: all_first_with_ip_boolean_support
 
 FROM voyager
 # limit the input to the row with null values, and a non-existing row
-| STATS distance = ALL_FIRST(distance, @timestamp) BY status
+| STATS distance = ALL_FIRST(distance_to_earth, @timestamp) BY status
 | SORT status ASC
 ;
 

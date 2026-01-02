@@ -463,9 +463,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
         List<Object> props = nodeProperties();
         for (Object prop : props) {
-            if (prop instanceof NameId) {
-                continue;
-            }
             // consider a property if it is not ignored AND
             // it's not a child (optional)
             if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
@@ -521,6 +518,8 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             sb.append("]");
         } else if (obj instanceof Node<?>) {
             sb.append(((Node<?>) obj).nodeString(format));
+        } else if (obj instanceof NameId) {
+            sb.append("#").append(obj);
         } else {
             sb.append(obj);
         }

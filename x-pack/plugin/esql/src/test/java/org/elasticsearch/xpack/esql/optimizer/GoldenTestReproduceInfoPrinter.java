@@ -33,6 +33,7 @@ public class GoldenTestReproduceInfoPrinter extends RunListener {
         }
     }
 
+    @SuppressForbidden(reason = "Using System.err to redirect output")
     private String captureDelegate(Failure failure) throws Exception {
         PrintStream originalErr = System.err;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -36,16 +37,16 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
-import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -58,6 +59,19 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 @Listeners({ GoldenTestReproduceInfoPrinter.class })
 public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
+    private final Path baseFile;
+
+    public GoldenTestCase() {
+        try {
+            String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
+            var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
+            String dirFromClassName = StringUtils.camelCaseToUnderscore(getClass().getSimpleName()).toLowerCase(Locale.ROOT);
+            baseFile = PathUtils.get(inSrc + "/golden_tests/" + dirFromClassName + "/");
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
 
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, SearchStats searchStats, String... nestedPath) {
         String testName = extractTestName();
@@ -118,7 +132,7 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private record Test(
-        File baseFile,
+        Path basePath,
         String testName,
         String[] nestedPath,
         String esqlQuery,
@@ -195,26 +209,26 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Stage stage) throws IOException {
-            var outputFile = outputFile(stage);
+            var outputPath = outputPath(stage);
             if (System.getProperty("golden.bulldoze") != null) {
-                logger.info("Bulldozing file {}", outputFile);
-                return createNewOutput(outputFile, plan);
+                logger.info("Bulldozing file {}", outputPath);
+                return createNewOutput(outputPath, plan);
             } else {
-                if (outputFile.toFile().exists()) {
-                    return verifyExisting(outputFile, plan);
+                if (Files.exists(outputPath)) {
+                    return verifyExisting(outputPath, plan);
                 } else {
-                    logger.debug("No output exists for file {}, writing new output", outputFile);
-                    return createNewOutput(outputFile, plan);
+                    logger.debug("No output exists for file {}, writing new output", outputPath);
+                    return createNewOutput(outputPath, plan);
                 }
             }
         }
 
-        private Path outputFile(Stage stage) {
+        private Path outputPath(Stage stage) {
             var paths = new String[nestedPath.length + 2];
             paths[0] = testName;
             System.arraycopy(nestedPath, 0, paths, 1, nestedPath.length);
-            paths[paths.length - 1] = Strings.format("%s.expected", stage.name().toLowerCase());
-            return Path.of(baseFile.getAbsolutePath(), paths);
+            paths[paths.length - 1] = Strings.format("%s.expected", stage.name().toLowerCase(Locale.ROOT));
+            return PathUtils.get(basePath.toString(), paths);
         }
     }
 
@@ -235,12 +249,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         String testString = normalize(toString(plan));
         if (normalize(testString).equals(normalize(read))) {
             if (System.getProperty("golden.cleanactual") != null) {
-                File file = getActualFile(output).toFile();
-                if (file.exists()) {
-                    logger.debug("Cleaning up actual file '%s' because golden.cleanactual property is set".formatted(file));
-                    if (file.delete() == false) {
-                        logger.warn("Could not delete actual file '%s'".formatted(file));
-                    }
+                Path path = actualPath(output);
+                if (Files.exists(path)) {
+                    logger.debug(Strings.format("Cleaning up actual file '%s' because golden.cleanactual property is set", path));
+                    Files.delete(path);
                 }
             }
             return Test.TestResult.SUCCESS;
@@ -250,14 +262,14 @@ public abstract class GoldenTestCase extends ESTestCase {
             logger.debug("Skipping actual file creation because golden.noactual property is set");
         } else {
             List<String> actualLines = testString.lines().map(GoldenTestCase::normalize).toList();
-            Path actualFile = getActualFile(output);
-            logger.info("Creating actual file at " + actualFile.toAbsolutePath());
-            Files.write(actualFile, actualLines);
+            Path actualPath = actualPath(output);
+            logger.info("Creating actual file at " + actualPath.toAbsolutePath());
+            Files.write(actualPath, actualLines);
         }
         return Test.TestResult.FAILURE;
     }
 
-    private static Path getActualFile(Path output) {
+    private static Path actualPath(Path output) {
         return output.resolveSibling(output.getFileName().toString().replaceAll("expected", "actual"));
     }
 
@@ -265,15 +277,6 @@ public abstract class GoldenTestCase extends ESTestCase {
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
-
-    private final File baseFile = new File(
-        URI.create(
-            new File(getClass().getResource(".").getFile()).toURI().toString().replaceAll("build/classes/java/test", "src/test/resources")
-                + "/golden_tests/"
-                + StringUtils.camelCaseToUnderscore(getClass().getSimpleName()).toLowerCase()
-                + "/"
-        )
-    );
 
     protected enum Stage {
         ANALYZER,
@@ -298,7 +301,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (GoldenTestCase.class.isAssignableFrom(clazz)) {
                         var method = clazz.getMethod(trace.getMethodName());
                         if (method.getReturnType() == void.class && Modifier.isPublic(method.getModifiers())) {
-                            return StringUtils.camelCaseToUnderscore(trace.getMethodName().substring(4)).toLowerCase();
+                            return StringUtils.camelCaseToUnderscore(trace.getMethodName().substring(4)).toLowerCase(Locale.ROOT);
                         }
                     }
                 } catch (ReflectiveOperationException e) {

@@ -65,7 +65,7 @@ public void testFluent() throws Exception {
 When a golden test fails, the test runner will create a new `.actual` file, in the same directory as
 the `.expected` file. `.actual` files are git ignored by default, you can manually delete them after
 inspection, or if you wish to avoid the `.actual` file creation, you can use `-Dgolden.noactual`.
-If you want to automatically delete them on test success, you can use `-Dgolden.cleanactuals`.
+If you want to automatically delete them on test success, you can use `-Dgolden.cleanactual`.
 
 ## How do I bulldoze an existing output?
 

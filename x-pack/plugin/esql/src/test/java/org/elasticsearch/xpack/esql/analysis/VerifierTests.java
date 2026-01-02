@@ -1902,7 +1902,8 @@ public class VerifierTests extends ESTestCase {
             query("from test | eval x = " + functionName + "(first_name, \"b\")");
 
             // Text
-            // Note: In ESQL text fields are not optimized for sorting/aggregation but Greatest/Least should work if they implement BytesRefEvaluator
+            // Note: In ESQL text fields are not optimized for sorting/aggregation but Greatest/Least should work if they implement
+            // BytesRefEvaluator
             query("from test | eval x = " + functionName + "(title, \"b\")", fullTextAnalyzer);
 
             // IP

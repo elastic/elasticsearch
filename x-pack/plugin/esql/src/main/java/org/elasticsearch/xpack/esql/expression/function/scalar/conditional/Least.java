@@ -177,8 +177,6 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
             .map(e -> toEvaluator.apply(new MvMin(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
 
-
-
         var evaluatorFactory = EVALUATOR_MAP.get(dataType);
         if (evaluatorFactory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(dataType);

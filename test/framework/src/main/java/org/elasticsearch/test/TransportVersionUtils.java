@@ -152,9 +152,10 @@ public class TransportVersionUtils {
 
     /**
      * Returns {@code true} if the given version is a patch version. Transport versions are generally monotoic, that is, when comparing
-     * transport versions via {@link #compareTo(VersionId)} a later version is also temporally "newer". This, however, is not the case
-     * for patch versions, as they can be introduced at any time. There may be cases where this distinction is important, in which case
-     * this method can be used to determine if a version is a patch, and therefore, may actually be temporally newer than "later" versions.
+     * transport versions via {@link TransportVersion#compareTo(TransportVersion)} a later version is also temporally "newer". This,
+     * however, is not always true for patch versions, as they can be introduced at any time. There may be instances where this distinction
+     * is important, in which case this method can be used to determine if a version is a patch, and therefore, may actually be temporally
+     * newer than "later" versions.
      *
      * @return whether this version is a patch version.
      */

@@ -24,7 +24,6 @@ import java.util.Collections;
  */
 public abstract class ActionLoggerContext {
     private final long tookInNanos;
-    private final boolean success;
     private final String type;
     private final @Nullable Exception error;
     private final Task task;
@@ -38,7 +37,6 @@ public abstract class ActionLoggerContext {
 
     public ActionLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
         this.type = type;
-        this.success = false;
         this.error = error;
         this.tookInNanos = tookInNanos;
         this.task = task;
@@ -53,7 +51,7 @@ public abstract class ActionLoggerContext {
     }
 
     public boolean isSuccess() {
-        return success;
+        return error == null;
     }
 
     public String getType() {

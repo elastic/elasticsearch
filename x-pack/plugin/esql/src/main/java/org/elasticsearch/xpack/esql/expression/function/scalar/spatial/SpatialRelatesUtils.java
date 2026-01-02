@@ -198,7 +198,9 @@ public class SpatialRelatesUtils {
     }
 
     private static Geometry makeGeometryFromLiteralValue(Object value, DataType dataType) {
-        if (value instanceof BytesRef bytesRef) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof BytesRef bytesRef) {
             // Single value expression
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         } else if (value instanceof List<?> bytesRefList) {

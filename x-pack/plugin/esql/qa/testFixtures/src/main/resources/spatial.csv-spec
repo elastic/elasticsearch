@@ -1872,6 +1872,27 @@ count:l
 0
 ;
 
+pointLiteralMvSlice
+ROW point = MV_SLICE(["POINT(0 0)"], 0, 0)::geo_point
+| EVAL distance = st_distance(point, point)
+;
+
+point:geo_point | distance:double
+POINT(0 0)      | 0.0
+;
+
+pointLiteralMvSliceInvalid
+ROW point = MV_SLICE(["POINT(0)"], 0, 0)::geo_point
+| EVAL distance = st_distance(point, point)
+;
+
+warning:Line 1:13: evaluation of [MV_SLICE([\"POINT(0)\"], 0, 0)::geo_point] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+point:geo_point | distance:double
+null            | null
+;
+
 ###############################################
 # Tests for Equality and casting with GEO_POINT
 

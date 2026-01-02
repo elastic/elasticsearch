@@ -17,6 +17,7 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,7 +37,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -248,7 +252,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     public void testReadBlobWithReadTimeouts() {
         final int maxRetries = randomInt(5);
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
-        final ByteSizeValue bufferSize = ByteSizeValue.ofMb(between(10, 100));
+        final ByteSizeValue bufferSize = ByteSizeValue.ofMb(between(10, 20));
         final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries)
             .bufferSize(bufferSize)
             .readTimeout(readTimeout)
@@ -264,25 +268,29 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
         assertThat(exception.getCause(), instanceOf(SocketTimeoutException.class));
 
-        // RetryingInputStream allows more retries when stream able to read meaningful amount of bytes, typically 1% of bufferSize
-        // here we limit total number of bytes in incompleteContent to be less than meaningful amount
-        final int meaningfulProgressSize = (int) (bufferSize.getBytes() / 100L);
-        final byte[] bytesPerRetry = randomByteArrayOfLength(meaningfulProgressSize / maxRetries);
+        // A list to track response sizes, some streams (i.e. RetryingInputStream) allow more retries when meaningful amount of bytes
+        // is transferred in a single try. See below.
+        final List<Long> contentPartSizes = Collections.synchronizedList(new ArrayList<>());
 
         // HTTP server sends a partial response
+        final byte[] bytes = randomByteArrayOfLength((int) bufferSize.getBytes());
         httpServer.createContext(
             downloadStorageEndpoint(blobContainer, "read_blob_incomplete"),
-            exchange -> sendIncompleteContent(exchange, bytesPerRetry)
+            exchange -> contentPartSizes.add((long) sendIncompleteContent(exchange, bytes))
         );
 
-        final int position = randomIntBetween(0, bytesPerRetry.length - 1);
-        final int length = randomIntBetween(1, randomBoolean() ? bytesPerRetry.length : Integer.MAX_VALUE);
+        final int position = randomIntBetween(0, bytes.length - 1);
+        final int length = randomIntBetween(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
+        final AtomicLong meaningfulProgressSize = new AtomicLong(Long.MAX_VALUE);
         exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
                     ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
                     : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", position, length)
             ) {
+                if (stream instanceof RetryingInputStream<?> ris) {
+                    meaningfulProgressSize.set(ris.meaningfulProgressSize());
+                }
                 Streams.readFully(stream);
             }
         });
@@ -296,7 +304,10 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 containsString("unexpected end of file from server")
             )
         );
-        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
+        int meaningfulProgressRetries = Math.toIntExact(
+            contentPartSizes.stream().filter(partSize -> partSize >= meaningfulProgressSize.get()).count()
+        );
+        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries + meaningfulProgressRetries));
     }
 
     protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {

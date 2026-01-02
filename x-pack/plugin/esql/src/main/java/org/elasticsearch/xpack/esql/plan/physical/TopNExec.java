@@ -50,7 +50,18 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
     private final Integer estimatedRowSize;
     private final boolean sortedInput;
 
-    public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Integer estimatedRowSize, boolean sortedInput) {
+    public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Integer estimatedRowSize) {
+        this(source, child, order, limit, estimatedRowSize, Set.of(), false);
+    }
+
+    private TopNExec(
+        Source source,
+        PhysicalPlan child,
+        List<Order> order,
+        Expression limit,
+        Integer estimatedRowSize,
+        boolean sortedInput
+    ) {
         this(source, child, order, limit, estimatedRowSize, Set.of(), sortedInput);
     }
 
@@ -111,6 +122,10 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     public TopNExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
         return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, sortedInput);
+    }
+
+    public TopNExec withSortedInput(boolean hasSortedInput) {
+        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, hasSortedInput);
     }
 
     public Expression limit() {

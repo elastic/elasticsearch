@@ -557,7 +557,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         var nodeReduceString = nodeLevelReduction
             ? """
                 \\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[DocVectorEncoder, DefaultSortable], \
-                sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]], sortedInput=false]
+                sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]], sortedInput=true]
                 \\_ProjectOperator[projection = [1]]
                 """
             : "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "

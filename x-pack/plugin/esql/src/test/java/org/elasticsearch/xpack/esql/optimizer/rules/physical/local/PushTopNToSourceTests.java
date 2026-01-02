@@ -613,7 +613,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             if (aliases.isEmpty() == false) {
                 child = new EvalExec(Source.EMPTY, child, aliases);
             }
-            return new TopNExec(Source.EMPTY, child, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize(), false);
+            return new TopNExec(Source.EMPTY, child, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize());
         }
 
         public TestPhysicalPlanBuilder asTimeSeries() {

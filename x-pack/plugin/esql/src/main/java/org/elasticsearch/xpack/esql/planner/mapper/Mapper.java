@@ -136,7 +136,7 @@ public class Mapper {
 
         if (unary instanceof TopN topN) {
             mappedChild = addExchangeForFragment(topN, mappedChild);
-            return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null, mappedChild instanceof ExchangeExec);
+            return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null).withSortedInput(true);
         }
 
         //

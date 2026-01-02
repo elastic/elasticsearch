@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -43,7 +44,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -361,7 +361,12 @@ public class ExpressionTests extends ESTestCase {
                 new ArrayList<>(
                     List.of(
                         new UnresolvedAttribute(EMPTY, "a"),
-                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "b"), new UnresolvedAttribute(EMPTY, "c"), TEST_CFG)
+                        new Add(
+                            EMPTY,
+                            new UnresolvedAttribute(EMPTY, "b"),
+                            new UnresolvedAttribute(EMPTY, "c"),
+                            ConfigurationAware.CONFIGURATION_MARKER
+                        )
                     )
                 )
             ),

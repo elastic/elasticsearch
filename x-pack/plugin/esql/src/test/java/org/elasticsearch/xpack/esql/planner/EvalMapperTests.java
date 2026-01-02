@@ -62,8 +62,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-
 public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DOUBLE1 = field("foo", DataType.DOUBLE);
     private static final FieldAttribute DOUBLE2 = field("bar", DataType.DOUBLE);
@@ -96,8 +94,8 @@ public class EvalMapperTests extends ESTestCase {
 
         List<Object[]> params = new ArrayList<>();
         for (Expression e : new Expression[] {
-            new Add(Source.EMPTY, DOUBLE1, DOUBLE2, TEST_CFG),
-            new Sub(Source.EMPTY, DOUBLE1, DOUBLE2, TEST_CFG),
+            new Add(Source.EMPTY, DOUBLE1, DOUBLE2, TEST_CONFIG),
+            new Sub(Source.EMPTY, DOUBLE1, DOUBLE2, TEST_CONFIG),
             new Mul(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Div(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Mod(Source.EMPTY, DOUBLE1, DOUBLE2),

@@ -16,26 +16,24 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-
 public class EvalExecSerializationTests extends AbstractPhysicalPlanSerializationTests<EvalExec> {
-    public static EvalExec randomEvalExec(int depth) {
+    public EvalExec randomEvalExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
         List<Alias> fields = randomFields();
         return new EvalExec(source, child, fields);
     }
 
-    public static List<Alias> randomFields() {
-        return randomList(1, 10, EvalExecSerializationTests::randomField);
+    public List<Alias> randomFields() {
+        return randomList(1, 10, this::randomField);
     }
 
-    public static Alias randomField() {
+    public Alias randomField() {
         Expression child = new Add(
             randomSource(),
             FieldAttributeTests.createFieldAttribute(0, true),
             FieldAttributeTests.createFieldAttribute(0, true),
-            TEST_CFG
+            configuration()
         );
         return new Alias(randomSource(), randomAlphaOfLength(5), child);
     }
@@ -52,7 +50,7 @@ public class EvalExecSerializationTests extends AbstractPhysicalPlanSerializatio
         if (randomBoolean()) {
             child = randomValueOtherThan(child, () -> randomChild(0));
         } else {
-            fields = randomValueOtherThan(fields, EvalExecSerializationTests::randomFields);
+            fields = randomValueOtherThan(fields, this::randomFields);
         }
         return new EvalExec(instance.source(), child, fields);
     }

@@ -280,7 +280,11 @@ public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
         updatePolicy(client(), index, policy);
         waitForPhaseTime(phaseName);
         assertBusy(() -> {
+            // logging for investigation into https://github.com/elastic/elasticsearch/issues/138669
+            logger.info("about to explain ILM state, looking for failed_step:wait-for-snapshot");
             Map<String, Object> indexILMState = explainIndex(client(), index);
+            // logging for investigation into https://github.com/elastic/elasticsearch/issues/138669
+            logger.info("explained ILM state, looking for failed_step:wait-for-snapshot, got {}", indexILMState);
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
         }, slmPolicy);

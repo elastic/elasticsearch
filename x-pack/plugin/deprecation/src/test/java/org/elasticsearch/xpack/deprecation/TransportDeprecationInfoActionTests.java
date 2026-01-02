@@ -430,7 +430,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         long totalBytesOnMachine = 100;
         long lowFreeBytes = 5;
 
-         ClusterInfo clusterInfo = new ClusterInfo(
+        ClusterInfo clusterInfo = new ClusterInfo(
             Map.of(),
             Map.of(
                 regularNodeId,
@@ -445,7 +445,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             Map.of(),
             Map.of()
         );
-        
+
         DiscoveryNode regularNode = mock(DiscoveryNode.class);
         when(regularNode.getId()).thenReturn(regularNodeId);
         when(regularNode.getName()).thenReturn("regular-node");

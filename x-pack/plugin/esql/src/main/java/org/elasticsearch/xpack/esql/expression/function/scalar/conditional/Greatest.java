@@ -145,7 +145,7 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
             }
         }
 
-        if (dataType != NULL && !EVALUATOR_MAP.containsKey(dataType) && !DataType.isString(dataType)) {
+        if (dataType != NULL && EVALUATOR_MAP.containsKey(dataType) == false && DataType.isString(dataType) == false) {
             return new TypeResolution("Cannot use [" + dataType.typeName() + "] with function [" + getWriteableName() + "]");
         }
 

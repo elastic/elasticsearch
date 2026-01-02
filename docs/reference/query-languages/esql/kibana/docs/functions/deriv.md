@@ -4,5 +4,7 @@
 Calculates the derivative over time of a numeric field using linear regression.
 
 ```esql
-PROMQL index=k8s step=5m max by (pod) (deriv(network.cost[5m]))
+TS datenanos-k8s
+| WHERE pod == "three"
+| STATS max_deriv = MAX(DERIV(network.cost)) BY time_bucket = BUCKET(@timestamp,5minute), pod
 ```

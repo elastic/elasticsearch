@@ -1187,15 +1187,11 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 derivative_of_gauge_metric_promql
 required_capability: promql_pre_tech_preview_v12
 
-// tag::deriv[]
-PROMQL index=k8s step=5m max by (pod) (deriv(network.cost[5m]))
-// end::deriv[]
-| WHERE pod == "three"
-| SORT pod, step
-| LIMIT 5
+PROMQL index=k8s step=5m max_deriv=(max by (pod) (deriv(network.cost{pod="three"}[5m])))
+| SORT step
 ;
 
-max by (pod) (deriv(network.cost[5m])):double | step:datetime     | pod:keyword
+max_deriv:double                              | step:datetime            | pod:keyword
 0.1016742317005992                            | 2024-05-10T00:00:00.000Z | three
 0.04110020549538044                           | 2024-05-10T00:05:00.000Z | three
 -0.017149432096630335                         | 2024-05-10T00:10:00.000Z | three

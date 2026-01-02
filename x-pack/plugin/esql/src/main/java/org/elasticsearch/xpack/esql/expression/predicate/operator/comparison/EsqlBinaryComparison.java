@@ -184,7 +184,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         EsqlBinaryComparison.BinaryComparisonOperation operation = EsqlBinaryComparison.BinaryComparisonOperation.readFromStream(in);
         var left = in.readNamedWriteable(Expression.class);
         var right = in.readNamedWriteable(Expression.class);
-        if (ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE.supports(in.getTransportVersion()) == false) {
+        if (in.getTransportVersion().supports(ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE) == false) {
             var zoneId = in.readOptionalZoneId();
         }
         return operation.buildNewInstance(source, left, right);
@@ -196,7 +196,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         functionType.writeTo(out);
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
-        if (ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE.supports(out.getTransportVersion()) == false) {
+        if (out.getTransportVersion().supports(ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE) == false) {
             out.writeOptionalZoneId(null);
         }
     }

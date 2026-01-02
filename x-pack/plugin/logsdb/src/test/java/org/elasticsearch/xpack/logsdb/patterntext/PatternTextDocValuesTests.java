@@ -11,6 +11,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.test.ESTestCase;
 
@@ -28,6 +29,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
     enum Storage {
         DOC_VALUE,
         STORED_FIELD,
+        RAW_DOC_VALUE,
         EMPTY
     }
 
@@ -62,13 +64,20 @@ public class PatternTextDocValuesTests extends ESTestCase {
         static Message empty() {
             return new Message(Storage.EMPTY, false, null);
         }
+
+        static Message rawDocValue(String message) {
+            return new Message(Storage.RAW_DOC_VALUE, false, message);
+        }
     }
 
-    private static List<Message> makeRandomMessages(int numDocs, boolean includeStored) {
+    /**
+     * @param includeRawText indicates whether values that will be stored as raw text should be generated
+     */
+    private static List<Message> makeRandomMessages(int numDocs, boolean includeRawText) {
         List<Message> messages = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             // if arg is present, it's at the beginning
-            Storage storage = includeStored ? randomFrom(Storage.values()) : randomFrom(Storage.DOC_VALUE, Storage.EMPTY);
+            Storage storage = includeRawText ? randomFrom(Storage.values()) : randomFrom(Storage.DOC_VALUE, Storage.EMPTY);
             String message = randomAlphaOfLength(10) + " " + i;
             boolean hasArg = storage == Storage.DOC_VALUE && randomBoolean();
             messages.add(new Message(storage, hasArg, storage == Storage.EMPTY ? null : message));
@@ -94,7 +103,9 @@ public class PatternTextDocValuesTests extends ESTestCase {
         String storedFieldName = "message.stored";
         var storedValues = messages.stream().map(m -> m.storage == Storage.STORED_FIELD ? new BytesRef(m.message) : null).toList();
         var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
-        return new PatternTextCompositeValues(storedLoader, storedFieldName, patternTextDocValues, templateId);
+        var rawDocValues = messages.stream().map(m -> m.storage == Storage.RAW_DOC_VALUE ? new BytesRef(m.message) : null).toList();
+        var rawBinaryDocValues = new SimpleSortedBinaryDocValues(rawDocValues);
+        return new PatternTextCompositeValues(storedLoader, storedFieldName, patternTextDocValues, templateId, rawBinaryDocValues);
     }
 
     private static BinaryDocValues makeDocValuesDense() throws IOException {
@@ -108,12 +119,21 @@ public class PatternTextDocValuesTests extends ESTestCase {
     }
 
     private static BinaryDocValues makeCompositeDense() throws IOException {
-        return makeCompositeDocValues(List.of(Message.stored("1 a"), Message.withArg("2 b"), Message.stored("3 c"), Message.noArg("4 d")));
+        return makeCompositeDocValues(
+            List.of(Message.stored("1 a"), Message.withArg("2 b"), Message.rawDocValue("3 c"), Message.noArg("4 d"))
+        );
     }
 
     private static BinaryDocValues makeCompositeMissingValues() throws IOException {
         return makeCompositeDocValues(
-            List.of(Message.stored("1 a"), Message.empty(), Message.withArg("3 c"), Message.empty(), Message.noArg("5 e"), Message.empty())
+            List.of(
+                Message.stored("1 a"),
+                Message.empty(),
+                Message.rawDocValue("3 c"),
+                Message.empty(),
+                Message.noArg("5 e"),
+                Message.empty()
+            )
         );
     }
 
@@ -307,6 +327,32 @@ public class PatternTextDocValuesTests extends ESTestCase {
         @Override
         public long cost() {
             return 1;
+        }
+    }
+
+    static class SimpleSortedBinaryDocValues extends SortedBinaryDocValues {
+
+        private final List<BytesRef> values;
+        private BytesRef currentValue;
+
+        SimpleSortedBinaryDocValues(List<BytesRef> docIdToValue) {
+            values = docIdToValue;
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            currentValue = values.get(target);
+            return currentValue != null;
+        }
+
+        @Override
+        public int docValueCount() {
+            return 1;
+        }
+
+        @Override
+        public BytesRef nextValue() {
+            return currentValue;
         }
     }
 

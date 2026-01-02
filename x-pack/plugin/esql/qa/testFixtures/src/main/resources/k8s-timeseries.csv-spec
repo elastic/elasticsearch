@@ -1184,6 +1184,26 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 10.2206          | 6.9807          | 2024-05-10T00:20:00.000Z | prod
 ;
 
+derivative_of_gauge_metric_promql
+required_capability: promql_pre_tech_preview_v7
+
+// tag::deriv[]
+PROMQL index=k8s step=5m max by (pod) (deriv(network.cost[5m]))
+// end::deriv[]
+| WHERE pod == "three"
+| SORT pod, step
+| LIMIT 5
+;
+
+max by (pod) (deriv(network.cost[5m])):double | step:datetime     | pod:keyword
+0.1016742317005992                            | 2024-05-10T00:00:00.000Z | three
+0.04110020549538044                           | 2024-05-10T00:05:00.000Z | three
+-0.017149432096630335                         | 2024-05-10T00:10:00.000Z | three
+-0.0011132215149700642                        | 2024-05-10T00:15:00.000Z | three
+0.019532827926533564                          | 2024-05-10T00:20:00.000Z | three
+
+;
+
 DefaultMetricWithFrom
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_default_metric

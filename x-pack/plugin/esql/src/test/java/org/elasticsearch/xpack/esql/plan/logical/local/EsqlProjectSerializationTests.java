@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;

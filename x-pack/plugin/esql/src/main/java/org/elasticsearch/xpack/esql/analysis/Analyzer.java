@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
-import org.elasticsearch.xpack.esql.analysis.rules.ResolvedProjects;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -121,7 +121,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -146,9 +145,9 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
@@ -237,14 +236,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveUnionTypesInUnionAll(),
             new ResolveUnmapped()
         ),
-        new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            new ResolvedProjects(),
-            new AddImplicitLimit(),
-            new AddImplicitForkLimit(),
-            new UnionTypesCleanup()
-        )
+        new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
     );
     public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
         "esql_lookup_join_full_text_function"
@@ -516,7 +508,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (plan.childrenResolved() == false) {
                 return plan;
             }
-            // TODO: assess if building this list is still required ahead of the switch, or if it can be done per command only where needed
             final List<Attribute> childrenOutput = new ArrayList<>();
 
             // Gather all the children's output in case of non-unary plans; even for unaries, we need to copy because we may mutate this to
@@ -529,9 +520,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
-                case Drop d -> resolveDrop(d, context);
-                case Rename r -> resolveRename(r, context);
-                case Keep k -> resolveKeep(k, context);
+                case Drop d -> resolveDrop(d, childrenOutput, context.unmappedResolution());
+                case Rename r -> resolveRename(r, childrenOutput);
+                case Keep k -> resolveKeep(k, childrenOutput);
+                case Project p -> resolveProject(p, childrenOutput);
                 case Fork f -> resolveFork(f, context);
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
@@ -938,7 +930,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
-                // We need to add an explicit projection to align the outputs.
+                // We need to add an explicit EsqlProject to align the outputs.
                 if (logicalPlan instanceof Project == false || subPlanColumns.equals(forkColumns) == false) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
@@ -949,7 +941,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                         }
                     }
-                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), context);
+                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), logicalPlan.output());
                 }
 
                 newSubPlans.add(logicalPlan);
@@ -1298,48 +1290,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep foo, *   ->  foo, bar
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
          */
-        private static LogicalPlan resolveKeep(Keep keep, AnalyzerContext context) {
-            return failUnmappedFields(context)
-                ? new EsqlProject(keep.source(), keep.child(), keepResolver(keep.projections(), keep.child().output()))
-                : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
-        }
-
-        private static boolean failUnmappedFields(AnalyzerContext context) {
-            return context.unmappedResolution() == UnmappedResolution.FAIL;
-        }
-
-        private static List<NamedExpression> keepResolver(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
-            List<NamedExpression> resolvedProjections;
+        private LogicalPlan resolveKeep(Keep p, List<Attribute> childOutput) {
+            List<NamedExpression> resolvedProjections = new ArrayList<>();
+            var projections = p.projections();
             // start with projections
 
             // no projection specified or just *
-            if (projections.isEmpty() || (projections.size() == 1 && projections.getFirst() instanceof UnresolvedStar)) {
-                resolvedProjections = new ArrayList<>(childOutput);
+            if (projections.isEmpty() || (projections.size() == 1 && projections.get(0) instanceof UnresolvedStar)) {
+                resolvedProjections.addAll(childOutput);
             }
             // otherwise resolve them
             else {
                 Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
                 for (var proj : projections) {
-                    final List<Attribute> resolved;
-                    final int priority;
-                    if (proj instanceof UnresolvedStar) {
-                        resolved = childOutput;
-                        priority = 4;
-                    } else if (proj instanceof UnresolvedNamePattern up) {
-                        resolved = resolveAgainstList(up, childOutput);
-                        priority = 3;
-                    } else if (proj instanceof UnsupportedAttribute) {
-                        resolved = List.of(proj.toAttribute());
-                        priority = 2;
-                    } else if (proj instanceof UnresolvedAttribute ua) {
-                        resolved = resolveAgainstList(ua, childOutput);
-                        priority = 1;
-                    } else if (proj.resolved()) {
-                        resolved = List.of(proj.toAttribute());
-                        priority = 0;
-                    } else {
-                        throw new EsqlIllegalArgumentException("unexpected projection: " + proj);
-                    }
+                    var resolvedTuple = resolveProjection(proj, childOutput);
+                    var resolved = resolvedTuple.v1();
+                    var priority = resolvedTuple.v2();
                     for (var attr : resolved) {
                         Integer previousPrio = priorities.get(attr);
                         if (previousPrio == null || previousPrio >= priority) {
@@ -1351,19 +1317,68 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedProjections = new ArrayList<>(priorities.keySet());
             }
 
-            return resolvedProjections;
+            return new EsqlProject(p.source(), p.child(), resolvedProjections);
         }
 
-        private static LogicalPlan resolveDrop(Drop drop, AnalyzerContext context) {
-            return failUnmappedFields(context)
-                ? new EsqlProject(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
-                : new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes));
+        private static Tuple<List<Attribute>, Integer> resolveProjection(NamedExpression proj, List<Attribute> childOutput) {
+            final List<Attribute> resolved;
+            final int priority;
+            if (proj instanceof UnresolvedStar) {
+                resolved = childOutput;
+                priority = 4;
+            } else if (proj instanceof UnresolvedNamePattern up) {
+                resolved = resolveAgainstList(up, childOutput);
+                priority = 3;
+            } else if (proj instanceof UnsupportedAttribute) {
+                resolved = List.of(proj.toAttribute());
+                priority = 2;
+            } else if (proj instanceof UnresolvedAttribute ua) {
+                resolved = resolveAgainstList(ua, childOutput);
+                priority = 1;
+            } else if (proj.resolved()) {
+                resolved = List.of(proj.toAttribute());
+                priority = 0;
+            } else {
+                throw new EsqlIllegalArgumentException("unexpected projection: " + proj);
+            }
+            return new Tuple<>(resolved, priority);
         }
 
-        private static List<NamedExpression> dropResolver(List<NamedExpression> removals, List<Attribute> childOutput) {
+        /**
+         * This rule will turn a {@link Keep} into an {@link EsqlProject}, even if its references aren't resolved.
+         * This method will reattempt the resolution of the {@link EsqlProject}.
+         */
+        private LogicalPlan resolveProject(Project p, List<Attribute> childOutput) {
+            LinkedHashMap<String, NamedExpression> resolvedProjections = new LinkedHashMap<>(p.projections().size());
+            for (var proj : p.projections()) {
+                NamedExpression ne;
+                if (proj instanceof Alias a) {
+                    if (a.child() instanceof Attribute attribute) {
+                        ne = attribute;
+                    } else {
+                        throw new EsqlIllegalArgumentException("unexpected projection: " + proj);
+                    }
+                } else {
+                    ne = proj;
+                }
+                var resolvedTuple = resolveProjection(ne, childOutput);
+                if (resolvedTuple.v1().isEmpty()) {
+                    // no resolution possible: keep the original projection to later trip the Verifier
+                    resolvedProjections.putLast(proj.name(), proj);
+                } else {
+                    for (var attr : resolvedTuple.v1()) {
+                        ne = proj instanceof Alias a ? a.replaceChild(attr) : attr;
+                        resolvedProjections.putLast(ne.name(), ne);
+                    }
+                }
+            }
+            return new EsqlProject(p.source(), p.child(), List.copyOf(resolvedProjections.values()));
+        }
+
+        private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput, UnmappedResolution unmappedResolution) {
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
-            for (NamedExpression ne : removals) {
+            for (NamedExpression ne : drop.removals()) {
                 List<? extends NamedExpression> resolved;
 
                 if (ne instanceof UnresolvedNamePattern np) {
@@ -1381,31 +1396,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedProjections.removeIf(resolved::contains);
                 // but add non-projected, unresolved extras to later trip the Verifier.
                 resolved.forEach(r -> {
-                    if (r.resolved() == false && r instanceof UnsupportedAttribute == false) {
+                    if ((r.resolved() == false
+                        && ((unmappedResolution == UnmappedResolution.FAIL && r instanceof UnsupportedAttribute == false)
+                            // `SET unmapped_attributes="nullify" | DROP does_not_exist` -- leave it out, i.e. ignore the DROP
+                            // `SET unmapped_attributes="nullify" | DROP does_not_exist*` -- add it in, i.e. fail the DROP (same for "load")
+                            || (unmappedResolution != UnmappedResolution.FAIL && r instanceof UnresolvedPattern)))) {
                         resolvedProjections.add(r);
                     }
                 });
             }
 
-            return resolvedProjections;
+            return new EsqlProject(drop.source(), drop.child(), resolvedProjections);
         }
 
-        private LogicalPlan resolveRename(Rename rename, AnalyzerContext context) {
-            return failUnmappedFields(context)
-                ? new EsqlProject(rename.source(), rename.child(), projectionsForRename(rename, rename.child().output(), log))
-                : new ResolvingProject(
-                    rename.source(),
-                    rename.child(),
-                    inputAttributes -> projectionsForRename(rename, inputAttributes, log)
-                );
+        private LogicalPlan resolveRename(Rename rename, List<Attribute> childrenOutput) {
+            List<NamedExpression> projections = projectionsForRename(rename, childrenOutput, log);
+
+            return new EsqlProject(rename.source(), rename.child(), projections);
         }
 
         /**
-         * This will compute the projections for a {@link Rename}.
+         * This will turn a {@link Rename} into an equivalent {@link Project}.
+         * Can mutate {@code childrenOutput}; hand this a copy if you want to avoid mutation.
          */
-        public static List<NamedExpression> projectionsForRename(Rename rename, List<Attribute> inputAttributes, Logger logger) {
-            List<Attribute> childrenOutput = new ArrayList<>(inputAttributes);
-            List<NamedExpression> projections = new ArrayList<>(inputAttributes);
+        public static List<NamedExpression> projectionsForRename(Rename rename, List<Attribute> childrenOutput, Logger logger) {
+            List<NamedExpression> projections = new ArrayList<>(childrenOutput);
 
             int renamingsCount = rename.renamings().size();
             List<NamedExpression> unresolved = new ArrayList<>(renamingsCount);
@@ -2667,12 +2682,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Push down the conversion functions into the child plan by adding an Eval with the new aliases on top of the child plan.
          */
         private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
-            // Fork/UnionAll adds a projection on top of each child plan during resolveFork, check this pattern before pushing down
+            // Fork/UnionAll adds an EsqlProject on top of each child plan during resolveFork, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
-            if (aliases.isEmpty() == false && child instanceof Project project) {
-                LogicalPlan childOfProject = project.child();
+            if (aliases.isEmpty() == false && child instanceof EsqlProject esqlProject) {
+                LogicalPlan childOfProject = esqlProject.child();
                 Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
-                return new EsqlProject(project.source(), eval, output);
+                return new EsqlProject(esqlProject.source(), eval, output);
             }
             return child;
         }
@@ -2812,7 +2827,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         outputChanged = true;
                     }
                 }
-                // create a new eval for the casting expressions, and push it down under the projection
+                // create a new eval for the casting expressions, and push it down under the EsqlProject
                 newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
             }
 
@@ -3003,22 +3018,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Prune branches of a UnionAll that resolve to empty subqueries.
      * For example, given the following plan, the index resolution of 'remote:missingIndex' is EMPTY_SUBQUERY:
-     * <pre>
      * UnionAll[[]]
      * |_EsRelation[test][...]
      * |_Subquery[]
      * | \_UnresolvedRelation[remote:missingIndex]
      * \_Subquery[]
      *   \_EsRelation[sample_data][...]
-     * </pre>
-     *
      * The branch with EMPTY_SUBQUERY index resolution is pruned in the plan after the rule is applied:
-     * <pre>
      * UnionAll[[]]
      * |_EsRelation[test][...]
      * \_Subquery[]
      *   \_EsRelation[sample_data][...]
-     * </pre>
      */
     private static class PruneEmptyUnionAllBranch extends ParameterizedAnalyzerRule<UnionAll, AnalyzerContext> {
 

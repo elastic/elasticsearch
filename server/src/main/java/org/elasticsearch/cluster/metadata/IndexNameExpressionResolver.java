@@ -1726,6 +1726,7 @@ public class IndexNameExpressionResolver {
                 .getIndicesLookup()
                 .values()
                 .stream()
+                .filter(ia -> ia.getType() != Type.VIEW)
                 .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
                 .filter(ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context))
                 .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()))
@@ -1819,6 +1820,9 @@ public class IndexNameExpressionResolver {
             String wildcardExpression,
             IndexAbstraction indexAbstraction
         ) {
+            if (indexAbstraction.getType() == Type.VIEW) {
+                return false;
+            }
             if (context.getOptions().ignoreAliases() && indexAbstraction.getType() == Type.ALIAS) {
                 return false;
             }

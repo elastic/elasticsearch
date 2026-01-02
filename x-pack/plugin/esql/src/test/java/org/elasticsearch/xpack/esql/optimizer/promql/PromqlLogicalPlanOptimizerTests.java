@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -64,8 +66,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
@@ -600,7 +604,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testConstantFoldingArithmeticOperators() {
-        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1");
+        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1", true);
         var eval = plan.collect(Eval.class).getFirst();
         var literal = as(eval.fields().getFirst().child(), Literal.class);
         assertThat(literal.value(), equalTo(2.0));
@@ -647,9 +651,20 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     protected LogicalPlan planPromql(String query) {
+        return planPromql(query, false);
+    }
+
+    protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
         var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        AttributeSet.Builder references = AttributeSet.builder();
+        analyzed.forEachDown(lp -> references.addAll(lp.references()));
+        if (allowEmptyReferences) {
+            assertThat(references.build(), empty());
+        } else {
+            assertThat(references.build(), not(empty()));
+        }
         logger.trace("analyzed plan:\n{}", analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);

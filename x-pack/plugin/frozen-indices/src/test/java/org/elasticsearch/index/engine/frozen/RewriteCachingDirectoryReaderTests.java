@@ -14,7 +14,6 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -49,8 +48,6 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                 }
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves(), null);
-                    IndexSearcher searcher = new IndexSearcher(reader);
-                    IndexSearcher cachingSearcher = new IndexSearcher(cachingDirectoryReader);
 
                     if (rarely) {
                         assertArrayEquals(
@@ -63,16 +60,16 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                         );
                         assertEquals(PointValues.size(reader, "rarely"), PointValues.size(cachingDirectoryReader, "rarely"));
                         assertEquals(
-                            DocValuesSkipper.globalDocCount(searcher, "rarely_skipper"),
-                            DocValuesSkipper.globalDocCount(cachingSearcher, "rarely_skipper")
+                            DocValuesSkipper.globalDocCount(reader, "rarely_skipper"),
+                            DocValuesSkipper.globalDocCount(cachingDirectoryReader, "rarely_skipper")
                         );
                         assertEquals(
-                            DocValuesSkipper.globalMaxValue(searcher, "rarely_skipper"),
-                            DocValuesSkipper.globalMaxValue(cachingSearcher, "rarely_skipper")
+                            DocValuesSkipper.globalMaxValue(reader, "rarely_skipper"),
+                            DocValuesSkipper.globalMaxValue(cachingDirectoryReader, "rarely_skipper")
                         );
                         assertEquals(
-                            DocValuesSkipper.globalMinValue(searcher, "rarely_skipper"),
-                            DocValuesSkipper.globalMinValue(cachingSearcher, "rarely_skipper")
+                            DocValuesSkipper.globalMinValue(reader, "rarely_skipper"),
+                            DocValuesSkipper.globalMinValue(cachingDirectoryReader, "rarely_skipper")
                         );
                     }
                     assertArrayEquals(
@@ -97,16 +94,16 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                     assertEquals(PointValues.size(reader, "test_const"), PointValues.size(cachingDirectoryReader, "test_const"));
 
                     assertEquals(
-                        DocValuesSkipper.globalDocCount(searcher, "skipper"),
-                        DocValuesSkipper.globalDocCount(cachingSearcher, "skipper")
+                        DocValuesSkipper.globalDocCount(reader, "skipper"),
+                        DocValuesSkipper.globalDocCount(cachingDirectoryReader, "skipper")
                     );
                     assertEquals(
-                        DocValuesSkipper.globalMinValue(searcher, "skipper"),
-                        DocValuesSkipper.globalMinValue(cachingSearcher, "skipper")
+                        DocValuesSkipper.globalMinValue(reader, "skipper"),
+                        DocValuesSkipper.globalMinValue(cachingDirectoryReader, "skipper")
                     );
                     assertEquals(
-                        DocValuesSkipper.globalMaxValue(searcher, "skipper"),
-                        DocValuesSkipper.globalMaxValue(cachingSearcher, "skipper")
+                        DocValuesSkipper.globalMaxValue(reader, "skipper"),
+                        DocValuesSkipper.globalMaxValue(cachingDirectoryReader, "skipper")
                     );
                 }
             }

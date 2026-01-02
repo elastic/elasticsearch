@@ -27,15 +27,14 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType valueType : List.of(
-            DataType.INTEGER,
-            DataType.LONG,
-            DataType.DOUBLE,
-            DataType.KEYWORD,
-            DataType.TEXT,
-            DataType.IP,
-            DataType.BOOLEAN
-        )) {
+        List<DataType> types = new ArrayList<>(List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.TEXT));
+
+        if (isNullable) {
+            types.add(DataType.IP);
+            types.add(DataType.BOOLEAN);
+        }
+
+        for (DataType valueType : types) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
                 for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {

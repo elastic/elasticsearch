@@ -59,13 +59,7 @@ public class AllLastIntByTimestampAggregator {
         return new AllLongIntState();
     }
 
-    private static void overrideState(
-        AllLongIntState current,
-        boolean timestampPresent,
-        long timestamp,
-        IntBlock values,
-        int position
-    ) {
+    private static void overrideState(AllLongIntState current, boolean timestampPresent, long timestamp, IntBlock values, int position) {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);

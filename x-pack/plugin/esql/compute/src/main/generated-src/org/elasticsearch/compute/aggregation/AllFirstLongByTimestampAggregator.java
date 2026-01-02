@@ -59,13 +59,7 @@ public class AllFirstLongByTimestampAggregator {
         return new AllLongLongState();
     }
 
-    private static void overrideState(
-        AllLongLongState current,
-        boolean timestampPresent,
-        long timestamp,
-        LongBlock values,
-        int position
-    ) {
+    private static void overrideState(AllLongLongState current, boolean timestampPresent, long timestamp, LongBlock values, int position) {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);

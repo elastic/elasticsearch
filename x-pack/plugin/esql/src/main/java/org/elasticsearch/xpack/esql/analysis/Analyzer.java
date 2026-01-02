@@ -1456,6 +1456,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ResolveConfigurationAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             return plan.transformExpressionsUp(
                 Expression.class,
@@ -1463,7 +1468,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        public static Expression resolveConfigurationAware(Expression expression, Configuration configuration) {
+        private static Expression resolveConfigurationAware(Expression expression, Configuration configuration) {
             if (expression instanceof ConfigurationAware ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
                 return ca.withConfiguration(configuration);
             }

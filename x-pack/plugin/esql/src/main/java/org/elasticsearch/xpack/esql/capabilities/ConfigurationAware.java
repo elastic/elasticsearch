@@ -65,7 +65,7 @@ public interface ConfigurationAware extends ConfigurationFunction {
     static void verifyNoMarkerConfiguration(QueryPlan<?> plan, Failures failures) {
         plan.forEachExpressionDown(Expression.class, e -> {
             if (e instanceof ConfigurationAware ca && ca.configuration() == ConfigurationAware.CONFIGURATION_MARKER) {
-                failures.add(fail(plan, "Configuration marker found in plan: {}", plan.nodeString()));
+                failures.add(fail(plan, "Configuration marker found in node {} of plan: {}", e.nodeString(), plan));
             }
         });
     }

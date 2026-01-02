@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.analytics.movingPercentiles;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -61,7 +61,7 @@ public abstract class MovingPercentilesAbstractAggregatorTests extends Aggregato
         );
         builder.setShift(shift);
 
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(DATE_FIELD);
 

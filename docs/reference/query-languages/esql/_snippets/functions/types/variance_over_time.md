@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| number | window | result |
+| field | window | result |
 | --- | --- | --- |
 | double | | double |
 | integer | | double |

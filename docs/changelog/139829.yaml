@@ -1,0 +1,5 @@
+pr: 139829
+summary: Fix NPE in aggregations
+area: SQL
+type: bug
+issues: []

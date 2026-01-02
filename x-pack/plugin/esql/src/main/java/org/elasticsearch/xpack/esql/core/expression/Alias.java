@@ -13,7 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,11 +63,11 @@ public final class Alias extends NamedExpression {
 
     public Alias(StreamInput in) throws IOException {
         this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
+            Source.readFrom((PlanStreamInput) in),
             in.readString(),
             in.readOptionalString(),
             in.readNamedWriteable(Expression.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
+            NameId.readFrom((PlanStreamInput) in),
             in.readBoolean()
         );
     }

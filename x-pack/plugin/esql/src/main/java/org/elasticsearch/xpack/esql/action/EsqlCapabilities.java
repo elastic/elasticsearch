@@ -1770,7 +1770,7 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V10(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V12(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1836,6 +1836,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/139887
          */
         FIX_FOLD_COALESCE,
+
+        /**
+         * Exceptions parsing date-times are thrown as IllegalArgumentException
+         */
+        DATE_TIME_EXCEPTIONS_HANDLED,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

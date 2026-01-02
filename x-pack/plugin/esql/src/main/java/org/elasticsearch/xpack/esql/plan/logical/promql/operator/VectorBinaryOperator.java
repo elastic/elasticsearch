@@ -128,7 +128,6 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan permits Vec
         return VectorMatch.Filter.NONE;
     }
 
-
     private Set<String> extractLabelNames(List<Attribute> attrs) {
         Set<String> labels = new HashSet<>();
         for (Attribute attr : attrs) {

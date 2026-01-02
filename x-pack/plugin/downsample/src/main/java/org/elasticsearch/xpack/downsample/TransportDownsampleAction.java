@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
@@ -378,7 +379,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
              * We should note that there is a risk of losing a node during the downsample process. In this
              * case downsample will fail.
              */
-            int minNumReplicas = clusterService.getSettings().getAsInt(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME, 0);
+            int minNumReplicas = DiscoveryNode.isStateless(clusterService.getSettings()) ? 1 : 0;
 
             // 3. Create downsample index
             createDownsampleIndex(

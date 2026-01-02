@@ -117,11 +117,7 @@ public class TopNOomRaceTests extends ESTestCase {
                 page.close();
             })));
         }
-        try {
-            OperatorTestCase.runDriver(drivers);
-        } catch (CircuitBreakingException e) {
-            logger.info("expected breaker trip", e);
-        }
+        expectThrows(CircuitBreakingException.class, () -> OperatorTestCase.runDriver(drivers));
         for (DriverContext c : contexts) {
             OperatorTestCase.assertDriverContext(c);
         }

@@ -12,8 +12,6 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 
 import java.io.IOException;
@@ -55,6 +53,10 @@ class CachedDirectoryReader extends FilterDirectoryReader {
         public NumericDocValues getNumericDocValues(String field) throws IOException {
             NumericDocValues dv = super.getNumericDocValues(field);
             if (dv == null) {
+                // It's important to return null here if the field doesn't have doc values - and the only way
+                // to get that consistently is to call super.getNumericDocValues. There are other ways to try,
+                // but I don't believe they'll work consistently. So that means we prepare the reader each time,
+                // but we don't use it. This still is faster than not caching at all.
                 return null;
             }
             return new CachedNumericDocValues(docId -> docValues.compute(field, (k, curr) -> {
@@ -63,20 +65,6 @@ class CachedDirectoryReader extends FilterDirectoryReader {
                 }
                 return curr;
             }));
-        }
-
-        @Override
-        public Terms terms(String field) throws IOException {
-            Terms terms = super.terms(field);
-            if (terms == null) {
-                return null;
-            }
-            return new FilterTerms(terms) {
-                @Override
-                public TermsEnum iterator() throws IOException {
-                    return in.iterator();
-                }
-            };
         }
 
         @Override
@@ -98,8 +86,11 @@ class CachedDirectoryReader extends FilterDirectoryReader {
             this.fromCache = fromCache;
         }
 
-        NumericDocValues getDelegate(int docID) {
+        NumericDocValues getOrOverwriteDelegate(int docID) {
             if (delegate == null) {
+                // This will return the cached delegate if present
+                // However, it could return a new one if the current one is ahead of docID
+                // Sometimes, we call with -1 docID to specifically request a new one
                 delegate = fromCache.apply(docID);
             }
             return delegate;
@@ -107,27 +98,31 @@ class CachedDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public long longValue() throws IOException {
-            return getDelegate(-1).longValue();
+            return getOrOverwriteDelegate(-1).longValue();
         }
 
         @Override
         public boolean advanceExact(int target) throws IOException {
-            return getDelegate(target).advanceExact(target);
+            return getOrOverwriteDelegate(target).advanceExact(target);
         }
 
         @Override
         public int advance(int target) throws IOException {
-            return getDelegate(target).nextDoc();
+            return getOrOverwriteDelegate(target).advance(target);
         }
 
+        /**
+         * If there is a delegate, we will return its docId,
+         * otherwise we return -1 to indicate there is no delegate
+         */
         @Override
         public int docID() {
-            return getDelegate(-1).docID();
+            return delegate == null ? -1 : delegate.docID();
         }
 
         @Override
         public int nextDoc() throws IOException {
-            return getDelegate(-1).nextDoc();
+            return getOrOverwriteDelegate(-1).nextDoc();
         }
 
         @Override

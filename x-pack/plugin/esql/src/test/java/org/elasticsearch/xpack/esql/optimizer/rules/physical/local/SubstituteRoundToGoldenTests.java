@@ -33,7 +33,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
     public void testDateTruncBucketTransformToQueryAndTags() {
         for (var queryAndName : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | stats count(*) by x = {}
                 """, queryAndName.query());
             runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
@@ -44,7 +44,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
     public void testDateTruncBucketTransformToQueryAndTagsWithWhereInsideAggregation() {
         for (var queryAndName : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | stats count(*) where long > 10 by x = {}
                 """, queryAndName.query());
             runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
@@ -55,7 +55,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
     public void testDateTruncBucketTransformToQueryAndTagsWithEsFilter() {
         for (var queryAndName : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | stats count(*) by x = {}
                 """, queryAndName.query());
             runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
@@ -66,7 +66,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
     public void testDateTruncBucketTransformToQueryAndTagsWithMultipleAggregates() {
         for (var queryAndName : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | stats sum(long), count(*) by x = {}
                 """, queryAndName.query());
             runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, queryAndName.name());
@@ -81,7 +81,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 continue;
             }
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | sort date
                 | eval x = {}
                 | keep alias_integer, date, x
@@ -102,7 +102,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 + roundingPoints.stream().map(Object::toString).collect(Collectors.joining(","))
                 + ")";
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | stats count(*) by x = {}
                 """, expression);
             runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS, fieldName);
@@ -137,7 +137,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         for (var queryAndName : dateHistograms) {
             for (var otherPushDownFunction : otherPushDownFunctions) {
                 String query = LoggerMessageFormat.format(null, """
-                    from test
+                    from all_types
                     | where {}
                     | stats count(*) by x = {}
                     """, otherPushDownFunction.query(), queryAndName.query());
@@ -156,7 +156,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
     public void testDateTruncBucketNotTransformToQueryAndTagsWithLookupJoin() {
         for (var queryAndName : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | rename integer as language_code
                 | lookup join languages_lookup on language_code
                 | stats count(*) by x = {}
@@ -169,7 +169,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
     public void testDateTruncBucketNotTransformToQueryAndTagsWithFork() {
         for (var queryAndName : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | fork (where integer > 100)
                 (where keyword : "keyword")
                 | stats count(*) by x = {}
@@ -192,7 +192,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                 points.append(i);
             }
             String query = LoggerMessageFormat.format(null, """
-                from test
+                from all_types
                 | stats count(*) by x = round_to(integer, {})
                 """, points.toString());
 
@@ -214,7 +214,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
                     points.append(i);
                 }
                 String query = LoggerMessageFormat.format(null, """
-                    from test
+                    from all_types
                     | stats count(*) by x = round_to(integer, {})
                     """, points.toString());
 
@@ -231,7 +231,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
 
     public void testForkWithStatsCountStarDateTrunc() {
         String query = """
-            from test
+            from all_types
             | fork (stats x = count(*), y = max(long) by hd = date_trunc(1 day, date))
             (stats x = count(*), y = min(long) by hd = date_trunc(2 day, date))
             """;
@@ -241,7 +241,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
     public void testSubqueryWithCountStarAndDateTrunc() {
         assumeTrue("requires subqueries in from", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
-            from test, (from test | stats cnt = count(*) by x = date_trunc(1 day, date))
+            from all_types, (from all_types | stats cnt = count(*) by x = date_trunc(1 day, date))
             | keep x, cnt, date
             """;
         runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL), STATS);

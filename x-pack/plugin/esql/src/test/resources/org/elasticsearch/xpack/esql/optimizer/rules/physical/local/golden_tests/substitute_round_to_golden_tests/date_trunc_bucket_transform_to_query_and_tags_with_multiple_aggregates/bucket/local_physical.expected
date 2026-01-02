@@ -4,7 +4,7 @@ LimitExec[1000[INTEGER],null]
     \_AggregateExec[[x{r}],[SUM(long{f},true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum(long), COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],INITIAL,[x{r}, $$sum(long)$sum{r}, $$sum(long)$seen{r}, $$count(*)$count{r}, $$count(*)$seen{r}],24]
       \_FieldExtractExec[long{f}]<[],[]>
         \_EvalExec[[$$date$round_to$datetime{f} AS x]]
-          \_EsQueryExec[test], indexMode[standard], [_doc{f}, $$date$round_to$datetime{f}], limit[], sort[] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query={
+          \_EsQueryExec[all_types], indexMode[standard], [_doc{f}, $$date$round_to$datetime{f}], limit[], sort[] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "date",
     "next" : {

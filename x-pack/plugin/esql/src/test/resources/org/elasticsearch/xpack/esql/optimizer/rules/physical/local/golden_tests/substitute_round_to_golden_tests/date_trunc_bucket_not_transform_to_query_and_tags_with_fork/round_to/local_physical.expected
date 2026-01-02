@@ -7,7 +7,7 @@ LimitExec[1000[INTEGER],null]
       |   \_ExchangeExec[[date{f}],false]
       |     \_ProjectExec[[date{f}]]
       |       \_FieldExtractExec[date{f}]<[],[]>
-      |         \_EsQueryExec[test], indexMode[standard], [_doc{f}], limit[1000], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+      |         \_EsQueryExec[all_types], indexMode[standard], [_doc{f}], limit[1000], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "integer",
     "next" : {
@@ -26,7 +26,7 @@ LimitExec[1000[INTEGER],null]
           \_ExchangeExec[[date{f}],false]
             \_ProjectExec[[date{f}]]
               \_FieldExtractExec[date{f}]<[],[]>
-                \_EsQueryExec[test], indexMode[standard], [_doc{f}], limit[1000], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+                \_EsQueryExec[all_types], indexMode[standard], [_doc{f}], limit[1000], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "match" : {
     "keyword" : {
       "query" : "keyword",

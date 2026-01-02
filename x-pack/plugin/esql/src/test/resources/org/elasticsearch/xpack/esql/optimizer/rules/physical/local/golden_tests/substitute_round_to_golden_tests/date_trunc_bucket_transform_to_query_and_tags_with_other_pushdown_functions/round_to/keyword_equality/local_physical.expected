@@ -3,7 +3,7 @@ LimitExec[1000[INTEGER],null]
   \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
     \_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],INITIAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],16]
       \_EvalExec[[$$date$round_to$datetime{f} AS x]]
-        \_EsQueryExec[test], indexMode[standard], [_doc{f}, $$date$round_to$datetime{f}], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+        \_EsQueryExec[all_types], indexMode[standard], [_doc{f}, $$date$round_to$datetime{f}], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "bool" : {
     "filter" : [
       {

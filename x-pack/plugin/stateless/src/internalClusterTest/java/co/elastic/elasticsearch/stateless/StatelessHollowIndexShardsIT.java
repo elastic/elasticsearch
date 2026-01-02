@@ -2368,17 +2368,23 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
         // Call the action and assert that it goes only to the search node and the max timestamp is calculated
         final Runnable assertDataStreamsActionResponse = () -> {
             try {
-                assertResponse(client().execute(DataStreamsStatsAction.INSTANCE, new DataStreamsStatsAction.Request()), response -> {
-                    assertThat(response.getDataStreamCount(), equalTo(1));
-                    assertThat(response.getTotalShards(), equalTo(1)); // only the search shard should be counted
-                    final var dataStreamsStats = response.getDataStreams();
-                    assertThat(dataStreamsStats.length, equalTo(1));
-                    final var dataStreamStats = dataStreamsStats[0];
-                    assertThat(dataStreamStats.getStoreSize().getBytes(), greaterThan(0L));
-                    assertThat(dataStreamStats.getStoreSize().getBytes(), equalTo(response.getTotalStoreSize().getBytes()));
-                    assertThat(dataStreamStats.getMaximumTimestamp(), greaterThan(0L));
-                });
-
+                assertBusy(
+                    () -> assertResponse(
+                        client().execute(DataStreamsStatsAction.INSTANCE, new DataStreamsStatsAction.Request()),
+                        response -> {
+                            assertThat(response.getDataStreamCount(), equalTo(1));
+                            assertThat(response.getBackingIndices(), equalTo(2)); // rollover has occurred
+                            assertThat(response.getTotalShards(), equalTo(2)); // only the search shards (two, after the rollover) in each
+                                                                               // index should be counted
+                            final var dataStreamsStats = response.getDataStreams();
+                            assertThat(dataStreamsStats.length, equalTo(1));
+                            final var dataStreamStats = dataStreamsStats[0];
+                            assertThat(dataStreamStats.getStoreSize().getBytes(), greaterThan(0L));
+                            assertThat(dataStreamStats.getStoreSize().getBytes(), equalTo(response.getTotalStoreSize().getBytes()));
+                            assertThat(dataStreamStats.getMaximumTimestamp(), greaterThan(0L));
+                        }
+                    )
+                );
                 // The GetDataStreamAction also calls the DataStreamsStatsAction for max timestamps, so lets confirm that also
                 final var request = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName }).verbose(true);
                 assertResponse(client().execute(GetDataStreamAction.INSTANCE, request), response -> {
@@ -2394,7 +2400,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
 
         // Wait until the backing index is hollowable
         final var backingIndices = getBackingIndices(dataStreamName, false).stream().map(Index::getName).toList();
-        assertThat(backingIndices.size(), equalTo(1));
+        assertThat(backingIndices.size(), equalTo(2));
         final var backingIndex = backingIndices.get(0);
         final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexingNodeA);
         assertBusy(() -> {

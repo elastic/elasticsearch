@@ -135,7 +135,15 @@ public class TransportVersionUtils {
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
     public static TransportVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, TransportVersion.minimumCompatible(), TransportVersion.current());
+        return randomCompatibleVersion(random, true);
+    }
+
+    /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
+    public static TransportVersion randomCompatibleVersion(Random random, boolean includePatches) {
+        return RandomPicks.randomFrom(
+            random,
+            (includePatches ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).stream().filter(TransportVersion::isCompatible).toList()
+        );
     }
 
     private static void assertNotPatch(@Nullable TransportVersion version) {

@@ -29,13 +29,6 @@ public class PromqlVerifierTests extends ESTestCase {
         assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
     }
 
-    public void testPromqlMissingAcrossSeriesAggregation() {
-        assertThat(error("""
-            PROMQL index=test step=5m (
-              rate(network.bytes_in[5m])
-            )""", tsdb), equalTo("2:3: top-level within-series aggregations are not supported at this time [rate(network.bytes_in[5m])]"));
-    }
-
     public void testPromqlRangeVector() {
         assertThat(
             error("PROMQL index=test step=5m network.bytes_in[5m]", tsdb),
@@ -47,16 +40,6 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(
             error("PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])", tsdb),
             equalTo("1:31: binary expression must contain only scalar and instant vector types")
-        );
-    }
-
-    public void testPromqlStepAndRangeMisaligned() {
-        assertThat(
-            error("""
-                PROMQL index=test step=1m (
-                  avg(rate(network.bytes_in[5m]))
-                )""", tsdb),
-            equalTo("2:29: the duration for range vector selector [5m] must be equal to the query's step for range queries at this time")
         );
     }
 

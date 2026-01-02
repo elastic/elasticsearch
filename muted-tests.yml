@@ -378,6 +378,15 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnSearchRescore
   issue: https://github.com/elastic/elasticsearch/issues/140078
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/131369
+- class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
+  method: testResolvesDateMath
+  issue: https://github.com/elastic/elasticsearch/issues/140105
+- class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
+  method: testLocalDateMathExpression
+  issue: https://github.com/elastic/elasticsearch/issues/140106
 
 # Examples:
 #

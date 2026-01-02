@@ -15,28 +15,39 @@ import fixture.aws.sts.AwsStsHttpFixture;
 import fixture.aws.sts.AwsStsHttpHandler;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
+import io.netty.handler.codec.http.HttpMethod;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.jetbrains.annotations.NotNull;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.repositories.s3.AbstractRepositoryS3RestTestCase.getIdentifierPrefix;
+import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
-public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
+public class RepositoryS3StsCredentialsReloadRestIT extends ESRestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3StsCredentialsRestIT");
     private static final String BUCKET = PREFIX + "bucket";
     private static final String BASE_PATH = PREFIX + "base_path";
-    private static final String CLIENT = "sts_credentials_client";
+    private static final String CLIENT = "sts_credentials_reload_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
@@ -49,15 +60,12 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
         dynamicCredentials::isAuthorized
     );
 
-    private static final String WEB_IDENTITY_TOKEN_FILE_CONTENTS = """
-        Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\
-        FBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFO\
-        zTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ""";
+    private static volatile String expectedWebIdentityTokenFileContents = "first token";
 
     private static final AwsStsHttpFixture stsHttpFixture = new AwsStsHttpFixture(
         dynamicCredentials::addValidCredentials,
-        () -> WEB_IDENTITY_TOKEN_FILE_CONTENTS,
-        TimeValue.timeValueDays(1)
+        () -> expectedWebIdentityTokenFileContents,
+        TimeValue.timeValueSeconds(115) // SDK tries to refresh credentials if they expire in less than 2 minutes == 120s
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -66,7 +74,7 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
         .systemProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", stsHttpFixture::getAddress)
         .configFile(
             S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION,
-            Resource.fromString(WEB_IDENTITY_TOKEN_FILE_CONTENTS)
+            Resource.fromString("not ready yet")
         )
         // When running in EKS with container identity the environment variable `AWS_WEB_IDENTITY_TOKEN_FILE` will point to a file which
         // ES cannot access due to its security policy; we override it with `${ES_CONF_PATH}/repository-s3/aws-web-identity-token-file`
@@ -89,18 +97,65 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
         return cluster.getHttpAddresses();
     }
 
-    @Override
-    protected String getBucketName() {
-        return BUCKET;
+    public void testReloadCredentials() throws IOException {
+        final var repositoryName = "repo-" + randomIdentifier();
+
+        // token file starts out invalid, so we cannot create the repository
+        assertThat(
+            expectThrows(ResponseException.class, () -> client().performRequest(getPutRepositoryRequest(repositoryName))).getResponse()
+                .getStatusLine()
+                .getStatusCode(),
+            equalTo(500)
+        );
+
+        // filling in the expected file contents yields success immediately, so we must be re-reading this file correctly
+        final var webIdentityTokenFilePath = cluster.getNodeConfigPath(0)
+            .resolve(S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION);
+        Files.writeString(webIdentityTokenFilePath, expectedWebIdentityTokenFileContents);
+        client().performRequest(getPutRepositoryRequest(repositoryName));
+        assertVerifySuccess(repositoryName);
+
+        // doesn't matter if the current credentials all become invalid, because they're so close to expiry that the SDK is refreshing them
+        // (as confirmed by the success of the verify command)
+        dynamicCredentials.clearValidCredentials();
+        assertVerifySuccess(repositoryName);
+
+        // if the refresh fails (incorrect token file contents) we keep on re-using the last good credentials
+        expectedWebIdentityTokenFileContents = randomAlphanumericOfLength(100);
+        assertVerifySuccess(repositoryName);
+
+        // if the last good credentials stop working then verification starts to fail
+        dynamicCredentials.clearValidCredentials();
+        assertVerifyFailure(repositoryName);
+
+        // however we keep on trying to refresh and once the token file contents are correct it will succeed
+        Files.writeString(webIdentityTokenFilePath, expectedWebIdentityTokenFileContents);
+        assertVerifySuccess(repositoryName);
+
     }
 
-    @Override
-    protected String getBasePath() {
-        return BASE_PATH;
+    private static void assertVerifyFailure(String repositoryName) {
+        assertThat(
+            expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(new Request("POST", "/_snapshot/" + repositoryName + "/_verify"))
+            ).getResponse().getStatusLine().getStatusCode(),
+            equalTo(500)
+        );
     }
 
-    @Override
-    protected String getClientName() {
-        return CLIENT;
+    private static void assertVerifySuccess(String repositoryName) throws IOException {
+        client().performRequest(new Request("POST", "/_snapshot/" + repositoryName + "/_verify"));
+    }
+
+    private static @NotNull Request getPutRepositoryRequest(String repositoryName) throws IOException {
+        return newXContentRequest(
+            HttpMethod.PUT,
+            "/_snapshot/" + repositoryName,
+            (b, p) -> b.field("type", S3Repository.TYPE)
+                .startObject("settings")
+                .value(Settings.builder().put("bucket", BUCKET).put("base_path", BASE_PATH).put("client", CLIENT).build())
+                .endObject()
+        );
     }
 }

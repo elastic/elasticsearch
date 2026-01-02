@@ -275,15 +275,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                         if (range.includeLower() == false) { // a = 2 OR 2 < a < ? -> 2 <= a < ?
                             ranges.set(
                                 i,
-                                new Range(
-                                    range.source(),
-                                    range.value(),
-                                    range.lower(),
-                                    true,
-                                    range.upper(),
-                                    range.includeUpper(),
-                                    range.zoneId()
-                                )
+                                new Range(range.source(), range.value(), range.lower(), true, range.upper(), range.includeUpper())
                             );
                         } // else : a = 2 OR 2 <= a < ? -> 2 <= a < ?
                         removeEquals = true; // update range with lower equality instead or simply superfluous
@@ -292,15 +284,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                         if (range.includeUpper() == false) { // a = 2 OR ? < a < 2 -> ? < a <= 2
                             ranges.set(
                                 i,
-                                new Range(
-                                    range.source(),
-                                    range.value(),
-                                    range.lower(),
-                                    range.includeLower(),
-                                    range.upper(),
-                                    true,
-                                    range.zoneId()
-                                )
+                                new Range(range.source(), range.value(), range.lower(), range.includeLower(), range.upper(), true)
                             );
                         } // else : a = 2 OR ? < a <= 2 -> ? < a <= 2
                         removeEquals = true; // update range with upper equality instead
@@ -329,7 +313,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                             if (comp < 0) { // a = 1 OR a > 2 -> nop
                                 continue;
                             } else if (comp == 0 && bc instanceof GreaterThan) { // a = 2 OR a > 2 -> a >= 2
-                                inequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                inequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right()));
                             } // else (0 < comp || bc instanceof GreaterThanOrEqual) :
                               // a = 3 OR a > 2 -> a > 2; a = 2 OR a => 2 -> a => 2
 
@@ -340,7 +324,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                                 continue;
                             }
                             if (comp == 0 && bc instanceof LessThan) { // a = 2 OR a < 2 -> a <= 2
-                                inequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                inequalities.set(i, new LessThanOrEqual(bc.source(), bc.left(), bc.right()));
                             } // else (comp < 0 || bc instanceof LessThanOrEqual) : a = 2 OR a < 3 -> a < 3; a = 2 OR a <= 2 -> a <= 2
                             removeEquals = true; // update range with equality instead or simply superfluous
                             break;

@@ -209,8 +209,7 @@ public class RangeTests extends ESTestCase {
                 l(test[2], (DataType) test[3]),
                 (Boolean) test[4],
                 l(test[5], (DataType) test[6]),
-                (Boolean) test[7],
-                ZoneId.systemDefault()
+                (Boolean) test[7]
             );
             assertEquals(
                 "failed on test " + i + ": " + Arrays.toString(test),

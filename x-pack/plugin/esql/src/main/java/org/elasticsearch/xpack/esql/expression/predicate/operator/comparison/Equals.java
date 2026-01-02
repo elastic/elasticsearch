@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
-import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
 
@@ -124,19 +123,6 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         );
     }
 
-    public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(
-            source,
-            left,
-            right,
-            BinaryComparisonOperation.EQ,
-            zoneId,
-            evaluatorMap,
-            EqualsNanosMillisEvaluator.Factory::new,
-            EqualsMillisNanosEvaluator.Factory::new
-        );
-    }
-
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right() instanceof Literal lit) {
@@ -176,17 +162,17 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
 
     @Override
     protected NodeInfo<Equals> info() {
-        return NodeInfo.create(this, Equals::new, left(), right(), zoneId());
+        return NodeInfo.create(this, Equals::new, left(), right());
     }
 
     @Override
     protected Equals replaceChildren(Expression newLeft, Expression newRight) {
-        return new Equals(source(), newLeft, newRight, zoneId());
+        return new Equals(source(), newLeft, newRight);
     }
 
     @Override
     public Equals swapLeftAndRight() {
-        return new Equals(source(), right(), left(), zoneId());
+        return new Equals(source(), right(), left());
     }
 
     @Override
@@ -196,7 +182,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
 
     @Override
     public EsqlBinaryComparison negate() {
-        return new NotEquals(source(), left(), right(), zoneId());
+        return new NotEquals(source(), left(), right());
     }
 
     @Evaluator(extraName = "Ints")

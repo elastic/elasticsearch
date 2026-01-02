@@ -189,7 +189,7 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
                     if (comp != null) {
                         if (comp >= 0) {
                             if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
-                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right()));
                             } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
                             return true;
                         } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
@@ -199,7 +199,7 @@ public final class CombineBinaryComparisons extends OptimizerRules.OptimizerExpr
                     if (comp != null) {
                         if (comp <= 0) {
                             if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
-                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right()));
                             } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
                             return true;
                         } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop

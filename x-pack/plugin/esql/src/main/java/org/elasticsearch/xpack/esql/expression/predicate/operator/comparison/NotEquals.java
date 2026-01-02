@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
-import java.time.ZoneId;
 import java.util.Map;
 
 public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
@@ -116,19 +115,6 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         );
     }
 
-    public NotEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(
-            source,
-            left,
-            right,
-            BinaryComparisonOperation.NEQ,
-            zoneId,
-            evaluatorMap,
-            NotEqualsNanosMillisEvaluator.Factory::new,
-            NotEqualsMillisNanosEvaluator.Factory::new
-        );
-    }
-
     @Override
     public String getWriteableName() {
         return ENTRY.name;
@@ -181,21 +167,21 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
 
     @Override
     protected NodeInfo<NotEquals> info() {
-        return NodeInfo.create(this, NotEquals::new, left(), right(), zoneId());
+        return NodeInfo.create(this, NotEquals::new, left(), right());
     }
 
     @Override
     protected NotEquals replaceChildren(Expression newLeft, Expression newRight) {
-        return new NotEquals(source(), newLeft, newRight, zoneId());
+        return new NotEquals(source(), newLeft, newRight);
     }
 
     @Override
     public NotEquals swapLeftAndRight() {
-        return new NotEquals(source(), right(), left(), zoneId());
+        return new NotEquals(source(), right(), left());
     }
 
     @Override
     public EsqlBinaryComparison negate() {
-        return new Equals(source(), left(), right(), zoneId());
+        return new Equals(source(), left(), right());
     }
 }

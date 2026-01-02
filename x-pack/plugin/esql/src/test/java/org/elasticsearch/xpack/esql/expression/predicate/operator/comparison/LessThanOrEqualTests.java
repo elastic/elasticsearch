@@ -163,6 +163,6 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new LessThanOrEqual(source, args.get(0), args.get(1), null);
+        return new LessThanOrEqual(source, args.get(0), args.get(1));
     }
 }

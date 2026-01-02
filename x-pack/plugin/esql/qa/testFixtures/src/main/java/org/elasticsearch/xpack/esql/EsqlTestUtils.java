@@ -211,7 +211,6 @@ import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomShort;
-import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -241,27 +240,27 @@ public final class EsqlTestUtils {
     private static final Logger LOGGER = LogManager.getLogger(EsqlTestUtils.class);
 
     public static Equals equalsOf(Expression left, Expression right) {
-        return new Equals(EMPTY, left, right, null);
+        return new Equals(EMPTY, left, right);
     }
 
     public static LessThan lessThanOf(Expression left, Expression right) {
-        return new LessThan(EMPTY, left, right, null);
+        return new LessThan(EMPTY, left, right);
     }
 
     public static GreaterThan greaterThanOf(Expression left, Expression right) {
-        return new GreaterThan(EMPTY, left, right, ESTestCase.randomZone());
+        return new GreaterThan(EMPTY, left, right);
     }
 
     public static NotEquals notEqualsOf(Expression left, Expression right) {
-        return new NotEquals(EMPTY, left, right, ESTestCase.randomZone());
+        return new NotEquals(EMPTY, left, right);
     }
 
     public static LessThanOrEqual lessThanOrEqualOf(Expression left, Expression right) {
-        return new LessThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
+        return new LessThanOrEqual(EMPTY, left, right);
     }
 
     public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
-        return new GreaterThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
+        return new GreaterThanOrEqual(EMPTY, left, right);
     }
 
     public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name) {
@@ -336,7 +335,7 @@ public final class EsqlTestUtils {
     }
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
-        return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+        return new Range(EMPTY, value, lower, includeLower, upper, includeUpper);
     }
 
     public static EsRelation relation() {

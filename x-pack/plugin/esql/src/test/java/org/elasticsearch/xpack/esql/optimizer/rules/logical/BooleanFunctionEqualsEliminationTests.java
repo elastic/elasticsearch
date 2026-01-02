@@ -34,7 +34,7 @@ public class BooleanFunctionEqualsEliminationTests extends ESTestCase {
     }
 
     public void testBoolEqualsSimplificationOnExpressions() {
-        Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), new Literal(EMPTY, 0, DataType.INTEGER), null);
+        Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), new Literal(EMPTY, 0, DataType.INTEGER));
 
         assertEquals(exp, booleanFunctionEqualElimination(new Equals(EMPTY, exp, TRUE)));
         // TODO: Replace use of QL Not with ESQL Not

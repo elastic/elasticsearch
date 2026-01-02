@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.time.DateTimeException;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 
@@ -52,9 +51,8 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
-    private final ZoneId zoneId;
 
-    public Range(Source src, Expression value, Expression lower, boolean inclLower, Expression upper, boolean inclUpper, ZoneId zoneId) {
+    public Range(Source src, Expression value, Expression lower, boolean inclLower, Expression upper, boolean inclUpper) {
         super(src, asList(value, lower, upper));
 
         this.value = value;
@@ -62,7 +60,6 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         this.upper = upper;
         this.includeLower = inclLower;
         this.includeUpper = inclUpper;
-        this.zoneId = zoneId;
     }
 
     @Override
@@ -77,12 +74,12 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     protected NodeInfo<Range> info() {
-        return NodeInfo.create(this, Range::new, value, lower, includeLower, upper, includeUpper, zoneId);
+        return NodeInfo.create(this, Range::new, value, lower, includeLower, upper, includeUpper);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Range(source(), newChildren.get(0), newChildren.get(1), includeLower, newChildren.get(2), includeUpper, zoneId);
+        return new Range(source(), newChildren.get(0), newChildren.get(1), includeLower, newChildren.get(2), includeUpper);
     }
 
     public Expression value() {
@@ -103,10 +100,6 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     public boolean includeUpper() {
         return includeUpper;
-    }
-
-    public ZoneId zoneId() {
-        return zoneId;
     }
 
     /**
@@ -199,7 +192,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     public int hashCode() {
-        return Objects.hash(includeLower, includeUpper, value, lower, upper, zoneId);
+        return Objects.hash(includeLower, includeUpper, value, lower, upper);
     }
 
     @Override
@@ -217,8 +210,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             && Objects.equals(includeUpper, other.includeUpper)
             && Objects.equals(value, other.value)
             && Objects.equals(lower, other.lower)
-            && Objects.equals(upper, other.upper)
-            && Objects.equals(zoneId, other.zoneId);
+            && Objects.equals(upper, other.upper);
     }
 
     @Override
@@ -286,7 +278,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             }
         }
         logger.trace("Building range query with format string [{}]", format);
-        return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, zoneId);
+        return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, null);
     }
 
     @Override

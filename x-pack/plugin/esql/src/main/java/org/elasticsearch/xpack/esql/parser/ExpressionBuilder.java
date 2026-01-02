@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -73,7 +72,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
 import java.time.Duration;
-import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
@@ -623,16 +621,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private Expression buildComparison(Source source, Expression left, Expression right, TerminalNode op) {
-        ZoneId zoneId = DateUtils.UTC;
-
         return switch (op.getSymbol().getType()) {
-            case EsqlBaseParser.EQ -> new Equals(source, left, right, zoneId);
+            case EsqlBaseParser.EQ -> new Equals(source, left, right);
             case EsqlBaseParser.CIEQ -> new InsensitiveEquals(source, left, right);
-            case EsqlBaseParser.NEQ -> new Not(source, new Equals(source, left, right, zoneId));
-            case EsqlBaseParser.LT -> new LessThan(source, left, right, zoneId);
-            case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right, zoneId);
-            case EsqlBaseParser.GT -> new GreaterThan(source, left, right, zoneId);
-            case EsqlBaseParser.GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
+            case EsqlBaseParser.NEQ -> new Not(source, new Equals(source, left, right));
+            case EsqlBaseParser.LT -> new LessThan(source, left, right);
+            case EsqlBaseParser.LTE -> new LessThanOrEqual(source, left, right);
+            case EsqlBaseParser.GT -> new GreaterThan(source, left, right);
+            case EsqlBaseParser.GTE -> new GreaterThanOrEqual(source, left, right);
             default -> throw new ParsingException(source, "Unknown comparison operator {}", op.getText());
         };
     }

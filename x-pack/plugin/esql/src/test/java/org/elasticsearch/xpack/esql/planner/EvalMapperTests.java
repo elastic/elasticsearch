@@ -102,21 +102,21 @@ public class EvalMapperTests extends ESTestCase {
             new Neg(Source.EMPTY, DOUBLE1),
             new Abs(Source.EMPTY, DOUBLE1),
             new Equals(Source.EMPTY, DOUBLE1, DOUBLE2),
-            new GreaterThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
-            new GreaterThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null),
-            new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
-            new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null),
+            new GreaterThan(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new GreaterThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2),
             new And(
                 Source.EMPTY,
-                new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
-                new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null)
+                new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2),
+                new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2)
             ),
             new Or(
                 Source.EMPTY,
-                new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
-                new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null)
+                new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2),
+                new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2)
             ),
-            new Not(Source.EMPTY, new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2, null)),
+            new Not(Source.EMPTY, new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2)),
             new Concat(Source.EMPTY, literal, Collections.emptyList()),
             new Round(Source.EMPTY, DOUBLE1, LONG),
             new Pow(Source.EMPTY, DOUBLE1, DOUBLE2),

@@ -124,8 +124,8 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, sortedInput);
     }
 
-    public TopNExec withSortedInput(boolean hasSortedInput) {
-        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, hasSortedInput);
+    public TopNExec withSortedInput() {
+        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, true);
     }
 
     public Expression limit() {

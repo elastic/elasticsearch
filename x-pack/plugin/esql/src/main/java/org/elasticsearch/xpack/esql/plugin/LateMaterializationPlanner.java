@@ -133,8 +133,7 @@ class LateMaterializationPlanner {
         // Replace the TopN child with the data driver as the source.
         PhysicalPlan reductionPlan = toPhysical(fragmentExec.fragment(), context).transformDown(
             TopNExec.class,
-            t -> t.replaceChild(new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */))
-                .withSortedInput()
+            t -> t.replaceChild(new ExchangeSourceExec(topN.source(), expectedDataOutput, false /* isIntermediateAgg */)).withSortedInput()
         );
         ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(
             EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan)

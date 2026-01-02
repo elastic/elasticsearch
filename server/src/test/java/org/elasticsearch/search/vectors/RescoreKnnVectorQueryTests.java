@@ -53,7 +53,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
@@ -103,8 +106,26 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     );
 
                     IndexSearcher searcher = newSearcher(reader, true, false);
+
                     TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
                     assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
+
+                    if (innerQuery instanceof KnnFloatVectorQuery) {
+                        // check that at least one doc has its score changed, indicating rescoring has happened
+                        TopDocs unrescoredDocs = searcher.search(innerQuery, numDocs);
+                        Map<Integer, Double> rescoredScores = Arrays.stream(rescoredDocs.scoreDocs)
+                            .collect(Collectors.toMap(sd -> sd.doc, sd -> (double) sd.score));
+
+                        boolean changed = false;
+                        for (ScoreDoc unrescored : unrescoredDocs.scoreDocs) {
+                            Double rescored = rescoredScores.get(unrescored.doc);
+                            if (rescored != null && Math.abs(rescored - unrescored.score) > DELTA) {
+                                changed = true;
+                                break;
+                            }
+                        }
+                        assertTrue("No docs had their scores changed", changed);
+                    }
 
                     // Get real scores
                     DoubleValuesSource valueSource = new FullPrecisionFloatVectorSimilarityValuesSource(

@@ -357,18 +357,12 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testReadBlobWithReadTimeouts
   issue: https://github.com/elastic/elasticsearch/issues/139995
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnRetriever
-  issue: https://github.com/elastic/elasticsearch/issues/140014
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/131366
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test140CgroupOsStatsAreAvailable
   issue: https://github.com/elastic/elasticsearch/issues/131372
-- class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
-  method: testKnnSearchRescore
-  issue: https://github.com/elastic/elasticsearch/issues/140078
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369

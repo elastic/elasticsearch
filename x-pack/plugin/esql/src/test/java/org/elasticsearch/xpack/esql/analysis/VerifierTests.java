@@ -731,6 +731,10 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:40: Unknown column [emp_no]", error("from test | rename emp_no as r1 | drop emp_no"));
     }
 
+    public void testDropUnknownPattern() {
+        assertEquals("1:18: No matches found for pattern [foobar*]", error("from test | drop foobar*"));
+    }
+
     public void testNonStringFieldsInDissect() {
         assertEquals(
             "1:21: Dissect only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]",

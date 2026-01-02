@@ -463,9 +463,10 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         // Sprinkle garbage into it
         input = CannedSourceOperator.collectPages(new AddGarbageRowsSourceOperator(new CannedSourceOperator(input.iterator())));
+        // Feed it to the aggregator
         List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        // Check the results
         assertThat(results, hasSize(1));
-
         assertSimpleOutput(origInput, results, false);
     }
 

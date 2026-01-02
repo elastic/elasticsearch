@@ -61,25 +61,25 @@ public class PromqlFunctionRegistry {
         withinSeries("first_over_time", FirstOverTime::new),
         withinSeries("last_over_time", LastOverTime::new),
         //
-        withinSeriesOverTime1("avg_over_time", AvgOverTime::new),
-        withinSeriesOverTime1("count_over_time", CountOverTime::new),
-        withinSeriesOverTime1("max_over_time", MaxOverTime::new),
-        withinSeriesOverTime1("min_over_time", MinOverTime::new),
-        withinSeriesOverTime1("sum_over_time", SumOverTime::new),
-        withinSeriesOverTime1("stddev_over_time", StddevOverTime::new),
-        withinSeriesOverTime1("stdvar_over_time", VarianceOverTime::new),
-        withinSeriesOverTime1("absent_over_time", AbsentOverTime::new),
-        withinSeriesOverTime1("present_over_time", PresentOverTime::new),
-        withinSeriesOverTime2("quantile_over_time", PercentileOverTime::new),
+        withinSeriesOverTimeUnary("avg_over_time", AvgOverTime::new),
+        withinSeriesOverTimeUnary("count_over_time", CountOverTime::new),
+        withinSeriesOverTimeUnary("max_over_time", MaxOverTime::new),
+        withinSeriesOverTimeUnary("min_over_time", MinOverTime::new),
+        withinSeriesOverTimeUnary("sum_over_time", SumOverTime::new),
+        withinSeriesOverTimeUnary("stddev_over_time", StddevOverTime::new),
+        withinSeriesOverTimeUnary("stdvar_over_time", VarianceOverTime::new),
+        withinSeriesOverTimeUnary("absent_over_time", AbsentOverTime::new),
+        withinSeriesOverTimeUnary("present_over_time", PresentOverTime::new),
+        withinSeriesOverTimeBinary("quantile_over_time", PercentileOverTime::new),
         //
-        acrossSeries1("avg", Avg::new),
-        acrossSeries1("count", Count::new),
-        acrossSeries1("max", Max::new),
-        acrossSeries1("min", Min::new),
-        acrossSeries1("sum", Sum::new),
-        acrossSeries1("stddev", StdDev::new),
-        acrossSeries1("stdvar", Variance::new),
-        acrossSeries2("quantile", Percentile::new)
+        acrossSeriesUnary("avg", Avg::new),
+        acrossSeriesUnary("count", Count::new),
+        acrossSeriesUnary("max", Max::new),
+        acrossSeriesUnary("min", Min::new),
+        acrossSeriesUnary("sum", Sum::new),
+        acrossSeriesUnary("stddev", StdDev::new),
+        acrossSeriesUnary("stdvar", Variance::new),
+        acrossSeriesBinary("quantile", Percentile::new)
     };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
@@ -191,7 +191,7 @@ public class PromqlFunctionRegistry {
         );
     }
 
-    private static FunctionDefinition withinSeriesOverTime1(String name, OverTime<?> builder) {
+    private static FunctionDefinition withinSeriesOverTimeUnary(String name, OverTime<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
@@ -202,7 +202,7 @@ public class PromqlFunctionRegistry {
         );
     }
 
-    private static FunctionDefinition withinSeriesOverTime2(String name, OverTimeBinary<?> builder) {
+    private static FunctionDefinition withinSeriesOverTimeBinary(String name, OverTimeBinary<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
@@ -214,7 +214,7 @@ public class PromqlFunctionRegistry {
         );
     }
 
-    private static FunctionDefinition acrossSeries1(String name, AcrossSeriesUnary<?> builder) {
+    private static FunctionDefinition acrossSeriesUnary(String name, AcrossSeriesUnary<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.ACROSS_SERIES_AGGREGATION,
@@ -225,7 +225,7 @@ public class PromqlFunctionRegistry {
         );
     }
 
-    private static FunctionDefinition acrossSeries2(String name, AcrossSeriesBinary<?> builder) {
+    private static FunctionDefinition acrossSeriesBinary(String name, AcrossSeriesBinary<?> builder) {
         return new FunctionDefinition(
             name,
             FunctionType.ACROSS_SERIES_AGGREGATION,
@@ -329,9 +329,6 @@ public class PromqlFunctionRegistry {
         return promqlFunctions.get(normalized);
     }
 
-    /**
-     * Returns true if function exists and is implemented, false if unknown, null if known but not implemented.
-     */
     public void checkFunction(Source source, String name) {
         String normalized = normalize(name);
 

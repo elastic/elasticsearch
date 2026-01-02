@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
 // first iteration is complete garbage, so make sure we really warmup
-@Warmup(iterations = 4, time = 1)
+@Warmup(iterations = 3, time = 1)
 // real iterations. not useful to spend tons of time here, better to fork more
 @Measurement(iterations = 5, time = 1)
 // engage some noise reduction
@@ -110,7 +110,7 @@ public class Base64VectorBenchmark {
                 parser.nextToken(); // field name
                 parser.nextToken(); // value
                 ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getDecoder().decode(parser.text())).order(ByteOrder.BIG_ENDIAN);
-                byteBuffer.asFloatBuffer().put(vector);
+                byteBuffer.asFloatBuffer().get(vector);
                 bh.consume(vector);
             }
         }

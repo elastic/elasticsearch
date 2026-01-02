@@ -106,16 +106,8 @@ public class EvalMapperTests extends ESTestCase {
             new GreaterThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2),
             new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2),
             new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2),
-            new And(
-                Source.EMPTY,
-                new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2),
-                new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2)
-            ),
-            new Or(
-                Source.EMPTY,
-                new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2),
-                new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2)
-            ),
+            new And(Source.EMPTY, new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2), new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2)),
+            new Or(Source.EMPTY, new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2), new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2)),
             new Not(Source.EMPTY, new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2)),
             new Concat(Source.EMPTY, literal, Collections.emptyList()),
             new Round(Source.EMPTY, DOUBLE1, LONG),

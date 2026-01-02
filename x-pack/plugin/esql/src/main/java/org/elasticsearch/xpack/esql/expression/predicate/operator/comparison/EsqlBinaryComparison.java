@@ -46,7 +46,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.OffsetTime;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -191,7 +190,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         functionType.writeTo(out);
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
-        out.writeOptionalZoneId(ZoneOffset.UTC); // TODO: Add TV and don't sent this
+        // TODO: Remove zoneId entirely
+        out.writeOptionalZoneId(null);
     }
 
     public BinaryComparisonOperation getFunctionType() {

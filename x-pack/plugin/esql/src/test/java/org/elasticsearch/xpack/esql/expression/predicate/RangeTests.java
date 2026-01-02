@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 

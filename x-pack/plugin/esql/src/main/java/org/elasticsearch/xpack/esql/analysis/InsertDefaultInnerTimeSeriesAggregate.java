@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical;
+package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -21,10 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpres
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.List;
 
@@ -40,14 +41,13 @@ import java.util.List;
  * SUM(LAST_OVER_TIME(foo) + LAST_OVER_TIME(bar))
  * </pre>
  */
-public class DefaultInnerAggregation extends OptimizerRules.ParameterizedOptimizerRule<TimeSeriesAggregate, LogicalOptimizerContext> {
-
-    public DefaultInnerAggregation() {
-        super(OptimizerRules.TransformDirection.UP);
+public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, LogicalPlan> {
+    @Override
+    public LogicalPlan apply(LogicalPlan logicalPlan) {
+        return logicalPlan.transformUp(node -> node instanceof TimeSeriesAggregate, this::rule);
     }
 
-    @Override
-    protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+    public LogicalPlan rule(TimeSeriesAggregate aggregate) {
         Holder<Attribute> timestamp = new Holder<>();
         aggregate.forEachDown(EsRelation.class, (EsRelation r) -> {
             for (Attribute attr : r.output()) {
@@ -96,9 +96,20 @@ public class DefaultInnerAggregation extends OptimizerRules.ParameterizedOptimiz
 
     private static TimeSeriesAggregateFunction createDefaultInnerAggregation(TypedAttribute attr, Attribute timestamp) {
         if (attr.dataType() == DataType.EXPONENTIAL_HISTOGRAM || attr.dataType() == DataType.TDIGEST) {
-            return new HistogramMergeOverTime(attr.source(), attr, Literal.TRUE, AggregateFunction.NO_WINDOW);
+            return new HistogramMergeOverTime(
+                wrapSource(HistogramMergeOverTime.class, attr),
+                attr,
+                Literal.TRUE,
+                AggregateFunction.NO_WINDOW
+            );
         } else {
-            return new LastOverTime(attr.source(), attr, AggregateFunction.NO_WINDOW, timestamp);
+            return new LastOverTime(wrapSource(LastOverTime.class, attr), attr, AggregateFunction.NO_WINDOW, timestamp);
         }
+    }
+
+    private static Source wrapSource(Class<? extends TimeSeriesAggregateFunction> timeSeriesFunction, TypedAttribute attr) {
+        String functionNameSnakeCase = timeSeriesFunction.getSimpleName().replaceAll("([a-z])([A-Z]+)", "$1_$2").toLowerCase();
+        Source attrSource = attr.source();
+        return new Source(attrSource.source(), functionNameSnakeCase + "(" + attrSource.text() + ")");
     }
 }

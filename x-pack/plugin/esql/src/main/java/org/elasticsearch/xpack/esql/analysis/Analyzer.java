@@ -228,6 +228,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
             new InsertFromAggregateMetricDouble(),
             new ResolveUnionTypesInUnionAll()

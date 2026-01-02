@@ -182,18 +182,22 @@ public class HierarchicalKMeans {
             return kMeansIntermediate;
         }
 
-        int removedElements = 0;
+        int modifiedElements = 0;
         for (int c = 0; c < centroidVectorCount.length; c++) {
             // Recurse for each cluster which is larger than targetSize
             // Give ourselves 30% margin for the target size
             final int count = centroidVectorCount[c];
-            final int adjustedCentroid = c - removedElements;
+            final int adjustedCentroid = c - modifiedElements;
             if (100 * count > 134 * targetSize) {
-                final FloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
+                final FloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments); // TODO
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, clusterAndSplit(sample, targetSize));
+                modifiedElements += updateAssignmentsWithRecursiveSplit(
+                    kMeansIntermediate,
+                    adjustedCentroid,
+                    clusterAndSplit(sample, targetSize)
+                );
             } else if (count == 0) {
                 // remove empty clusters
                 final int newSize = kMeansIntermediate.centroids().length - 1;
@@ -213,7 +217,7 @@ public class HierarchicalKMeans {
                     }
                 }
                 kMeansIntermediate.setCentroids(newCentroids);
-                removedElements++;
+                modifiedElements--;
             }
         }
 
@@ -241,27 +245,34 @@ public class HierarchicalKMeans {
         return new FloatVectorValuesSlice(vectors, slice);
     }
 
-    void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
+    int updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
         if (subPartitions.centroids().length == 0) {
-            return; // nothing to do, sub-partitions is empty
+            return 0; // nothing to do, sub-partitions is empty
         }
         int orgCentroidsSize = current.centroids().length;
         int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
 
         // update based on the outcomes from the split clusters recursion
         float[][] newCentroids = new float[newCentroidsSize][];
-        System.arraycopy(current.centroids(), 0, newCentroids, 0, current.centroids().length);
 
-        // replace the original cluster
-        int origCentroidOrd = 0;
-        newCentroids[cluster] = subPartitions.centroids()[0];
-
+        // copy centroids prior to the split
+        System.arraycopy(current.centroids(), 0, newCentroids, 0, cluster);
+        // insert the split partitions replacing the original cluster
+        System.arraycopy(subPartitions.centroids(), 0, newCentroids, cluster, subPartitions.centroids().length);
         // append the remainder
-        System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
+        System.arraycopy(
+            current.centroids(),
+            cluster + 1,
+            newCentroids,
+            cluster + subPartitions.centroids().length,
+            current.centroids().length - cluster - 1
+        );
+
         assert Arrays.stream(newCentroids).allMatch(Objects::nonNull);
 
         current.setCentroids(newCentroids);
 
+        final int origCentroidOrd = 0;
         for (int i = 0; i < subPartitions.assignments().length; i++) {
             // this is a new centroid that was added, and so we'll need to remap it
             if (subPartitions.assignments()[i] != origCentroidOrd) {
@@ -270,5 +281,8 @@ public class HierarchicalKMeans {
                 current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
             }
         }
+
+        // number of items inserted (1 replaced)
+        return subPartitions.centroids().length - 1;
     }
 }

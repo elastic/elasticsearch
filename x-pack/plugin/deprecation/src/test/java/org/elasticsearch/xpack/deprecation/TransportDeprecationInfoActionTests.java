@@ -430,19 +430,22 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         long totalBytesOnMachine = 100;
         long lowFreeBytes = 5;
 
-        ClusterInfo clusterInfo = ClusterInfo.builder()
-            .mostAvailableSpaceUsage(
-                Map.of(
-                    regularNodeId,
-                    new DiskUsage(regularNodeId, "", "", totalBytesOnMachine, totalBytesOnMachine),
-                    frozenNodeId,
-                    new DiskUsage(frozenNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
-                    noDataNodeId,
-                    new DiskUsage(noDataNodeId, "", "", totalBytesOnMachine, lowFreeBytes)
-                )
-            )
-            .build();
-
+         ClusterInfo clusterInfo = new ClusterInfo(
+            Map.of(),
+            Map.of(
+                regularNodeId,
+                new DiskUsage(regularNodeId, "", "", totalBytesOnMachine, totalBytesOnMachine),
+                frozenNodeId,
+                new DiskUsage(frozenNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
+                noDataNodeId,
+                new DiskUsage(noDataNodeId, "", "", totalBytesOnMachine, lowFreeBytes)
+            ),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
+        
         DiscoveryNode regularNode = mock(DiscoveryNode.class);
         when(regularNode.getId()).thenReturn(regularNodeId);
         when(regularNode.getName()).thenReturn("regular-node");
@@ -466,18 +469,21 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         DeprecationIssue issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
         assertNull(issue);
 
-        ClusterInfo clusterInfoWithAllExceeding = ClusterInfo.builder()
-            .mostAvailableSpaceUsage(
-                Map.of(
-                    regularNodeId,
-                    new DiskUsage(regularNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
-                    frozenNodeId,
-                    new DiskUsage(frozenNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
-                    noDataNodeId,
-                    new DiskUsage(noDataNodeId, "", "", totalBytesOnMachine, lowFreeBytes)
-                )
-            )
-            .build();
+        ClusterInfo clusterInfoWithAllExceeding = new ClusterInfo(
+            Map.of(),
+            Map.of(
+                regularNodeId,
+                new DiskUsage(regularNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
+                frozenNodeId,
+                new DiskUsage(frozenNodeId, "", "", totalBytesOnMachine, lowFreeBytes),
+                noDataNodeId,
+                new DiskUsage(noDataNodeId, "", "", totalBytesOnMachine, lowFreeBytes)
+            ),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
 
         issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfoWithAllExceeding, discoveryNodes);
         assertNotNull(issue);

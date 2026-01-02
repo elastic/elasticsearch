@@ -9908,8 +9908,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ).getMessage(),
             containsString("""
                 Functions [last_over_time(network.cost), last_over_time(network.eth0.rx)] require a @timestamp field of type date or \
-                date_nanos to be present when run with the TS command, but it was not present."""
-            )
+                date_nanos to be present when run with the TS command, but it was not present.""")
         );
 
         assertThat(

@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static java.util.function.Predicate.not;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 
 public class TransportVersionUtils {
@@ -30,7 +31,10 @@ public class TransportVersionUtils {
     );
     private static final NavigableSet<TransportVersion> NON_PATCH_VERSIONS = Collections.unmodifiableNavigableSet(
         // Exclude patch versions since they break the semantics of methods like `randomVersionBetween`
-        TransportVersion.getAllVersions().stream().filter(v -> v.isPatchVersion() == false).collect(Collectors.toCollection(TreeSet::new))
+        TransportVersion.getAllVersions()
+            .stream()
+            .filter(not(TransportVersionUtils::isPatchVersion))
+            .collect(Collectors.toCollection(TreeSet::new))
     );
 
     /** Returns all released versions */
@@ -98,7 +102,7 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getPreviousVersion(TransportVersion version, boolean createIfNecessary) {
-        TransportVersion lower = (version.isPatchVersion() ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).lower(version);
+        TransportVersion lower = (isPatchVersion(version) ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).lower(version);
         if (lower == null) {
             if (createIfNecessary) {
                 // create a new transport version one less than specified
@@ -115,8 +119,8 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getNextVersion(TransportVersion version, boolean createIfNecessary) {
-        TransportVersion higher = (version.isPatchVersion() ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).higher(version);
-        if (higher != null && version.isPatchVersion() && higher.isPatchVersion() == false) {
+        TransportVersion higher = (isPatchVersion(version) ? RELEASED_VERSIONS : NON_PATCH_VERSIONS).higher(version);
+        if (higher != null && isPatchVersion(version) && isPatchVersion(higher) == false) {
             throw new IllegalStateException(
                 "couldn't determine next version as version [" + version + "] is  patch, and is the newest patch"
             );
@@ -146,8 +150,20 @@ public class TransportVersionUtils {
         );
     }
 
+    /**
+     * Returns {@code true} if the given version is a patch version. Transport versions are generally monotoic, that is, when comparing
+     * transport versions via {@link #compareTo(VersionId)} a later version is also temporally "newer". This, however, is not the case
+     * for patch versions, as they can be introduced at any time. There may be cases where this distinction is important, in which case
+     * this method can be used to determine if a version is a patch, and therefore, may actually be temporally newer than "later" versions.
+     *
+     * @return whether this version is a patch version.
+     */
+    public static boolean isPatchVersion(TransportVersion version) {
+        return version.id() % 100 != 0;
+    }
+
     private static void assertNotPatch(@Nullable TransportVersion version) {
-        if (version != null && version.isPatchVersion()) {
+        if (version != null && isPatchVersion(version)) {
             throw new IllegalArgumentException("Version [" + version + "] is a patch version");
         }
     }

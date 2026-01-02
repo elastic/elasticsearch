@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
@@ -172,9 +173,11 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
 
         @Override
         public void applyToOracle(BytesRefBuilder oracle) {
-            try (var out = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            try (var out = Streams.flushOnCloseStream(new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE))) {
                 applyToStream(out);
                 oracle.append(out.bytes().toBytesRef());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
 

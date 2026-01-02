@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -24,14 +25,11 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
-import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -160,12 +158,19 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
     TimeSeriesAggregate,
     LogicalOptimizerContext> {
 
+    private final ReplaceAggregateNestedExpressionWithEval replaceNestedExpressionRule = new ReplaceAggregateNestedExpressionWithEval(true);
+
     public TranslateTimeSeriesAggregate() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+        // First, replace any nested expressions in the groupings with evals to simplify the time bucket extraction.
+        // We'll not touch the aggregate functions here,
+        // as they will be processed below and we want to keep their structure intact for that.
+        // Nested expressions in the aggregates will be handled by the actual ReplaceAggregateNestedExpressionWithEval rule.
+        aggregate = (TimeSeriesAggregate) replaceNestedExpressionRule.rule(aggregate);
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
@@ -190,16 +195,16 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
         var internalNames = new InternalNames();
         for (NamedExpression agg : aggregate.aggregates()) {
-            if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
-                Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
+            if (agg instanceof Alias alias && alias.child() instanceof Function function) {
                 final Expression inlineFilter;
-                if (af.hasFilter()) {
+                if (function instanceof AggregateFunction af && af.hasFilter()) {
                     inlineFilter = af.filter();
-                    af = af.withFilter(Literal.TRUE);
+                    function = af.withFilter(Literal.TRUE);
                 } else {
                     inlineFilter = null;
                 }
-                Expression outerAgg = af.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
+                // due to InsertDefaultInnerTimeSeriesAggregate, we'll always have a TimeSeriesAggregateFunction here
+                Expression outerAgg = function.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
                     if (inlineFilter != null) {
                         if (tsAgg.hasFilter() == false) {
                             throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
@@ -207,7 +212,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     } else if (tsAgg.hasFilter()) {
                         throw new IllegalStateException("unexpected inline filter in time-series aggregation");
                     }
-                    changed.set(Boolean.TRUE);
                     if (tsAgg.requiredTimeSeriesSource()) {
                         requiredTimeSeriesSource.set(Boolean.TRUE);
                     }
@@ -219,40 +223,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     });
                     return newAgg.toAttribute();
                 });
-                if (changed.get()) {
-                    secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
-                } else {
-                    // TODO: reject over_time_aggregation only
-                    Expression aggField = findAggregatedField(af);
-
-                    // We use merge_over_time as default for histograms and last_over_time for other types
-                    TimeSeriesAggregateFunction tsAgg;
-                    if (aggField.dataType() == DataType.EXPONENTIAL_HISTOGRAM || aggField.dataType() == DataType.TDIGEST) {
-                        tsAgg = new HistogramMergeOverTime(af.source(), aggField, Literal.TRUE, af.window());
-                    } else {
-                        tsAgg = new LastOverTime(af.source(), aggField, af.window(), timestamp.get());
-                    }
-                    final AggregateFunction firstStageFn;
-                    if (inlineFilter != null) {
-                        firstStageFn = tsAgg.perTimeSeriesAggregation().withFilter(inlineFilter);
-                    } else {
-                        firstStageFn = tsAgg.perTimeSeriesAggregation();
-                    }
-                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
-                        Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
-                        firstPassAggs.add(firstStageAlias);
-                        return firstStageAlias;
-                    });
-                    secondPassAggs.add((Alias) agg.transformUp(f -> f == aggField || f instanceof AggregateFunction, e -> {
-                        if (e == aggField) {
-                            return newAgg.toAttribute();
-                        } else if (e instanceof AggregateFunction f) {
-                            return f.withFilter(Literal.TRUE);
-                        } else {
-                            return e;
-                        }
-                    }));
-                }
+                secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
                 firstPassAggs.add(agg);
             }
@@ -398,25 +369,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
             return new Project(newChild.source(), unpackValues, projects);
         }
-    }
-
-    private static Expression findAggregatedField(AggregateFunction af) {
-        // TODO this is a temporary workaround to deal with surrogate-based aggregates on histograms
-        // E.g. a SUM(myHistogram) is replaced with the following surrogate: SUM(EXTRACT_HISTOGRAM_COMPONENT(myHistogram, "sum"))
-        // So we need to make sure to apply the implicit merge_over_time aggregation to
-        // "myHistogram" instead of EXTRACT_HISTOGRAM_COMPONENT(...)
-        // In the long term we probably want to revisit our strategy of how we apply implicit _over_time aggregations
-        // Other examples where the current approach likely doesn't work as expected is E.g. SUM(gaugeA + gaugeB),
-        // which currently translates to SUM(last_over_time(gaugeA + gaugeB)), but probably should be
-        // SUM(last_over_time(gaugeA) + last_over_time(gaugeB)) instead.
-        // One possible strategy would be to search for all field references in the expression.
-        // Then check if there is TimeSeriesAggregateFunction on the path to the outer aggregation (in the chain of parents).
-        // If not, wrap the field reference with the appropriate TimeSeriesAggregateFunction based on its type
-        Expression aggregatedExpression = af.field();
-        if (aggregatedExpression instanceof ExtractHistogramComponent extractHistogramComponent) {
-            return extractHistogramComponent.field();
-        }
-        return aggregatedExpression;
     }
 
     private static List<? extends NamedExpression> mergeExpressions(

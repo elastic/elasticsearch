@@ -7422,13 +7422,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(2));
-        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
-        assertThat(aggsByTsid.aggregates(), hasSize(2));
-        assertNull(aggsByTsid.timeBucket());
-        Eval addEval = as(aggsByTsid.child(), Eval.class);
+        Eval addEval = as(finalAggs.child(), Eval.class);
         assertThat(addEval.fields(), hasSize(1));
         Add add = as(Alias.unwrap(addEval.fields().get(0)), Add.class);
-        EsRelation relation = as(addEval.child(), EsRelation.class);
+        TimeSeriesAggregate aggsByTsid = as(addEval.child(), TimeSeriesAggregate.class);
+        assertThat(aggsByTsid.aggregates(), hasSize(2));
+        assertNull(aggsByTsid.timeBucket());
+
+        EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
         assertThat(Expressions.attribute(mul.left()).id(), equalTo(finalAggs.aggregates().get(1).id()));
@@ -7437,14 +7438,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Max maxRate = as(Alias.unwrap(finalAggs.aggregates().get(0)), Max.class);
         Max maxCost = as(Alias.unwrap(finalAggs.aggregates().get(1)), Max.class);
         assertThat(Expressions.attribute(maxRate.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
-        assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(aggsByTsid.aggregates().get(1).id()));
+        assertThat(Expressions.attribute(maxCost.field()).id(), equalTo(addEval.fields().get(0).id()));
         assertThat(finalAggs.groupings(), empty());
 
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        LastOverTime lastCost = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), LastOverTime.class);
-        assertThat(Expressions.attribute(lastCost.field()).id(), equalTo(addEval.fields().get(0).id()));
-        assertThat(Expressions.attribute(as(add.left(), LastOverTime.class).field()).name(), equalTo("network.cost"));
+        Alias lastCostAlias = as(aggsByTsid.aggregates().get(1), Alias.class);
+        LastOverTime lastCost = as(Alias.unwrap(lastCostAlias), LastOverTime.class);
+        assertThat(lastCostAlias.id(), equalTo(Expressions.attribute(add.left()).id()));
+        as(add.left(), ReferenceAttribute.class);
         assertThat(add.right().fold(FoldContext.small()), equalTo(0.2));
     }
 
@@ -7491,11 +7493,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
 
-        var unpackCluster = as(Alias.unwrap(eval.fields().get(0)), UnpackDimension.class);
+        var unpackCluster = as(Alias.unwrap(eval.fields().get(1)), UnpackDimension.class);
         assertThat(Expressions.name(unpackCluster), equalTo("cluster"));
-        var unpackPod = as(Alias.unwrap(eval.fields().get(1)), UnpackDimension.class);
+        var unpackPod = as(Alias.unwrap(eval.fields().get(2)), UnpackDimension.class);
         assertThat(Expressions.name(unpackPod), equalTo("pod"));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
 
         assertThat(Expressions.attribute(div.left()).id(), equalTo(finalAggs.aggregates().get(0).id()));
         assertThat(Expressions.attribute(div.right()).id(), equalTo(finalAggs.aggregates().get(1).id()));
@@ -7555,7 +7557,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
         assertThat(eval.fields(), hasSize(3));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         Eval packDimensions = as(finalAgg.child(), Eval.class);
@@ -7621,7 +7623,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
         assertThat(eval.fields(), hasSize(3));
-        Div div = as(Alias.unwrap(eval.fields().get(2)), Div.class);
+        Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
         Eval packDimensions = as(finalAgg.child(), Eval.class);
@@ -7664,8 +7666,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         TopN topN = as(project.child(), TopN.class);
         Eval evalDiv = as(topN.child(), Eval.class);
         assertThat(evalDiv.fields(), hasSize(2));
-        as(Alias.unwrap(evalDiv.fields().get(0)), UnpackDimension.class);
-        Div div = as(Alias.unwrap(evalDiv.fields().get(1)), Div.class);
+        as(Alias.unwrap(evalDiv.fields().get(1)), UnpackDimension.class);
+        Div div = as(Alias.unwrap(evalDiv.fields().get(0)), Div.class);
 
         Aggregate finalAgg = as(evalDiv.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7950,8 +7952,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        Eval sumExtractionEval = as(finalAgg.child(), Eval.class); // extracts sum from merged per-series histograms
-        TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7962,7 +7963,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
-        var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
+        var sumExtraction = as(crossSeriesSum.field(), ExtractHistogramComponent.class);
 
         var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
         assertFalse(mergePerSeries.hasFilter());
@@ -7981,8 +7982,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        Eval sumExtractionEval = as(finalAgg.child(), Eval.class); // extracts sum from merged per-series histograms
-        TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7993,7 +7993,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
-        var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
+        var sumExtraction = as(Alias.unwrap(crossSeriesSum.field()), ExtractHistogramComponent.class);
 
         var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
         assertTrue(mergePerSeries.hasFilter());
@@ -8078,8 +8078,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        Eval sumExtractionEval = as(finalAgg.child(), Eval.class); // extracts sum from merged per-series histograms
-        TimeSeriesAggregate aggsByTsid = as(sumExtractionEval.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -8090,7 +8089,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
         assertFalse(crossSeriesSum.hasFilter());
 
-        var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
+        var sumExtraction = as(crossSeriesSum.field(), ExtractHistogramComponent.class);
 
         var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
         assertFalse(mergePerSeries.hasFilter());

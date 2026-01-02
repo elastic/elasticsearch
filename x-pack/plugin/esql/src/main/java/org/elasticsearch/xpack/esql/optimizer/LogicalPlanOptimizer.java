@@ -145,20 +145,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Needs to occur before ReplaceAggregateAggExpressionWithEval, which will update the functions, losing the filter.
             new SubstituteFilteredExpression(),
             new RemoveStatsOverride(),
+            // translate PromQL plans to time-series aggregates before TranslateTimeSeriesAggregate
+            new TranslatePromqlToTimeSeriesAggregate(),
+            // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
+            new TranslateTimeSeriesAggregate(),
+            new PruneUnusedIndexMode(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogateAggregations(),
-            // translate PromQL plans to time-series aggregates before TranslateTimeSeriesAggregate
-            new TranslatePromqlToTimeSeriesAggregate(),
-            // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
-            new TranslateTimeSeriesAggregate(),
-            new PruneUnusedIndexMode(),
-            // after translating metric aggregates, we need to replace surrogate substitutions and nested expressions again.
-            new SubstituteSurrogateAggregations(),
-            new ReplaceAggregateNestedExpressionWithEval(),
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
             new PropagateInlineEvals(),

@@ -36,6 +36,20 @@ import java.util.Map;
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 
+    private final boolean processGroupingsOnly;
+
+    public ReplaceAggregateNestedExpressionWithEval() {
+        this(false);
+    }
+
+    /**
+     * @param processGroupingsOnly if true, only process grouping functions, leaving aggregate functions unchanged
+     *                             (aside from adjusting grouping references if needed)
+     */
+    public ReplaceAggregateNestedExpressionWithEval(boolean processGroupingsOnly) {
+        this.processGroupingsOnly = processGroupingsOnly;
+    }
+
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
         List<Alias> evals = new ArrayList<>();
@@ -105,6 +119,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     af -> transformAggregateFunction(af, expToAttribute, evals, counter, aggsChanged)
                 );
                 // replace any evaluatable grouping functions with their references pointing to the added synthetic eval
+                // we'll need to do this even if processGroupingsOnly is true to avoid missing references
                 replaced = replaced.transformDown(GroupingFunction.EvaluatableGroupingFunction.class, gf -> {
                     aggsChanged.set(true);
                     // should never return null, as it's verified.
@@ -163,7 +178,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return foundNestedAggs.get();
     }
 
-    private static Expression transformAggregateFunction(
+    private Expression transformAggregateFunction(
         AggregateFunction af,
         Map<Expression, Attribute> expToAttribute,
         List<Alias> evals,
@@ -171,6 +186,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         Holder<Boolean> aggsChanged
     ) {
         Expression result = af;
+        if (processGroupingsOnly) {
+            return result;
+        }
 
         Expression field = af.field();
         // if the field is a nested expression (not attribute or literal), replace it

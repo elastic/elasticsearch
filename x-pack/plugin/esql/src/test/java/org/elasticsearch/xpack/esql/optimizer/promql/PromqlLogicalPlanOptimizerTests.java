@@ -610,34 +610,53 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(literal.value(), equalTo(2.0));
     }
 
-    public void testTopLevelArithmeticOperators() {
-        assertThat(
-            error("PROMQL index=k8s step=5m foo and bar", tsAnalyzer),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m 1+foo", tsAnalyzer),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m foo+bar", tsAnalyzer),
-            containsString("top-level binary operators are not supported at this time")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m max by (pod) (network.bytes_in) / 1024", tsAnalyzer),
-            containsString("top-level binary operators are not supported at this time")
-        );
-    }
-
     public void testUnsupportedBinaryOperators() {
         assertThat(
-            error("PROMQL index=k8s step=5m max(foo or bar)", tsAnalyzer),
+            error("PROMQL index=k8s step=5m foo or bar", tsAnalyzer),
             containsString("VectorBinarySet queries are not supported at this time [foo or bar]")
         );
         assertThat(
-            error("PROMQL index=k8s step=5m max(foo > bar)", tsAnalyzer),
+            error("PROMQL index=k8s step=5m foo > bar", tsAnalyzer),
             containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
         );
+    }
+
+    public void testTopLevelBinaryArithmeticQuery() {
+        var plan = planPromql("PROMQL index=k8s step=1m in_n_out=(network.total_bytes_in + network.total_bytes_out)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
+        Add add = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Add.class);
+        assertThat(add.left().sourceText(), equalTo("network.total_bytes_in"));
+        assertThat(add.right().sourceText(), equalTo("network.total_bytes_out"));
+    }
+
+    public void testGroupByAllWithinSeriesAggregate() {
+        var plan = planPromql("PROMQL index=k8s step=1m count=(count_over_time(network.bytes_in[1m]))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("count", "step", "_timeseries")));
+    }
+
+    public void testBinaryInstantSelectorAndLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in * 8)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
+    }
+
+    public void testBinaryAcrossSeriesAndLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in) * 8)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
+    }
+
+    public void testAcrossSeriesMultiplicationLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in * 8))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
+    }
+
+    public void testBinaryAcrossSeriesWithGroupingAndLiteral() {
+        var plan = planPromql("PROMQL index=k8s step=1m bits=(max by (pod) (network.bytes_in) * 8)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "pod")));
+    }
+
+    public void testAdditionScalarInnerAndOuter() {
+        var plan = planPromql("PROMQL index=k8s step=1m max=(10 + max(10 + network.eth0.tx))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("max", "step")));
     }
 
     public void testGroupByAllInstantSelector() {

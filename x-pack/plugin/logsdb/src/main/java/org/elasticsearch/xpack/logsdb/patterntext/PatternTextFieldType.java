@@ -26,6 +26,8 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -66,6 +69,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     private final boolean hasPositions;
     private final boolean disableTemplating;
     private final boolean useBinaryDocValuesArgs;
+    private final IndexVersion indexCreatedVersion;
 
     PatternTextFieldType(
         String name,
@@ -75,7 +79,8 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         Map<String, String> meta,
         boolean isSyntheticSource,
         boolean isWithinMultiField,
-        boolean useBinaryDocValueArgs
+        boolean useBinaryDocValueArgs,
+        IndexVersion indexCreatedVersion
     ) {
         // Though this type is based on doc_values, hasDocValues is set to false as the pattern_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
@@ -85,6 +90,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         this.hasPositions = tsi.hasPositions();
         this.disableTemplating = disableTemplating;
         this.useBinaryDocValuesArgs = useBinaryDocValueArgs;
+        this.indexCreatedVersion = indexCreatedVersion;
     }
 
     // For testing only
@@ -102,7 +108,8 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             Collections.emptyMap(),
             syntheticSource,
             false,
-            useBinaryDocValueArgs
+            useBinaryDocValueArgs,
+            IndexVersion.current()
         );
     }
 
@@ -309,10 +316,20 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
         if (disableTemplating) {
-            return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
+            if (storeInBinaryDocValues()) {
+                // for newer indices, data is stored in binary doc values
+                return new BytesRefsFromCustomBinaryBlockLoader(storedNamed());
+            } else {
+                // for older indices (bwc), data is stored in stored fields
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
+            }
         }
 
         return new PatternTextBlockLoader((leafReader -> PatternTextCompositeValues.from(leafReader, this)));
+    }
+
+    private boolean storeInBinaryDocValues() {
+        return indexCreatedVersion.onOrAfter(IndexVersions.STORE_PATTERN_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
     }
 
     @Override

@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.logsdb;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.index.mapper.MapperFeatures;
-
 import java.util.Arrays;
 
-public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
+public class PatternTextRollingUpgradeIT extends AbstractStringTypeLogsdbRollingUpgradeTestCase {
 
-    private static final String DATA_STREAM_NAME_PREFIX = "logs-match-only-text-bwc-test";
+    private static final String DATA_STREAM_NAME_PREFIX = "logs-pattern-text-bwc-test";
 
     private static final String TEMPLATE = """
         {
@@ -31,7 +29,7 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
                   "type": "double"
                 },
                 "message": {
-                  "type": "match_only_text"
+                  "type": "pattern_text"
                 }
               }
             }
@@ -51,7 +49,7 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
                   "type": "double"
                 },
                 "message": {
-                  "type": "match_only_text",
+                  "type": "pattern_text",
                   "fields": {
                     "kwd": {
                       "type": "keyword"
@@ -76,7 +74,7 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
                   "type": "double"
                 },
                 "message": {
-                  "type": "match_only_text",
+                  "type": "pattern_text",
                   "fields": {
                     "kwd": {
                       "type": "keyword",
@@ -88,7 +86,7 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
             }
         }""";
 
-    public MatchOnlyTextRollingUpgradeIT(String template, String testScenario) {
+    public PatternTextRollingUpgradeIT(String template, String testScenario) {
         super(DATA_STREAM_NAME_PREFIX + "." + testScenario, template);
     }
 
@@ -104,10 +102,7 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractStringTypeLogsdbRolli
 
     @Override
     public void testIndexing() throws Exception {
-        assumeTrue(
-            "Match only text block loader bug is present and fix is not present in this cluster",
-            oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX)
-        );
+        assumeTrue("pattern_text only available from 9.2.0 onward", oldClusterHasFeature("gte_v9.2.0"));
         super.testIndexing();
     }
 

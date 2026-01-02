@@ -273,7 +273,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final List<Long> contentPartSizes = Collections.synchronizedList(new ArrayList<>());
 
         // HTTP server sends a partial response
-        final byte[] bytes = randomByteArrayOfLength((int) bufferSize.getBytes());
+        final byte[] bytes = randomBlobContent();
         httpServer.createContext(
             downloadStorageEndpoint(blobContainer, "read_blob_incomplete"),
             exchange -> contentPartSizes.add((long) sendIncompleteContent(exchange, bytes))

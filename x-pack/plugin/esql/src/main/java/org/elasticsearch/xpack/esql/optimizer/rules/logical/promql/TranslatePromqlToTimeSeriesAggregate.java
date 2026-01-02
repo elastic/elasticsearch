@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
@@ -56,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryAri
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.time.Duration;
@@ -286,11 +286,23 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         LogicalOptimizerContext context
     ) {
         Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions, context);
-        List<Expression> params = switch (functionCall) {
-            case WithinSeriesAggregate within -> List.of(target, promqlCommand.timestamp());
-            case AcrossSeriesAggregate across -> List.of(target);
-        };
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(functionCall.functionName(), functionCall.source(), params);
+
+        final Expression window;
+        if (functionCall.child() instanceof RangeSelector rangeSelector) {
+            window = rangeSelector.range();
+        } else {
+            window = AggregateFunction.NO_WINDOW;
+        }
+
+        List<Expression> extraParams = functionCall.parameters();
+        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            functionCall.functionName(),
+            functionCall.source(),
+            target,
+            promqlCommand.timestamp(),
+            window,
+            extraParams
+        );
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {

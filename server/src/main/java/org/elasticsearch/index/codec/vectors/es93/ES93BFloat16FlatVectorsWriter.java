@@ -82,7 +82,6 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             ES93BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION
         );
 
-        boolean success = false;
         try {
             meta = state.directory.createOutput(metaFileName, state.context);
             vectorData = state.directory.createOutput(vectorDataFileName, state.context);
@@ -101,11 +100,9 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(this);
-            }
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(this);
+            throw t;
         }
     }
 
@@ -223,10 +220,10 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
         IndexOutput tempVectorData = segmentWriteState.directory.createTempOutput(vectorData.getName(), "temp", segmentWriteState.context);
         IndexInput vectorDataInput = null;
-        boolean success = false;
+        DocsWithFieldSet docsWithField = null;
         try {
             // write the vector data to a temporary file
-            DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
+            docsWithField = switch (fieldInfo.getVectorEncoding()) {
                 case FLOAT32 -> writeVectorData(tempVectorData, MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
                 case BYTE -> throw new UnsupportedOperationException("ES92BFloat16FlatVectorsWriter only supports float vectors");
             };
@@ -245,33 +242,31 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             CodecUtil.retrieveChecksum(vectorDataInput);
             long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
             writeMeta(fieldInfo, segmentWriteState.segmentInfo.maxDoc(), vectorDataOffset, vectorDataLength, docsWithField);
-            success = true;
-            final IndexInput finalVectorDataInput = vectorDataInput;
-            final RandomVectorScorerSupplier randomVectorScorerSupplier = vectorsScorer.getRandomVectorScorerSupplier(
-                fieldInfo.getVectorSimilarityFunction(),
-                new OffHeapBFloat16VectorValues.DenseOffHeapVectorValues(
-                    fieldInfo.getVectorDimension(),
-                    docsWithField.cardinality(),
-                    finalVectorDataInput,
-                    fieldInfo.getVectorDimension() * BFloat16.BYTES,
-                    vectorsScorer,
-                    fieldInfo.getVectorSimilarityFunction()
-                )
-            );
-            return new FlatCloseableRandomVectorScorerSupplier(() -> {
-                IOUtils.close(finalVectorDataInput);
+        } catch (Throwable t) {
+            IOUtils.closeWhileHandlingException(vectorDataInput, tempVectorData);
+            try {
                 segmentWriteState.directory.deleteFile(tempVectorData.getName());
-            }, docsWithField.cardinality(), randomVectorScorerSupplier);
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(vectorDataInput, tempVectorData);
-                try {
-                    segmentWriteState.directory.deleteFile(tempVectorData.getName());
-                } catch (Exception e) {
-                    // ignore
-                }
+            } catch (Exception e) {
+                // ignore
             }
+            throw t;
         }
+        final IndexInput finalVectorDataInput = vectorDataInput;
+        final RandomVectorScorerSupplier randomVectorScorerSupplier = vectorsScorer.getRandomVectorScorerSupplier(
+            fieldInfo.getVectorSimilarityFunction(),
+            new OffHeapBFloat16VectorValues.DenseOffHeapVectorValues(
+                fieldInfo.getVectorDimension(),
+                docsWithField.cardinality(),
+                finalVectorDataInput,
+                fieldInfo.getVectorDimension() * BFloat16.BYTES,
+                vectorsScorer,
+                fieldInfo.getVectorSimilarityFunction()
+            )
+        );
+        return new FlatCloseableRandomVectorScorerSupplier(() -> {
+            IOUtils.close(finalVectorDataInput);
+            segmentWriteState.directory.deleteFile(tempVectorData.getName());
+        }, docsWithField.cardinality(), randomVectorScorerSupplier);
     }
 
     private void writeMeta(FieldInfo field, int maxDoc, long vectorDataOffset, long vectorDataLength, DocsWithFieldSet docsWithField)

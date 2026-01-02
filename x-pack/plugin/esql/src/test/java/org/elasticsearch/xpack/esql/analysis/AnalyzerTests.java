@@ -2578,7 +2578,8 @@ public class AnalyzerTests extends ESTestCase {
             Tuple.tuple("TS test | STATS avg(rate(network.bytes_in))", true),
             Tuple.tuple("TS test", false),
             Tuple.tuple("TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket", true),
-            Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false)
+            Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false),
+            Tuple.tuple("PROMQL index=test avg(rate(network.bytes_in[5m]))", true)
         )) {
             var query = queryExp.v1();
             var expectedLimit = queryExp.v2() ? DEFAULT_TIMESERIES_LIMIT : DEFAULT_LIMIT;

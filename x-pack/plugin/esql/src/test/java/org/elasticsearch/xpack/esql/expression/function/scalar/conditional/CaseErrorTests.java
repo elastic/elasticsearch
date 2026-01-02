@@ -38,8 +38,11 @@ public class CaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             return typeErrorMessage(signature, 0, "boolean");
         }
         DataType mainType = signature.get(1).noText();
-        if (mainType == DataType.AGGREGATE_METRIC_DOUBLE || mainType == DataType.TDIGEST || mainType == DataType.HISTOGRAM) {
-            return typeErrorMessage(signature, 1, "any but aggregate_metric_double, histogram, or tdigest");
+        if (mainType == DataType.AGGREGATE_METRIC_DOUBLE
+            || mainType == DataType.TDIGEST
+            || mainType == DataType.HISTOGRAM
+            || mainType == DataType.DATE_RANGE) {
+            return typeErrorMessage(signature, 1, "any but aggregate_metric_double, histogram, tdigest, or date_range");
         }
         for (int i = 2; i < signature.size(); i++) {
             if (i % 2 == 0 && i != signature.size() - 1) {
@@ -54,8 +57,9 @@ public class CaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 }
                 if (signature.get(i) == DataType.AGGREGATE_METRIC_DOUBLE
                     || signature.get(i) == DataType.TDIGEST
-                    || signature.get(i) == DataType.HISTOGRAM) {
-                    return typeErrorMessage(signature, i, "any but aggregate_metric_double, histogram, or tdigest");
+                    || signature.get(i) == DataType.HISTOGRAM
+                    || signature.get(i) == DataType.DATE_RANGE) {
+                    return typeErrorMessage(signature, i, "any but aggregate_metric_double, histogram, tdigest, or date_range");
                 }
             }
         }

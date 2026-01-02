@@ -45,6 +45,7 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.Closeable;
@@ -57,6 +58,7 @@ import java.util.List;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 
+@SuppressForbidden(reason = "Lucene classes")
 public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES93BFloat16FlatVectorsWriter.class);
@@ -244,11 +246,7 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             writeMeta(fieldInfo, segmentWriteState.segmentInfo.maxDoc(), vectorDataOffset, vectorDataLength, docsWithField);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(vectorDataInput, tempVectorData);
-            try {
-                segmentWriteState.directory.deleteFile(tempVectorData.getName());
-            } catch (Exception e) {
-                // ignore
-            }
+            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempVectorData.getName());
             throw t;
         }
         final IndexInput finalVectorDataInput = vectorDataInput;

@@ -177,7 +177,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         waitUntil(() -> this.mockClient.executionCount.get() > 5, 3, TimeUnit.SECONDS);
 
         this.replicasUpdaterService.offMaster();
-        assertTrue(this.replicasUpdaterService.scaleDownCounters.isEmpty());
+        assertTrue(this.replicasUpdaterService.scaleDownState.isEmpty());
 
         // clear mock client before teardown
         mockClient.updateSettingsToBeVerified = false;
@@ -687,6 +687,62 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         spMin = randomIntBetween(0, 99);
         updateSpMin(spMin); // this implicitely re-calculates the settings updates
         mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index2")));
+    }
+
+    /**
+     * During repeated scale down recommendations, the ReplicasUpdaterService should maintain the maximum # of
+     * replicas suggested for each index and scale down to that value.
+     * e.g. Recommended: 1, 1, 2, 1, 1, 1 (6th in a row => scale down, but we should scale down to 2 not 1).
+     */
+    public void testScalesDownToMaxRecommended() {
+        int index1Max = 0;
+        int index2Max = 0;
+
+        Map<Integer, Set<String>> scaleDownUpdatesToSend = new HashMap<>();
+        int repetitionsNeeded = REPLICA_UPDATER_SCALEDOWN_REPETITIONS.getDefault(Settings.EMPTY);
+        for (int i = 0; i < repetitionsNeeded; i++) {
+            // Randomly generate scale down recommendations for index1 and index2
+            Map<Integer, Set<String>> indicesToScaleDown = new HashMap<>();
+            if (randomBoolean()) {
+                int targetReplicasCount = randomIntBetween(1, 5);
+                index1Max = Math.max(targetReplicasCount, index1Max);
+                index2Max = Math.max(targetReplicasCount, index2Max);
+                indicesToScaleDown.put(targetReplicasCount, Set.of("index1", "index2"));
+            } else {
+                int targetReplicasCount1 = randomIntBetween(1, 5);
+                int targetReplicasCount2 = randomIntBetween(1, 5);
+                index1Max = Math.max(targetReplicasCount1, index1Max);
+                index2Max = Math.max(targetReplicasCount2, index2Max);
+                indicesToScaleDown.put(targetReplicasCount1, Set.of("index1"));
+                indicesToScaleDown.put(targetReplicasCount2, Set.of("index2"));
+            }
+
+            // For each recommendation, run populateScaleDownUpdates
+            for (var entry : indicesToScaleDown.entrySet()) {
+                replicasUpdaterService.populateScaleDownUpdates(scaleDownUpdatesToSend, entry.getValue(), entry.getKey());
+            }
+
+            if (i < repetitionsNeeded - 1) {
+                assertTrue("scaleDownUpdatesToSend should be empty until we see enough repetitions", scaleDownUpdatesToSend.isEmpty());
+            }
+        }
+
+        // After {repetitionsNeeded} iterations, we should have scaleDownUpdatesToSend
+        for (var entry : scaleDownUpdatesToSend.entrySet()) {
+            // The numReplicas to update should be the max recommendation seen across all iterations
+            int numReplicas = entry.getKey();
+            Set<String> indices = entry.getValue();
+            if (indices.size() == 2) {
+                assertEquals(index1Max, numReplicas);
+                assertEquals(index2Max, numReplicas);
+            } else {
+                if (indices.contains("index1")) {
+                    assertEquals(index1Max, numReplicas);
+                } else {
+                    assertEquals(index2Max, numReplicas);
+                }
+            }
+        }
     }
 
     public void testScaleUpIsImmediateSP100To250() {

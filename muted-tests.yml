@@ -351,3 +351,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120917
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/131369

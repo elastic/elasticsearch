@@ -1,0 +1,240 @@
+# Changelog Configuration
+# This file configures the valid values for changelog fields.
+# Place this file as `changelog.yml` in the `docs/` directory
+
+# Available types for changelog entries
+available_types:
+  - breaking-change
+  - bug-fix
+  - deprecation
+  - docs
+  - enhancement
+  - feature
+  - known-issue
+  - regression
+  - security
+  - other
+
+# Available subtypes for breaking changes
+available_subtypes:
+  - api
+  - behavioral
+  - configuration
+  - dependency
+  - subscription
+  - plugin
+  - security
+  - other
+
+# Available lifecycle values
+available_lifecycles:
+  - preview
+  - beta
+  - ga
+
+# Available areas (optional - if not specified, all areas are allowed)
+available_areas:
+  - Aggregations
+  - Allocation
+  - Analysis
+  - Application
+  - Audit
+  - Authentication
+  - Authorization
+  - Autoscaling
+  - CAT APIs
+  - CCR
+  - CCS
+  - CRUD
+  - Client
+  - Cluster Coordination
+  - Codec
+  - Data streams
+  - DLM
+  - Discovery-Plugins
+  - Distributed
+  - Downsampling
+  - Engine
+  - EQL
+  - ES|QL
+  - Experiences
+  - Extract&Transform
+  - Features
+  - FIPS
+  - Geo
+  - Graph
+  - Health
+  - Highlighting
+  - ILM+SLM
+  - IdentityProvider
+  - Indices APIs
+  - Inference
+  - Infra/CLI
+  - Infra/Circuit Breakers
+  - Infra/Core
+  - Infra/Entitlements
+  - Infra/Logging
+  - Infra/Metrics
+  - Infra/Node Lifecycle
+  - Infra/Plugins
+  - Infra/REST API
+  - Infra/Resiliency
+  - Infra/Scripting
+  - Infra/Settings
+  - Infra/Transport API
+  - Ingest
+  - Ingest Node
+  - Java High Level REST Client
+  - Java Low Level REST Client
+  - License
+  - Logging
+  - Logs
+  - Machine Learning
+  - Mapping
+  - Monitoring
+  - Network
+  - Packaging
+  - Percolator
+  - Performance
+  - Query Languages
+  - Ranking
+  - Recovery
+  - Reindex
+  - Relevance
+  - Rollup
+  - SQL
+  - Search
+  - Searchable Snapshots
+  - Security
+  - Snapshot/Restore
+  - Stats
+  - Store
+  - Suggesters
+  - Task Management
+  - TLS
+  - Transform
+  - TSDB
+  - Vector Search
+  - Watcher
+  # Add more areas as needed
+
+# Available products (optional - if not specified, all products are allowed)
+available_products:
+  - elasticsearch
+  - cloud-serverless
+  # Add more products as needed
+
+# GitHub label mappings (optional - used when --pr option is specified)
+# Maps GitHub PR labels to changelog type values
+# When a PR has a label that matches a key, the corresponding type value is used
+label_to_type:
+  ">breaking": breaking-change
+  ">breaking-java": breaking-change
+  ">bug": bug-fix
+  ">deprecation": deprecation
+  ">docs": docs
+  "documentation": docs
+  "release_note:enhancement": enhancement
+  ">enhancement": enhancement
+  ">feature": feature
+  # "type:known": known-issue
+  ">regression": regression
+  # "type:security": security
+  # "type:other": other
+
+# Maps GitHub PR labels to changelog area values
+# Multiple labels can map to the same area, and a single label can map to multiple areas (comma-separated)
+label_to_areas:
+  - ":Analytics/Aggregations": Aggregations
+  - ":Distributed Coordination/Allocation": Allocation
+  - ":Search Relevance/Analysis": Analysis
+  - ":EnterpriseSearch/Application": Application
+  - ":Security/Audit": Audit
+  - ":Security/Authentication": Authentication
+  - ":Security/Authorization": Authorization
+  - ":Distributed Coordination/Autoscaling": Autoscaling
+  - ":Data Management/CAT APIs": CAT APIs"
+  - ":Distributed Indexing/CCR": CCR
+  - ":Search Foundations/CCS": CCS
+  - ":Distributed Indexing/CRUD": CRUD
+  - ":Security/Client": Client
+  - ":Distributed Coordination/Cluster Coordination": Cluster Coordination
+  - ":StorageEngine/Codec": Codec
+  - ":Data Management/Data streams": "Data streams"
+  - ":Data Management/DLM": DLM
+  - ":Distributed Coordination/Discovery-Plugins": Discovery-Plugins
+  - ":Distributed Indexing/Distributed": Distributed
+  - ":StorageEngine/Downsampling": Downsampling
+  - ":Distributed Indexing/Engine": Engine
+  - ":Search Relevance/ES|QL": "ES|QL"
+  - ":StorageEngine/ES|QL": "ES|QL"
+  - ":ml/ES|QL": "ES|QL"
+  - ":Analytics/ES|QL": "ES|QL"
+  - ":SearchOrg/Experiences": Experiences
+  - ":SearchOrg/Extract&Transform": "Extract&Transform"
+  - ":Security/FIPS": FIPS
+  - ":Analytics/Geo": Geo
+  - ":Data Management/Health": Health
+  - ":Search Relevance/Highlighting": Highlighting
+  - ":Data Management/ILM+SLM": ILM+SLM
+  - ":Security/IdentityProvider": IdentityProvider
+  - ":Data Management/Indices APIs": "Indices APIs"
+  - ":SearchOrg/Inference": Inference
+  - ":Core/Infra/CLI": "Infra/CLI"
+  - ":Core/Infra/Circuit Breakers": "Infra/Circuit Breakers"
+  - ":Core/Infra/Core": "Infra/Core"
+  - ":Core/Infra/Entitlements": "Infra/Entitlements"
+  - ":Core/Infra/Logging": "Infra/Logging"
+  - ":Core/Infra/Metrics": "Infra/Metrics"
+  - ":Core/Infra/Node Lifecycle": "Infra/Node Lifecycle"
+  - ":Core/Infra/Plugins": "Infra/Plugins"
+  - ":Core/Infra/REST API": "Infra/REST API"
+  - ":Core/Infra/Resiliency": "Infra/Resiliency"
+  - ":Core/Infra/Scripting": "Infra/Scripting"
+  - ":Core/Infra/Settings": "Infra/Settings"
+  - ":Core/Infra/Transport API": "Infra/Transport API"
+  - ":Data Management/Ingest Node": "Ingest Node"
+  - ":Clients/Java High Level REST Client": "Java High Level REST Client"
+  - ":Clients/Java Low Level REST Client": "Java Low Level REST Client"
+  - ":Security/License": License
+  - ":StorageEngine/Logs": Logs
+  - "StorageEngine/Logs": Logs
+  - ":ml": "Machine Learning"
+  - ":StorageEngine/Mapping": Mapping
+  - ":Search Foundations/Mapping": Mapping
+  - ":Data Management/Monitoring": Monitoring
+  - ":Distributed Coordination/Network": Network
+  - ":Delivery/Packaging": Packaging
+  - ":Search Relevance/Percolator": Percolator
+  - ":Performance": Performance
+  - ":Query Languages/EQL": "Query Languages", EQL
+  - ":Query Languages/SQL": "Query Languages", SQL
+  - ":Search Relevance/Ranking": Ranking
+  - ":Distributed Indexing/Recovery": Recovery
+  - ":Distributed Indexing/Reindex": Reindex
+  - ":Search Relevance/Search": Relevance
+  - ":StorageEngine/Rollup": Rollup
+  - ":Search/Search": Search
+  - ":Distributed Indexing/Searchable Snapshots": Searchable Snapshots
+  - ":Security/Security": Security
+  - ":Distributed Coordination/Snapshot/Restore": Snapshot/Restore
+  - ":Data Management/Stats": Stats
+  - ":Distributed Indexing/Store": Store
+  - ":Search Relevance/Suggesters": Suggesters
+  - ":Distributed Coordination/Task Management": Task Management
+  - ":Security/TLS": TLS
+  - ":ml/Transform": Transform
+  - ":StorageEngine/TSDB": TSDB
+  - ":Search Relevance/Vectors": "Vector Search"
+  - ":Data Management/Watcher": Watcher
+  # - TBD: Features
+  # - "TBD": Graph
+  # - TBD: Ingest
+  # - "TBD": Logging
+
+# Product-specific label blockers (optional)
+# Maps product IDs to lists of labels that prevent changelog creation for that product
+# If you run the changelog add command with the --prs option and a PR has any of these labels, the changelog is not created
+product_label_blockers:
+  cloud-serverless:
+    - ">non-issue"

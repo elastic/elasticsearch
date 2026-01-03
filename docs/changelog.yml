@@ -145,92 +145,92 @@ label_to_type:
 # Maps GitHub PR labels to changelog area values
 # Multiple labels can map to the same area, and a single label can map to multiple areas (comma-separated)
 label_to_areas:
-  - ":Analytics/Aggregations": Aggregations
-  - ":Distributed Coordination/Allocation": Allocation
-  - ":Search Relevance/Analysis": Analysis
-  - ":EnterpriseSearch/Application": Application
-  - ":Security/Audit": Audit
-  - ":Security/Authentication": Authentication
-  - ":Security/Authorization": Authorization
-  - ":Distributed Coordination/Autoscaling": Autoscaling
-  - ":Data Management/CAT APIs": CAT APIs"
-  - ":Distributed Indexing/CCR": CCR
-  - ":Search Foundations/CCS": CCS
-  - ":Distributed Indexing/CRUD": CRUD
-  - ":Security/Client": Client
-  - ":Distributed Coordination/Cluster Coordination": Cluster Coordination
-  - ":StorageEngine/Codec": Codec
-  - ":Data Management/Data streams": "Data streams"
-  - ":Data Management/DLM": DLM
-  - ":Distributed Coordination/Discovery-Plugins": Discovery-Plugins
-  - ":Distributed Indexing/Distributed": Distributed
-  - ":StorageEngine/Downsampling": Downsampling
-  - ":Distributed Indexing/Engine": Engine
-  - ":Search Relevance/ES|QL": "ES|QL"
-  - ":StorageEngine/ES|QL": "ES|QL"
-  - ":ml/ES|QL": "ES|QL"
-  - ":Analytics/ES|QL": "ES|QL"
-  - ":SearchOrg/Experiences": Experiences
-  - ":SearchOrg/Extract&Transform": "Extract&Transform"
-  - ":Security/FIPS": FIPS
-  - ":Analytics/Geo": Geo
-  - ":Data Management/Health": Health
-  - ":Search Relevance/Highlighting": Highlighting
-  - ":Data Management/ILM+SLM": ILM+SLM
-  - ":Security/IdentityProvider": IdentityProvider
-  - ":Data Management/Indices APIs": "Indices APIs"
-  - ":SearchOrg/Inference": Inference
-  - ":Core/Infra/CLI": "Infra/CLI"
-  - ":Core/Infra/Circuit Breakers": "Infra/Circuit Breakers"
-  - ":Core/Infra/Core": "Infra/Core"
-  - ":Core/Infra/Entitlements": "Infra/Entitlements"
-  - ":Core/Infra/Logging": "Infra/Logging"
-  - ":Core/Infra/Metrics": "Infra/Metrics"
-  - ":Core/Infra/Node Lifecycle": "Infra/Node Lifecycle"
-  - ":Core/Infra/Plugins": "Infra/Plugins"
-  - ":Core/Infra/REST API": "Infra/REST API"
-  - ":Core/Infra/Resiliency": "Infra/Resiliency"
-  - ":Core/Infra/Scripting": "Infra/Scripting"
-  - ":Core/Infra/Settings": "Infra/Settings"
-  - ":Core/Infra/Transport API": "Infra/Transport API"
-  - ":Data Management/Ingest Node": "Ingest Node"
-  - ":Clients/Java High Level REST Client": "Java High Level REST Client"
-  - ":Clients/Java Low Level REST Client": "Java Low Level REST Client"
-  - ":Security/License": License
-  - ":StorageEngine/Logs": Logs
-  - "StorageEngine/Logs": Logs
-  - ":ml": "Machine Learning"
-  - ":StorageEngine/Mapping": Mapping
-  - ":Search Foundations/Mapping": Mapping
-  - ":Data Management/Monitoring": Monitoring
-  - ":Distributed Coordination/Network": Network
-  - ":Delivery/Packaging": Packaging
-  - ":Search Relevance/Percolator": Percolator
-  - ":Performance": Performance
-  - ":Query Languages/EQL": "Query Languages", EQL
-  - ":Query Languages/SQL": "Query Languages", SQL
-  - ":Search Relevance/Ranking": Ranking
-  - ":Distributed Indexing/Recovery": Recovery
-  - ":Distributed Indexing/Reindex": Reindex
-  - ":Search Relevance/Search": Relevance
-  - ":StorageEngine/Rollup": Rollup
-  - ":Search/Search": Search
-  - ":Distributed Indexing/Searchable Snapshots": Searchable Snapshots
-  - ":Security/Security": Security
-  - ":Distributed Coordination/Snapshot/Restore": Snapshot/Restore
-  - ":Data Management/Stats": Stats
-  - ":Distributed Indexing/Store": Store
-  - ":Search Relevance/Suggesters": Suggesters
-  - ":Distributed Coordination/Task Management": Task Management
-  - ":Security/TLS": TLS
-  - ":ml/Transform": Transform
-  - ":StorageEngine/TSDB": TSDB
-  - ":Search Relevance/Vectors": "Vector Search"
-  - ":Data Management/Watcher": Watcher
-  # - TBD: Features
-  # - "TBD": Graph
-  # - TBD: Ingest
-  # - "TBD": Logging
+  ":Analytics/Aggregations": Aggregations
+  ":Distributed Coordination/Allocation": Allocation
+  ":Search Relevance/Analysis": Analysis
+  ":EnterpriseSearch/Application": Application
+  ":Security/Audit": Audit
+  ":Security/Authentication": Authentication
+  ":Security/Authorization": Authorization
+  ":Distributed Coordination/Autoscaling": Autoscaling
+  ":Data Management/CAT APIs": CAT APIs"
+  ":Distributed Indexing/CCR": CCR
+  ":Search Foundations/CCS": CCS
+  ":Distributed Indexing/CRUD": CRUD
+  ":Security/Client": Client
+  ":Distributed Coordination/Cluster Coordination": Cluster Coordination
+  ":StorageEngine/Codec": Codec
+  ":Data Management/Data streams": "Data streams"
+  ":Data Management/DLM": DLM
+  ":Distributed Coordination/Discovery-Plugins": Discovery-Plugins
+  ":Distributed Indexing/Distributed": Distributed
+  ":StorageEngine/Downsampling": Downsampling
+  ":Distributed Indexing/Engine": Engine
+  ":Search Relevance/ES|QL": "ES|QL"
+  ":StorageEngine/ES|QL": "ES|QL"
+  ":ml/ES|QL": "ES|QL"
+  ":Analytics/ES|QL": "ES|QL"
+  ":SearchOrg/Experiences": Experiences
+  ":SearchOrg/Extract&Transform": "Extract&Transform"
+  ":Security/FIPS": FIPS
+  ":Analytics/Geo": Geo
+  ":Data Management/Health": Health
+  ":Search Relevance/Highlighting": Highlighting
+  ":Data Management/ILM+SLM": ILM+SLM
+  ":Security/IdentityProvider": IdentityProvider
+  ":Data Management/Indices APIs": "Indices APIs"
+  ":SearchOrg/Inference": Inference
+  ":Core/Infra/CLI": "Infra/CLI"
+  ":Core/Infra/Circuit Breakers": "Infra/Circuit Breakers"
+  ":Core/Infra/Core": "Infra/Core"
+  ":Core/Infra/Entitlements": "Infra/Entitlements"
+  ":Core/Infra/Logging": "Infra/Logging"
+  ":Core/Infra/Metrics": "Infra/Metrics"
+  ":Core/Infra/Node Lifecycle": "Infra/Node Lifecycle"
+  ":Core/Infra/Plugins": "Infra/Plugins"
+  ":Core/Infra/REST API": "Infra/REST API"
+  ":Core/Infra/Resiliency": "Infra/Resiliency"
+  ":Core/Infra/Scripting": "Infra/Scripting"
+  ":Core/Infra/Settings": "Infra/Settings"
+  ":Core/Infra/Transport API": "Infra/Transport API"
+  ":Data Management/Ingest Node": "Ingest Node"
+  ":Clients/Java High Level REST Client": "Java High Level REST Client"
+  ":Clients/Java Low Level REST Client": "Java Low Level REST Client"
+  ":Security/License": License
+  ":StorageEngine/Logs": Logs
+  "StorageEngine/Logs": Logs
+  ":ml": "Machine Learning"
+  ":StorageEngine/Mapping": Mapping
+  ":Search Foundations/Mapping": Mapping
+  ":Data Management/Monitoring": Monitoring
+  ":Distributed Coordination/Network": Network
+  ":Delivery/Packaging": Packaging
+  ":Search Relevance/Percolator": Percolator
+  ":Performance": Performance
+  ":Query Languages/EQL": "Query Languages,EQL"
+  ":Query Languages/SQL": "Query Languages,SQL"
+  ":Search Relevance/Ranking": Ranking
+  ":Distributed Indexing/Recovery": Recovery
+  ":Distributed Indexing/Reindex": Reindex
+  ":Search Relevance/Search": Relevance
+  ":StorageEngine/Rollup": Rollup
+  ":Search/Search": Search
+  ":Distributed Indexing/Searchable Snapshots": Searchable Snapshots
+  ":Security/Security": Security
+  ":Distributed Coordination/Snapshot/Restore": Snapshot/Restore
+  ":Data Management/Stats": Stats
+  ":Distributed Indexing/Store": Store
+  ":Search Relevance/Suggesters": Suggesters
+  ":Distributed Coordination/Task Management": Task Management
+  ":Security/TLS": TLS
+  ":ml/Transform": Transform
+  ":StorageEngine/TSDB": TSDB
+  ":Search Relevance/Vectors": "Vector Search"
+  ":Data Management/Watcher": Watcher
+  # TBD: Features
+  # "TBD": Graph
+  # TBD: Ingest
+  # "TBD": Logging
 
 # Product-specific label blockers (optional)
 # Maps product IDs to lists of labels that prevent changelog creation for that product

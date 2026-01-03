@@ -12,27 +12,26 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.apache.logging.log4j.message.Message;
 
-public class MockAppender extends AbstractAppender {
-    public LogEvent lastEvent;
+import java.util.ArrayList;
+import java.util.List;
 
-    public MockAppender(final String name) throws IllegalAccessException {
+/**
+ * Mock log appender class that will capture the last log event.
+ */
+public class AccumulatingMockAppender extends AbstractAppender {
+    public final List<LogEvent> events = new ArrayList<>();
+
+    public AccumulatingMockAppender(final String name) throws IllegalAccessException {
         super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
     }
 
     @Override
     public void append(LogEvent event) {
-        lastEvent = event.toImmutable();
+        events.add(event.toImmutable());
     }
 
-    Message lastMessage() {
-        return lastEvent.getMessage();
-    }
-
-    public LogEvent getLastEventAndReset() {
-        LogEvent toReturn = lastEvent;
-        lastEvent = null;
-        return toReturn;
+    public void reset() {
+        events.clear();
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,13 +42,13 @@ public class ClusterInfoSimulator {
     private final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
     private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
 
-    public ClusterInfoSimulator(RoutingAllocation allocation) {
+    public ClusterInfoSimulator(RoutingAllocation allocation, ClusterSettings clusterSettings) {
         this.allocation = allocation;
         this.leastAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = getAdjustedDiskSpace(allocation, allocation.clusterInfo().getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.estimatedHeapUsages = allocation.clusterInfo().getEstimatedHeapUsages();
-        this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
+        this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation, clusterSettings);
     }
 
     /**

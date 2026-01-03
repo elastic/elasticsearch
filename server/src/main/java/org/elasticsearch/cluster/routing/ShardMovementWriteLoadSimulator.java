@@ -14,6 +14,8 @@ import com.carrotsearch.hppc.ObjectDoubleMap;
 
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,12 +36,14 @@ public class ShardMovementWriteLoadSimulator {
     private final Map<ShardId, Double> writeLoadsPerShard;
     // The set to track whether a node has seen a shard move away from it
     private final Set<String> nodesWithMovedAwayShard;
+    private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
-    public ShardMovementWriteLoadSimulator(RoutingAllocation routingAllocation) {
+    public ShardMovementWriteLoadSimulator(RoutingAllocation routingAllocation, ClusterSettings clusterSettings) {
         this.originalNodeUsageStatsForThreadPools = routingAllocation.clusterInfo().getNodeUsageStatsForThreadPools();
         this.writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
         this.simulatedNodeWriteLoadDeltas = new ObjectDoubleHashMap<>();
         this.nodesWithMovedAwayShard = new HashSet<>();
+        this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
     }
 
     public void simulateShardStarted(ShardRouting shardRouting) {
@@ -72,6 +76,12 @@ public class ShardMovementWriteLoadSimulator {
             originalNodeUsageStatsForThreadPools.size()
         );
         for (Map.Entry<String, NodeUsageStatsForThreadPools> entry : originalNodeUsageStatsForThreadPools.entrySet()) {
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = entry.getValue()
+                .threadPoolUsageStatsMap()
+                .get(ThreadPool.Names.WRITE);
+            boolean isHotspotting = threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= writeLoadConstraintSettings
+                .getQueueLatencyThreshold()
+                .millis();
             if (simulatedNodeWriteLoadDeltas.containsKey(entry.getKey()) || nodesWithMovedAwayShard.contains(entry.getKey())) {
                 var adjustedValue = new NodeUsageStatsForThreadPools(
                     entry.getKey(),
@@ -81,8 +91,19 @@ public class ShardMovementWriteLoadSimulator {
                         replaceWritePoolStats(
                             entry.getValue(),
                             simulatedNodeWriteLoadDeltas.getOrDefault(entry.getKey(), 0.0),
-                            nodesWithMovedAwayShard.contains(entry.getKey())
+                            nodesWithMovedAwayShard.contains(entry.getKey()),
+                            isHotspotting
                         )
+                    )
+                );
+                adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), adjustedValue);
+            } else if (isHotspotting) {
+                var adjustedValue = new NodeUsageStatsForThreadPools(
+                    entry.getKey(),
+                    Maps.copyMapWithAddedOrReplacedEntry(
+                        entry.getValue().threadPoolUsageStatsMap(),
+                        ThreadPool.Names.WRITE,
+                        setIsHotspottingFlag(entry.getValue())
                     )
                 );
                 adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), adjustedValue);
@@ -96,7 +117,8 @@ public class ShardMovementWriteLoadSimulator {
     private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(
         NodeUsageStatsForThreadPools value,
         double writeLoadDelta,
-        boolean hasSeenMovedAwayShard
+        boolean hasSeenMovedAwayShard,
+        boolean isHotspotting
     ) {
         final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
             .get(ThreadPool.Names.WRITE);
@@ -107,7 +129,23 @@ public class ShardMovementWriteLoadSimulator {
                 (float) writeLoadDelta,
                 writeThreadPoolStats.totalThreadPoolThreads()
             ),
-            adjustThreadPoolQueueLatencyWithShardMovements(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), hasSeenMovedAwayShard)
+            adjustThreadPoolQueueLatencyWithShardMovements(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), hasSeenMovedAwayShard),
+            isHotspotting
+        );
+    }
+
+    private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats setIsHotspottingFlag(NodeUsageStatsForThreadPools value) {
+        final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
+            .get(ThreadPool.Names.WRITE);
+
+        if (writeThreadPoolStats.isHotspotting()) {
+            return writeThreadPoolStats;
+        }
+        return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
+            writeThreadPoolStats.totalThreadPoolThreads(),
+            writeThreadPoolStats.averageThreadPoolUtilization(),
+            writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
+            true
         );
     }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -299,21 +298,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                         }
                         if (s.evaluation().at().value() != null) {
                             failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
-                        }
-                    }
-                    if (s instanceof RangeSelector rs) {
-                        if (step().value() != null) {
-                            Duration rangeDuration = (Duration) rs.range().fold(null);
-                            if (rangeDuration.equals(step().value()) == false) {
-                                failures.add(
-                                    fail(
-                                        rs.range(),
-                                        "the duration for range vector selector [{}] "
-                                            + "must be equal to the query's step for range queries at this time",
-                                        rs.range().sourceText()
-                                    )
-                                );
-                            }
                         }
                     }
                 }

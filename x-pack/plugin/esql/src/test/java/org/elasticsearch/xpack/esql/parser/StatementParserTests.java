@@ -156,7 +156,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRowCommandLong() {
-        assertEqualsIgnoringIds(Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalLong(2147483648L)))), query("row c = 2147483648"));
+        assertEqualsIgnoringIds(
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalLong(2147483648L)))),
+            query("row c = 2147483648")
+        );
     }
 
     public void testRowCommandHugeInt() {
@@ -244,7 +247,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRowCommandString() {
-        assertEqualsIgnoringIds(Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalString("chicken")))), query("row c = \"chicken\""));
+        assertEqualsIgnoringIds(
+            Rows.singleRow(EMPTY, List.of(new Alias(EMPTY, "c", literalString("chicken")))),
+            query("row c = \"chicken\"")
+        );
     }
 
     public void testRowCommandMultivalueString() {

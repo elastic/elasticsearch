@@ -19,7 +19,7 @@ public class ReplaceRowAsLocalRelationTests extends AbstractLogicalPlanOptimizer
                 ROW a=1;
                 ROW a="foo"
             """));
-        checkMessage(e,"a");
+        checkMessage(e, "a");
     }
 
     public void testMultiRowMultiColumDifferentDatatypes() {
@@ -27,7 +27,7 @@ public class ReplaceRowAsLocalRelationTests extends AbstractLogicalPlanOptimizer
                 ROW a=1, b=2, c=3;
                 ROW a=1, b="2", c=3;
             """));
-        checkMessage(e,"b");
+        checkMessage(e, "b");
     }
 
     public void testMultiRowMultiColumMultivalueDifferentDatatypes() {
@@ -35,7 +35,7 @@ public class ReplaceRowAsLocalRelationTests extends AbstractLogicalPlanOptimizer
                 ROW a=1, b=2, c=[3,4];
                 ROW a=1, b=2, c=["3","4"];
             """));
-        checkMessage(e,"c");
+        checkMessage(e, "c");
     }
 
     public void testSparseRowsDifferentDatatypes() {
@@ -49,8 +49,13 @@ public class ReplaceRowAsLocalRelationTests extends AbstractLogicalPlanOptimizer
     }
 
     private void checkMessage(ParsingException e, String field) {
-        assertThat(e.getMessage(), stringContainsInOrder(
-            "Field '"+field+"' was previously identified as of type "," but a later 'ROW","' seems to specify it as type"
-        ));
+        assertThat(
+            e.getMessage(),
+            stringContainsInOrder(
+                "Field '" + field + "' was previously identified as of type ",
+                " but a later 'ROW",
+                "' seems to specify it as type"
+            )
+        );
     }
 }

@@ -61,20 +61,20 @@ public final class ReplaceRowAsLocalRelation extends OptimizerRules.Parameterize
             var page = LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(numberOfRows, blocks));
             return new LocalRelation(rows.source(), output, page);
         } finally {
-            for(var builder : nameBlockBuilderMap.values()) {
+            for (var builder : nameBlockBuilderMap.values()) {
                 builder.close();
             }
         }
     }
 
     public void checkType(BlockBuilder builder, Row row, Alias field) throws ParsingException {
-        if(field.dataType() == DataType.NULL) {
+        if (field.dataType() == DataType.NULL) {
             return;
         }
-        if(builder.dataType == null) {
+        if (builder.dataType == null) {
             builder.dataType = field.dataType();
         }
-        if(builder.dataType.equals(field.dataType())) {
+        if (builder.dataType.equals(field.dataType())) {
             return;
         }
         throw new ParsingException(
@@ -103,8 +103,8 @@ public final class ReplaceRowAsLocalRelation extends OptimizerRules.Parameterize
         }
 
         public void addValue(int position, Object value) {
-            if(wrapper == null) {
-                if(value == null) {
+            if (wrapper == null) {
+                if (value == null) {
                     return;
                 }
                 createWrapper(value);
@@ -117,7 +117,7 @@ public final class ReplaceRowAsLocalRelation extends OptimizerRules.Parameterize
         }
 
         public Block build() {
-            if(wrapper==null) {
+            if (wrapper == null) {
                 return NON_BREAKING_BLOCK_FACTORY.newConstantNullBlock(finalSize);
             }
             for (; index < finalSize; index++) {
@@ -127,7 +127,7 @@ public final class ReplaceRowAsLocalRelation extends OptimizerRules.Parameterize
         }
 
         public void close() {
-            if(wrapper != null) {
+            if (wrapper != null) {
                 Releasables.closeExpectNoException(wrapper);
             }
         }

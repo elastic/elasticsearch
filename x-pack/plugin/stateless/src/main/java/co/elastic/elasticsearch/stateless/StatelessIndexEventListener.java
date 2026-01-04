@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -79,6 +80,8 @@ import java.util.stream.Collectors;
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE;
 
 class StatelessIndexEventListener implements IndexEventListener {
 
@@ -128,6 +131,31 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.minSearchPower = clusterSettings.get(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING);
         clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> this.boostWindow = value);
         this.cacheService = cacheService;
+    }
+
+    @Override
+    public void afterFilesRestoredFromRepository(IndexShard indexShard) {
+        final var store = indexShard.store();
+        store.incRef();
+        try {
+            final var userData = store.readLastCommittedSegmentsInfo().getUserData();
+            final String startFile = userData.get(TRANSLOG_RECOVERY_START_FILE);
+            if (startFile == null) {
+                return;
+            }
+            final var startFileValue = Long.parseLong(startFile);
+            if (startFileValue == HOLLOW_TRANSLOG_RECOVERY_START_FILE) {
+                return;
+            }
+            final var currentNodeStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
+            if (startFileValue != currentNodeStartFileForNextCommit) {
+                store.associateIndexWithNewUserKeyValueData(TRANSLOG_RECOVERY_START_FILE, Long.toString(currentNodeStartFileForNextCommit));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            store.decRef();
+        }
     }
 
     @Override

@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -143,6 +144,49 @@ public class IndexingShardRecoveryIT extends AbstractServerlessStatelessPluginIn
                 .build()
         );
         return indexName;
+    }
+
+    public void testRestoreOnNewNodeWorksWithShardSyncState() {
+        final String node0 = startMasterAndIndexNode();
+        final String node1 = startSearchNode();
+        ensureStableCluster(2);
+
+        final String indexName = "index";
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        for (int i = 0; i < 9; i++) {
+            indexDocs(indexName, between(50, 100));
+            flush(indexName);
+        }
+        ensureGreen(indexName);
+
+        final var currentNodeId = internalCluster().clusterService()
+            .state()
+            .routingTable(ProjectId.DEFAULT)
+            .shardRoutingTable(indexName, 0)
+            .primaryShard()
+            .currentNodeId();
+
+        final String node2 = startMasterAndIndexNode();
+        ensureStableCluster(3);
+
+        createRepository("repo", "fs");
+        createSnapshot("repo", "snap", List.of(indexName), List.of());
+        indicesAdmin().prepareDelete(indexName).execute().actionGet();
+
+        admin().cluster()
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
+            .setIndices(indexName)
+            .setIndexSettings(Settings.builder().put("index.routing.allocation.exclude._id", currentNodeId))
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+
+        // Indexing after restoring on the new node works without tripping assertion in ShardSyncState
+        ensureGreen(indexName);
+        indexDocs(indexName, 10);
+        flush(indexName);
     }
 
     public void testEmptyStoreRecovery() throws Exception {
@@ -252,8 +296,10 @@ public class IndexingShardRecoveryIT extends AbstractServerlessStatelessPluginIn
         var afterRestore = new PrimaryTermAndGeneration(
             // term is incremented by 1
             afterSnapshot.lastUploadedBcc.primaryTerm() + 1L,
-            // Lucene index is committed twice on snapshot recovery: one for bootstrapNewHistory and one for associateIndexWithNewTranslog
-            afterSnapshot.lastUploadedCc.generation() + 2L
+            // Lucene index is committed three times on snapshot recovery:
+            // 1st for StatelessIndexEventListener#afterFilesRestoredFromRepository, 2nd for bootstrapNewHistory
+            // and 3rd for associateIndexWithNewTranslog
+            afterSnapshot.lastUploadedCc.generation() + 3L
         );
         assertBusyCommitsMatchExpectedResults(indexName, expectedResults(afterRestore, 0));
         assertDocsCount(indexName, totalDocs);

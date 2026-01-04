@@ -75,6 +75,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
     private void cleanSearchHits(DiversifyRetrieverBuilder.RankDocWithSearchHit[] searchHits) {
         for (int i = 0; i < searchHits.length; i++) {
             searchHits[i].hit().decRef();
+            searchHits[i] = null;
         }
     }
 

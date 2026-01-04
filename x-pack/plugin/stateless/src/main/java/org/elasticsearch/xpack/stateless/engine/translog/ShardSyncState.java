@@ -128,7 +128,17 @@ class ShardSyncState {
             synchronized (translogFiles) {
                 // Since this is call before initiating an upload, the marked translog release end file should never be less than the
                 // recovery start file
-                assert translogFile.generation() >= markedTranslogReleaseEndFile;
+                assert translogFile.generation() >= markedTranslogReleaseEndFile
+                    : translogFile.generation()
+                        + " < "
+                        + markedTranslogReleaseEndFile
+                        + " for shard "
+                        + shardId
+                        + " of primaryTerm ["
+                        + primaryTerm
+                        + "] and translogFile ["
+                        + translogFile
+                        + "]";
                 assert translogFiles.keySet().stream().allMatch(l -> l < translogFile.generation());
                 if (isClosed == false) {
                     // Add if the shard is open. Ignore if the shard is closed. We cannot safely decrement as we don't know if the file will

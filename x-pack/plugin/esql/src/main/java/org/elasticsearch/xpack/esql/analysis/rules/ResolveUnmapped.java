@@ -84,7 +84,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
         var transformed = load ? load(plan, unresolved) : nullify(plan, unresolved);
 
-        return transformed.equals(plan) ? plan : refreshUnresolved(transformed, unresolved);
+        return transformed.equals(plan) ? plan : refreshPlan(transformed, unresolved);
     }
 
     /**
@@ -201,6 +201,11 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         throw new EsqlIllegalArgumentException("unexpected node type [{}]", plan); // assert
     }
 
+    private static LogicalPlan refreshPlan(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
+        var refreshed = refreshUnresolved(plan, unresolved);
+        return refreshChildren(refreshed);
+    }
+
     /**
      * The UAs that haven't been resolved are marked as unresolvable with a custom message. This needs to be removed for
      * {@link Analyzer.ResolveRefs} to attempt again to wire them to the newly added aliases. That's what this method does.
@@ -215,6 +220,21 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             }
             return ua;
         });
+    }
+
+    /**
+     * @return A plan having all nodes recreated (no properties changed, otherwise). This is needed to clear internal, lazy-eval'd and
+     * cached state, such as the output. The rule inserts new attributes in the plan, so the output of all the nodes downstream these
+     * insertions need be recomputed.
+     */
+    private static LogicalPlan refreshChildren(LogicalPlan plan) {
+        var planChildren = plan.children();
+        if (planChildren.isEmpty()) {
+            return plan;
+        }
+        List<LogicalPlan> newChildren = new ArrayList<>(planChildren.size());
+        planChildren.forEach(child -> newChildren.add(refreshChildren(child)));
+        return plan.replaceChildren(newChildren);
     }
 
     /**

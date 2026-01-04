@@ -171,6 +171,21 @@ San Francisco
 Amsterdam
 ;
 
+fieldIsNestedAndMappedNoKeep
+required_capability: unmapped_fields
+required_capability: optional_fields
+
+SET unmapped_fields="load"\;
+FROM addresses
+| SORT city.name DESC
+;
+
+city.country.continent.name:keyword|city.country.continent.planet.galaxy:keyword|city.country.continent.planet.name:keyword|city.country.name:keyword|city.name:keyword|number:keyword|street:keyword|zip_code:keyword
+Asia                       |Milky Way                           |Earth                             |Japan                   |Tokyo          |2-7-2          |Marunouchi     |100-7014
+North America              |Milky Way                           |Earth                             |United States of America|San Francisco  |88             |Kearny St      |CA 94108
+Europe                     |Milky Way                           |Earth                             |Netherlands             |Amsterdam      |281            |Keizersgracht  |1016 ED
+;
+
 fieldIsNestedAndUnmapped
 required_capability: unmapped_fields
 required_capability: optional_fields

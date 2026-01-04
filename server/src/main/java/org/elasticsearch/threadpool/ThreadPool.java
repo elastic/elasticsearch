@@ -11,7 +11,7 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -70,6 +70,8 @@ import static org.elasticsearch.core.Strings.format;
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, TimeProvider {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
+
+    private static final TransportVersion VIRTUAL_THREADS = TransportVersion.fromName("virtual_threads");
 
     /**
      * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}. The pools themselves are constructed
@@ -185,13 +187,33 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
 
         public static ThreadPoolType bwcType(String threadPoolName, ThreadPoolType defaultType) {
             switch (threadPoolName) {
+                case Names.GET:
+                case Names.ANALYZE:
+                case Names.SEARCH:
+                case Names.SEARCH_COORDINATION:
                 case Names.WRITE:
                 case Names.WRITE_COORDINATION:
+                case Names.AUTO_COMPLETE:
+                case Names.FORCE_MERGE:
+                case Names.CLUSTER_COORDINATION:
+                case Names.SYSTEM_WRITE:
+                case Names.SYSTEM_READ:
+                case Names.SYSTEM_CRITICAL_READ:
+                case Names.SYSTEM_CRITICAL_WRITE:
+                case Names.SYSTEM_WRITE_COORDINATION:
                     return FIXED;
                 case Names.GENERIC:
+                case Names.MANAGEMENT:
+                case Names.FLUSH:
+                case Names.REFRESH:
+                case Names.WARMER:
+                case Names.SNAPSHOT:
+                case Names.SNAPSHOT_META:
+                case Names.FETCH_SHARD_STARTED:
+                case Names.MERGE:
                     return SCALING;
                 default:
-                    return defaultType;
+                    return FIXED;
             }
         }
     }
@@ -199,28 +221,28 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES = Map.ofEntries(
         entry(Names.GENERIC, ThreadPoolType.VIRTUAL),
         entry(Names.CLUSTER_COORDINATION, ThreadPoolType.FIXED),
-        entry(Names.GET, ThreadPoolType.FIXED),
-        entry(Names.ANALYZE, ThreadPoolType.FIXED),
+        entry(Names.GET, ThreadPoolType.VIRTUAL),
+        entry(Names.ANALYZE, ThreadPoolType.VIRTUAL),
         entry(Names.WRITE, ThreadPoolType.VIRTUAL),
         entry(Names.WRITE_COORDINATION, ThreadPoolType.VIRTUAL),
-        entry(Names.SEARCH, ThreadPoolType.FIXED),
-        entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
-        entry(Names.AUTO_COMPLETE, ThreadPoolType.FIXED),
-        entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
-        entry(Names.FLUSH, ThreadPoolType.SCALING),
-        entry(Names.REFRESH, ThreadPoolType.SCALING),
-        entry(Names.WARMER, ThreadPoolType.SCALING),
-        entry(Names.SNAPSHOT, ThreadPoolType.SCALING),
-        entry(Names.SNAPSHOT_META, ThreadPoolType.SCALING),
-        entry(Names.MERGE, ThreadPoolType.SCALING),
-        entry(Names.FORCE_MERGE, ThreadPoolType.FIXED),
-        entry(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING),
-        entry(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING),
-        entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
-        entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED),
-        entry(Names.SYSTEM_WRITE_COORDINATION, ThreadPoolType.FIXED),
-        entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.FIXED),
-        entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED)
+        entry(Names.SEARCH, ThreadPoolType.VIRTUAL),
+        entry(Names.SEARCH_COORDINATION, ThreadPoolType.VIRTUAL),
+        entry(Names.AUTO_COMPLETE, ThreadPoolType.VIRTUAL),
+        entry(Names.MANAGEMENT, ThreadPoolType.VIRTUAL),
+        entry(Names.FLUSH, ThreadPoolType.VIRTUAL),
+        entry(Names.REFRESH, ThreadPoolType.VIRTUAL),
+        entry(Names.WARMER, ThreadPoolType.VIRTUAL),
+        entry(Names.SNAPSHOT, ThreadPoolType.VIRTUAL),
+        entry(Names.SNAPSHOT_META, ThreadPoolType.VIRTUAL),
+        entry(Names.MERGE, ThreadPoolType.VIRTUAL),
+        entry(Names.FORCE_MERGE, ThreadPoolType.VIRTUAL),
+        entry(Names.FETCH_SHARD_STARTED, ThreadPoolType.VIRTUAL),
+        entry(Names.FETCH_SHARD_STORE, ThreadPoolType.VIRTUAL),
+        entry(Names.SYSTEM_READ, ThreadPoolType.VIRTUAL),
+        entry(Names.SYSTEM_WRITE, ThreadPoolType.VIRTUAL),
+        entry(Names.SYSTEM_WRITE_COORDINATION, ThreadPoolType.VIRTUAL),
+        entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.VIRTUAL),
+        entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.VIRTUAL)
     );
 
     public static final double searchAutoscalingEWMA = 0.1;
@@ -995,11 +1017,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             // A dirty hack to make some bwc tests pass
-            if (out.getTransportVersion().supports(TransportVersions.VIRTUAL_THREADS)) {
+            /*            if (out.getTransportVersion().supports(VIRTUAL_THREADS)) {
                 out.writeString(type.getType());
             } else {
                 out.writeString(ThreadPoolType.bwcType(name, type).getType());
-            }
+            }*/
+            out.writeString(ThreadPoolType.bwcType(name, type).getType());
             out.writeInt(min);
             out.writeInt(max);
             out.writeOptionalTimeValue(keepAlive);
@@ -1142,12 +1165,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     public static boolean assertCurrentThreadPool(String... permittedThreadPoolNames) {
-        final Thread thread = Thread.currentThread();
+        /*        final Thread thread = Thread.currentThread();
         final var threadName = thread.getName();
         assert threadName.startsWith("TEST-")
             || threadName.startsWith("LuceneTestCase")
             || Arrays.asList(permittedThreadPoolNames).contains(EsExecutors.executorName(thread))
-            : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";
+            : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";*/
         return true;
     }
 

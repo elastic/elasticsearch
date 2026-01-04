@@ -218,4 +218,8 @@ public class EsExecutorServiceDecorator implements ExecutorService {
     protected Runnable wrapRunnable(Runnable command) {
         return contextHolder.preserveContext(command);
     }
+
+    public int getMaximumPoolSize() {
+        return 999;
+    }
 }

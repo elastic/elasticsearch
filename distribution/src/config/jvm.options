@@ -90,11 +90,11 @@
 ## GC logging
 -Xlog:gc*,gc+age=trace,safepoint:file=gc.log:utctime,level,pid,tags:filecount=32,filesize=64m
 
+-Djdk.tracePinnedThreads=full
+-XX:StartFlightRecording=filename=loom.jfr,settings=profile
+
 -Dcom.sun.management.jmxremote
 -Dcom.sun.management.jmxremote.port=19500
 -Dcom.sun.management.jmxremote.local.only=false
 -Dcom.sun.management.jmxremote.authenticate=false
 -Dcom.sun.management.jmxremote.ssl=false
-
--Djdk.tracePinnedThreads=full
--XX:StartFlightRecording=filename=vt.jfr

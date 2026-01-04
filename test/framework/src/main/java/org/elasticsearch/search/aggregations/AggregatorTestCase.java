@@ -153,6 +153,7 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.threadpool.EsExecutorServiceDecorator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ContextParser;
@@ -173,7 +174,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -215,12 +215,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
     ThreadPool threadPool;
-    ThreadPoolExecutor threadPoolExecutor;
+    EsExecutorServiceDecorator threadPoolExecutor;
 
     @Before
     public final void initPlugins() {
         threadPool = new TestThreadPool(AggregatorTestCase.class.getName());
-        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
+        threadPoolExecutor = (EsExecutorServiceDecorator) threadPool.executor(ThreadPool.Names.SEARCH);
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);

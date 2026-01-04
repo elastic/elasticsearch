@@ -1474,15 +1474,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Associate the lucene index with a new pair of key/value user data.
+     * Associate the lucene index with a new pair of key/value user data. The new value must be different from the
+     * existing one (if exists) or an exception is thrown.
      */
-    public void associateIndexWithNewUserKeyValueData(String key, String value) throws IOException {
+    public void associateIndexWithNewUserKeyValueData(String key, String newValue) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newTemporaryAppendingIndexWriter(directory, null)) {
-            if (value.equals(getUserData(writer).get(key))) {
-                throw new IllegalArgumentException("a new [" + key + "] can't be equal to existing one. got [" + value + "]");
+            if (newValue.equals(getUserData(writer).get(key))) {
+                throw new IllegalArgumentException("a new [" + key + "] can't be equal to existing one. got [" + newValue + "]");
             }
-            updateCommitData(writer, Map.of(key, value));
+            updateCommitData(writer, Map.of(key, newValue));
         } finally {
             metadataLock.writeLock().unlock();
         }

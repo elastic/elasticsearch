@@ -249,7 +249,6 @@ public class EsExecutorServiceDecorator implements ExecutorService {
         return 0.1;
     }
 
-
     protected void appendThreadPoolExecutorDetails(StringBuilder sb) {
 
     }

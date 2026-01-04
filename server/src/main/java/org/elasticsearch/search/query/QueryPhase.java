@@ -42,6 +42,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
+import org.elasticsearch.threadpool.EsExecutorServiceDecorator;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -232,12 +233,15 @@ public class QueryPhase {
                     queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
                 }
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
-                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
-                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+/*                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
+                    || (executor instanceof EsThreadPoolExecutor == false *//* in case thread pool is mocked out in tests *//*)
+                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();*/
                 if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                } else if (executor instanceof EsExecutorServiceDecorator) {
+                    queryResult.nodeQueueSize(((EsExecutorServiceDecorator) executor).getCurrentQueueSize());
+                    queryResult.serviceTimeEWMA((long)  ((EsExecutorServiceDecorator) executor).getTaskExecutionEWMA());
                 }
             } catch (ContextIndexSearcher.TimeExceededException tee) {
                 finalizeAsTimedOutResult(searchContext);

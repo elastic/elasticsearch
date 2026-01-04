@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
@@ -30,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -65,6 +67,10 @@ public class ExtractorTests extends ESTestCase {
                             () -> randomAggregateMetricDouble(false)
                         )
                     );
+                }
+                case LONG_RANGE -> {
+                    cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(true)));
+                    cases.add(valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, () -> randomDateRange(false)));
                 }
                 case FLOAT -> {
                     supportsNull = false;
@@ -262,5 +268,13 @@ public class ExtractorTests extends ESTestCase {
             randomBoolean() ? randomDouble() : null,
             randomBoolean() ? randomInt() : null
         );
+    }
+
+    private static LongRangeBlockBuilder.LongRange randomDateRange(boolean haveNulls) {
+        var from = randomMillisUpToYear9999();
+        var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+        return haveNulls
+            ? new LongRangeBlockBuilder.LongRange(randomBoolean() ? from : null, randomBoolean() ? to : null)
+            : new LongRangeBlockBuilder.LongRange(from, to);
     }
 }

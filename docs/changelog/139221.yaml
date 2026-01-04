@@ -1,0 +1,5 @@
+pr: 139221
+summary: Upgrade lz4 dependency to 1.10.1
+area: Infra/Core
+type: upgrade
+issues: []

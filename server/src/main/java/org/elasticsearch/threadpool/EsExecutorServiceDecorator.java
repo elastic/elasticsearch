@@ -11,12 +11,14 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -220,6 +222,47 @@ public class EsExecutorServiceDecorator implements ExecutorService {
     }
 
     public int getMaximumPoolSize() {
-        return 999;
+        return 9;
+    }
+
+    public double getTaskExecutionEWMA() {
+        return 1.0;
+    }
+
+    public long getTotalTaskExecutionTime() {
+        return 10;
+    }
+
+    public int getCurrentQueueSize() {
+        return 1;
+    }
+
+    public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
+        return 0;
+    }
+
+    public long peekMaxQueueLatencyInQueueMillis() {
+        return 0;
+    }
+
+    public double pollUtilization(TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose utilizationTrackingPurpose) {
+        return 0.1;
+    }
+
+
+    protected void appendThreadPoolExecutorDetails(StringBuilder sb) {
+
+    }
+
+    public Map<Runnable, Long> getOngoingTasks() {
+        return Map.of();
+    }
+
+    public double getExecutionEwmaAlpha() {
+        return 0.1;
+    }
+
+    public boolean trackingMaxQueueLatency() {
+        return false;
     }
 }

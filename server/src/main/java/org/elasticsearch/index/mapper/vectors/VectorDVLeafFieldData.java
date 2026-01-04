@@ -146,12 +146,20 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     private class FloatDocValues implements FormattedDocValues {
+        private final boolean base64;
         private float[] vector = new float[dims];
         private FloatVectorValues floatVectorValues; // use when indexed
         private KnnVectorValues.DocIndexIterator iterator; // use when indexed
         private BinaryDocValues binary; // use when not indexed
+        private byte[] scratchBytes;
+        private ByteBuffer scratchBuffer;
 
-        FloatDocValues() {
+        FloatDocValues(boolean base64) {
+            this.base64 = base64;
+            if (base64) {
+                this.scratchBytes = new byte[dims * Float.BYTES];
+                this.scratchBuffer = ByteBuffer.wrap(scratchBytes).order(ByteOrder.BIG_ENDIAN);
+            }
             try {
                 if (indexed) {
                     floatVectorValues = reader.getFloatVectorValues(field);
@@ -192,11 +200,20 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
         @Override
         public Object nextValue() {
+            if (base64) {
+                scratchBuffer.clear();
+                scratchBuffer.asFloatBuffer().put(vector);
+                return Base64.getEncoder().encodeToString(scratchBytes);
+            }
             return Arrays.copyOf(vector, vector.length);
         }
     }
 
     private class BFloat16DocValues extends FloatDocValues {
+        BFloat16DocValues(boolean base64) {
+            super(base64);
+        }
+
         @Override
         void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
             VectorEncoderDecoder.decodeBFloat16DenseVector(vectorBR, vector);
@@ -207,30 +224,29 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
         if (format == DocValueFormat.BINARY) {
             return switch (elementType) {
-                case BYTE -> new Base64ByteDocValues(dims, false);
-                case BIT -> new Base64ByteDocValues(dims / Byte.SIZE, true);
-                case FLOAT, BFLOAT16 -> new Base64FloatDocValues();
+                case BYTE -> new Base64ByteDocValues(dims);
+                case BIT -> new Base64ByteDocValues(dims / Byte.SIZE);
+                case FLOAT -> new FloatDocValues(true);
+                case BFLOAT16 -> new BFloat16DocValues(true);
             };
         }
         return switch (elementType) {
             case BYTE -> new ByteDocValues(dims);
             case BIT -> new ByteDocValues(dims / Byte.SIZE);
-            case FLOAT -> new FloatDocValues();
-            case BFLOAT16 -> new BFloat16DocValues();
+            case FLOAT -> new FloatDocValues(false);
+            case BFLOAT16 -> new BFloat16DocValues(false);
         };
     }
 
     private class Base64ByteDocValues implements FormattedDocValues {
         private final int dims;
-        private final boolean bits;
         private byte[] vector;
         private ByteVectorValues byteVectorValues; // use when indexed
         private KnnVectorValues.DocIndexIterator iterator; // use when indexed
         private BinaryDocValues binary; // use when not indexed
 
-        Base64ByteDocValues(int dims, boolean bits) {
+        Base64ByteDocValues(int dims) {
             this.dims = dims;
-            this.bits = bits;
             this.vector = new byte[dims];
             try {
                 if (indexed) {
@@ -270,55 +286,6 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         public Object nextValue() {
             // For bit vectors the vector already represents bits; treat identically.
             return Base64.getEncoder().encodeToString(vector);
-        }
-    }
-
-    private class Base64FloatDocValues implements FormattedDocValues {
-        private float[] vector = new float[dims];
-        private FloatVectorValues floatVectorValues; // use when indexed
-        private KnnVectorValues.DocIndexIterator iterator; // use when indexed
-        private BinaryDocValues binary; // use when not indexed
-
-        Base64FloatDocValues() {
-            try {
-                if (indexed) {
-                    floatVectorValues = reader.getFloatVectorValues(field);
-                    iterator = (floatVectorValues == null) ? null : floatVectorValues.iterator();
-                } else {
-                    binary = DocValues.getBinary(reader, field);
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
-            }
-        }
-
-        @Override
-        public boolean advanceExact(int docId) throws IOException {
-            if (indexed) {
-                if (iteratorAdvanceExact(iterator, docId) == false) {
-                    return false;
-                }
-                vector = floatVectorValues.vectorValue(iterator.index());
-            } else {
-                if (binary == null || binary.advanceExact(docId) == false) {
-                    return false;
-                }
-                BytesRef ref = binary.binaryValue();
-                VectorEncoderDecoder.decodeDenseVector(indexVersion, ref, vector);
-            }
-            return true;
-        }
-
-        @Override
-        public int docValueCount() {
-            return 1;
-        }
-
-        @Override
-        public Object nextValue() {
-            byte[] bytes = new byte[vector.length * Float.BYTES];
-            ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).asFloatBuffer().put(vector);
-            return Base64.getEncoder().encodeToString(bytes);
         }
     }
 

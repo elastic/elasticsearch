@@ -304,7 +304,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.isExcludeSourceVectors = isExcludeSourceVectors;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
-            final boolean defaultBBQ8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
+            final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
             this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
             if (indexedByDefault) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
@@ -334,7 +334,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexOptions = new Parameter<>(
                 "index_options",
                 true,
-                () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQ8Hnsw),
+                () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw),
                 (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
@@ -358,8 +358,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         || Objects.equals(previous, current)
                         || previous.updatableTo(current)
                 );
-            if (defaultInt8Hnsw || defaultBBQ8Hnsw) {
-                if (defaultBBQ8Hnsw == false || (dims != null && dims.isConfigured())) {
+            if (defaultInt8Hnsw || defaultBBQHnsw) {
+                if (defaultBBQHnsw == false || (dims != null && dims.isConfigured())) {
                     this.indexOptions.alwaysSerialize();
                 }
             }
@@ -383,20 +383,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
         }
 
-        private DenseVectorIndexOptions defaultIndexOptions(boolean defaultInt8Hnsw, boolean defaultBBQ8Hnsw) {
+        private DenseVectorIndexOptions defaultIndexOptions(boolean defaultInt8Hnsw, boolean defaultBBQHnsw) {
             if (elementType.getValue() != ElementType.FLOAT || indexed.getValue() == false) {
                 return null;
             }
 
             boolean dimIsConfigured = dims != null && dims.isConfigured();
-            if (defaultBBQ8Hnsw && dimIsConfigured == false) {
+            if (defaultBBQHnsw && dimIsConfigured == false) {
                 // Delay selecting the default index options until dimensions are configured.
                 // This applies only to indices that are eligible to use BBQ as the default,
                 // since prior to this change, the default was selected eagerly.
                 return null;
             }
 
-            if (defaultBBQ8Hnsw && dimIsConfigured && dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
+            if (defaultBBQHnsw && dimIsConfigured && dims.getValue() >= BBQ_DIMS_DEFAULT_THRESHOLD) {
                 return new BBQHnswIndexOptions(
                     Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                     Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
@@ -2606,7 +2606,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (format == null || "array".equals(format)) {
                 return DocValueFormat.DENSE_VECTOR;
             }
-            if ("base64".equals(format) || "binary".equals(format)) {
+            if ("base64".equals(format)) {
                 return DocValueFormat.BINARY;
             }
             throw new IllegalArgumentException(

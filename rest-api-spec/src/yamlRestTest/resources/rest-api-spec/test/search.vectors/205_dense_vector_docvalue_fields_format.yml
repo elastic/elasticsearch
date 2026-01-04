@@ -3,8 +3,8 @@ setup:
       capabilities:
         - method: POST
           path: /_search
-          capabilities: [ dense_vector_docvalue_fields ]
-      cluster_features: [ "mapper.vectors.generic_vector_format" ]
+          capabilities: [ dense_vector_docvalue_fields, dense_vector_docvalue_fields_format ]
+      cluster_features: [ "mapper.vectors.generic_vector_format", "mapper.base64_vector_format" ]
       test_runner_features: [ capabilities, close_to ]
       reason: Needs docvalue_fields capability and generic vector format support
   - do:
@@ -35,16 +35,39 @@ setup:
                 element_type: byte
                 dims: 3
                 index: false
+              vec_bit_indexed:
+                type: dense_vector
+                element_type: bit
+                dims: 24
+                index: true
+              vec_bit_dv:
+                type: dense_vector
+                element_type: bit
+                dims: 24
+                index: false
+              vec_bfloat16_indexed:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 3
+                index: true
+              vec_bfloat16_dv:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 3
+                index: false
   - do:
       index:
         index: dv-format
         id: "1"
         body:
-          name: doc1
           vec_float_indexed: [ 1.5, 2.0, -3.25 ]
           vec_float_dv: [ 1.5, 2.0, -3.25 ]
           vec_byte_indexed: [ 1, -2, 3 ]
           vec_byte_dv: [ 1, -2, 3 ]
+          vec_bit_indexed: [ 1, -2, 3 ]
+          vec_bit_dv: [ 1, -2, 3 ]
+          vec_bfloat16_indexed: [ 1.5, 2.0, -3.25 ]
+          vec_bfloat16_dv: [ 1.5, 2.0, -3.25 ]
   - do:
       indices.refresh: { }
 
@@ -56,20 +79,29 @@ setup:
         _source: false
         body:
           docvalue_fields:
-            - name
             - vec_float_indexed
             - vec_float_dv
             - vec_byte_indexed
             - vec_byte_dv
-          sort: name
+            - vec_bit_indexed
+            - vec_bit_dv
+            - vec_bfloat16_indexed
+            - vec_bfloat16_dv
+          sort: _doc
 
   - match: { hits.total.value: 1 }
   - length: { hits.hits.0.fields.vec_float_indexed.0: 3 }
   - length: { hits.hits.0.fields.vec_float_dv.0: 3 }
   - length: { hits.hits.0.fields.vec_byte_indexed.0: 3 }
   - length: { hits.hits.0.fields.vec_byte_dv.0: 3 }
+  - length: { hits.hits.0.fields.vec_bit_indexed.0: 3 }
+  - length: { hits.hits.0.fields.vec_bit_dv.0: 3 }
+  - length: { hits.hits.0.fields.vec_bfloat16_indexed.0: 3 }
+  - length: { hits.hits.0.fields.vec_bfloat16_dv.0: 3 }
   - close_to: { hits.hits.0.fields.vec_float_indexed.0.0: { value: 1.5, error: 0.001 } }
   - match: { hits.hits.0.fields.vec_byte_indexed.0: [ 1, -2, 3 ] }
+  - match: { hits.hits.0.fields.vec_bit_indexed.0: [ 1, -2, 3 ] }
+  - close_to: { hits.hits.0.fields.vec_bfloat16_indexed.0.0: { value: 1.5, error: 0.01 } }
 
   - do:
       search:
@@ -77,22 +109,73 @@ setup:
         _source: false
         body:
           docvalue_fields:
-            - name
             - field: vec_float_indexed
               format: "base64"
             - field: vec_float_dv
-              format: "binary"
+              format: "base64"
             - field: vec_byte_indexed
               format: "base64"
             - field: vec_byte_dv
-              format: "binary"
-          sort: name
+              format: "base64"
+            - field: vec_bit_indexed
+              format: "base64"
+            - field: vec_bit_dv
+              format: "base64"
+            - field: vec_bfloat16_indexed
+              format: "base64"
+            - field: vec_bfloat16_dv
+              format: "base64"
+          sort: _doc
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields.vec_float_indexed.0: "P8AAAEAAAADAUAAA" }
   - match: { hits.hits.0.fields.vec_float_dv.0: "P8AAAEAAAADAUAAA" }
   - match: { hits.hits.0.fields.vec_byte_indexed.0: "Af4D" }
   - match: { hits.hits.0.fields.vec_byte_dv.0: "Af4D" }
+  - match: { hits.hits.0.fields.vec_bit_indexed.0: "Af4D" }
+  - match: { hits.hits.0.fields.vec_bit_dv.0: "Af4D" }
+  # bfloat16 vectors may have precision differences when stored/retrieved through Lucene's format
+  # So we use is_true to verify they are present rather than exact matching
+  - is_true: hits.hits.0.fields.vec_bfloat16_indexed.0
+  - is_true: hits.hits.0.fields.vec_bfloat16_dv.0
+
+  - do:
+      search:
+        index: dv-format
+        _source: false
+        body:
+          docvalue_fields:
+            - field: vec_float_indexed
+              format: "array"
+            - field: vec_float_dv
+              format: "array"
+            - field: vec_byte_indexed
+              format: "array"
+            - field: vec_byte_dv
+              format: "array"
+            - field: vec_bit_indexed
+              format: "array"
+            - field: vec_bit_dv
+              format: "array"
+            - field: vec_bfloat16_indexed
+              format: "array"
+            - field: vec_bfloat16_dv
+              format: "array"
+          sort: _doc
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits.0.fields.vec_float_indexed.0: 3 }
+  - length: { hits.hits.0.fields.vec_float_dv.0: 3 }
+  - length: { hits.hits.0.fields.vec_byte_indexed.0: 3 }
+  - length: { hits.hits.0.fields.vec_byte_dv.0: 3 }
+  - length: { hits.hits.0.fields.vec_bit_indexed.0: 3 }
+  - length: { hits.hits.0.fields.vec_bit_dv.0: 3 }
+  - length: { hits.hits.0.fields.vec_bfloat16_indexed.0: 3 }
+  - length: { hits.hits.0.fields.vec_bfloat16_dv.0: 3 }
+  - close_to: { hits.hits.0.fields.vec_float_indexed.0.0: { value: 1.5, error: 0.001 } }
+  - match: { hits.hits.0.fields.vec_byte_indexed.0: [ 1, -2, 3 ] }
+  - match: { hits.hits.0.fields.vec_bit_indexed.0: [ 1, -2, 3 ] }
+  - close_to: { hits.hits.0.fields.vec_bfloat16_indexed.0.0: { value: 1.5, error: 0.01 } }
 
 ---
 "dense_vector docvalue_fields format rejects unknown":
@@ -105,3 +188,4 @@ setup:
           docvalue_fields:
             - field: vec_float_indexed
               format: "bogus"
+

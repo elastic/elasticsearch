@@ -18,6 +18,7 @@ a:integer | b:keyword  | c:null
 ;
 
 multipleRows
+required_capability: multiple_row_source_commands
 ROW a = 1 \;
 ROW a = 2 \;
 ROW a = 3 \;
@@ -29,7 +30,32 @@ a:integer
 3
 ;
 
+multipleRowsNoTraillingSemicolumn
+required_capability: multiple_row_source_commands
+ROW a = 1 \;
+ROW a = 2 \;
+ROW a = 3
+;
+
+a:integer 
+1         
+2
+3
+;
+
+multipleRowsMultipleColumnsNoTraillingSemicolumn
+required_capability: multiple_row_source_commands
+ROW a = 1, b = 2 \;
+ROW a = 3, b = 4
+;
+
+a:integer | b:integer 
+1         | 2     
+3         | 4  
+;
+
 multipleRowsDifferentColumns
+required_capability: multiple_row_source_commands
 ROW a = 1 \;
 ROW b = "two" \;
 ;
@@ -40,6 +66,7 @@ null      | "two"
 ;
 
 multipleRowsWithRowColumn
+required_capability: multiple_row_source_commands
 ROW a = 1 \;
 ROW row = 2 \;
 ;

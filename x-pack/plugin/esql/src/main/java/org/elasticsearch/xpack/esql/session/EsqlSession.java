@@ -102,6 +102,17 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
+/**
+ * Combines all components necessary for the coordinating node to plan and execute an ESQL query,
+ * including (pre-)analyzing, optimizing and running the physical plan.
+ * <p>
+ * In particular, this is where we perform remote calls to pre-analyze the query,
+ * that is, to resolve indices, enrich policies and their mappings.
+ * <p>
+ * Note that this is not a session in the traditional sense of a stateful connection. This will
+ * produce a single result set that is either returned to the user directly or stored for
+ * later retrieval if the query was async.
+ */
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
@@ -1023,6 +1034,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
+                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                 l.onResponse(
                     result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())

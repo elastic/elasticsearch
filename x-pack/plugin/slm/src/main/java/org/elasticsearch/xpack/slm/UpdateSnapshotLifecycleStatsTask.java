@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
@@ -56,9 +58,11 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(Exception e) {
-        logger.error(
+        logger.log(
+            MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR,
             () -> format(
-                "failed to update cluster state with snapshot lifecycle stats, " + "source: [" + TASK_SOURCE + "], missing stats: [%s]",
+                "failed to update cluster state with snapshot lifecycle stats, source: [%s], missing stats: [%s]",
+                TASK_SOURCE,
                 runStats
             ),
             e

@@ -331,9 +331,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
-  issue: https://github.com/elastic/elasticsearch/issues/137732
 - class: org.elasticsearch.threadpool.ThreadPoolTests
   method: testDetailedUtilizationMetric
   issue: https://github.com/elastic/elasticsearch/issues/138242

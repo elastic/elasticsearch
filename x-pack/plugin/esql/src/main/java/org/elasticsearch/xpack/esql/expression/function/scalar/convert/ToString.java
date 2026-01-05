@@ -90,13 +90,13 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(GEOTILE, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE)),
         Map.entry(GEOHEX, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
         Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new),
-        Map.entry(DATE_RANGE, ToStringFromDateRangeEvaluator.Factory::new),
         Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new),
 
         // Evaluators dynamically created in #factories()
         Map.entry(DATETIME, (source, fieldEval) -> null),
-        Map.entry(DATE_NANOS, (source, fieldEval) -> null)
+        Map.entry(DATE_NANOS, (source, fieldEval) -> null),
+        Map.entry(DATE_RANGE, (source, fieldEval) -> null)
     );
 
     private Map<DataType, BuildFactory> lazyEvaluators = null;
@@ -176,6 +176,14 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                             source,
                             fieldEval,
                             DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                        )
+                    ),
+                    Map.entry(
+                        DATE_RANGE,
+                        (source, fieldEval) -> new ToStringFromDateRangeEvaluator.Factory(
+                            source,
+                            fieldEval,
+                            DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
                         )
                     )
                 )

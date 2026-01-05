@@ -878,6 +878,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static void forUnaryDateTime(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, dateCases(), expectedType, v -> expectedValue.apply((Instant) v), warnings);
+    }
+
+    public static void forUnaryDateNanos(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, dateNanosCases(), expectedType, v -> expectedValue.apply((Instant) v), warnings);
+    }
+
     public static void forUnaryDateRange(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,

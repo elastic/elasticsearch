@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -183,22 +184,44 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             suppliers,
             "ToStringFromExponentialHistogramEvaluator[histogram=" + read + "]",
             DataType.KEYWORD,
-            eh -> new BytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDateRange(
-            suppliers,
-            "ToStringFromDateRangeEvaluator[field=" + read + "]",
-            DataType.KEYWORD,
-            dr -> new BytesRef(EsqlDataTypeConverter.dateRangeToString(dr)),
+            eh -> matchesBytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
             List.of()
         );
         TestCaseSupplier.forUnaryHistogram(
             suppliers,
             "ToStringFromHistogramEvaluator[histogram=" + read + "]",
             DataType.KEYWORD,
-            h -> new BytesRef(EsqlDataTypeConverter.histogramToString(h)),
+            h -> matchesBytesRef(EsqlDataTypeConverter.histogramToString(h)),
             List.of()
+        );
+
+        List<TestCaseSupplier> fixedTimezoneSuppliers = new ArrayList<>();
+        TestCaseSupplier.forUnaryDateTime(
+            fixedTimezoneSuppliers,
+            "ToStringFromDatetimeEvaluator[datetime=" + read + ", " + "formatter=format[strict_date_optional_time] locale[]]",
+            DataType.KEYWORD,
+            date -> matchesBytesRef(EsqlDataTypeConverter.dateTimeToString(DateUtils.toLongMillis(date))),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryDateNanos(
+            fixedTimezoneSuppliers,
+            "ToStringFromDateNanosEvaluator[datetime=" + read + ", formatter=format[strict_date_optional_time_nanos] locale[]]",
+            DataType.KEYWORD,
+            date -> matchesBytesRef(EsqlDataTypeConverter.nanoTimeToString(DateUtils.toLong(date))),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryDateRange(
+            fixedTimezoneSuppliers,
+            "ToStringFromDateRangeEvaluator[field=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
+            DataType.KEYWORD,
+            dr -> matchesBytesRef(EsqlDataTypeConverter.dateRangeToString(dr)),
+            List.of()
+        );
+        suppliers.addAll(
+            TestCaseSupplier.mapTestCases(
+                fixedTimezoneSuppliers,
+                tc -> tc.withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+            )
         );
 
         suppliers.addAll(casesForDate("2020-02-03T10:12:14Z", "Z", "2020-02-03T10:12:14.000Z"));
@@ -235,6 +258,23 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                         + "formatter=format[strict_date_optional_time_nanos] locale[]]",
                     DataType.KEYWORD,
                     matchesBytesRef(expectedString)
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+            ),
+
+            new TestCaseSupplier(
+                "date_range: " + date + ", " + zoneIdString + ", " + expectedString,
+                List.of(DataType.DATE_RANGE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(
+                            new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong),
+                            DataType.DATE_RANGE,
+                            "date"
+                        )
+                    ),
+                    "ToStringFromDateRangeEvaluator[field=Attribute[channel=0], " + "formatter=format[strict_date_optional_time] locale[]]",
+                    DataType.KEYWORD,
+                    matchesBytesRef(expectedString + ".." + expectedString)
                 ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
             )
         );

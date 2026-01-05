@@ -1,17 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.upgrades;
+package org.elasticsearch.xpack.logsdb;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
@@ -22,12 +20,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.createTemplate;
-import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.formatInstant;
-import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.getIndexSettingsWithDefaults;
-import static org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT.startTrial;
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +27,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-public class SyntheticSourceRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
+public class SyntheticSourceRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
     static String BULK_ITEM_TEMPLATE = """
         {"@timestamp": "$now", "field1": "$field1", "field2": $field2, "field3": $field3, "field4": $field4}
@@ -66,89 +58,60 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractRollingUpgradeWithS
 
     private static final Integer[] VALUES = new Integer[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
-    public SyntheticSourceRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
-        super(upgradedNodes);
-    }
-
     public void testIndexing() throws Exception {
-        assumeTrue("requires storing leaf array offsets", oldClusterHasFeature("gte_v9.1.0"));
-        String dataStreamName = "logs-bwc-test";
-        if (isOldCluster()) {
-            startTrial();
-            enableLogsdbByDefault();
-            createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
+        var version = System.getProperty("tests.old_cluster_version") != null
+            ? Version.fromString(System.getProperty("tests.old_cluster_version"))
+            : Version.CURRENT;
 
-            Instant startTime = Instant.now().minusSeconds(60 * 60);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-
-            String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
-            var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
-            assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
-
-            ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
-        } else if (isMixedCluster()) {
-            Instant startTime = Instant.now().minusSeconds(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-
-            ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
-        } else if (isUpgradedCluster()) {
-            ensureGreen(dataStreamName);
-            Instant startTime = Instant.now();
-            bulkIndex(dataStreamName, 4, 1024, startTime);
-            search(dataStreamName);
-            query(dataStreamName);
-
-            var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
-            forceMergeRequest.addParameter("max_num_segments", "1");
-            assertOK(client().performRequest(forceMergeRequest));
-
-            ensureGreen(dataStreamName);
-            search(dataStreamName);
-            query(dataStreamName);
+        LuceneTestCase.assumeTrue("requires storing leaf array offsets", version.onOrAfter(Version.fromString("9.1.0")));
+        for (Map.Entry<Object, Object> entry : System.getProperties().entrySet()) {
+            logger.info("system_property: {} / {}", entry.getKey(), entry.getValue());
         }
+
+        String dataStreamName = "logs-bwc-test";
+        createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
+        Instant time = Instant.now().minusSeconds(60 * 60);
+        bulkIndex(dataStreamName, 4, 1024, time, SyntheticSourceRollingUpgradeIT::docSupplier);
+
+        String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+        var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
+        assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
+        assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
+
+        ensureGreen(dataStreamName);
+        search(dataStreamName);
+        query(dataStreamName);
+
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
+            time = time.plusNanos(60 * 30);
+            bulkIndex(dataStreamName, 4, 1024, time, SyntheticSourceRollingUpgradeIT::docSupplier);
+            search(dataStreamName);
+            query(dataStreamName);
+
+        }
+
+        var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
+        forceMergeRequest.addParameter("max_num_segments", "1");
+        assertOK(client().performRequest(forceMergeRequest));
+
+        ensureGreen(dataStreamName);
+        search(dataStreamName);
+        query(dataStreamName);
     }
 
-    static String bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
-        String firstIndex = null;
-        for (int i = 0; i < numRequest; i++) {
-            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
-            StringBuilder requestBody = new StringBuilder();
-            for (int j = 0; j < numDocs; j++) {
-                String field1 = Integer.toString(randomFrom(VALUES));
-                var randomArray = randomArray(1, 3, Integer[]::new, () -> randomFrom(VALUES));
-                String field2 = Arrays.stream(randomArray).map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
-                int field3 = randomFrom(VALUES);
-                String field4 = Arrays.stream(randomArray).map(String::valueOf).collect(Collectors.joining(","));
-
-                requestBody.append("{\"create\": {}}");
-                requestBody.append('\n');
-                requestBody.append(
-                    BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                        .replace("$field1", field1)
-                        .replace("$field2", "[" + field2 + "]")
-                        .replace("$field3", Long.toString(field3))
-                        .replace("$field4", "[" + field4 + "]")
-                );
-                requestBody.append('\n');
-
-                startTime = startTime.plusMillis(1);
-            }
-            bulkRequest.setJsonEntity(requestBody.toString());
-            bulkRequest.addParameter("refresh", "true");
-            var response = client().performRequest(bulkRequest);
-            assertOK(response);
-            var responseBody = entityAsMap(response);
-            assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-            if (firstIndex == null) {
-                firstIndex = (String) ((Map<?, ?>) ((Map<?, ?>) ((List<?>) responseBody.get("items")).get(0)).get("create")).get("_index");
-            }
-        }
-        return firstIndex;
+    static String docSupplier(Instant time, int j) {
+        String field1 = Integer.toString(randomFrom(VALUES));
+        var randomArray = randomArray(1, 3, Integer[]::new, () -> randomFrom(VALUES));
+        String field2 = Arrays.stream(randomArray).map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
+        int field3 = randomFrom(VALUES);
+        String field4 = Arrays.stream(randomArray).map(String::valueOf).collect(Collectors.joining(","));
+        return BULK_ITEM_TEMPLATE.replace("$now", formatInstant(time))
+            .replace("$field1", field1)
+            .replace("$field2", "[" + field2 + "]")
+            .replace("$field3", Long.toString(field3))
+            .replace("$field4", "[" + field4 + "]");
     }
 
     void search(String dataStreamName) throws Exception {

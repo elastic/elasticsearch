@@ -33,6 +33,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -107,7 +108,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolvesDateMath() {
         var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
-        var index = DateTimeFormatter.ofPattern("'index-'yyyy.MM").format(date);
+        var index = DateTimeFormatter.ofPattern("'index-'yyyy.MM", Locale.ROOT).format(date);
         assertAcked(client().admin().indices().prepareCreate(index));
         indexRandom(true, index, 1);
 

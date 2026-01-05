@@ -203,6 +203,21 @@ public final class PlanStreamOutput extends StreamOutput {
         return true;
     }
 
+    @Override
+    public void writeString(String str) throws IOException {
+        delegate.writeString(str);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        delegate.writeOptionalString(str);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        delegate.writeGenericString(value);
+    }
+
     /**
      * Writes a string caching it, ie. the second time the same string is written, only a small, numeric ID will be sent.
      * This should be used only to serialize recurring strings.

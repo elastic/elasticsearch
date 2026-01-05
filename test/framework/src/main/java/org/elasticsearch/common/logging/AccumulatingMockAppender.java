@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Mock log appender class that will capture the last log event.
+ * Mock log appender class that will capture all the events and store them.
  */
 public class AccumulatingMockAppender extends AbstractAppender {
     public final List<LogEvent> events = new ArrayList<>();

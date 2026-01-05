@@ -12,22 +12,31 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.action.search.TransportSearchAction.SEARCH_ACTIONLOG_NAME;
 import static org.elasticsearch.common.logging.action.ActionLogger.SEARCH_ACTION_LOGGER_ENABLED;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -39,13 +48,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SearchLoggingIT extends ESIntegTestCase {
+public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(SEARCH_ACTIONLOG_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
-    public static void init() throws IllegalAccessException {
+    public static void initAppender() throws IllegalAccessException {
         appender = new AccumulatingMockAppender("trace_appender");
         appender.start();
         Loggers.addAppender(queryLog, appender);
@@ -54,7 +63,7 @@ public class SearchLoggingIT extends ESIntegTestCase {
     }
 
     @AfterClass
-    public static void cleanup() {
+    public static void cleanupAppender() {
         Loggers.removeAppender(queryLog, appender);
         appender.stop();
 
@@ -142,6 +151,36 @@ public class SearchLoggingIT extends ESIntegTestCase {
         assertThat(message.get("indices"), equalTo(INDEX_NAME));
         assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
         assertThat(message.get("error.message"), equalTo("all shards failed"));
+    }
+
+    public void testSearchCancel() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").addScriptField(
+            "test_field",
+            new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+        ).setAllowPartialSearchResults(false).execute();
+
+        awaitForBlock(plugins);
+        cancelSearch(TransportSearchAction.TYPE.name());
+        disableBlocks(plugins);
+        ensureSearchWasCancelled(searchResponse);
+        var event = appender.getLastEventAndReset();
+        assertNotNull(event);
+        assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
+        ESLogMessage message = (ESLogMessage) event.getMessage();
+        var data = message.getIndexedReadOnlyStringMap();
+        assertThat(message.get("success"), equalTo("false"));
+        assertThat(message.get("type"), equalTo("search"));
+        assertThat(message.get("hits"), equalTo("0"));
+        assertThat(data.getValue("took"), greaterThan(0L));
+        assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+        assertThat(message.get("query"), containsString("mockscript"));
+        assertThat(message.get("indices"), equalTo("test"));
+        assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
+        assertThat(message.get("error.message"), containsString("shards failure"));
+
     }
 
     public void testMultiSearch() {

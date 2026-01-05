@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.Mapper;

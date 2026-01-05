@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -21,6 +20,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
@@ -63,7 +63,7 @@ final class PackedValuesBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
-    private final BytesRefBuilder bytes = new BytesRefBuilder();
+    private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
@@ -71,8 +71,14 @@ final class PackedValuesBlockHash extends BlockHash {
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
         this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
-        this.nullTrackingBytes = (specs.size() + 7) / 8;
-        bytes.grow(nullTrackingBytes);
+        try {
+            this.nullTrackingBytes = (specs.size() + 7) / 8;
+            this.bytes = new BreakingBytesRefBuilder(blockFactory.breaker(), "PackedValuesBlockHash", this.nullTrackingBytes);
+        } catch (Exception e) {
+            // close bytesRefHash to prevent memory leaks in case of the initialization of bytes fails
+            this.bytesRefHash.close();
+            throw e;
+        }
     }
 
     @Override
@@ -147,14 +153,14 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void addSingleEntry() {
             fillBytesSv(groups);
-            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
+            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
         }
 
         private void addMultipleEntries() {
             int g = 0;
             do {
                 fillBytesMv(groups, g);
-                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
+                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.bytesRefView()))));
                 g = rewindKeys(groups);
             } while (g >= 0);
             finishMv();
@@ -216,7 +222,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
             fillBytesSv(groups);
-            long found = bytesRefHash.find(bytes.get());
+            long found = bytesRefHash.find(bytes.bytesRefView());
             if (found < 0) {
                 ords.appendNull();
             } else {
@@ -233,7 +239,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 fillBytesMv(groups, g);
 
                 // emit ords
-                long found = bytesRefHash.find(bytes.get());
+                long found = bytesRefHash.find(bytes.bytesRefView());
                 if (found >= 0) {
                     if (firstFound < 0) {
                         firstFound = found;
@@ -414,6 +420,7 @@ final class PackedValuesBlockHash extends BlockHash {
     @Override
     public void close() {
         bytesRefHash.close();
+        bytes.close();
     }
 
     @Override

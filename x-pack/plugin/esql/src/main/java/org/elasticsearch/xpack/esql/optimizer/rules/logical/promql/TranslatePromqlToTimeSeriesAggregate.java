@@ -14,12 +14,16 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -37,18 +41,20 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.time.Duration;
@@ -103,7 +109,8 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         plan = addLabelFilters(promqlCommand, labelFilterConditions, plan);
         plan = createTimeSeriesAggregate(promqlCommand, value, plan);
         plan = convertValueToDouble(promqlCommand, plan);
-        return plan;
+        // ensure we're returning exactly the same columns (including ids) and in the same order before and after optimization
+        return new Project(promqlCommand.source(), plan, promqlCommand.output());
     }
 
     /**
@@ -143,17 +150,21 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
 
     /**
      * Creates a TimeSeriesAggregate node wrapping the given child plan.
-     * The aggregation groups by step (time bucket) and any additional groupings
-     * specified in AcrossSeriesAggregate nodes.
-     * TODO support group by all (top-level WithinSeriesAggregate without AcrossSeriesAggregate) and WITHOUT grouping
+     * The aggregation groups by step (time bucket) and additional groupings depending on the PromQL plan root.
      */
     private static TimeSeriesAggregate createTimeSeriesAggregate(PromqlCommand promqlCommand, Expression value, LogicalPlan plan) {
         Alias stepBucket = createStepBucketAlias(promqlCommand);
         List<NamedExpression> aggs = new ArrayList<>();
         List<Expression> groupings = new ArrayList<>();
 
+        List<Attribute> additionalGroupings = promqlCommand.promqlPlan().output();
+        FieldAttribute timeSeriesGrouping = getTimeSeriesGrouping(additionalGroupings);
+        if (timeSeriesGrouping != null) {
+            value = new Values(value.source(), value);
+            plan = plan.transformDown(EsRelation.class, r -> r.withAdditionalAttribute(timeSeriesGrouping));
+        }
         // value aggregation
-        aggs.add(new Alias(promqlCommand.promqlPlan().source(), promqlCommand.promqlPlan().sourceText(), value));
+        aggs.add(new Alias(promqlCommand.promqlPlan().source(), promqlCommand.valueColumnName(), value));
 
         // timestamp/step
         Attribute stepBucketAttribute = stepBucket.toAttribute();
@@ -161,43 +172,38 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         groupings.add(stepBucketAttribute);
 
         // additional groupings (by)
-        // use the groupings from the first AcrossSeriesAggregate we find
-        // we're validating that all AcrossSeriesAggregates have the same grouping during analysis
-        promqlCommand.promqlPlan().forEachDownMayReturnEarly((logicalPlan, exit) -> {
-            if (logicalPlan instanceof AcrossSeriesAggregate acrossSeriesAggregate) {
-                for (NamedExpression grouping : acrossSeriesAggregate.groupings()) {
-                    aggs.add(grouping);
-                    groupings.add(grouping.toAttribute());
-                }
-                exit.set(true);
-
+        for (Attribute grouping : additionalGroupings) {
+            if (grouping != timeSeriesGrouping) {
+                aggs.add(grouping);
             }
-        });
+            groupings.add(grouping);
+        }
         plan = new Eval(stepBucket.source(), plan, List.of(stepBucket));
         return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), plan, groupings, aggs, null);
     }
 
+    private static FieldAttribute getTimeSeriesGrouping(List<Attribute> groupings) {
+        for (Attribute attr : groupings) {
+            if (attr instanceof FieldAttribute fieldAttr
+                && fieldAttr.field().getTimeSeriesFieldType() == EsField.TimeSeriesFieldType.DIMENSION
+                && fieldAttr.name().equals(MetadataAttribute.TIMESERIES)) {
+                return fieldAttr;
+            }
+        }
+        return null;
+    }
+
     /**
      * Ensures the value column is of type double by adding an Eval node with ToDouble conversion.
-     * Projects the output to maintain the correct order: [value, step, ...groupings]
      */
     private static LogicalPlan convertValueToDouble(PromqlCommand promqlCommand, LogicalPlan plan) {
-        List<Attribute> tsOutput = plan.output();
-        // convert value to double
         Alias convertedValue = new Alias(
             promqlCommand.source(),
             promqlCommand.valueColumnName(),
-            new ToDouble(promqlCommand.source(), tsOutput.getFirst().toAttribute()),
+            new ToDouble(promqlCommand.source(), plan.output().getFirst().toAttribute()),
             promqlCommand.valueId()
         );
-        plan = new Eval(promqlCommand.source(), plan, List.of(convertedValue));
-        // project to maintain output order
-        List<NamedExpression> projections = new ArrayList<>(plan.output().size());
-        projections.add(convertedValue.toAttribute());
-        for (int i = 1; i < tsOutput.size(); i++) {
-            projections.add(tsOutput.get(i));
-        }
-        return new Project(promqlCommand.source(), plan, projections);
+        return new Eval(promqlCommand.source(), plan, List.of(convertedValue));
     }
 
     /**
@@ -208,8 +214,32 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         return switch (p) {
             case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
             case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions);
+            case VectorBinaryArithmetic vectorBinaryArithmetic -> mapVectorBinaryArithmetic(
+                promqlCommand,
+                vectorBinaryArithmetic,
+                labelFilterConditions
+            );
             default -> throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", p);
         };
+    }
+
+    /**
+     * Maps a PromQL VectorBinaryArithmetic node to an ESQL expression.
+     * Recursively maps the left and right operands and applies the binary operation.
+     * Both operands are converted to double to ensure semantic consistency with PromQL.
+     */
+    private static Expression mapVectorBinaryArithmetic(
+        PromqlCommand promqlCommand,
+        VectorBinaryArithmetic vectorBinaryArithmetic,
+        List<Expression> labelFilterConditions
+    ) {
+        Expression left = mapNode(promqlCommand, vectorBinaryArithmetic.left(), labelFilterConditions);
+        left = new ToDouble(left.source(), left);
+
+        Expression right = mapNode(promqlCommand, vectorBinaryArithmetic.right(), labelFilterConditions);
+        right = new ToDouble(right.source(), right);
+
+        return vectorBinaryArithmetic.binaryOp().asFunction().create(vectorBinaryArithmetic.source(), left, right);
     }
 
     /**
@@ -245,11 +275,23 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
         List<Expression> labelFilterConditions
     ) {
         Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions);
-        List<Expression> params = switch (functionCall) {
-            case WithinSeriesAggregate within -> List.of(target, promqlCommand.timestamp());
-            case AcrossSeriesAggregate across -> List.of(target);
-        };
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(functionCall.functionName(), functionCall.source(), params);
+
+        final Expression window;
+        if (functionCall.child() instanceof RangeSelector rangeSelector) {
+            window = rangeSelector.range();
+        } else {
+            window = AggregateFunction.NO_WINDOW;
+        }
+
+        List<Expression> extraParams = functionCall.parameters();
+        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+            functionCall.functionName(),
+            functionCall.source(),
+            target,
+            promqlCommand.timestamp(),
+            window,
+            extraParams
+        );
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {
@@ -261,7 +303,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             timeBucketSize = Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
         }
         Bucket b = new Bucket(
-            promqlCommand.source(),
+            timeBucketSize.source(),
             promqlCommand.timestamp(),
             timeBucketSize,
             null,

@@ -14,6 +14,10 @@ import java.util.List;
 
 public abstract class AbstractVectorTestCase extends AbstractScalarFunctionTestCase {
 
+    // Base tolerance for vector score comparisons, scaled by dimensionality to
+    // accommodate minor floating-point rounding differences from SIMD arithmetic.
+    static final double BASE_DELTA = 1e-5;
+
     protected static float[] listToFloatArray(List<Float> floatList) {
         float[] floatArray = new float[floatList.size()];
         for (int i = 0; i < floatList.size(); i++) {

@@ -485,7 +485,7 @@ works in parallel with the storage engine.)
 ### Local Shards Recovery
 Local shards recovery is a type of recovery that reuses existing data from other shard(s) allocated on the current node (hence local shards). It is used exclusively to implement index [Shrink/Split/Clone APIs](#shrinksplitclone-index-apis).
 
-This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data from the source shard(s) directory. Copy is used if hard links are not supported. Source shard(s) directories are added using `IndexWriter#addIndexes` API. Once an `IndexWriter` is correctly set up with source shard(s), the necessary data modifications are performed (like deleting excess documents during split) and a new commit is created for the recovering shard. After that recovery proceeds using standard store recovery logic utilizing the commit that was just created.
+This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data from the source shard(s) directory. Copy is used if the runtime environment does not support hard links (e.g., on Windows). Source shard(s) directories are added using the `IndexWriter#addIndexes` API. Once an `IndexWriter` is correctly set up with source shard(s), the necessary data modifications are performed (like deleting excess documents during split) and a new commit is created for the recovering shard. After that recovery proceeds using standard store recovery logic utilizing the commit that was just created.
 
 ### Peer Recovery
 

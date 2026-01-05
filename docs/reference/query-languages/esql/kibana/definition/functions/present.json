@@ -164,6 +164,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "histogram",
+          "optional" : false,
+          "description" : "Expression that outputs values to be checked for presence."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
           "description" : "Expression that outputs values to be checked for presence."

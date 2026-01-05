@@ -7,18 +7,39 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCase {
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
+    }
 
     public void testSimpleShapeContainsPolygon() {
         assumeTrue("Test for shapes only", fieldType().contains("shape"));
@@ -274,6 +295,240 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
 
         private static String query(String[] data) {
             return data.length == 1 ? data[0] : "GEOMETRYCOLLECTION(" + String.join(", ", data) + ")";
+        }
+    }
+
+    public void testStatsExtentOneShard() throws IOException, ParseException {
+        statsExtentManyShards(1);
+    }
+
+    public void testStatsExtentManyShards() throws IOException, ParseException {
+        statsExtentManyShards(16);
+    }
+
+    private void statsExtentManyShards(int numShards) throws IOException, ParseException {
+        assumeTrue("Test for shapes only", fieldType().contains("shape"));
+        initIndexes(numShards);
+        boolean isCartesian = fieldType().equals("shape");
+
+        ArrayList<ExtentTest> data = new ArrayList<>();
+        // data that intersects and is within the polygon
+        data.add(new ExtentTest("LINESTRING(5 5,-5 5)", true, true, isCartesian));
+        data.add(new ExtentTest("LINESTRING(0 1,1 0)", true, true, isCartesian));
+        data.add(new ExtentTest("POINT(9 9)", true, true, isCartesian));
+        data.add(new ExtentTest("MULTIPOINT(-9 -9, 9 9)", true, true, isCartesian));
+        data.add(new ExtentTest("POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))", true, true, isCartesian));
+        // data that intersects but is not within the polygon
+        data.add(new ExtentTest("LINESTRING(5 5,15 15)", true, false, isCartesian));
+        data.add(new ExtentTest("LINESTRING(0 0, 11 11)", true, false, isCartesian));
+        data.add(new ExtentTest("MULTIPOINT(-9 -19, 9 9)", true, false, isCartesian));
+        data.add(new ExtentTest("POLYGON ((-15 -15, 15 -15, 15 15, -15 15, -15 -15))", true, false, isCartesian));
+        // data that does not intersect
+        data.add(new ExtentTest("LINESTRING(5 20,20 5)", false, false, isCartesian));
+        data.add(new ExtentTest("LINESTRING(0 11, 11 11, 11 0)", false, false, isCartesian));
+        data.add(new ExtentTest("POINT(19 9)", false, false, isCartesian));
+        data.add(new ExtentTest("MULTIPOINT(-9 -19, 19 9)", false, false, isCartesian));
+        data.add(new ExtentTest("POLYGON ((11 11, 15 11, 15 15, 11 15, 11 11))", false, false, isCartesian));
+        // Data that does not contain any geometries (to get null extents)
+        data.add(new ExtentTest(null, false, false, null));
+        data.add(new ExtentTest(null, false, false, null));
+        data.add(new ExtentTest(null, false, false, null));
+        data.add(new ExtentTest(null, false, false, null));
+
+        int expectedIntersects = 0;
+        int expectedWithin = 0;
+        int expectedDisjoint = 0;
+        TestExtentBuilder intersectsExtent = new TestExtentBuilder();
+        TestExtentBuilder withinExtent = new TestExtentBuilder();
+        TestExtentBuilder disjointExtent = new TestExtentBuilder();
+        TestExtentBuilder totalExtent = new TestExtentBuilder();
+        for (int i = 0; i < data.size(); i++) {
+            if (data.get(i).data == null) {
+                addEmptyToIndexes(i, "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+            } else {
+                addToIndexes(i, "\"" + data.get(i).data + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+            }
+            if (data.get(i).extent != null) {
+                totalExtent.add(data.get(i).extent);
+                if (data.get(i).intersects) {
+                    data.get(i).checkIntersects("POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))", isCartesian);
+                    expectedIntersects++;
+                    intersectsExtent.add(data.get(i).extent);
+                } else {
+                    expectedDisjoint++;
+                    disjointExtent.add(data.get(i).extent);
+                }
+                if (data.get(i).within) {
+                    data.get(i).checkWithin("POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))", isCartesian);
+                    expectedWithin++;
+                    withinExtent.add(data.get(i).extent);
+                }
+            }
+        }
+        refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+
+        for (String polygon : new String[] {
+            "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))",
+            "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))" }) {
+            assertFunction("ST_WITHIN", polygon, expectedWithin, withinExtent.toRectangle(), numShards);
+            assertFunction("ST_INTERSECTS", polygon, expectedIntersects, intersectsExtent.toRectangle(), numShards);
+            assertFunction("ST_DISJOINT", polygon, expectedDisjoint, disjointExtent.toRectangle(), numShards);
+            assertFunction(null, polygon, data.size(), totalExtent.toRectangle(), numShards);
+        }
+    }
+
+    protected void addEmptyToIndexes(int id, String... indexes) {
+        for (String index : indexes) {
+            index(index, id + "", "{\"dummy\" : \"" + id + "\" }");
+        }
+    }
+
+    protected void assertFunction(String spatialFunction, String wkt, long expected, Rectangle expectedExtent, int expectedShards)
+        throws IOException, ParseException {
+        String prefix = spatialFunction == null ? "ALL[expected=" : spatialFunction + "[expected=";
+        String filter = spatialFunction == null
+            ? ""
+            : String.format(Locale.ROOT, " | WHERE %s(location, %s(\"%s\"))", spatialFunction, castingFunction(), wkt);
+        List<String> queries = getQueries("FROM indexed" + filter + " | STATS COUNT(*), ST_EXTENT_AGG(location)");
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            for (int i = 0; i < ALL_INDEXES.length; i++) {
+                NumShards numShards = getNumShards(ALL_INDEXES[i]);
+                assertThat("Number of shards for " + ALL_INDEXES[i], numShards.numPrimaries, equalTo(expectedShards));
+                Object resultCount = responses.getResponse(i, 0);
+                Object resultExtent = responses.getResponse(i, 1);
+                assertEquals(prefix + expected + "] for " + ALL_INDEXES[i], expected, resultCount);
+                assertThat(prefix + expectedExtent + "] for " + ALL_INDEXES[i], expectedExtent, matchesExtent(resultExtent));
+            }
+            long allIndexesCount = (long) responses.getResponse(ALL_INDEXES.length, 0);
+            assertEquals(prefix + expected + "] for all indexes", expected * 4, allIndexesCount);
+            Object allIndexesExtent = responses.getResponse(ALL_INDEXES.length, 1);
+            assertThat(prefix + expectedExtent + "] for all indexes", expectedExtent, matchesExtent(allIndexesExtent));
+        }
+    }
+
+    private record ExtentTest(String data, boolean intersects, boolean within, Rectangle extent) {
+        private ExtentTest(String data, boolean intersects, boolean within, boolean isCartesian) throws IOException, ParseException {
+            this(data, intersects, within, getExtent(data, isCartesian));
+        }
+
+        private void checkIntersects(String wkt, boolean isCartesian) throws IOException, ParseException {
+            Rectangle testBox = getExtent(WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt), isCartesian);
+            if (extent == null
+                || extent.getMaxX() < testBox.getMinX()
+                || extent.getMinX() > testBox.getMaxX()
+                || extent.getMaxY() < testBox.getMinY()
+                || extent.getMinY() > testBox.getMaxY()) {
+                fail("Extent[" + extent + "] does not intersect test box[" + testBox + "]");
+            }
+        }
+
+        private void checkWithin(String wkt, boolean isCartesian) throws IOException, ParseException {
+            Rectangle testBox = getExtent(WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt), isCartesian);
+            checkIntersects(wkt, isCartesian);
+            if (extent.getMaxX() > testBox.getMaxX()
+                || extent.getMinX() < testBox.getMinX()
+                || extent.getMaxY() > testBox.getMaxY()
+                || extent.getMinY() < testBox.getMinY()) {
+                fail("Extent[" + extent + "] is not within test box[" + testBox + "]");
+            }
+        }
+    }
+
+    private Matcher<Rectangle> matchesExtent(Object result) throws IOException, ParseException {
+        Geometry shape = WellKnownText.fromWKT(GeometryValidator.NOOP, false, result.toString());
+        return matchesExtent(shape);
+    }
+
+    private static Rectangle getExtent(String wkt, boolean isCartesian) throws IOException, ParseException {
+        Geometry shape = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+        return getExtent(shape, isCartesian);
+    }
+
+    private static Rectangle getExtent(Geometry shape, boolean isCartesian) {
+        SpatialEnvelopeVisitor.PointVisitor pointVisitor = isCartesian
+            ? new SpatialEnvelopeVisitor.CartesianPointVisitor()
+            : new SpatialEnvelopeVisitor.GeoPointVisitor(SpatialEnvelopeVisitor.WrapLongitude.WRAP);
+        SpatialEnvelopeVisitor envelopeVisitor = new SpatialEnvelopeVisitor(pointVisitor);
+        if (shape.visit(envelopeVisitor)) {
+            return pointVisitor.getResult();
+        }
+        throw new IllegalArgumentException("Geometry is empty");
+    }
+
+    private Matcher<Rectangle> matchesExtent(Geometry geometry) {
+        return new TestExtentMatcher(getExtent(geometry, fieldType().equals("shape")));
+    }
+
+    private static class TestExtentMatcher extends TypeSafeMatcher<Rectangle> {
+        private final Matcher<Double> xMaxMatcher;
+        private final Matcher<Double> yMaxMatcher;
+        private final Matcher<Double> xMinMatcher;
+        private final Matcher<Double> yMinMatcher;
+
+        private TestExtentMatcher(Rectangle extent) {
+            this.xMaxMatcher = matchDouble(extent.getMaxX());
+            this.yMaxMatcher = matchDouble(extent.getMaxY());
+            this.xMinMatcher = matchDouble(extent.getMinX());
+            this.yMinMatcher = matchDouble(extent.getMinY());
+        }
+
+        private Matcher<Double> matchDouble(double value) {
+            return closeTo(value, 0.0000001);
+        }
+
+        @Override
+        public boolean matchesSafely(Rectangle actualExtent) {
+            return xMaxMatcher.matches(actualExtent.getMaxX())
+                && yMaxMatcher.matches(actualExtent.getMaxY())
+                && xMinMatcher.matches(actualExtent.getMinX())
+                && yMinMatcher.matches(actualExtent.getMinY());
+        }
+
+        @Override
+        public void describeMismatchSafely(Rectangle actualExtent, Description description) {
+            describeSubMismatch(xMaxMatcher, actualExtent.getMaxX(), "X Max", description);
+            describeSubMismatch(yMaxMatcher, actualExtent.getMaxY(), "Y Max", description);
+            describeSubMismatch(xMinMatcher, actualExtent.getMinX(), "X Min", description);
+            describeSubMismatch(yMinMatcher, actualExtent.getMinY(), "Y Min", description);
+        }
+
+        private void describeSubMismatch(Matcher<Double> matcher, double value, String name, Description description) {
+            if (matcher.matches(value) == false) {
+                description.appendText("\n\t" + name + " ");
+                matcher.describeMismatch(value, description);
+            }
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText(
+                "Extent (xMax:" + xMaxMatcher + ", yMax:" + yMaxMatcher + ", xMin:" + xMinMatcher + ", yMin:" + yMinMatcher + ")"
+            );
+        }
+    }
+
+    protected static class TestExtentBuilder {
+        double xMin = Double.POSITIVE_INFINITY;
+        double xMax = Double.NEGATIVE_INFINITY;
+        double yMin = Double.POSITIVE_INFINITY;
+        double yMax = Double.NEGATIVE_INFINITY;
+
+        void addTo(TestExtentBuilder other) {
+            other.xMin = Math.min(other.xMin, xMin);
+            other.xMax = Math.max(other.xMax, xMax);
+            other.yMin = Math.min(other.yMin, yMin);
+            other.yMax = Math.max(other.yMax, yMax);
+        }
+
+        void add(Rectangle rectangle) {
+            xMin = Math.min(xMin, rectangle.getMinX());
+            xMax = Math.max(xMax, rectangle.getMaxX());
+            yMin = Math.min(yMin, rectangle.getMinY());
+            yMax = Math.max(yMax, rectangle.getMaxY());
+        }
+
+        Rectangle toRectangle() {
+            return new Rectangle(xMin, xMax, yMax, yMin);
         }
     }
 }

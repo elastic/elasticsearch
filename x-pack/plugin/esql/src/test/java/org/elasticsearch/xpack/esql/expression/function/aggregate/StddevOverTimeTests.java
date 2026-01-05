@@ -34,6 +34,6 @@ public class StddevOverTimeTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StdDevOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+        return new StddevOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 }

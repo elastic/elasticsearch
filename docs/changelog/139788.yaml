@@ -1,0 +1,5 @@
+pr: 139788
+summary: Register `disable_chunked_encoding` S3 repo setting
+area: Snapshot/Restore
+type: bug
+issues: []

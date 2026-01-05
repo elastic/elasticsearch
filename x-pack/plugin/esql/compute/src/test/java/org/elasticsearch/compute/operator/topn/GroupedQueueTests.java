@@ -54,7 +54,7 @@ public class GroupedQueueTests extends ESTestCase {
 
     public void testCleanup() {
         int topCount = 5;
-        try (GroupedQueue queue = GroupedQueue.build(breaker, topCount)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, topCount)) {
             assertThat(queue.size(), equalTo(0));
 
             for (int i = 0; i < topCount * 2; i++) {
@@ -65,7 +65,7 @@ public class GroupedQueueTests extends ESTestCase {
 
     public void testAddWhenHeapNotFull() {
         int topCount = 5;
-        try (GroupedQueue queue = GroupedQueue.build(breaker, topCount)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, topCount)) {
             for (int i = 0; i < topCount; i++) {
                 Row row = createRow(breaker, i % 2, i * 10);
                 Row result = queue.add(row);
@@ -77,7 +77,7 @@ public class GroupedQueueTests extends ESTestCase {
 
     public void testAddWhenHeapFullAndRowQualifies() {
         int topCount = 3;
-        try (GroupedQueue queue = GroupedQueue.build(breaker, topCount)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, topCount)) {
             fillQueueToCapacity(queue, topCount);
 
             try (Row evicted = queue.add(createRow(breaker, 0, 5))) {
@@ -87,7 +87,7 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     public void testAddWhenHeapFullAndRowDoesNotQualify() {
-        try (GroupedQueue queue = GroupedQueue.build(breaker, 3)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, 3)) {
             addRows(queue, 0, 30, 40, 50);
 
             try (Row row = createRow(breaker, 0, 60)) {
@@ -98,7 +98,7 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     public void testAddWithDifferentGroupKeys() {
-        try (GroupedQueue queue = GroupedQueue.build(breaker, 2)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, 2)) {
             assertThat(queue.add(createRow(breaker, 0, 10)), nullValue());
             assertThat(queue.add(createRow(breaker, 1, 20)), nullValue());
             assertThat(queue.add(createRow(breaker, 0, 30)), nullValue());
@@ -128,7 +128,7 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     public void testRamBytesUsedEmpty() {
-        try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, 5)) {
             assertRamUsageClose(queue, 0);
         }
     }
@@ -141,7 +141,7 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     public void testRamBytesUsedPartiallyFilled() {
-        try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, 5)) {
             addRows(queue, 0, 10, 20, 30);
             // addRows(queue, 1, 10, 20);
             assertRamUsageClose(queue, 1);
@@ -149,7 +149,7 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     public void testRamBytesUsedAtCapacity() {
-        try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, 5)) {
             addRows(queue, 0, 10, 20, 30, 40, 50);
             addRows(queue, 1, 10, 20, 30, 40, 50);
             addRows(queue, 2, 10, 20, 30, 40, 50);
@@ -158,7 +158,7 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     public void testPopAllSortedBySortKey() {
-        try (GroupedQueue queue = GroupedQueue.build(breaker, 5)) {
+        try (GroupedQueue queue = new GroupedQueue(breaker, 5)) {
             addRows(queue, 0, 30, 10, 50);
             addRows(queue, 1, 20, 40);
             addRows(queue, 2, 15, 25, 35);

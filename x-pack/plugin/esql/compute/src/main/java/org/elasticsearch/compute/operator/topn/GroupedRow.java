@@ -21,15 +21,19 @@ final class GroupedRow implements Row {
 
     GroupedRow(UngroupedRow row, int preAllocatedGroupKeySize) {
         this.row = row;
-        row.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
+        // FIXME(gal, NOCOMMIT) There must be a better pattern for this...
+        long assigned = 0;
         boolean success = false;
         try {
+            row.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
+            assigned += SHALLOW_SIZE;
             this.groupKey = new BreakingBytesRefBuilder(row.breaker, "topn", preAllocatedGroupKeySize);
+            assigned += preAllocatedGroupKeySize;
             success = true;
         } finally {
             if (success == false) {
-                // FIXME(gal, NOCOMMIT) calling a virtual method from the constructor;w
-                close();
+                row.close();
+                row.breaker.addWithoutBreaking(-assigned);
             }
         }
     }

@@ -115,8 +115,20 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
+        List<Integer> groupKeys,
         int maxPageSize
     ) implements OperatorFactory {
+        // FIXME(gal, NOCOMMIT) Remove this
+        public TopNOperatorFactory(
+            int topCount,
+            List<ElementType> elementTypes,
+            List<TopNEncoder> encoders,
+            List<SortOrder> sortOrders,
+            int maxPageSize
+        ) {
+            this(topCount, elementTypes, encoders, sortOrders, List.of(), maxPageSize);
+        }
+
         public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
                 if (e == null) {
@@ -134,6 +146,7 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
+                groupKeys,
                 maxPageSize
             );
         }
@@ -198,6 +211,7 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
+        List<Integer> groupKeys, // FIXME(gal, NOCOMMIT) Use BitSet? Or int[]?
         int maxPageSize
     ) {
         this.blockFactory = blockFactory;
@@ -206,7 +220,8 @@ public class TopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.inputQueue = UngroupedQueue.build(breaker, topCount);
+        this.processor = groupKeys.isEmpty() ? new UngroupedTopNProcessor() : new GroupedTopNProcessor(groupKeys);
+        this.inputQueue = processor.queue(breaker, topCount);
     }
 
     // FIXME(gal, NOCOMMIT) move to a method on Row
@@ -249,7 +264,7 @@ public class TopNOperator implements Operator, Accountable {
         return output == null;
     }
 
-    private final TopNProcessor processor = new UngroupedTopNProcessor();
+    private final TopNProcessor processor;
 
     @Override
     public void addInput(Page page) {
@@ -281,10 +296,11 @@ public class TopNOperator implements Operator, Accountable {
 
                 var nextSpare = inputQueue.add(spare);
                 if (nextSpare != spare) {
-                    rowFiller.writeValues(i, spare);
-                    spareValuesPreAllocSize = newPreAllocSize(spare, spareValuesPreAllocSize);
+                    var insertedRow = spare;
+                    spare = nextSpare; // Update spare before writing values in case the writing fails, to avoid releasing spare twice.
+                    rowFiller.writeValues(i, insertedRow);
+                    spareValuesPreAllocSize = newPreAllocSize(insertedRow, spareValuesPreAllocSize);
                 }
-                spare = nextSpare;
             }
         } finally {
             page.releaseBlocks();

@@ -30,11 +30,7 @@ class GroupedQueue implements TopNQueue {
     private final CircuitBreaker breaker;
     private final int topCount;
 
-    static GroupedQueue build(CircuitBreaker breaker, int topCount) {
-        return new GroupedQueue(breaker, topCount);
-    }
-
-    private GroupedQueue(CircuitBreaker breaker, int topCount) {
+    GroupedQueue(CircuitBreaker breaker, int topCount) {
         this.breaker = breaker;
         this.topCount = topCount;
     }

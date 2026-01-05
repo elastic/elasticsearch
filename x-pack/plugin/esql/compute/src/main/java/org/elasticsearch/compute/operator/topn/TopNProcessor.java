@@ -17,4 +17,6 @@ interface TopNProcessor {
     RowFiller rowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<TopNOperator.SortOrder> sortOrders, Page page);
 
     Row row(CircuitBreaker breaker, List<TopNOperator.SortOrder> sortOrders, int spareKeysPreAllocSize, int spareValuesPreAllocSize);
+
+    TopNQueue queue(CircuitBreaker breaker, int topCount);
 }

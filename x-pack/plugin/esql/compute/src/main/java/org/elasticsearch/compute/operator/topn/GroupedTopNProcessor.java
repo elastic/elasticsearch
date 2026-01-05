@@ -44,4 +44,9 @@ class GroupedTopNProcessor implements TopNProcessor {
             preAllocatedGroupKeySize
         );
     }
+
+    @Override
+    public TopNQueue queue(CircuitBreaker breaker, int topCount) {
+        return new GroupedQueue(breaker, topCount);
+    }
 }

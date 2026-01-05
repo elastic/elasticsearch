@@ -25,12 +25,17 @@ class UngroupedTopNProcessor implements TopNProcessor {
     }
 
     @Override
-    public Row row(
+    public UngroupedRow row(
         CircuitBreaker breaker,
         List<TopNOperator.SortOrder> sortOrders,
         int spareKeysPreAllocSize,
         int spareValuesPreAllocSize
     ) {
         return new UngroupedRow(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+    }
+
+    @Override
+    public TopNQueue queue(CircuitBreaker breaker, int topCount) {
+        return UngroupedQueue.build(breaker, topCount);
     }
 }

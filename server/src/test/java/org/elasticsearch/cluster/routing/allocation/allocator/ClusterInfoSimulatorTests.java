@@ -68,7 +68,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
-    private static final ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
 
     public void testInitializeNewPrimary() {
 
@@ -89,7 +88,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(newPrimary);
 
         assertThat(
@@ -122,7 +121,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(existingPrimary);
 
         assertThat(
@@ -158,7 +157,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(newReplica);
 
         assertThat(
@@ -202,7 +201,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             )
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(newReplica);
 
         assertThat(
@@ -242,7 +241,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(shard);
 
         assertThat(
@@ -281,7 +280,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .routingTable(projectRoutingTable)
             .build();
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(shard);
 
         assertThat(
@@ -331,7 +330,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(shard);
 
         assertThat(
@@ -381,7 +380,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(shard);
 
         assertThat(
@@ -433,7 +432,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(shard);
 
         assertThat(
@@ -481,7 +480,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(target);
 
         assertThat(
@@ -529,7 +528,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(shard2);
 
         assertThat(
@@ -600,7 +599,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, SnapshotShardSizeInfo.EMPTY);
-        var simulator = new ClusterInfoSimulator(allocation, clusterSettings);
+        var simulator = new ClusterInfoSimulator(allocation);
         simulator.simulateShardStarted(shard2);
 
         assertThat(

@@ -12,9 +12,9 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -30,21 +30,23 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchLoggingIT extends ESIntegTestCase {
-    static MockAppender appender;
+    static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(SEARCH_ACTIONLOG_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
-        appender = new MockAppender("trace_appender");
+        appender = new AccumulatingMockAppender("trace_appender");
         appender.start();
         Loggers.addAppender(queryLog, appender);
 
@@ -62,6 +64,7 @@ public class SearchLoggingIT extends ESIntegTestCase {
     @Before
     public void enableLog() {
         updateClusterSettings(Settings.builder().put(SEARCH_ACTION_LOGGER_ENABLED.getConcreteSettingForNamespace("search").getKey(), true));
+        appender.reset();
     }
 
     @After
@@ -75,13 +78,7 @@ public class SearchLoggingIT extends ESIntegTestCase {
 
     // Test _search
     public void testSearchLog() throws Exception {
-        createIndex(INDEX_NAME);
-        indexRandom(
-            true,
-            prepareIndex(INDEX_NAME).setId("1").setSource("field1", "the quick brown fox jumps"),
-            prepareIndex(INDEX_NAME).setId("2").setSource("field1", "quick brown"),
-            prepareIndex(INDEX_NAME).setId("3").setSource("field1", "quick")
-        );
+        setupIndex();
 
         // Simple request
         {
@@ -116,7 +113,6 @@ public class SearchLoggingIT extends ESIntegTestCase {
             assertThat(message.get("query"), containsString("quick"));
             assertThat(message.get("indices"), equalTo(INDEX_NAME));
         }
-
     }
 
     public void testFailureLog() {
@@ -147,6 +143,43 @@ public class SearchLoggingIT extends ESIntegTestCase {
         assertThat(message.get("error.type"), equalTo("org.elasticsearch.action.search.SearchPhaseExecutionException"));
         assertThat(message.get("error.message"), equalTo("all shards failed"));
     }
-    // Test async search
-    // Test multisearch
+
+    public void testMultiSearch() {
+        setupIndex();
+
+        var request = client().prepareMultiSearch()
+            .add(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")))
+            .add(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "fox")));
+        assertResponse(request, res -> assertThat(res.getResponses().length, equalTo(2)));
+        assertThat(appender.events, hasSize(2));
+
+        appender.events.forEach(ev -> {
+            assertThat(ev.getMessage(), instanceOf(ESLogMessage.class));
+            ESLogMessage message = (ESLogMessage) ev.getMessage();
+            var data = message.getIndexedReadOnlyStringMap();
+            assertThat(message.get("success"), equalTo("true"));
+            assertThat(message.get("type"), equalTo("search"));
+            assertThat(data.getValue("took"), greaterThan(0L));
+            assertThat(data.getValue("took_millis"), greaterThanOrEqualTo(0L));
+            assertThat(message.get("indices"), equalTo(INDEX_NAME));
+            if (message.get("query").contains("quick")) {
+                assertThat(message.get("hits"), equalTo("3"));
+            } else if (message.get("query").contains("fox")) {
+                assertThat(message.get("hits"), equalTo("1"));
+            } else {
+                fail("unexpected query logged: " + message.get("query"));
+            }
+        });
+    }
+
+    private void setupIndex() {
+        createIndex(INDEX_NAME);
+        indexRandom(
+            true,
+            prepareIndex(INDEX_NAME).setId("1").setSource("field1", "the quick brown fox jumps"),
+            prepareIndex(INDEX_NAME).setId("2").setSource("field1", "quick brown"),
+            prepareIndex(INDEX_NAME).setId("3").setSource("field1", "quick")
+        );
+    }
+
 }

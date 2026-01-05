@@ -7,15 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging;
+package org.elasticsearch.common.logging.action;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.logging.action.ActionLogWriter;
-import org.elasticsearch.common.logging.action.ActionLogger;
-import org.elasticsearch.common.logging.action.ActionLoggerContext;
-import org.elasticsearch.common.logging.action.ActionLoggerContextBuilder;
-import org.elasticsearch.common.logging.action.ActionLoggerProducer;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;

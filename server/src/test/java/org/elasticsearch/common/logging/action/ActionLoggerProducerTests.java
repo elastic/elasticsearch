@@ -7,11 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.logging;
+package org.elasticsearch.common.logging.action;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.common.logging.action.ActionLoggerContext;
-import org.elasticsearch.common.logging.action.ActionLoggerProducer;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

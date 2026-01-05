@@ -10,6 +10,8 @@
 package org.elasticsearch.common.logging.action;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -64,7 +66,8 @@ public class ActionLogger<Context extends ActionLoggerContext> {
         );
     }
 
-    public void logAction(Context context) {
+    // Accessible for tests
+    void logAction(Context context) {
         if (enabled == false || (threshold > -1 && context.getTookInNanos() < threshold)) {
             return;
         }
@@ -73,7 +76,6 @@ public class ActionLogger<Context extends ActionLoggerContext> {
             return;
         }
         var event = producer.produce(context, additionalFields);
-        // TODO: add moar fields here
         writer.write(level, event);
     }
 

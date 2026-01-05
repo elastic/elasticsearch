@@ -73,14 +73,14 @@ public class KeywordRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCas
         // given - enable logsdb, create a template + index
         LogsdbIndexingRollingUpgradeIT.maybeEnableLogsdbByDefault();
         String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
-        LogsdbIndexingRollingUpgradeIT.createTemplate(DATA_STREAM_NAME, templateId, TEMPLATE);
+        createTemplate(DATA_STREAM_NAME, templateId, TEMPLATE);
 
         // when - index a document
         indexDocuments(FIELD_VALUES_1);
 
-        // then - verify that logsdb and synthetic source are enabled before proceeding futher
-        String firstBackingIndex = LogsdbIndexingRollingUpgradeIT.getWriteBackingIndex(client(), DATA_STREAM_NAME, 0);
-        var settings = (Map<?, ?>) LogsdbIndexingRollingUpgradeIT.getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
+        // then - verify that logsdb and synthetic source are enabled before proceeding further
+        String firstBackingIndex = getDataStreamBackingIndexNames(DATA_STREAM_NAME).getFirst();
+        var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
         assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
         assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
@@ -115,9 +115,7 @@ public class KeywordRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCas
         for (String value : values) {
             requestBody.append("{\"create\": {}}");
             requestBody.append('\n');
-            requestBody.append(
-                ITEM_TEMPLATE.replace("$now", LogsdbIndexingRollingUpgradeIT.formatInstant(startTime)).replace("$message", value)
-            );
+            requestBody.append(ITEM_TEMPLATE.replace("$now", formatInstant(startTime)).replace("$message", value));
             requestBody.append('\n');
 
             startTime = startTime.plusMillis(1);

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,27 +19,21 @@ import java.util.Objects;
 /**
  * Physical plan node representing a lookup source operation.
  * This represents the source of a lookup query before conversion to operators.
- * The QueryList is created during physical plan creation
+ * The QueryList is created later during operator creation from a factory
  * and will receive the Page to operate on in the runtime
  * when we call queryList.getQuery(position, inputPage).
  */
 public class ParameterizedQueryExec extends LeafExec {
     private final List<Attribute> output;
-    private final LookupEnrichQueryGenerator queryList;
 
-    public ParameterizedQueryExec(Source source, List<Attribute> output, LookupEnrichQueryGenerator queryList) {
+    public ParameterizedQueryExec(Source source, List<Attribute> output) {
         super(source);
         this.output = output;
-        this.queryList = queryList;
     }
 
     @Override
     public List<Attribute> output() {
         return output;
-    }
-
-    public LookupEnrichQueryGenerator queryList() {
-        return queryList;
     }
 
     @Override
@@ -55,7 +48,7 @@ public class ParameterizedQueryExec extends LeafExec {
 
     @Override
     protected NodeInfo<ParameterizedQueryExec> info() {
-        return NodeInfo.create(this, ParameterizedQueryExec::new, output, queryList);
+        return NodeInfo.create(this, ParameterizedQueryExec::new, output);
     }
 
     @Override
@@ -63,11 +56,11 @@ public class ParameterizedQueryExec extends LeafExec {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ParameterizedQueryExec that = (ParameterizedQueryExec) o;
-        return Objects.equals(output, that.output) && Objects.equals(queryList, that.queryList);
+        return Objects.equals(output, that.output);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(output, queryList);
+        return Objects.hash(output);
     }
 }

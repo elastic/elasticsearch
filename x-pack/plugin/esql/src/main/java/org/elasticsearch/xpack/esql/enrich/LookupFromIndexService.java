@@ -455,11 +455,21 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release());
 
+            // Create aliasFilter here before building operators
+            var projectState = projectResolver.getProjectState(clusterService.state());
+            AliasFilter aliasFilter = indicesService.buildAliasFilter(
+                projectState,
+                request.shardId.getIndex().getName(),
+                indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
+            );
+
             LookupQueryPlan lookupQueryPlan = executionMapper.buildOperators(
                 physicalOperation,
                 shardContext,
                 releasables,
-                request.inputPage
+                request,
+                aliasFilter,
+                (req, context, filter, warn) -> queryList((TransportRequest) req, context, filter, warn)
             );
 
             startDriver(request, task, listener, lookupQueryPlan);
@@ -481,16 +491,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     private LocalExecutionPlanner.PhysicalOperation buildOperatorFactories(TransportRequest request) throws IOException {
         LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
         try (Releasable ignored = shardContext.release()) {
-            var warnings = Warnings.createWarnings(
-                DriverContext.WarningsMode.COLLECT,
-                request.source.source().getLineNumber(),
-                request.source.source().getColumnNumber(),
-                request.source.text()
-            );
+            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext);
 
-            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext, warnings);
-
-            return executionMapper.buildOperatorFactories(request, physicalPlan, warnings, BlockOptimization.NONE);
+            return executionMapper.buildOperatorFactories(request, physicalPlan, BlockOptimization.NONE);
         }
     }
 
@@ -498,14 +501,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
      * Creates a PhysicalPlan tree representing the lookup operation structure.
      * This plan can be cached and reused across multiple calls with different input data.
      */
-    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request, LookupShardContext shardContext, Warnings warnings)
-        throws IOException {
-        var projectState = projectResolver.getProjectState(clusterService.state());
-        AliasFilter aliasFilter = indicesService.buildAliasFilter(
-            projectState,
-            request.shardId.getIndex().getName(),
-            indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
-        );
+    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request, LookupShardContext shardContext) throws IOException {
         // Create output attributes: doc block
         FieldAttribute docAttribute = new FieldAttribute(
             request.source,
@@ -520,9 +516,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         // Use the reference attribute directly
         sourceOutput.add(AbstractLookupService.LOOKUP_POSITIONS_FIELD);
 
-        LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext(), aliasFilter, warnings);
-
-        ParameterizedQueryExec source = new ParameterizedQueryExec(request.source, sourceOutput, queryList);
+        ParameterizedQueryExec source = new ParameterizedQueryExec(request.source, sourceOutput);
 
         PhysicalPlan plan = source;
 

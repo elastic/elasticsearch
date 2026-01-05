@@ -33,6 +33,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -65,6 +66,19 @@ import java.util.function.Function;
  * Also converts PhysicalOperation into actual Operators
  */
 public class LookupExecutionMapper {
+    /**
+     * Functional interface for creating a LookupEnrichQueryGenerator from the necessary parameters.
+     */
+    @FunctionalInterface
+    public interface QueryListFactory {
+        LookupEnrichQueryGenerator create(
+            AbstractLookupService.TransportRequest request,
+            SearchExecutionContext searchExecutionContext,
+            AliasFilter aliasFilter,
+            Warnings warnings
+        );
+    }
+
     private final BlockFactory blockFactory;
     private final BigArrays bigArrays;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
@@ -80,6 +94,9 @@ public class LookupExecutionMapper {
         private final AbstractLookupService.LookupShardContext lookupShardContext;
         private final List<Page> collectedPages;
         private final Page inputPage;
+        private final AbstractLookupService.TransportRequest request;
+        private final AliasFilter aliasFilter;
+        private final QueryListFactory queryListFactory;
 
         LookupDriverContext(
             BigArrays bigArrays,
@@ -87,13 +104,19 @@ public class LookupExecutionMapper {
             ShardContext shardContext,
             AbstractLookupService.LookupShardContext lookupShardContext,
             List<Page> collectedPages,
-            Page inputPage
+            Page inputPage,
+            AbstractLookupService.TransportRequest request,
+            AliasFilter aliasFilter,
+            QueryListFactory queryListFactory
         ) {
             super(bigArrays, blockFactory);
             this.shardContext = shardContext;
             this.lookupShardContext = lookupShardContext;
             this.collectedPages = collectedPages;
             this.inputPage = inputPage;
+            this.request = request;
+            this.aliasFilter = aliasFilter;
+            this.queryListFactory = queryListFactory;
         }
 
         ShardContext shardContext() {
@@ -119,6 +142,18 @@ public class LookupExecutionMapper {
         Page inputPage() {
             return inputPage;
         }
+
+        AbstractLookupService.TransportRequest request() {
+            return request;
+        }
+
+        AliasFilter aliasFilter() {
+            return aliasFilter;
+        }
+
+        QueryListFactory queryListFactory() {
+            return queryListFactory;
+        }
     }
 
     public LookupExecutionMapper(BlockFactory blockFactory, BigArrays bigArrays, LocalCircuitBreaker.SizeSettings localBreakerSettings) {
@@ -133,10 +168,9 @@ public class LookupExecutionMapper {
     public PhysicalOperation buildOperatorFactories(
         AbstractLookupService.TransportRequest request,
         PhysicalPlan physicalPlan,
-        Warnings warnings,
         BlockOptimization blockOptimization
     ) throws IOException {
-        return planLookupNode(physicalPlan, request, warnings, blockOptimization);
+        return planLookupNode(physicalPlan, request, blockOptimization);
     }
 
     /**
@@ -147,7 +181,9 @@ public class LookupExecutionMapper {
         PhysicalOperation physicalOperation,
         AbstractLookupService.LookupShardContext shardContext,
         List<Releasable> releasables,
-        Page inputPage
+        AbstractLookupService.TransportRequest request,
+        AliasFilter aliasFilter,
+        QueryListFactory queryListFactory
     ) {
 
         final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
@@ -166,7 +202,10 @@ public class LookupExecutionMapper {
             shardContext.context(),
             shardContext,
             collectedPages,
-            inputPage
+            request.inputPage,
+            request,
+            aliasFilter,
+            queryListFactory
         );
 
         // Create operators from factories
@@ -199,19 +238,18 @@ public class LookupExecutionMapper {
     private PhysicalOperation planLookupNode(
         PhysicalPlan node,
         AbstractLookupService.TransportRequest request,
-        Warnings warnings,
         BlockOptimization optimizationState
     ) throws IOException {
         PhysicalOperation source;
         if (node instanceof UnaryExec unaryExec) {
-            source = planLookupNode(unaryExec.child(), request, warnings, optimizationState);
+            source = planLookupNode(unaryExec.child(), request, optimizationState);
         } else {
             source = null;
         }
 
         // Plan this node based on its type
         if (node instanceof ParameterizedQueryExec parameterizedQueryExec) {
-            return planParameterizedQueryExec(parameterizedQueryExec, request, warnings, optimizationState);
+            return planParameterizedQueryExec(parameterizedQueryExec, optimizationState);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(fieldExtractExec, source);
         } else if (node instanceof ProjectExec projectExec) {
@@ -228,12 +266,8 @@ public class LookupExecutionMapper {
      */
     private PhysicalOperation planParameterizedQueryExec(
         ParameterizedQueryExec parameterizedQueryExec,
-        AbstractLookupService.TransportRequest request,
-        Warnings warnings,
         BlockOptimization optimizationState
     ) {
-        LookupEnrichQueryGenerator queryList = parameterizedQueryExec.queryList();
-
         Layout.Builder layoutBuilder = new Layout.Builder();
         List<Attribute> output = parameterizedQueryExec.output();
         for (Attribute attr : output) {
@@ -242,13 +276,7 @@ public class LookupExecutionMapper {
         Layout layout = layoutBuilder.build();
 
         return PhysicalOperation.fromSource(
-            new EnrichQuerySourceOperatorFactory(
-                EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
-                queryList,
-                optimizationState,
-                0,
-                warnings
-            ),
+            new EnrichQuerySourceOperatorFactory(EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE, optimizationState, 0),
             layout
         );
     }
@@ -370,13 +398,9 @@ public class LookupExecutionMapper {
      * Factory for EnrichQuerySourceOperator.
      * Creates optimized page when needed (DICTIONARY state) during operator creation.
      */
-    private record EnrichQuerySourceOperatorFactory(
-        int maxPageSize,
-        LookupEnrichQueryGenerator queryList,
-        BlockOptimization blockOptimization,
-        int shardId,
-        Warnings warnings
-    ) implements SourceOperatorFactory {
+    private record EnrichQuerySourceOperatorFactory(int maxPageSize, BlockOptimization blockOptimization, int shardId)
+        implements
+            SourceOperatorFactory {
         @Override
         public SourceOperator get(DriverContext driverContext) {
             // In lookup execution path, driverContext is always LookupDriverContext
@@ -385,6 +409,18 @@ public class LookupExecutionMapper {
             SearchExecutionContext searchExecutionContext = lookupDriverContext.searchExecutionContext();
             Page inputPage = lookupDriverContext.inputPage();
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
+
+            // Create warnings here when creating the operator from the factory
+            Warnings warnings = Warnings.createWarnings(
+                DriverContext.WarningsMode.COLLECT,
+                lookupDriverContext.request().source.source().getLineNumber(),
+                lookupDriverContext.request().source.source().getColumnNumber(),
+                lookupDriverContext.request().source.text()
+            );
+
+            // Create queryList when creating the operator from the factory
+            LookupEnrichQueryGenerator queryList = lookupDriverContext.queryListFactory()
+                .create(lookupDriverContext.request(), searchExecutionContext, lookupDriverContext.aliasFilter(), warnings);
 
             return new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),

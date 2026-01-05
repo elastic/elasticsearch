@@ -378,7 +378,6 @@ public class AzureBlobStore implements BlobStore {
             position,
             length == null ? totalSize : length,
             totalSize,
-            0,
             azureBlobServiceClient.getAllocator(),
             eTag
         );
@@ -1097,13 +1096,12 @@ public class AzureBlobStore implements BlobStore {
             long rangeOffset,
             long rangeLength,
             long contentLength,
-            int maxRetries,
             ByteBufAllocator allocator,
             @Nullable String ifMatchETag
         ) throws IOException {
             rangeLength = Math.min(rangeLength, contentLength - rangeOffset);
             final BlobRange range = new BlobRange(rangeOffset, rangeLength);
-            final DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions().setMaxRetryRequests(maxRetries);
+            final DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions().setMaxRetryRequests(0);
             final BlobRequestConditions requestConditions = new BlobRequestConditions().setIfMatch(ifMatchETag);
             final AtomicReference<String> eTagRef = new AtomicReference<>();
             Flux<ByteBuf> byteBufFlux = client.downloadWithResponse(range, downloadRetryOptions, requestConditions, false)

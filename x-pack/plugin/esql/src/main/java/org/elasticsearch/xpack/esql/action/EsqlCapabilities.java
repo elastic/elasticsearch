@@ -1647,7 +1647,7 @@ public class EsqlCapabilities {
         /**
          * "time_zone" parameter in request body and in {@code SET time_zone="x"}.
          * <p>
-         *     Originally `GLOBAL_TIMEZONE_PARAMETER`, but changed to "_WITH_OUTPUT" so test don't fail after formatting the _query output.
+         *     Originally `GLOBAL_TIMEZONE_PARAMETER`, but changed to "_WITH_OUTPUT" so tests don't fail after formatting the _query output.
          * </p>
          */
         GLOBAL_TIMEZONE_PARAMETER_WITH_OUTPUT(Build.current().isSnapshot()),

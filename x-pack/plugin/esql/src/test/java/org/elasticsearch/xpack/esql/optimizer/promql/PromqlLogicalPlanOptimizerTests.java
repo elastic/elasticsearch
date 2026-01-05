@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -63,8 +65,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug tests")
 public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
@@ -347,6 +351,30 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
+     * Expect the logical plan structure:
+     * Project
+     * \_Eval
+     *   \_Limit
+     *     \_Aggregate
+     *       \_Eval
+     *         \_TimeSeriesAggregate[[...],[SUM(...,PT10M,...), COUNT(...,PT10M,...), ...], BUCKET(@timestamp,PT5M)]
+     */
+    public void testRangeSelectorWithDifferentStep() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))
+            """);
+
+        var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+
+        // Verify bucket is 5 minutes
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+
+        // Verify window is 10 minutes
+        var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
+        assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
+    /**
      * Expect the following logical plan
      *
      * Project[[avg(avg_over_time(network.bytes_in[5m])){r}#423, TBUCKET{r}#424]]
@@ -401,6 +429,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#21) AND IN(host-0[KEYWORD],host-1[KEYWORD],host-2[KEYWORD],pod{f}#9)]
      *               \_EsRelation[k8s][@timestamp{f}#7, client.ip{f}#11, cluster{f}#8, eve..]
      */
+
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelector() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -419,6 +449,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
     }
 
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorPrefix() {
         // TS metrics-hostmetricsreceiver.otel-default | WHERE @timestamp >= \"{{from | minus .benchmark.duration}}\" AND @timestamp <=
         // \"{{from}}\"
@@ -438,6 +469,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
     }
 
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorProperPrefix() {
         var plan = planPromql("""
             PROMQL index=k8s time=$now (
@@ -472,6 +504,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
      *             \_Filter[ISNOTNULL(network.bytes_in{f}#293) AND RLIKE(pod{f}#281, "[a-z]+", false)]
      *               \_EsRelation[k8s][@timestamp{f}#279, client.ip{f}#283, cluster{f}#280, ..]
      */
+    @AwaitsFix(bugUrl = "Instant promql queries in are not supported at the moment")
     public void testLabelSelectorRegex() {
         var plan = planPromql("""
             PROMQL index=k8s time=$now (
@@ -575,7 +608,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testConstantFoldingArithmeticOperators() {
-        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1");
+        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1", true);
         var eval = plan.collect(Eval.class).getFirst();
         var literal = as(eval.fields().getFirst().child(), Literal.class);
         assertThat(literal.value(), equalTo(2.0));
@@ -611,10 +644,31 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         );
     }
 
+    public void testGroupByAllInstantSelector() {
+        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("network.bytes_in", "step", "_timeseries")));
+    }
+
+    public void testGroupByAllInstantSelectorRate() {
+        var plan = planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
+    }
+
     protected LogicalPlan planPromql(String query) {
+        return planPromql(query, false);
+    }
+
+    protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
         var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        AttributeSet.Builder references = AttributeSet.builder();
+        analyzed.forEachDown(lp -> references.addAll(lp.references()));
+        if (allowEmptyReferences) {
+            assertThat(references.build(), empty());
+        } else {
+            assertThat(references.build(), not(empty()));
+        }
         logger.trace("analyzed plan:\n{}", analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);

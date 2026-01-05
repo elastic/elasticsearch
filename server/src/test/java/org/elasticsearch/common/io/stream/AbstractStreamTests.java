@@ -28,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -383,6 +384,37 @@ public abstract class AbstractStreamTests extends ESTestCase {
         runWriteReadOptionalCollectionWithNullInput(
             out -> out.writeOptionalCollection(null),
             in -> in.readOptionalCollectionAsList(FooBar::new)
+        );
+    }
+
+    static String randomString() {
+        return randomUnicodeOfLength(randomFrom(0, 1, 2, 127, 128, 129, 255, 256, 257, between(0, 1 << 16)));
+    }
+
+    public void testString() throws IOException {
+        final var s = randomString();
+        assertSerialization(
+            streamOutput -> streamOutput.writeString(s),
+            si -> assertEquals(s, si.readString()),
+            TransportVersionUtils.randomVersion()
+        );
+    }
+
+    public void testOptionalString() throws IOException {
+        final var s = randomBoolean() ? null : randomString();
+        assertSerialization(
+            streamOutput -> streamOutput.writeOptionalString(s),
+            si -> assertEquals(s, si.readOptionalString()),
+            TransportVersionUtils.randomVersion()
+        );
+    }
+
+    public void testGenericString() throws IOException {
+        final var s = randomString();
+        assertSerialization(
+            streamOutput -> streamOutput.writeGenericValue(s),
+            si -> assertEquals(s, si.readGenericValue()),
+            TransportVersionUtils.randomVersion()
         );
     }
 

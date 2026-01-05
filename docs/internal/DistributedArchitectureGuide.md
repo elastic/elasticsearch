@@ -890,7 +890,7 @@ The split API (`/{index}/_split/{target}`) creates an index that has more shards
 
 The clone API (`/{index}/_clone/{target}`) creates an index that has the same number of shards as the original index but may have different index settings.
 
-The main implementation logic is centralized in `TransportResizeAction` however it only creates new index in the cluster state using special `recoverFrom` and `resizeType` parameters. The entire workflow involves multiple components.
+The main implementation logic is centralized in `TransportResizeAction` however it only creates a new index in the cluster state using special `recoverFrom` and `resizeType` parameters. The entire workflow involves multiple components.
 
 The high level structure is the following:
 1. `TransportResizeAction` creates index metadata for the new index that contains information about the resize performed. It also creates a routing table for the new index which based on the resize information in the index metadata assigns `LocalShardsRecoverySource.INSTANCE` recovery source to primary shards.

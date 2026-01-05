@@ -27,7 +27,7 @@ public class ClusterFormationStateWireSerializingTests extends AbstractWireSeria
     ClusterFormationFailureHelper.ClusterFormationState> {
     @Override
     protected Writeable.Reader<ClusterFormationFailureHelper.ClusterFormationState> instanceReader() {
-        return ClusterFormationFailureHelper.ClusterFormationState::new;
+        return ClusterFormationFailureHelper.ClusterFormationState::readFrom;
     }
 
     @Override
@@ -39,16 +39,18 @@ public class ClusterFormationStateWireSerializingTests extends AbstractWireSeria
         }
         return new ClusterFormationFailureHelper.ClusterFormationState(
             randomList(5, () -> randomAlphaOfLengthBetween(3, 6)),
-            DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
-            masterEligibleNodes,
-            randomLong(),
-            randomLong(),
-            new CoordinationMetadata.VotingConfiguration(randomSet(0, 5, () -> UUID.randomUUID().toString())),
-            new CoordinationMetadata.VotingConfiguration(randomSet(0, 5, () -> UUID.randomUUID().toString())),
+            new ClusterFormationFailureHelper.ClusterFormationClusterStateView(
+                DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
+                masterEligibleNodes,
+                randomLong(),
+                randomLong(),
+                new CoordinationMetadata.VotingConfiguration(randomSet(0, 5, () -> UUID.randomUUID().toString())),
+                new CoordinationMetadata.VotingConfiguration(randomSet(0, 5, () -> UUID.randomUUID().toString())),
+                randomLong()
+            ),
             randomList(0, 5, ESTestCase::buildNewFakeTransportAddress),
             randomList(1, 5, () -> DiscoveryNodeUtils.create(UUID.randomUUID().toString())),
             randomSet(1, 5, () -> DiscoveryNodeUtils.create(UUID.randomUUID().toString())),
-            randomLong(),
             randomBoolean(),
             new StatusInfo(randomBoolean() ? HEALTHY : UNHEALTHY, randomAlphanumericOfLength(5)),
             randomList(

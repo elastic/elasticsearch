@@ -166,9 +166,8 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
         @Override
         public ValueMode getValueMode() {
-            long minValue = countsSkipper.minValue();
             long maxValue = countsSkipper.maxValue();
-            if (minValue == 1 && maxValue == 1) {
+            if (maxValue == 1) {
                 return ValueMode.SINGLE_VALUED;
             } else {
                 return ValueMode.MULTI_VALUED;

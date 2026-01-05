@@ -9,7 +9,7 @@
 #
 
 set -euo pipefail
-BUILDKITE_PULL_REQUEST_BASE_BRANCH="test"
+BUILDKITE_PULL_REQUEST_BASE_BRANCH="indexscript"
 if [[ "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" == "main" ]]; then
   # Don't run on PRs targeting main
   exit 0

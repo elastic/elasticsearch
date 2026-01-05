@@ -13,237 +13,150 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.swisshash.SwissHashFactory;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
+import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
-@State(Scope.Benchmark)
-@Warmup(iterations = 3, time = 2)
-@Measurement(iterations = 5, time = 3)
+/**
+ * Benchmark comparing BytesRefSwissTable vs legacy BytesRef hash structure.
+ *
+ * <p>It models the ES|QL STATS workload - inserts followed by a final iteration over results.
+ */
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
+@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+@State(Scope.Thread)
 public class BytesRefSwissHashBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    // -----------------------
-    // Benchmark parameters
-    // -----------------------
-    @Param({ "uniform", "zipf", "hot", "collision" })
-    public String distribution;
+    @Param({ "1000", "10000", "100000", "1000000", "10000000" })
+    int cardinality;
 
-    @Param({ "1000", "10000", "100000", "1000000" })
-    public int uniqueKeys;
+    @Param({ "uniform", "duplicates", "clustered", "collision" })
+    String distribution;
 
-    @Param({ "insert", "lookup", "mixed" })
-    public String mode;
+    @Param({ "8", "32", "64", "128" })
+    int keyBytes;
 
-    // -----------------------
-    // Bench state
-    // -----------------------
-    BytesRefArray keys;
-    long[] lookupKeys;
-    int[] ids;
+    BytesRef[] keys;
 
-    BytesRefSwissHash swissHash;
-    BytesRefHash bytesRefHash;
+    BytesRefSwissHash swiss;
+    BytesRefHash legacy;
 
-    @Setup(Level.Trial)
+    // --------------------------- SETUP ---------------------------
+
+    @Setup(Level.Iteration)
     public void setup() {
+        keys = null;
+        keys = generate(distribution, cardinality);
+
         BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
-
-        swissHash = SwissHashFactory.getInstance().newBytesRefSwissHash(recycler, breaker, bigArrays);
-        bytesRefHash = new BytesRefHash(1, bigArrays);
-        keys = generateKeys(uniqueKeys);
-        // lookupKeys = keys.clone();
-        ids = new int[uniqueKeys];
-
-        // For lookup-mode, we must pre-insert the benchmark keys
-        BytesRef scratch = new BytesRef();
-        if (mode.equals("lookup") || mode.equals("mixed")) {
-            for (int i = 0; i < keys.size(); i++) {
-                keys.get(i, scratch);
-                swissHash.add(scratch);
-                bytesRefHash.add(scratch);
-            }
-        }
+        swiss = SwissHashFactory.getInstance().newBytesRefSwissHash(recycler, breaker, bigArrays);
+        legacy = new BytesRefHash(1, bigArrays);
     }
 
-    // -----------------------
-    // Benchmarks
-    // -----------------------
-
+    /**
+     * Build Swiss table completely, then iterate.
+     * Mirrors STATS build -> finalize -> output.
+     */
     @Benchmark
-    public long swissHashBenchmark() {
-        return switch (mode) {
-            case "insert" -> doInsert();
-            // case "lookup" -> doLookup();
-            // case "mixed" -> doMixed();
-            default -> throw new IllegalArgumentException(mode);
-        };
-    }
-
-    private long doInsert() {
-        long sum = 0;
-        BytesRef scratch = new BytesRef();
-        for (int i = 0; i < keys.size(); i++) {
-            keys.get(i, scratch);
-            sum += swissHash.add(scratch);
+    public void swissBuildThenIterate(Blackhole bh) {
+        for (BytesRef k : keys) {
+            swiss.add(k);
         }
-        return sum;
+        BytesRef scratch = new BytesRef(new byte[1024]);
+        for (int i = 0; i < swiss.size(); i++) {
+            bh.consume(swiss.get(i, scratch));
+        }
     }
 
-    // private long doLookup() {
-    // long sum = 0;
-    // for (long k : lookupKeys) {
-    // sum += hash.find(k);
-    // }
-    // return sum;
-    // }
-
-    // private long doMixed() {
-    // ThreadLocalRandom r = ThreadLocalRandom.current();
-    // long sum = 0;
-    //
-    // for (long k : keys) {
-    // if (r.nextInt(100) < 80) { // 80% lookups
-    // sum += hash.find(k);
-    // } else { // 20% insert
-    // sum += hash.add(k ^ 0x9E3779B97F4A7C15L); // mutate to force growth
-    // }
-    // }
-    // return sum;
-    // }
-
-    // -- LongHash
+    /**
+     * Same for legacy hash table.
+     */
     @Benchmark
-    public long bytesRefHashBenchmark() {
-        return switch (mode) {
-            case "insert" -> doInsertBR();
-            // case "lookup" -> doLookupBR();
-            // case "mixed" -> doMixedBR();
-            default -> throw new IllegalArgumentException(mode);
-        };
-    }
-
-    private long doInsertBR() {
-        long sum = 0;
-        BytesRef scratch = new BytesRef();
-        for (int i = 0; i < keys.size(); i++) {
-            keys.get(i, scratch);
-            sum += bytesRefHash.add(scratch);
+    public void legacyBuildThenIterate(Blackhole bh) {
+        for (BytesRef k : keys) {
+            legacy.add(k);
         }
-        return sum;
+        BytesRef scratch = new BytesRef(new byte[1024]);
+        for (int i = 0; i < legacy.size(); i++) {
+            bh.consume(legacy.get(i, scratch));
+        }
     }
 
-    // private long doLookupBR() {
-    // long sum = 0;
-    // for (long k : lookupKeys) {
-    // sum += longHash.find(k);
-    // }
-    // return sum;
-    // }
-    //
-    // private long doMixedBR() {
-    // ThreadLocalRandom r = ThreadLocalRandom.current();
-    // long sum = 0;
-    //
-    // for (long k : keys) {
-    // if (r.nextInt(100) < 80) { // 80% lookups
-    // sum += longHash.find(k);
-    // } else { // 20% insert
-    // sum += hash.add(k ^ 0x9E3779B97F4A7C15L); // mutate to force growth
-    // }
-    // }
-    // return sum;
-    // }
-
-    // --
-
-    // -----------------------
-    // Key generation
-    // -----------------------
-
-    private BytesRefArray generateKeys(int size) {
-        return switch (distribution) {
-            case "uniform" -> genUniform(size);
-            // case "zipf" -> genZipf(size, 1.1);
-            // case "hot" -> genHot(size, 0.97);
-            // case "collision" -> genCollisions(size);
-            default -> throw new IllegalArgumentException(distribution);
-        };
-    }
-
-    private BytesRefArray genUniform(int size) {
-        BytesRefArray arr = new BytesRefArray(size, BigArrays.NON_RECYCLING_INSTANCE);
+    private BytesRef[] generate(String dist, int size) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        // 8 bytes matches the entropy of a random long
-        byte[] buffer = new byte[Long.BYTES];
+        BytesRef[] out = new BytesRef[size];
 
-        for (int i = 0; i < size; i++) {
-            r.nextBytes(buffer);
-            // BytesRefArray copies the content, so reuse of buffer is safe
-            arr.append(new BytesRef(buffer));
+        switch (dist) {
+            case "uniform":
+                for (int i = 0; i < size; i++) {
+                    byte[] data = new byte[keyBytes];
+                    r.nextBytes(data);
+                    out[i] = new BytesRef(data);
+                }
+                break;
+            case "duplicates":
+                // 80% of keys come from a small "hot" set
+                int hotSet = Math.max(32, Math.min(1000, size / 50)); // ~2% of cardinality
+                BytesRef[] hot = new BytesRef[hotSet];
+                for (int i = 0; i < hotSet; i++) {
+                    hot[i] = new BytesRef("hot" + i);
+                }
+                for (int i = 0; i < size; i++) {
+                    if (r.nextInt(10) < 8) {               // 80% duplicates
+                        out[i] = hot[r.nextInt(hotSet)];
+                    } else {                               // 20% random noise
+                        out[i] = new BytesRef("k" + r.nextLong());
+                    }
+                }
+                break;
+            case "clustered":
+                final byte[] base = new byte[keyBytes];
+                r.nextBytes(base);
+                for (int i = 0; i < size; i++) {
+                    byte[] data = base.clone();
+                    data[i % keyBytes] ^= (byte) i;
+                    out[i] = new BytesRef(data);
+                }
+                break;
+            case "collision":
+                // High shared-prefix collisions + varying suffix
+                for (int i = 0; i < size; i++) {
+                    byte[] data = new byte[keyBytes];
+                    Arrays.fill(data, 0, keyBytes - 4, (byte) 0xAA);
+                    data[keyBytes - 1] = (byte) i;
+                    out[i] = new BytesRef(data);
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("unknown distribution: " + dist);
         }
-        return arr;
+        return out;
     }
-
-    // private long[] genZipf(int size, double skew) {
-    // long[] arr = new long[size];
-    // int domain = size;
-    // double denom = 0;
-    // for (int i = 1; i <= domain; i++) {
-    // denom += 1.0 / Math.pow(i, skew);
-    // }
-    //
-    // ThreadLocalRandom r = ThreadLocalRandom.current();
-    // for (int i = 0; i < size; i++) {
-    // double u = r.nextDouble() * denom;
-    // double sum = 0;
-    // for (int k = 1; k <= domain; k++) {
-    // sum += 1.0 / Math.pow(k, skew);
-    // if (sum >= u) {
-    // arr[i] = k;
-    // break;
-    // }
-    // }
-    // }
-    // return arr;
-    // }
-    //
-    // private long[] genHot(int size, double hotRatio) {
-    // ThreadLocalRandom r = ThreadLocalRandom.current();
-    // long hotKey = r.nextLong();
-    // long[] arr = new long[size];
-    // for (int i = 0; i < size; i++) {
-    // arr[i] = (r.nextDouble() < hotRatio) ? hotKey : r.nextLong();
-    // }
-    // return arr;
-    // }
-    //
-    // private long[] genCollisions(int size) {
-    // // Force collisions by clamping top bits so BitMixer mixes poorly
-    // long[] arr = new long[size];
-    // long seed = 0xABCDEFL;
-    // for (int i = 0; i < size; i++) {
-    // arr[i] = seed | ((long) i & 0xFFFF); // all share same high bits
-    // }
-    // return arr;
-    // }
 }

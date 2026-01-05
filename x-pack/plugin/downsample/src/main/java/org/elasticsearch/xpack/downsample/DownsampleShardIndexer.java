@@ -372,35 +372,32 @@ class DownsampleShardIndexer {
                 var fieldValueFetcher = fieldValueFetchers.get(i);
                 var fieldProducer = fieldValueFetcher.fieldProducer();
                 if (fieldProducer instanceof NumericMetricFieldProducer metricFieldProducer) {
-                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
-                        metricFieldProducer,
-                        fieldValueFetcher.getNumericLeaf(ctx)
-                    ));
+                    bufferedFieldCollectors.add(
+                        new LeafDownsampleCollector.FieldCollector<>(metricFieldProducer, fieldValueFetcher.getNumericLeaf(ctx))
+                    );
                 } else if (fieldProducer instanceof ExponentialHistogramFieldProducer exponentialHistogramProducer) {
-                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
-                        exponentialHistogramProducer,
-                        fieldValueFetcher.getExponentialHistogramLeaf(ctx)
-                    ));
+                    bufferedFieldCollectors.add(
+                        new LeafDownsampleCollector.FieldCollector<>(
+                            exponentialHistogramProducer,
+                            fieldValueFetcher.getExponentialHistogramLeaf(ctx)
+                        )
+                    );
                 } else if (fieldProducer instanceof AggregateMetricDoubleFieldProducer numericFieldProducer) {
-                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
-                        numericFieldProducer,
-                        fieldValueFetcher.getNumericLeaf(ctx)
-                    ));
+                    bufferedFieldCollectors.add(
+                        new LeafDownsampleCollector.FieldCollector<>(numericFieldProducer, fieldValueFetcher.getNumericLeaf(ctx))
+                    );
                 } else if (fieldProducer instanceof LastValueFieldProducer lastValueFieldProducer) {
-                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
-                        lastValueFieldProducer,
-                        fieldValueFetcher.getLeaf(ctx)
-                    ));
+                    bufferedFieldCollectors.add(
+                        new LeafDownsampleCollector.FieldCollector<>(lastValueFieldProducer, fieldValueFetcher.getLeaf(ctx))
+                    );
                 } else if (fieldProducer instanceof TDigestHistogramFieldProducer histogramFieldProducer) {
-                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
-                        histogramFieldProducer,
-                        fieldValueFetcher.getHistogramLeaf(ctx)
-                    ));
+                    bufferedFieldCollectors.add(
+                        new LeafDownsampleCollector.FieldCollector<>(histogramFieldProducer, fieldValueFetcher.getHistogramLeaf(ctx))
+                    );
                 } else if (fieldProducer instanceof AggregateCounterFieldProducer counterFieldProducer) {
-                    singleFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
-                        counterFieldProducer,
-                        fieldValueFetcher.getNumericLeaf(ctx)
-                    ));
+                    singleFieldCollectors.add(
+                        new LeafDownsampleCollector.FieldCollector<>(counterFieldProducer, fieldValueFetcher.getNumericLeaf(ctx))
+                    );
                 }
             }
 

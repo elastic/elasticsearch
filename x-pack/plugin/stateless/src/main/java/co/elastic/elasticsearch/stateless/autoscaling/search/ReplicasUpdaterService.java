@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
@@ -42,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -264,7 +262,9 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
          * @param indices the indices to clear.
          */
         void clearStateForIndices(Collection<String> indices) {
-            scaleDownStateByIndex.entrySet().removeIf(e -> indices.contains(e.getKey()));
+            if (indices != null && indices.isEmpty() == false) {
+                scaleDownStateByIndex.entrySet().removeIf(e -> indices.contains(e.getKey()));
+            }
         }
 
         /**
@@ -272,7 +272,11 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
          * @param indices the indices to keep.
          */
         void clearStateExceptForIndices(Collection<String> indices) {
-            scaleDownStateByIndex.entrySet().removeIf(e -> indices.contains(e.getKey()) == false);
+            if (indices == null || indices.isEmpty()) {
+                scaleDownStateByIndex.clear();
+            } else {
+                scaleDownStateByIndex.entrySet().removeIf(e -> indices.contains(e.getKey()) == false);
+            }
         }
 
         /**
@@ -488,14 +492,21 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Scheduled task that gets the last replicas update recommendations and performs a settings update.
+     * Requests a run to get recommendations and potentially update the number of replicas (over all indices).
+     * If a run is already in progress, enqueues a subsequent run via a {@link #state} change.
      */
     void performReplicaUpdates() {
         performReplicaUpdates(false);
     }
 
-    // visible for testing
-    void performReplicaUpdates(boolean immediateScaleDown) {
+    /**
+     * Requests a run to get recommendations and potentially update the number of replicas (over all indices).
+     * If a run is already in progress, enqueues a subsequent run via a {@link #state} change.
+     * @param immediateScaleDown whether the next run must immediately scale down in the case of a scale down
+     *                           recommendation, rather than waiting for {@link #scaledownRepetitionSetting}
+     *                           repeated signals.
+     */
+    void performReplicaUpdates(boolean immediateScaleDown) { // visible for testing
         performReplicaUpdates(immediateScaleDown, 0);
     }
 
@@ -574,29 +585,11 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                     // special handling for auto expand replica indices as we want to reduce their replicas regardless of the
                     // scale down counters
                     if (numSearchNodes > 2 && autoExpandReplicaIndices.contains(indexName)) {
-                        autoExpandIndices.compute(numSearchNodes, (currentReplicasEntry, indices) -> {
-                            if (indices == null) {
-                                indices = new HashSet<>();
-                            }
-                            indices.add(indexName);
-                            return indices;
-                        });
+                        autoExpandIndices.computeIfAbsent(numSearchNodes, k -> new HashSet<>()).add(indexName);
                     } else if (recommendedReplicas > currentReplicas) {
-                        indicesToScaleUp.compute(recommendedReplicas, (currentReplicasEntry, indices) -> {
-                            if (indices == null) {
-                                indices = new HashSet<>();
-                            }
-                            indices.add(indexName);
-                            return indices;
-                        });
+                        indicesToScaleUp.computeIfAbsent(recommendedReplicas, k -> new HashSet<>()).add(indexName);
                     } else if (recommendedReplicas < currentReplicas) {
-                        indicesToScaleDown.compute(recommendedReplicas, (currentReplicasEntry, indices) -> {
-                            if (indices == null) {
-                                indices = new HashSet<>();
-                            }
-                            indices.add(indexName);
-                            return indices;
-                        });
+                        indicesToScaleDown.computeIfAbsent(recommendedReplicas, k -> new HashSet<>()).add(indexName);
                     }
                 }
             }
@@ -630,7 +623,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             // the performance cost of this outweighs the cost of keeping two replicas around longer.
             // This is also necessary for SPmin >= {@link #SEARCH_POWER_MIN_FULL_REPLICATION} because
             // even in that case indices might enter and fall out of the interactive boosting window.
-            Set<String> countersInUse = new HashSet<>();
+            Set<String> indicesTrackedForScaleDown = new HashSet<>();
             // scaleDownUpdatesToSend holds replica updates that will eventually be published. We batch
             // these by replica count in order to publish one update per replica count. indicesToScaleDown
             // also holds replica counts, but we may end up publishing a larger number due to the maximum
@@ -647,7 +640,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                     publishUpdateReplicaSetting(targetReplicasCount, indices);
                     indicesScaledDown += indices.size();
                 } else {
-                    countersInUse.addAll(indices);
+                    indicesTrackedForScaleDown.addAll(indices);
                     populateScaleDownUpdates(scaleDownUpdatesToSend, indices, targetReplicasCount);
                 }
             }
@@ -656,7 +649,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 publishUpdateReplicaSetting(numReplicas, indices);
                 indicesScaledDown += indices.size();
             }
-            clearCountersExcept(countersInUse);
+            this.scaleDownState.clearStateExceptForIndices(indicesTrackedForScaleDown);
         }
 
         LOGGER.info(
@@ -706,7 +699,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      */
     private boolean ensureRunning() {
         if (job == null || job.isCancelled()) {
-            clearCounters();
+            this.scaleDownState.clearState();
             return false;
         }
         return true;
@@ -724,25 +717,6 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         }
     }
 
-    /**
-     * This cleans all scale-down counters. These counters are used to
-     * delay scale-down actions until we have received
-     * {@link #REPLICA_UPDATER_SCALEDOWN_REPETITIONS} repeated asks to
-     * scale an index down to one replica. We do this to prevent scaling down indices
-     * that receive frequently changing scaling decisions in a short amount of time.
-     */
-    private void clearCounters() {
-        clearCountersExcept(Collections.emptySet());
-    }
-
-    private void clearCountersExcept(@Nullable Set<String> countersToKeep) {
-        if (countersToKeep == null || countersToKeep.size() == 0) {
-            this.scaleDownState.clearState();
-        } else {
-            this.scaleDownState.clearStateExceptForIndices(countersToKeep);
-        }
-    }
-
     private void unschedule(boolean clearState) {
         LOGGER.debug("unschedule replica updater task");
         if (job != null) {
@@ -750,7 +724,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
             job = null;
         }
         if (clearState) {
-            clearCounters();
+            this.scaleDownState.clearState();
         }
     }
 
@@ -773,7 +747,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     @Override
     public void onMaster() {
         // Ensure we don't start with any stale state
-        clearCounters();
+        this.scaleDownState.clearState();
         scheduleTask();
     }
 

@@ -202,7 +202,9 @@ public class TopNOperator implements Operator, Accountable {
             int orderByCompositeKeyCurrentPosition = 0;
             for (int i = 0; i < keyFactories.length; i++) {
                 int valueAsBytesSize = keyFactories[i].extractor.writeKey(row.keys, position);
-                assert valueAsBytesSize > 0 : valueAsBytesSize;
+                if (valueAsBytesSize < 0) {
+                    throw new IllegalStateException("empty keys to allowed. " + valueAsBytesSize + " must be > 0");
+                }
                 orderByCompositeKeyCurrentPosition += valueAsBytesSize;
                 row.bytesOrder.endOffsets[i] = orderByCompositeKeyCurrentPosition - 1;
             }
@@ -660,7 +662,9 @@ public class TopNOperator implements Operator, Accountable {
         public Page next() {
             long start = System.nanoTime();
             int size = Math.min(maxPageSize, rows.size() - r);
-            assert size > 0;
+            if (size <= 0) {
+                throw new IllegalStateException("can't make empty pages. " + size + " must be > 0");
+            }
             ResultBuilder[] builders = new ResultBuilder[elementTypes.size()];
             try {
                 for (int b = 0; b < builders.length; b++) {
@@ -675,28 +679,8 @@ public class TopNOperator implements Operator, Accountable {
                 int rEnd = r + size;
                 while (r < rEnd) {
                     try (Row row = rows.set(r++, null)) {
-                        BytesRef keys = row.keys.bytesRefView();
-                        for (SortOrder so : sortOrders) {
-                            if (keys.bytes[keys.offset] == so.nul()) {
-                                keys.offset++;
-                                keys.length--;
-                                continue;
-                            }
-                            keys.offset++;
-                            keys.length--;
-                            builders[so.channel].decodeKey(keys);
-                        }
-                        if (keys.length != 0) {
-                            throw new IllegalArgumentException("didn't read all keys");
-                        }
-
-                        BytesRef values = row.values.bytesRefView();
-                        for (ResultBuilder builder : builders) {
-                            builder.decodeValue(values);
-                        }
-                        if (values.length != 0) {
-                            throw new IllegalArgumentException("didn't read all values");
-                        }
+                        readKeys(builders, row.keys.bytesRefView());
+                        readValues(builders, row.values.bytesRefView());
                     }
                 }
 
@@ -721,6 +705,37 @@ public class TopNOperator implements Operator, Accountable {
         @Override
         public void close() {
             Releasables.close(rows);
+        }
+
+        /**
+         * Read keys into the results. See {@link KeyExtractor} for the key layout.
+         */
+        private void readKeys(ResultBuilder[] builders, BytesRef keys) {
+            for (SortOrder so : sortOrders) {
+                if (keys.bytes[keys.offset] == so.nul()) {
+                    // Discard the null byte.
+                    keys.offset++;
+                    keys.length--;
+                    continue;
+                }
+                // Discard the non_null byte.
+                keys.offset++;
+                keys.length--;
+                // Read the key. This will modify offset and length for the next iteration.
+                builders[so.channel].decodeKey(keys);
+            }
+            if (keys.length != 0) {
+                throw new IllegalArgumentException("didn't read all keys");
+            }
+        }
+
+        private void readValues(ResultBuilder[] builders, BytesRef values) {
+            for (ResultBuilder builder : builders) {
+                builder.decodeValue(values);
+            }
+            if (values.length != 0) {
+                throw new IllegalArgumentException("didn't read all values");
+            }
         }
     }
 }

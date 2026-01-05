@@ -950,28 +950,28 @@ public class LocalExecutionPlanner {
         /**
          * Creates a new physical operation with the given source and layout.
          */
-        static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
+        public static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             return new PhysicalOperation(sourceOperatorFactory, layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given layout.
          */
-        PhysicalOperation with(Layout layout) {
+        public PhysicalOperation with(Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given intermediate operator and layout.
          */
-        PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
+        public PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
             return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given sink and layout.
          */
-        PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
+        public PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
         }
 
@@ -1006,6 +1006,10 @@ public class LocalExecutionPlanner {
 
         public SinkOperator sink(DriverContext driverContext) {
             return sinkOperatorFactory.get(driverContext);
+        }
+
+        public Layout layout() {
+            return layout;
         }
 
         @Override

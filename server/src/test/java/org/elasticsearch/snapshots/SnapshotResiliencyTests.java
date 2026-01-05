@@ -172,6 +172,7 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -2502,7 +2503,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     clusterService,
                     repositoriesService,
                     transportService,
-                    indicesService
+                    indicesService,
+                    new LocalPrimarySnapshotShardContextFactory(indicesService)
                 );
                 final ShardStateAction shardStateAction = new ShardStateAction(
                     clusterService,

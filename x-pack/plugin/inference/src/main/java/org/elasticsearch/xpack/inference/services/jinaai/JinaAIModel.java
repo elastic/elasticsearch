@@ -33,7 +33,7 @@ public abstract class JinaAIModel extends Model {
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
         JinaAIRateLimitServiceSettings rateLimitServiceSettings,
-        @Nullable URI uri
+        URI uri
     ) {
         super(configurations, secrets);
 

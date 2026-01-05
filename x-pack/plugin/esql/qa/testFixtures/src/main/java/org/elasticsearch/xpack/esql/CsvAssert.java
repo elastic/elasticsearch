@@ -48,6 +48,8 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FOR
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramToString;
@@ -235,10 +237,11 @@ public final class CsvAssert {
                 for (int column = 0; column < expectedRow.size(); column++) {
                     Type expectedType = expected.columnTypes().get(column);
                     Object expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
-                    Object actualValue = actualRow.get(column);
+                    Object actualValue = convertActualValue(expectedType, actualRow.get(column));
 
                     Object transformedExpected = valueTransformer.apply(expectedType, expectedValue);
                     Object transformedActual = valueTransformer.apply(expectedType, actualValue);
+
                     if (equals(transformedExpected, transformedActual) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
@@ -467,6 +470,27 @@ public final class CsvAssert {
             );
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, NULL, BOOLEAN,
                 DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+        };
+    }
+
+    private static Object convertActualValue(Type expectedType, Object actualValue) {
+        if (actualValue == null) {
+            return null;
+        }
+
+        // The CSV assertions expect UTC dates
+        return switch (expectedType) {
+            case Type.DATETIME -> rebuildExpected(
+                actualValue,
+                String.class,
+                x -> DEFAULT_DATE_TIME_FORMATTER.formatMillis(DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) x))
+            );
+            case Type.DATE_NANOS -> rebuildExpected(
+                actualValue,
+                String.class,
+                x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
+            );
+            default -> actualValue;
         };
     }
 

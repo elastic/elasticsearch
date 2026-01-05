@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -130,6 +131,8 @@ public class EsqlSession {
             ActionListener<Result> listener
         );
     }
+
+    public record ExecutionResult(Versioned<Result> result, ZoneId zoneId) {}
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
 
@@ -203,7 +206,7 @@ public class EsqlSession {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
-        ActionListener<Versioned<Result>> listener
+        ActionListener<ExecutionResult> listener
     ) {
         executionInfo.planningProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -247,7 +250,10 @@ public class EsqlSession {
             configuration,
             executionInfo,
             request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+            new EsqlCCSUtils.CssPartialErrorsActionListener(
+                executionInfo,
+                listener.map(r -> new ExecutionResult(r, configuration.zoneId()))
+            ) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
                     assert ThreadPool.assertCurrentThreadPool(
@@ -286,7 +292,9 @@ public class EsqlSession {
                                 l
                             )
                         )
-                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
+                        .<ExecutionResult>andThen(
+                            (l, r) -> l.onResponse(new ExecutionResult(new Versioned<>(r, minimumVersion), configuration.zoneId()))
+                        )
                         .addListener(listener);
                 }
             }

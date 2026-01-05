@@ -32,15 +32,16 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateRangeToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.tDigestBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
@@ -72,7 +73,7 @@ public abstract class PositionToXContent {
     protected abstract XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
         throws IOException;
 
-    public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, BytesRef scratch) {
+    public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, ZoneId zoneId, BytesRef scratch) {
         return switch (columnInfo.type()) {
             case LONG, COUNTER_LONG -> new PositionToXContent(block) {
                 @Override
@@ -129,7 +130,7 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     long longVal = ((LongBlock) block).getLong(valueIndex);
-                    return builder.value(dateTimeToString(longVal));
+                    return builder.value(DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId).formatMillis(longVal));
                 }
             };
             case DATE_NANOS -> new PositionToXContent(block) {
@@ -137,7 +138,7 @@ public abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     long longVal = ((LongBlock) block).getLong(valueIndex);
-                    return builder.value(nanoTimeToString(longVal));
+                    return builder.value(DEFAULT_DATE_NANOS_FORMATTER.withZone(zoneId).formatNanos(longVal));
                 }
             };
             case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new PositionToXContent(block) {

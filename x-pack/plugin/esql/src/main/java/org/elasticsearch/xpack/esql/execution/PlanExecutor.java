@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
-import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -76,7 +74,7 @@ public class PlanExecutor {
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
-        ActionListener<Versioned<Result>> listener
+        ActionListener<EsqlSession.ExecutionResult> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
@@ -97,7 +95,7 @@ public class PlanExecutor {
         metrics.total(clientId);
 
         var begin = System.nanoTime();
-        ActionListener<Versioned<Result>> executeListener = wrap(
+        ActionListener<EsqlSession.ExecutionResult> executeListener = wrap(
             x -> onQuerySuccess(request, listener, x, planTelemetry),
             ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
         );
@@ -108,8 +106,8 @@ public class PlanExecutor {
 
     private void onQuerySuccess(
         EsqlQueryRequest request,
-        ActionListener<Versioned<Result>> listener,
-        Versioned<Result> x,
+        ActionListener<EsqlSession.ExecutionResult> listener,
+        EsqlSession.ExecutionResult x,
         PlanTelemetry planTelemetry
     ) {
         planTelemetryManager.publish(planTelemetry, true);
@@ -119,7 +117,7 @@ public class PlanExecutor {
 
     private void onQueryFailure(
         EsqlQueryRequest request,
-        ActionListener<Versioned<Result>> listener,
+        ActionListener<EsqlSession.ExecutionResult> listener,
         Exception ex,
         QueryMetric clientId,
         PlanTelemetry planTelemetry,

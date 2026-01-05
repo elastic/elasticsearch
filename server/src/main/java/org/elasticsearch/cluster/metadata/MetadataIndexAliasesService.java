@@ -146,6 +146,10 @@ public class MetadataIndexAliasesService {
                     if (dataStream != null) {
                         return dataStream.getName();
                     }
+                    View view = metadata.view(name);
+                    if (view != null) {
+                        return view.name();
+                    }
                     return null;
                 };
 

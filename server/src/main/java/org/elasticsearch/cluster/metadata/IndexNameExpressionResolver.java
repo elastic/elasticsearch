@@ -1012,7 +1012,7 @@ public class IndexNameExpressionResolver {
     /**
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
-    public Set<ResolvedExpression> resolveExpressions(ProjectMetadata project, String... expressions) {
+    public Set<ResolvedExpression> resolveExpressionsIgnoringRemotes(ProjectMetadata project, String... expressions) {
         return resolveExpressions(project, IndicesOptions.lenientExpandOpen(), false, true, expressions);
     }
 
@@ -1056,7 +1056,7 @@ public class IndexNameExpressionResolver {
      * given index.
      * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
-     * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressions}.
+     * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressionsIgnoringRemotes}.
      */
     public String[] filteringAliases(ProjectMetadata project, String index, Set<ResolvedExpression> resolvedExpressions) {
         return indexAliases(
@@ -1072,7 +1072,7 @@ public class IndexNameExpressionResolver {
     /**
      * Iterates through the list of indices and selects the effective list of all aliases for the
      * given index. Aliases are returned even if the index is included in the resolved expressions.
-     * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressions}.
+     * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressionsIgnoringRemotes}.
      */
     public String[] allIndexAliases(ProjectMetadata project, String index, Set<ResolvedExpression> resolvedExpressions) {
         return indexAliases(project, index, Predicates.always(), ALL_DATA_STREAM_ALIASES, true, resolvedExpressions);
@@ -1092,7 +1092,7 @@ public class IndexNameExpressionResolver {
      * Iterates through the list of indices and selects the effective list of required aliases for the given index.
      * <p>Only aliases where the given predicate tests successfully are returned. If the indices list contains a non-required reference to
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
-     * <p><b>NOTE</b>: the provided expressions must have been resolved already via {@link #resolveExpressions}.
+     * <p><b>NOTE</b>: the provided expressions must have been resolved already via {@link #resolveExpressionsIgnoringRemotes}.
      */
     public String[] indexAliases(
         ProjectMetadata project,

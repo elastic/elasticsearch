@@ -32,14 +32,24 @@ public class TopNRowTests extends ESTestCase {
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
+    /**
+     * Tests the row size as measured by MAT in a heap dump from a failing test. All the
+     * magic numbers come from the heap dump. They came from the running {@link TopNOperator}'s
+     * size estimates from previous rows.
+     */
     public void testFromHeapDump1() {
         TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(5), 56, 24);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
         assertThat(row.ramBytesUsed(), equalTo(304L)); // 304 is measured debugging a heap dump
     }
 
+    /**
+     * Tests the row size as measured by MAT in a heap dump from a failing test. All the
+     * magic numbers come from the heap dump. They came from the running {@link TopNOperator}'s
+     * size estimates from previous rows.
+     */
     public void testFromHeapDump2() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(1), 1160, 1153096);
+        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST), sortOrders(1), 1160, 1_153_096);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
         assertThat(row.ramBytesUsed(), equalTo(1_154_464L)); // 1,154,464 is measured debugging a heap dump
     }

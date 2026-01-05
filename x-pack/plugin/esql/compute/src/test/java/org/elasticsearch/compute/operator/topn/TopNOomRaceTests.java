@@ -34,21 +34,38 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Runs a few topns in parallel trying to cause an OOM. This is parameterized because
- * we'd like for it to run a bunch of times on each test execution AND because we'd like
- * to see if failures at different points are more likely.
+ * Runs a few topns in parallel trying to cause an out of memory. {@link TopNOperator} can
+ * OOM if it's {@link TopNOperator#close} reduces the circuit breaker but doesn't {@code null}
+ * the references as it goes.
+ * <p>
+ *     It'd be ideal if the nulling and the breaker reductions were atomic, but that's not how
+ *     Elasticsearch is. Instead, we figure for some amount of overhead of things that have
+ *     been reduced by the breaker but are not ready for GC. And that's mostly fine, so long as
+ *     the things-not-ready-for-GC are <strong>small</strong>. The entire {@linkplain TopNOperator}
+ *     can be quite a bit too big. Instead, it frees row-by-row. What's too big? We don't know
+ *     precisely, but a full {@linkplain TopNOperator} can be 100s of MB which is very much too big.
+ * </p>
+ * <p>
+ *     This is parameterized because we'd like for it to run a bunch of times on each test
+ *     execution AND because we'd like to see if failures at different points are more likely. We
+ *     don't believe it is, but we want the test executions anyway.
+ * </p>
  */
 public class TopNOomRaceTests extends ESTestCase {
     @ParametersFactory(argumentFormatting = "repeats = %s")
     public static List<Object[]> parameters() {
         List<Object[]> parameters = new ArrayList<>();
+        /*
+         * 5 here just limits the total number of runs. I could use 1, the test would
+         * just run 5 times longer.
+         */
         for (int repeats = 5; repeats <= 100; repeats += 5) {
             parameters.add(new Object[] { repeats });
         }
@@ -68,7 +85,8 @@ public class TopNOomRaceTests extends ESTestCase {
         int driverCount = 6;
         double usedByEachThread = .3;
         ByteSizeValue limit = ByteSizeValue.ofBytes(Runtime.getRuntime().freeMemory());
-        int approxSizePerFilledRow = RamUsageEstimator.NUM_BYTES_OBJECT_REF * 5 + repeats * Integer.BYTES;
+        int approxObjectRefsPerFilledRow = 5;
+        int approxSizePerFilledRow = RamUsageEstimator.NUM_BYTES_OBJECT_REF * approxObjectRefsPerFilledRow + repeats * Integer.BYTES;
         int topCount = (int) ((double) limit.getBytes() / approxSizePerFilledRow * usedByEachThread) - 1;
         int maxInput = topCount * 3;
         assertThat(topCount, greaterThan(0));
@@ -107,8 +125,8 @@ public class TopNOomRaceTests extends ESTestCase {
                 blockFactory,
                 breaker,
                 topCount,
-                IntStream.range(0, repeats).mapToObj(i -> ElementType.INT).toList(),
-                IntStream.range(0, repeats).mapToObj(i -> (TopNEncoder) TopNEncoder.DEFAULT_SORTABLE).toList(),
+                Collections.nCopies(repeats, ElementType.INT),
+                Collections.nCopies(repeats, TopNEncoder.DEFAULT_SORTABLE),
                 List.of(new TopNOperator.SortOrder(0, false, false)),
                 Integer.MAX_VALUE
             );

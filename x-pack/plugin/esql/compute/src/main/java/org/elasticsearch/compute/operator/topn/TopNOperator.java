@@ -697,7 +697,7 @@ public class TopNOperator implements Operator, Accountable {
                  */
                 () -> {
                     for (int i = 0; i < getHeapArray().length; i++) {
-                        Row row = ((Row) getHeapArray()[i]);
+                        Row row = (Row) getHeapArray()[i];
                         if (row != null) {
                             row.close();
                             getHeapArray()[i] = null;

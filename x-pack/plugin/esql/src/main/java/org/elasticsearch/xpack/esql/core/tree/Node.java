@@ -508,9 +508,9 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     private static void toString(StringBuilder sb, Object obj, NodeStringFormat format) {
-        if (obj instanceof Iterable) {
+        if (obj instanceof Iterable<?> iterable) {
             sb.append("[");
-            for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
+            for (Iterator<?> it = iterable.iterator(); it.hasNext();) {
                 Object o = it.next();
                 toString(sb, o, format);
                 if (it.hasNext()) {
@@ -518,8 +518,8 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
                 }
             }
             sb.append("]");
-        } else if (obj instanceof Node<?>) {
-            sb.append(((Node<?>) obj).nodeString(format));
+        } else if (obj instanceof Node<?> node) {
+            sb.append(node.nodeString(format));
         } else if (obj instanceof NameId) {
             sb.append("#").append(obj);
         } else {

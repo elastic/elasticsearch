@@ -148,6 +148,11 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     @Override
+    public String toString() {
+        return toString(NodeStringFormat.LIMITED);
+    }
+
+    @Override
     public String toString(NodeStringFormat format) {
         String str;
         if (dataType == KEYWORD || dataType == TEXT) {

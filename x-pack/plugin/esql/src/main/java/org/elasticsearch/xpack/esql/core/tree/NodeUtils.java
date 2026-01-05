@@ -66,8 +66,8 @@ public abstract class NodeUtils {
         };
     }
 
-    private static <E> String limitedToString(Collection<E> c) {
-        Iterator<E> it = c.iterator();
+    private static String limitedToString(Collection<?> c) {
+        Iterator<?> it = c.iterator();
         if (it.hasNext() == false) {
             return "[]";
         }
@@ -76,7 +76,7 @@ public abstract class NodeUtils {
         StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
         sb.append('[');
         for (;;) {
-            E e = it.next();
+            Object e = it.next();
             String next = e == c ? "(this Collection)" : String.valueOf(e);
             if (next.length() + sb.length() > TO_STRING_LIMIT) {
                 sb.append(next.substring(0, Math.max(0, TO_STRING_LIMIT - sb.length())));

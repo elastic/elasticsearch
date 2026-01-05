@@ -127,6 +127,8 @@ class CachedDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public long cost() {
+            // reset the delegate to make sure we don't use the cached one for cost calculation
+            delegate = null;
             return fromCache.apply(DocIdSetIterator.NO_MORE_DOCS).cost();
         }
     }

@@ -151,10 +151,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 && dt != DataType.DENSE_VECTOR
                 && dt != DataType.EXPONENTIAL_HISTOGRAM
                 && dt != DataType.TDIGEST
-                && dt != DataType.HISTOGRAM,
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types, dense_vector, tdigest, histogram, or exponential_histogram"
+            "any type except counter types, dense_vector, tdigest, histogram, exponential_histogram, or date_range"
         );
     }
 

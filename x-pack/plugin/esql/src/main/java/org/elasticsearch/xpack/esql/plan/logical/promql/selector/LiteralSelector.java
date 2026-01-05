@@ -35,7 +35,7 @@ import static java.util.Collections.emptyList;
  * The literal selector produces a single-value vector with no labels, allowing
  * literals to participate in vector operations and binary expressions.
  */
-public class LiteralSelector extends Selector {
+public final class LiteralSelector extends Selector {
     private final Literal literal;
 
     public LiteralSelector(Source source, Literal literal) {

@@ -133,7 +133,7 @@ public class ConstantFoldingTests extends ESTestCase {
         Expression lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 9, DataType.INTEGER));
         Expression upperBound = new Sub(EMPTY, new Literal(EMPTY, 20, DataType.INTEGER), new Literal(EMPTY, 1, DataType.INTEGER));
         Expression value = new Literal(EMPTY, 12, DataType.INTEGER);
-        Range range = new Range(EMPTY, value, lowerBound, randomBoolean(), upperBound, randomBoolean(), randomZone());
+        Range range = new Range(EMPTY, value, lowerBound, randomBoolean(), upperBound, randomBoolean());
 
         Expression folded = constantFolding(range);
         assertTrue((Boolean) as(folded, Literal.class).value());
@@ -160,7 +160,7 @@ public class ConstantFoldingTests extends ESTestCase {
 
         Expression value = fieldAttribute();
 
-        Range range = new Range(EMPTY, value, lowerBound, includeLowerBound, upperBound, includeUpperBound, randomZone());
+        Range range = new Range(EMPTY, value, lowerBound, includeLowerBound, upperBound, includeUpperBound);
 
         // We need to test this as part of a logical plan, to correctly simulate how we traverse down the expression tree.
         // Just applying this to the range directly won't perform a transformDown.

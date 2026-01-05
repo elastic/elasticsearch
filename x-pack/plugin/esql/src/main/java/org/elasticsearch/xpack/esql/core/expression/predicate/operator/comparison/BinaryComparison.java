@@ -13,20 +13,11 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.time.ZoneId;
-
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
 
-    private final ZoneId zoneId;
-
-    protected BinaryComparison(Source source, Expression left, Expression right, BinaryComparisonOperation operation, ZoneId zoneId) {
+    protected BinaryComparison(Source source, Expression left, Expression right, BinaryComparisonOperation operation) {
         super(source, left, right, operation);
-        this.zoneId = zoneId;
-    }
-
-    public ZoneId zoneId() {
-        return zoneId;
     }
 
     @Override

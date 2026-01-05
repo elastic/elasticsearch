@@ -179,8 +179,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                                 main.right(),
                                 main instanceof GreaterThanOrEqual,
                                 other.right(),
-                                other instanceof LessThanOrEqual,
-                                main.zoneId()
+                                other instanceof LessThanOrEqual
                             )
                         );
 
@@ -201,8 +200,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                                     other.right(),
                                     other instanceof GreaterThanOrEqual,
                                     main.right(),
-                                    main instanceof LessThanOrEqual,
-                                    main.zoneId()
+                                    main instanceof LessThanOrEqual
                                 )
                             );
 

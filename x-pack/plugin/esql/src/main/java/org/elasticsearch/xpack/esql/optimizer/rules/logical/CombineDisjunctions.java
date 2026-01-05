@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -49,12 +48,12 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
         super(OptimizerRules.TransformDirection.UP);
     }
 
-    protected static In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
+    protected static In createIn(Expression key, List<Expression> values) {
         return new In(key.source(), key, values);
     }
 
-    protected static Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-        return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
+    protected static Equals createEquals(Expression k, Set<Expression> v) {
+        return new Equals(k.source(), k, v.iterator().next());
     }
 
     protected static CIDRMatch createCIDRMatch(Expression k, List<Expression> v) {
@@ -70,7 +69,6 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
         Map<Expression, Set<Expression>> ins = new LinkedHashMap<>();
         Map<Expression, Set<Expression>> cidrs = new LinkedHashMap<>();
         Map<Expression, Set<Expression>> ips = new LinkedHashMap<>();
-        ZoneId zoneId = null;
         List<Expression> ors = new LinkedList<>();
         boolean changed = false;
         for (Expression exp : exps) {
@@ -93,9 +91,6 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                     }
                 } else {
                     ors.add(exp);
-                }
-                if (zoneId == null) {
-                    zoneId = eq.zoneId();
                 }
             } else if (exp instanceof In in) {
                 ins.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
@@ -127,10 +122,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
 
         if (ins.isEmpty() == false) {
             // combine equals alongside the existing ors
-            final ZoneId finalZoneId = zoneId;
-            ins.forEach(
-                (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
-            );
+            ins.forEach((k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v) : createIn(k, new ArrayList<>(v))); });
 
             changed = true;
         }

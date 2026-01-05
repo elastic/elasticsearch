@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 
@@ -209,8 +208,7 @@ public class RangeTests extends ESTestCase {
                 l(test[2], (DataType) test[3]),
                 (Boolean) test[4],
                 l(test[5], (DataType) test[6]),
-                (Boolean) test[7],
-                ZoneId.systemDefault()
+                (Boolean) test[7]
             );
             assertEquals(
                 "failed on test " + i + ": " + Arrays.toString(test),

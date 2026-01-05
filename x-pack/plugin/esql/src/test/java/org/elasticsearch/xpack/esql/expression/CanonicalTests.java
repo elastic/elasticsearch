@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -233,12 +232,8 @@ public class CanonicalTests extends ESTestCase {
         }
     }
 
-    interface BinaryOperatorWithTzFactory {
-        BinaryOperator<?, ?, ?, ?> create(Source source, Expression left, Expression right, ZoneId zoneId);
-    }
-
     public void testTimeZoneOperators() throws Exception {
-        List<BinaryOperatorWithTzFactory> list = Arrays.asList(
+        List<BinaryOperatorFactory> list = Arrays.asList(
             LessThan::new,
             LessThanOrEqual::new,
             Equals::new,
@@ -247,12 +242,11 @@ public class CanonicalTests extends ESTestCase {
             GreaterThanOrEqual::new
         );
 
-        for (BinaryOperatorWithTzFactory factory : list) {
+        for (BinaryOperatorFactory factory : list) {
             Literal left = of(randomInt());
             Literal right = of(randomInt());
-            ZoneId zoneId = randomZone();
 
-            BinaryOperator<?, ?, ?, ?> first = factory.create(Source.EMPTY, left, right, zoneId);
+            BinaryOperator<?, ?, ?, ?> first = factory.create(Source.EMPTY, left, right);
             BinaryOperator<?, ?, ?, ?> swap = first.swapLeftAndRight();
 
             assertNotEquals(first, swap);

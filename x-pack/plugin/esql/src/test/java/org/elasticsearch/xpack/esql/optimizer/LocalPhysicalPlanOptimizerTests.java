@@ -2294,9 +2294,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var source = ((SingleValueQuery.Builder) esQuery.query()).source();
         var expected = wrapWithSingleQuery(
             query,
-            unscore(
-                rangeQuery("date_and_date_nanos").lt("2025-01-01T00:00:00.000Z").timeZone("Z").format("strict_date_optional_time_nanos")
-            ),
+            unscore(rangeQuery("date_and_date_nanos").lt("2025-01-01T00:00:00.000Z").format("strict_date_optional_time_nanos")),
             "date_and_date_nanos",
             source
         ); // date_and_date_nanos is pushed down

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,7 +47,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.OffsetTime;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -72,6 +72,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     implements
         EvaluatorMapper,
         TranslationAware.SingleValueTranslationAware {
+
+    private static final TransportVersion ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE = TransportVersion.fromName(
+        "esql_binary_comparison_remove_timezone"
+    );
 
     private static final Logger logger = LogManager.getLogger(EsqlBinaryComparison.class);
 
@@ -167,21 +171,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         EsqlArithmeticOperation.BinaryEvaluator nanosToMillisEvaluator,
         EsqlArithmeticOperation.BinaryEvaluator millisToNanosEvaluator
     ) {
-        this(source, left, right, operation, null, evaluatorMap, nanosToMillisEvaluator, millisToNanosEvaluator);
-    }
-
-    protected EsqlBinaryComparison(
-        Source source,
-        Expression left,
-        Expression right,
-        BinaryComparisonOperation operation,
-        // TODO: We are definitely not doing the right thing with this zoneId
-        ZoneId zoneId,
-        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap,
-        EsqlArithmeticOperation.BinaryEvaluator nanosToMillisEvaluator,
-        EsqlArithmeticOperation.BinaryEvaluator millisToNanosEvaluator
-    ) {
-        super(source, left, right, operation.shim, zoneId);
+        super(source, left, right, operation.shim);
         this.evaluatorMap = evaluatorMap;
         this.functionType = operation;
         this.nanosToMillisEvaluator = nanosToMillisEvaluator;
@@ -194,8 +184,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         EsqlBinaryComparison.BinaryComparisonOperation operation = EsqlBinaryComparison.BinaryComparisonOperation.readFromStream(in);
         var left = in.readNamedWriteable(Expression.class);
         var right = in.readNamedWriteable(Expression.class);
-        // TODO: Remove zoneId entirely
-        var zoneId = in.readOptionalZoneId();
+        if (in.getTransportVersion().supports(ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE) == false) {
+            var zoneId = in.readOptionalZoneId();
+        }
         return operation.buildNewInstance(source, left, right);
     }
 
@@ -205,7 +196,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         functionType.writeTo(out);
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
-        out.writeOptionalZoneId(zoneId());
+        if (out.getTransportVersion().supports(ESQL_BINARY_COMPARISON_REMOVE_TIMEZONE) == false) {
+            out.writeOptionalZoneId(null);
+        }
     }
 
     public BinaryComparisonOperation getFunctionType() {
@@ -437,27 +430,24 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             value = unsignedLongAsNumber(ul);
         }
 
-        ZoneId zoneId = null;
         if (attribute.dataType() == DATETIME) {
-            zoneId = zoneId();
             value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
         } else if (attribute.dataType() == DATE_NANOS) {
-            zoneId = zoneId();
             value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
         if (this instanceof GreaterThan) {
-            return new RangeQuery(source(), name, value, false, null, false, format, zoneId);
+            return new RangeQuery(source(), name, value, false, null, false, format, null);
         }
         if (this instanceof GreaterThanOrEqual) {
-            return new RangeQuery(source(), name, value, true, null, false, format, zoneId);
+            return new RangeQuery(source(), name, value, true, null, false, format, null);
         }
         if (this instanceof LessThan) {
-            return new RangeQuery(source(), name, null, false, value, false, format, zoneId);
+            return new RangeQuery(source(), name, null, false, value, false, format, null);
         }
         if (this instanceof LessThanOrEqual) {
-            return new RangeQuery(source(), name, null, false, value, true, format, zoneId);
+            return new RangeQuery(source(), name, null, false, value, true, format, null);
         }
         if (this instanceof Equals || this instanceof NotEquals) {
             name = LucenePushdownPredicates.pushableAttributeName(attribute);
@@ -465,7 +455,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             Query query;
             if (isDateLiteralComparison) {
                 // dates equality uses a range query because it's the one that has a "format" parameter
-                query = new RangeQuery(source(), name, value, true, value, true, format, zoneId);
+                query = new RangeQuery(source(), name, value, true, value, true, format, null);
             } else {
                 query = new TermQuery(source(), name, value);
             }

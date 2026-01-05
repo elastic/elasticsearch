@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
-import java.time.ZoneId;
 import java.util.Map;
 
 public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
@@ -74,19 +73,6 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
         );
     }
 
-    public GreaterThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(
-            source,
-            left,
-            right,
-            BinaryComparisonOperation.GTE,
-            zoneId,
-            evaluatorMap,
-            GreaterThanOrEqualNanosMillisEvaluator.Factory::new,
-            GreaterThanOrEqualMillisNanosEvaluator.Factory::new
-        );
-    }
-
     @Override
     public String getWriteableName() {
         return ENTRY.name;
@@ -94,27 +80,27 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
 
     @Override
     protected NodeInfo<GreaterThanOrEqual> info() {
-        return NodeInfo.create(this, GreaterThanOrEqual::new, left(), right(), zoneId());
+        return NodeInfo.create(this, GreaterThanOrEqual::new, left(), right());
     }
 
     @Override
     protected GreaterThanOrEqual replaceChildren(Expression newLeft, Expression newRight) {
-        return new GreaterThanOrEqual(source(), newLeft, newRight, zoneId());
+        return new GreaterThanOrEqual(source(), newLeft, newRight);
     }
 
     @Override
     public LessThanOrEqual swapLeftAndRight() {
-        return new LessThanOrEqual(source(), right(), left(), zoneId());
+        return new LessThanOrEqual(source(), right(), left());
     }
 
     @Override
     public LessThan negate() {
-        return new LessThan(source(), left(), right(), zoneId());
+        return new LessThan(source(), left(), right());
     }
 
     @Override
     public EsqlBinaryComparison reverse() {
-        return new LessThanOrEqual(source(), left(), right(), zoneId());
+        return new LessThanOrEqual(source(), left(), right());
     }
 
     @Evaluator(extraName = "Ints")

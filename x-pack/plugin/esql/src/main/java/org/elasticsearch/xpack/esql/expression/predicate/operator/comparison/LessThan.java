@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
-import java.time.ZoneId;
 import java.util.Map;
 
 public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
@@ -63,16 +62,11 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
             description = "An expression."
         ) Expression right
     ) {
-        this(source, left, right, null);
-    }
-
-    public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(
             source,
             left,
             right,
             BinaryComparisonOperation.LT,
-            zoneId,
             evaluatorMap,
             LessThanNanosMillisEvaluator.Factory::new,
             LessThanMillisNanosEvaluator.Factory::new
@@ -86,27 +80,27 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
 
     @Override
     protected NodeInfo<LessThan> info() {
-        return NodeInfo.create(this, LessThan::new, left(), right(), zoneId());
+        return NodeInfo.create(this, LessThan::new, left(), right());
     }
 
     @Override
     protected LessThan replaceChildren(Expression newLeft, Expression newRight) {
-        return new LessThan(source(), newLeft, newRight, zoneId());
+        return new LessThan(source(), newLeft, newRight);
     }
 
     @Override
     public GreaterThan swapLeftAndRight() {
-        return new GreaterThan(source(), right(), left(), zoneId());
+        return new GreaterThan(source(), right(), left());
     }
 
     @Override
     public GreaterThanOrEqual negate() {
-        return new GreaterThanOrEqual(source(), left(), right(), zoneId());
+        return new GreaterThanOrEqual(source(), left(), right());
     }
 
     @Override
     public EsqlBinaryComparison reverse() {
-        return new GreaterThan(source(), left(), right(), zoneId());
+        return new GreaterThan(source(), left(), right());
     }
 
     @Evaluator(extraName = "Ints")

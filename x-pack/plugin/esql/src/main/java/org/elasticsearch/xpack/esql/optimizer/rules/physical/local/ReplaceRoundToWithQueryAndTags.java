@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -401,18 +400,16 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         } else {
             Source source = roundTo.source();
             Object lower = null;
-            Object upper = null;
             Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            ZoneId zoneId = ctx.configuration().zoneId();
             for (int i = 1; i < count; i++) {
-                upper = points.get(i);
+                Object upper = points.get(i);
                 // build predicates and range queries for RoundTo ranges
-                queries.add(rangeBucket(source, field, dataType, lower, upper, tag, zoneId, queryExec, pushdownPredicates, clause));
+                queries.add(rangeBucket(source, field, dataType, lower, upper, tag, queryExec, pushdownPredicates, clause));
                 lower = upper;
                 tag = upper;
             }
             // build the last/gte bucket
-            queries.add(rangeBucket(source, field, dataType, lower, null, lower, zoneId, queryExec, pushdownPredicates, clause));
+            queries.add(rangeBucket(source, field, dataType, lower, null, lower, queryExec, pushdownPredicates, clause));
             // build null bucket
             queries.add(nullBucket(source, field, queryExec, pushdownPredicates, clause));
         }
@@ -435,23 +432,16 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return RoundTo.sortedRoundingPoints(points, dataType);
     }
 
-    private static Expression createRangeExpression(
-        Source source,
-        Expression field,
-        DataType dataType,
-        Object lower,
-        Object upper,
-        ZoneId zoneId
-    ) {
+    private static Expression createRangeExpression(Source source, Expression field, DataType dataType, Object lower, Object upper) {
         Literal lowerValue = new Literal(source, lower, dataType);
         Literal upperValue = new Literal(source, upper, dataType);
         if (lower == null) {
-            return new LessThan(source, field, upperValue, zoneId);
+            return new LessThan(source, field, upperValue);
         } else if (upper == null) {
-            return new GreaterThanOrEqual(source, field, lowerValue, zoneId);
+            return new GreaterThanOrEqual(source, field, lowerValue);
         } else {
             // lower and upper should not be both null
-            return new Range(source, field, lowerValue, true, upperValue, false, dataType.isDate() ? zoneId : null);
+            return new Range(source, field, lowerValue, true, upperValue, false);
         }
     }
 
@@ -479,12 +469,11 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         Object lower,
         Object upper,
         Object tag,
-        ZoneId zoneId,
         EsQueryExec queryExec,
         LucenePushdownPredicates pushdownPredicates,
         Queries.Clause clause
     ) {
-        Expression range = createRangeExpression(source, field, dataType, lower, upper, zoneId);
+        Expression range = createRangeExpression(source, field, dataType, lower, upper);
         return buildCombinedQueryAndTags(queryExec, pushdownPredicates, range, clause, List.of(tag));
     }
 

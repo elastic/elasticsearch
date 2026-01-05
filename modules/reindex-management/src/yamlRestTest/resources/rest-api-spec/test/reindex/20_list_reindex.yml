@@ -132,9 +132,18 @@ setup:
   - set: { task: taskId2 }
 
   - do:
-      reindex.list: {}
+      reindex.list:
+        human: true
   - is_true: reindex
   - length: { reindex: 2 }
+  - exists: reindex.0.start_time
+  - exists: reindex.0.start_time_in_millis
+  - exists: reindex.0.running_time
+  - is_false: reindex.0.status
+  - exists: reindex.1.start_time
+  - exists: reindex.1.start_time_in_millis
+  - exists: reindex.1.running_time
+  - is_false: reindex.1.status
 
   # Increase speed to finish test faster
   - do:

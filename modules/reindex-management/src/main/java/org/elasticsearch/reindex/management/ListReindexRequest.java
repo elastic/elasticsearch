@@ -17,16 +17,6 @@ import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 
-/**
- * Request to list all running reindex tasks.
- * <p>
- * This request automatically filters:
- * <ul>
- *   <li>Only reindex tasks</li>
- *   <li>Only parent tasks</li>
- *   <li>Only tasks for the current project (handled by TransportTasksProjectAction)</li>
- * </ul>
- */
 public class ListReindexRequest extends BaseTasksRequest<ListReindexRequest> {
 
     public ListReindexRequest() {
@@ -48,7 +38,7 @@ public class ListReindexRequest extends BaseTasksRequest<ListReindexRequest> {
             return false;
         }
 
-        // filter for only reindex tasks
+        // Filter for only reindex tasks
         if (ReindexAction.NAME.equals(task.getAction()) == false) {
             return false;
         }

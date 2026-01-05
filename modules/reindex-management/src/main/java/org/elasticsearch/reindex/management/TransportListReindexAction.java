@@ -29,7 +29,7 @@ import java.util.List;
 /**
  * Transport action for listing all running reindex tasks.
  * This action filters for reindex tasks and only returns parent tasks (not subtasks).
- * Project scoping is handled automatically by TransportTasksAction, which only returns
+ * Project scoping is handled by TransportTasksProjectAction, which only returns
  * tasks for the current project.
  */
 public class TransportListReindexAction extends TransportTasksProjectAction<Task, ListReindexRequest, ListReindexResponse, TaskInfo> {
@@ -69,10 +69,4 @@ public class TransportListReindexAction extends TransportTasksProjectAction<Task
     protected void taskOperation(CancellableTask actionTask, ListReindexRequest request, Task task, ActionListener<TaskInfo> listener) {
         listener.onResponse(task.taskInfo(clusterService.localNode().getId(), true));
     }
-
-    @Override
-    protected void doExecute(Task task, ListReindexRequest request, ActionListener<ListReindexResponse> listener) {
-        super.doExecute(task, request, listener);
-    }
-
 }

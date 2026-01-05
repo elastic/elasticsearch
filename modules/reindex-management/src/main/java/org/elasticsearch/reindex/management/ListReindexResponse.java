@@ -23,10 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * Response for listing reindex tasks. Contains a list of TaskInfo for all running
- * parent reindex tasks.
- */
 public class ListReindexResponse extends BaseTasksResponse implements ChunkedToXContentObject {
 
     private final List<TaskInfo> tasks;
@@ -46,9 +42,6 @@ public class ListReindexResponse extends BaseTasksResponse implements ChunkedToX
         out.writeCollection(tasks);
     }
 
-    /**
-     * Get the list of reindex task information.
-     */
     public List<TaskInfo> getTasks() {
         return tasks;
     }

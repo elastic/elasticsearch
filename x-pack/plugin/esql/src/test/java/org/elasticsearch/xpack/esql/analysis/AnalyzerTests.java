@@ -2580,7 +2580,9 @@ public class AnalyzerTests extends ESTestCase {
             Tuple.tuple("TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket", true),
             Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false),
             Tuple.tuple(
-                "PROMQL index=test step=5m start=\"2024-05-10T00:20:00.000Z\" end=\"2024-05-10T00:25:00.000Z\" avg(rate(network.bytes_in[5m]))",
+                "PROMQL index=test step=5m"
+                    + " start=\"2024-05-10T00:20:00.000Z\" end=\"2024-05-10T00:25:00.000Z\" "
+                    + " avg(rate(network.bytes_in[5m]))",
                 true
             )
         )) {

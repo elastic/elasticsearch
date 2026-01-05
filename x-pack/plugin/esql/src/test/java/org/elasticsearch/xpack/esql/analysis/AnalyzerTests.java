@@ -1641,7 +1641,7 @@ public class AnalyzerTests extends ESTestCase {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
-            | dissect unsupported \"%{foo}\"
+            | dissect unsupported "%{foo}"
             """, errorMsg);
     }
 
@@ -1649,7 +1649,7 @@ public class AnalyzerTests extends ESTestCase {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
-            | grok unsupported \"%{WORD:foo}\"
+            | grok unsupported "%{WORD:foo}"
             """, errorMsg);
     }
 
@@ -1673,9 +1673,10 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
-            + "or dense_vector or exponential_histogram or geo_point "
-            + "or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
+        final String supportedTypes =
+            "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
+                + "or dense_vector or exponential_histogram or geo_point "
+                + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -2056,7 +2057,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesInStats() {
         verifyUnsupported("""
-              row x = to_unsigned_long(\"10\")
+              row x = to_unsigned_long("10")
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """, """
             Found 6 problems
@@ -2097,25 +2098,25 @@ public class AnalyzerTests extends ESTestCase {
     public void testInOnText() {
         assertProjectionWithMapping("""
             from a_index
-            | eval text in (\"a\", \"b\", \"c\")
+            | eval text in ("a", "b", "c")
             | keep text
             """, "mapping-multi-field-variation.json", "text");
 
         assertProjectionWithMapping("""
             from a_index
-            | eval text in (\"a\", \"b\", \"c\", text)
+            | eval text in ("a", "b", "c", text)
             | keep text
             """, "mapping-multi-field-variation.json", "text");
 
         assertProjectionWithMapping("""
             from a_index
-            | eval text not in (\"a\", \"b\", \"c\")
+            | eval text not in ("a", "b", "c")
             | keep text
             """, "mapping-multi-field-variation.json", "text");
 
         assertProjectionWithMapping("""
             from a_index
-            | eval text not in (\"a\", \"b\", \"c\", text)
+            | eval text not in ("a", "b", "c", text)
             | keep text
             """, "mapping-multi-field-variation.json", "text");
     }
@@ -2556,9 +2557,9 @@ public class AnalyzerTests extends ESTestCase {
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {
         assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
 
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = analyze("""
             from test | eval scalar = v_magnitude([1, 2, 3])
-            """), DENSE_VECTOR_MAPPING_FILE);
+            """, DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2577,7 +2578,13 @@ public class AnalyzerTests extends ESTestCase {
             Tuple.tuple("TS test | STATS avg(rate(network.bytes_in))", true),
             Tuple.tuple("TS test", false),
             Tuple.tuple("TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket", true),
-            Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false)
+            Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false),
+            Tuple.tuple(
+                "PROMQL index=test step=5m"
+                    + " start=\"2024-05-10T00:20:00.000Z\" end=\"2024-05-10T00:25:00.000Z\" "
+                    + " avg(rate(network.bytes_in[5m]))",
+                true
+            )
         )) {
             var query = queryExp.v1();
             var expectedLimit = queryExp.v2() ? DEFAULT_TIMESERIES_LIMIT : DEFAULT_LIMIT;
@@ -3787,13 +3794,13 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void assertProjectionWithMapping(String query, String mapping, String... names) {
-        var plan = analyze(query, mapping.toString());
+        var plan = analyze(query, mapping);
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }
 
     private void assertProjectionWithMapping(String query, String mapping, QueryParams params, String... names) {
-        var plan = analyze(query, mapping.toString(), params);
+        var plan = analyze(query, mapping, params);
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }
@@ -4037,7 +4044,7 @@ public class AnalyzerTests extends ESTestCase {
                 VerificationException.class,
                 () -> analyze("""
                     FROM books METADATA _score
-                    | RERANK \"italian food recipe\" ON missingField WITH { "inference_id" : "reranking-inference-id" }
+                    | RERANK "italian food recipe" ON missingField WITH { "inference_id" : "reranking-inference-id" }
                     """, "mapping-books.json")
 
             );
@@ -4712,13 +4719,10 @@ public class AnalyzerTests extends ESTestCase {
             ),
             TEST_VERIFIER
         );
-        var e = expectThrows(VerificationException.class, () -> analyze("""
-            from k8s* | stats std_dev(metric_field)
-            """, analyzer));
-        assertThat(
-            e.getMessage(),
-            containsString("Cannot use field [metric_field] due to ambiguities being mapped as [2] incompatible types")
-        );
+        var stddevPlan = analyze("""
+            from k8s* | stats std_dev = std_dev(metric_field)
+            """, analyzer);
+        assertProjection(stddevPlan, "std_dev");
 
         var plan = analyze("""
             from k8s* | stats max = max(metric_field),
@@ -5654,7 +5658,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var anonymous_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name like ?"),
+                "from test | where first_name like ?",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant(null, "Anna*")))
             );
@@ -5668,7 +5672,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var positional_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name like (?1, ?2)"),
+                "from test | where first_name like (?1, ?2)",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant(null, "Anna*"), paramAsConstant(null, "Chris*")))
             );
@@ -5683,7 +5687,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var named_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name rlike ?pattern"),
+                "from test | where first_name rlike ?pattern",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
             );
@@ -5697,7 +5701,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var named_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name rlike (?p1, ?p2)"),
+                "from test | where first_name rlike (?p1, ?p2)",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
             );

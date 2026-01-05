@@ -3,7 +3,7 @@
 **Parameters**
 
 `field`
-:   
+:   the metric field to calculate the value for
 
 `precision`
 :   Precision threshold. Refer to [`AGG-COUNT-DISTINCT-APPROXIMATE`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-agg-count-distinct-approximate). The maximum supported value is 40000. Thresholds above this number will have the same effect as a threshold of 40000. The default value is 3000.

@@ -13,7 +13,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -32,20 +31,20 @@ public class QueriesTests extends ESTestCase {
     }
 
     public void testIsNegativeQuery() {
-        assertFalse(Queries.isNegativeQuery(new MatchAllDocsQuery()));
+        assertFalse(Queries.isNegativeQuery(Queries.ALL_DOCS_INSTANCE));
         assertFalse(Queries.isNegativeQuery(new BooleanQuery.Builder().build()));
         assertFalse(Queries.isNegativeQuery(new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST).build()));
         assertTrue(Queries.isNegativeQuery(new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT).build()));
         assertFalse(
             Queries.isNegativeQuery(
-                new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(new MatchAllDocsQuery(), Occur.MUST_NOT).build()
+                new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.MUST).add(Queries.ALL_DOCS_INSTANCE, Occur.MUST_NOT).build()
             )
         );
     }
 
     public void testFixNegativeQuery() {
         assertEquals(
-            new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.FILTER)
+            new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, Occur.FILTER)
                 .add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT)
                 .build(),
             Queries.fixNegativeQueryIfNeeded(new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST_NOT).build())

@@ -25,8 +25,10 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.LongConsumer;
 
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 2)
@@ -38,198 +40,100 @@ public class LongSwissHashBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    // -----------------------
-    // Benchmark parameters
-    // -----------------------
-    @Param({ "uniform", "zipf", "hot", "collision" })
-    public String distribution;
+    @Param({ "1000", "10000", "100000", "1000000", "10000000" })
+    int cardinality;
 
-    @Param({ "1000", "10000", "100000", "1000000" })
-    public int uniqueKeys;
+    @Param({ "uniform", "duplicates", "collision" })
+    String distribution;
 
-    @Param({ "insert", "lookup", "mixed" })
-    public String mode;
-
-    // -----------------------
-    // Bench state
-    // -----------------------
     long[] keys;
-    long[] lookupKeys;
-    int[] ids;
 
-    LongSwissHash hash;
-    LongHash longHash;
+    LongSwissHash swiss;
+    LongHash legacy;
 
-    @Setup(Level.Trial)
+    @Setup(Level.Iteration)
     public void setup() {
+        keys = null;
+        keys = generate(distribution, cardinality);
+
+        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
-
-        hash = SwissHashFactory.getInstance().newLongSwissHash(recycler, breaker);
-        longHash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
-        keys = generateKeys(uniqueKeys);
-        lookupKeys = keys.clone();
-        ids = new int[uniqueKeys];
-
-        // For lookup-mode, we must pre-insert the benchmark keys
-        if (mode.equals("lookup") || mode.equals("mixed")) {
-            for (long k : keys) {
-                hash.add(k);
-                longHash.add(k);
-            }
-        }
+        swiss = SwissHashFactory.getInstance().newLongSwissHash(recycler, breaker);
+        legacy = new LongHash(1, bigArrays);
     }
 
-    // -----------------------
-    // Benchmarks
-    // -----------------------
-
+    /**
+     * Build Swiss table completely, then iterate.
+     * Mirrors STATS build -> finalize -> output.
+     */
     @Benchmark
-    public long swissHashBenchmark() {
-        return switch (mode) {
-            case "insert" -> doInsert();
-            case "lookup" -> doLookup();
-            case "mixed" -> doMixed();
-            default -> throw new IllegalArgumentException(mode);
-        };
+    public long swissBuildThenIterate(Blackhole bh) {
+        return swissBuildThenIterateImpl(bh::consume);
     }
 
-    private long doInsert() {
-        long sum = 0;
-        for (long k : keys) {
-            sum += hash.add(k);
+    long swissBuildThenIterateImpl(LongConsumer bh) {
+        for (long v : keys) {
+            swiss.add(v);
         }
-        return sum;
-    }
-
-    private long doLookup() {
-        long sum = 0;
-        for (long k : lookupKeys) {
-            sum += hash.find(k);
+        for (int i = 0; i < swiss.size(); i++) {
+            bh.accept(swiss.get(i));
         }
-        return sum;
+        return swiss.size();
     }
 
-    private long doMixed() {
-        ThreadLocalRandom r = ThreadLocalRandom.current();
-        long sum = 0;
-
-        for (long k : keys) {
-            if (r.nextInt(100) < 80) { // 80% lookups
-                sum += hash.find(k);
-            } else { // 20% insert
-                sum += hash.add(k ^ 0x9E3779B97F4A7C15L); // mutate to force growth
-            }
-        }
-        return sum;
-    }
-
-    // -- LongHash
+    /**
+     * Same for legacy hash table.
+     */
     @Benchmark
-    public long longHashBenchmark() {
-        return switch (mode) {
-            case "insert" -> doInsertLH();
-            case "lookup" -> doLookupLH();
-            case "mixed" -> doMixedLH();
-            default -> throw new IllegalArgumentException(mode);
-        };
+    public long legacyBuildThenIterate(Blackhole bh) {
+        return legacyBuildThenIterateImpl(bh::consume);
     }
 
-    private long doInsertLH() {
-        long sum = 0;
-        for (long k : keys) {
-            sum += longHash.add(k);
+    long legacyBuildThenIterateImpl(LongConsumer bh) {
+        for (long v : keys) {
+            legacy.add(v);
         }
-        return sum;
-    }
-
-    private long doLookupLH() {
-        long sum = 0;
-        for (long k : lookupKeys) {
-            sum += longHash.find(k);
+        for (int i = 0; i < legacy.size(); i++) {
+            bh.accept(legacy.get(i));
         }
-        return sum;
+        return legacy.size();
     }
 
-    private long doMixedLH() {
+    private long[] generate(String dist, int size) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        long sum = 0;
+        long[] out = new long[size];
 
-        for (long k : keys) {
-            if (r.nextInt(100) < 80) { // 80% lookups
-                sum += longHash.find(k);
-            } else { // 20% insert
-                sum += hash.add(k ^ 0x9E3779B97F4A7C15L); // mutate to force growth
-            }
-        }
-        return sum;
-    }
-
-    // --
-
-    // -----------------------
-    // Key generation
-    // -----------------------
-
-    private long[] generateKeys(int size) {
-        return switch (distribution) {
-            case "uniform" -> genUniform(size);
-            case "zipf" -> genZipf(size, 1.1);
-            case "hot" -> genHot(size, 0.97);
-            case "collision" -> genCollisions(size);
-            default -> throw new IllegalArgumentException(distribution);
-        };
-    }
-
-    private long[] genUniform(int size) {
-        long[] arr = new long[size];
-        ThreadLocalRandom r = ThreadLocalRandom.current();
-        for (int i = 0; i < size; i++) {
-            arr[i] = r.nextLong();
-        }
-        return arr;
-    }
-
-    private long[] genZipf(int size, double skew) {
-        long[] arr = new long[size];
-        int domain = size;
-        double denom = 0;
-        for (int i = 1; i <= domain; i++) {
-            denom += 1.0 / Math.pow(i, skew);
-        }
-
-        ThreadLocalRandom r = ThreadLocalRandom.current();
-        for (int i = 0; i < size; i++) {
-            double u = r.nextDouble() * denom;
-            double sum = 0;
-            for (int k = 1; k <= domain; k++) {
-                sum += 1.0 / Math.pow(k, skew);
-                if (sum >= u) {
-                    arr[i] = k;
-                    break;
+        switch (dist) {
+            case "uniform":
+                for (int i = 0; i < size; i++) {
+                    out[i] = r.nextLong();
                 }
-            }
+                break;
+            case "duplicates":
+                // 80% of keys come from a small "hot" set
+                int hotSet = Math.max(32, Math.min(1000, size / 50)); // ~2% of cardinality
+                long[] hot = new long[hotSet];
+                for (int i = 0; i < hotSet; i++) {
+                    hot[i] = r.nextLong();
+                }
+                for (int i = 0; i < size; i++) {
+                    if (r.nextInt(10) < 8) {        // 80% duplicates
+                        out[i] = hot[r.nextInt(hotSet)];
+                    } else {                               // 20% random noise
+                        out[i] = r.nextLong();
+                    }
+                }
+                break;
+            case "collision":
+                // Force collisions by clamping top bits so BitMixer mixes poorly
+                final long seed = 0xABCDEFL;
+                for (int i = 0; i < size; i++) {
+                    out[i] = seed | ((long) i & 0xFFFF); // all share same high bits
+                }
+            default:
+                throw new IllegalArgumentException("unknown distribution: " + dist);
         }
-        return arr;
-    }
-
-    private long[] genHot(int size, double hotRatio) {
-        ThreadLocalRandom r = ThreadLocalRandom.current();
-        long hotKey = r.nextLong();
-        long[] arr = new long[size];
-        for (int i = 0; i < size; i++) {
-            arr[i] = (r.nextDouble() < hotRatio) ? hotKey : r.nextLong();
-        }
-        return arr;
-    }
-
-    private long[] genCollisions(int size) {
-        // Force collisions by clamping top bits so BitMixer mixes poorly
-        long[] arr = new long[size];
-        long seed = 0xABCDEFL;
-        for (int i = 0; i < size; i++) {
-            arr[i] = seed | ((long) i & 0xFFFF); // all share same high bits
-        }
-        return arr;
+        return out;
     }
 }

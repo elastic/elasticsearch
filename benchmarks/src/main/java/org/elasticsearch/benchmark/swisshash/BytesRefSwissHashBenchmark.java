@@ -34,6 +34,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Benchmark comparing BytesRefSwissTable vs legacy BytesRef hash structure.
@@ -85,28 +86,38 @@ public class BytesRefSwissHashBenchmark {
      * Mirrors STATS build -> finalize -> output.
      */
     @Benchmark
-    public void swissBuildThenIterate(Blackhole bh) {
+    public long swissBuildThenIterate(Blackhole bh) {
+        return swissBuildThenIterateImpl(bh::consume);
+    }
+
+    long swissBuildThenIterateImpl(Consumer<BytesRef> bh) {
         for (BytesRef k : keys) {
             swiss.add(k);
         }
         BytesRef scratch = new BytesRef(new byte[1024]);
         for (int i = 0; i < swiss.size(); i++) {
-            bh.consume(swiss.get(i, scratch));
+            bh.accept(swiss.get(i, scratch));
         }
+        return swiss.size();
     }
 
     /**
      * Same for legacy hash table.
      */
     @Benchmark
-    public void legacyBuildThenIterate(Blackhole bh) {
+    public long legacyBuildThenIterate(Blackhole bh) {
+        return legacyBuildThenIterateImpl(bh::consume);
+    }
+
+    long legacyBuildThenIterateImpl(Consumer<BytesRef> bh) {
         for (BytesRef k : keys) {
             legacy.add(k);
         }
         BytesRef scratch = new BytesRef(new byte[1024]);
         for (int i = 0; i < legacy.size(); i++) {
-            bh.consume(legacy.get(i, scratch));
+            bh.accept(legacy.get(i, scratch));
         }
+        return legacy.size();
     }
 
     private BytesRef[] generate(String dist, int size) {

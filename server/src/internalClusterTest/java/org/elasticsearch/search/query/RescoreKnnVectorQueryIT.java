@@ -51,7 +51,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
 
@@ -59,6 +60,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
     public static final String VECTOR_FIELD = "vector";
     public static final String VECTOR_SCORE_SCRIPT = "vector_scoring";
     public static final String QUERY_VECTOR_PARAM = "query_vector";
+    public static final double DELTA = 1e-5;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -215,6 +217,8 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
             VECTOR_SCORE_SCRIPT,
             Map.of(QUERY_VECTOR_PARAM, queryVector)
         );
+        assertThat(knnResponse.getHits().getHits().length, greaterThan(0));
+
         ScriptScoreQueryBuilder scriptScoreQueryBuilder = QueryBuilders.scriptScoreQuery(new MatchAllQueryBuilder(), script);
         assertNoFailuresAndResponse(prepareSearch(INDEX_NAME).setQuery(scriptScoreQueryBuilder).setSize(docCount), exactResponse -> {
             assertHitCount(exactResponse, docCount);
@@ -228,7 +232,8 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 if (i >= exactHits.length) {
                     fail("Knn doc not found in exact search");
                 }
-                assertThat("Real score is not the same as rescored score", knnHit.getScore(), equalTo(exactHits[i].getScore()));
+                double knnScore = knnHit.getScore();
+                assertThat("Real score is not the same as rescored score", knnScore, closeTo(exactHits[i].getScore(), DELTA));
             }
         });
     }

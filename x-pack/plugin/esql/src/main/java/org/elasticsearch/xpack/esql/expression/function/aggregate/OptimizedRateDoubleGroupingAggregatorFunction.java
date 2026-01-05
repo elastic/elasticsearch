@@ -252,13 +252,13 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
     }
 
     private void addSubRange(int group, int from, int to, DoubleVector valueVector, LongVector timestampVector) {
-        for (int p=from; p<to; p++) {
+        for (int p = from; p < to; p++) {
             groupedValues.append(group, timestampVector.getLong(p), valueVector.getDouble(p));
         }
     }
 
     private void addSubRange(int group, int from, int to, DoubleBlock valueBlock, LongVector timestampVector) {
-        for (int p=from; p<to; p++) {
+        for (int p = from; p < to; p++) {
             if (valueBlock.isNull(p) == false) {
                 assert valueBlock.getValueCount(p) == 1 : "expected single-valued block " + valueBlock;
                 groupedValues.append(group, timestampVector.getLong(p), valueBlock.getDouble(valueBlock.getFirstValueIndex(p)));
@@ -445,7 +445,7 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
         }
 
         public void append(long timestamp, double value) {
-            if(capacity() == size) {
+            if (capacity() == size) {
                 increaseCapacity();
             }
             long valueIndex = size++;
@@ -522,13 +522,13 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
         }
 
         private LongArray sortByGroupInto(ValuesList sortedOutput) {
-            assert groupForValue != null: "Sorting by group has already been performed";
+            assert groupForValue != null : "Sorting by group has already been performed";
 
             boolean success = false;
             LongArray groupCounts = null;
             try {
                 groupCounts = bigArrays.newLongArray(highestSeenGroupId + 2, false);
-                for (int i = 0; i<=highestSeenGroupId; i++) {
+                for (int i = 0; i <= highestSeenGroupId; i++) {
                     groupCounts.set(i, 0);
                 }
 
@@ -537,13 +537,13 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
                 }
                 // turn the counts into start offsets (= prefix sum)
                 long prefixSum = 0;
-                for (int i = 0; i< groupCounts.size(); i++) {
+                for (int i = 0; i < groupCounts.size(); i++) {
                     long currentCount = groupCounts.get(i);
                     groupCounts.set(i, prefixSum);
                     prefixSum += currentCount;
                 }
 
-                //rename, just for code clarity
+                // rename, just for code clarity
                 LongArray groupOffsets = groupCounts;
 
                 sortedOutput.setSize(values.size());
@@ -554,8 +554,8 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
                     sortedOutput.set(targetIndex, values.getTimestamp(i), values.getValue(i));
                     groupOffsets.increment(group, 1);
                 }
-                //now groupOffsets actually points at the first element of the next group, let's correct this
-                for (long i=groupOffsets.size() - 1; i>=1; i--) {
+                // now groupOffsets actually points at the first element of the next group, let's correct this
+                for (long i = groupOffsets.size() - 1; i >= 1; i--) {
                     groupOffsets.set(i, groupOffsets.get(i - 1));
                 }
                 groupOffsets.set(0, 0);
@@ -629,7 +629,7 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
         }
 
         private PriorityQueue<Slice> mergeQueueForValues(long startIndex, long endIndex) {
-            List<Slice> slices = getSortedRanges((int) startIndex,(int) endIndex);
+            List<Slice> slices = getSortedRanges((int) startIndex, (int) endIndex);
 
             PriorityQueue<Slice> pq = new PriorityQueue<>(slices.size()) {
                 @Override
@@ -651,7 +651,7 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
             int sliceStart = startIndex;
             int position = startIndex + 1;
             while (position < endIndex) {
-                if(values.getTimestamp(position - 1) < values.getTimestamp(position)) {
+                if (values.getTimestamp(position - 1) < values.getTimestamp(position)) {
                     slices.add(new Slice(values, sliceStart, position));
                     sliceStart = position;
                 }
@@ -660,7 +660,6 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
             slices.add(new Slice(values, sliceStart, position));
             return slices;
         }
-
 
         @Override
         public void close() {
@@ -750,7 +749,7 @@ public final class OptimizedRateDoubleGroupingAggregatorFunction implements Grou
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(getClass().getSimpleName().substring("Optimized".length())).append("[");
+        sb.append(getClass().getSimpleName()).append("[");
         sb.append("channels=").append(channels);
         sb.append("]");
         return sb.toString();

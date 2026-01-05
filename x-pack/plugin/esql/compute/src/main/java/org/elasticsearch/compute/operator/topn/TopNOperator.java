@@ -469,41 +469,45 @@ public class TopNOperator implements Operator, Accountable {
         var i = 0;
         var j = 0;
         var maxSize = sortedData.maxSize;
-        var merged = BoundedSortedVector.build(breaker, maxSize);
-        RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
         Row scratchPage = null;
         Row scratchSorted = null;
+        BoundedSortedVector merged = null;
 
-        while (merged.size() < maxSize && (i < sortedData.size() || j < page.getPositionCount())) {
-            if (scratchPage == null && j < page.getPositionCount()) {
-                scratchPage = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
-                rowFiller.writeKey(j, scratchPage);
-                rowFiller.writeValues(j, scratchPage);
-                spareKeysPreAllocSize = Math.max(scratchPage.keys.length(), spareKeysPreAllocSize / 2);
-                spareValuesPreAllocSize = Math.max(scratchPage.values.length(), spareValuesPreAllocSize / 2);
-            }
+        try {
+            merged = BoundedSortedVector.build(breaker, maxSize);
+            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
 
-            if (scratchSorted == null && i < sortedData.size()) {
-                scratchSorted = sortedData.get(i);
-            }
+            while (merged.size() < maxSize && (i < sortedData.size() || j < page.getPositionCount())) {
+                if (scratchPage == null && j < page.getPositionCount()) {
+                    scratchPage = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
+                    rowFiller.writeKey(j, scratchPage);
+                    rowFiller.writeValues(j, scratchPage);
+                    spareKeysPreAllocSize = Math.max(scratchPage.keys.length(), spareKeysPreAllocSize / 2);
+                    spareValuesPreAllocSize = Math.max(scratchPage.values.length(), spareValuesPreAllocSize / 2);
+                }
 
-            if (scratchPage != null && (scratchSorted == null || compareRows(scratchPage, scratchSorted) > 0)) {
-                merged.add(scratchPage);
-                scratchPage = null;
-                ++j;
-            } else {
-                merged.add(scratchSorted);
-                scratchSorted = null;
-                sortedData.set(i, null);
-                ++i;
+                if (scratchSorted == null && i < sortedData.size()) {
+                    scratchSorted = sortedData.get(i);
+                }
+
+                if (scratchPage != null && (scratchSorted == null || compareRows(scratchPage, scratchSorted) > 0)) {
+                    merged.add(scratchPage);
+                    scratchPage = null;
+                    ++j;
+                } else {
+                    merged.add(scratchSorted);
+                    scratchSorted = null;
+                    sortedData.set(i, null);
+                    ++i;
+                }
             }
+        } finally {
+            if (scratchPage != null) {
+                scratchPage.close();
+            }
+            this.inputSortedVector.close();
+            this.inputSortedVector = merged;
         }
-
-        if (scratchPage != null) {
-            scratchPage.close();
-        }
-        this.inputSortedVector.close();
-        this.inputSortedVector = merged;
     }
 
     @Override
@@ -700,7 +704,7 @@ public class TopNOperator implements Operator, Accountable {
         return new TopNOperatorStatus(
             receiveNanos,
             emitNanos,
-            inputQueue != null ? inputQueue.size() : 0,
+            sortedInput ? inputSortedVector.size() : inputQueue.size(),
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,

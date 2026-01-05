@@ -12,7 +12,7 @@ max_bits:long | TBUCKET(1h):date         | cluster:keyword
 ;
 
 multiplication_metric_scalar_promql
-required_capability: promql_pre_tech_preview_v11
+required_capability: promql_pre_tech_preview_v12
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (network.total_bytes_in * 8)
 ) | SORT max_bits DESC;
@@ -24,7 +24,7 @@ max_bits:double | step:datetime            | cluster:keyword
 ;
 
 addition_scalar_scalar_promql
-required_capability: promql_pre_tech_preview_v11
+required_capability: promql_pre_tech_preview_v12
 PROMQL index=k8s step=1h sum=(1+1);
 
 sum:double | step:datetime           
@@ -45,7 +45,7 @@ max_bits:long | TBUCKET(1h):datetime     | cluster:keyword
 ;
 
 multiplication_within_series_agg_scalar_promql
-required_capability: promql_pre_tech_preview_v11
+required_capability: promql_pre_tech_preview_v12
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (last_over_time(network.total_bytes_in[1h]) * 8)
 ) | SORT max_bits DESC;
@@ -74,7 +74,7 @@ div:long | step:datetime            | cluster:keyword
 ;
 
 division_metric_metric_grouping_promql
-required_capability: promql_pre_tech_preview_v11
+required_capability: promql_pre_tech_preview_v12
 PROMQL index=k8s step=1h div=(
   max by (cluster) (network.total_bytes_in / network.total_bytes_in)
 )
@@ -87,7 +87,7 @@ div:double | step:datetime            | cluster:keyword
 ;
 
 division_metric_metric_grouping_filtering_promql
-required_capability: promql_pre_tech_preview_v11
+required_capability: promql_pre_tech_preview_v12
 PROMQL index=k8s step=1h div=(
   max by (cluster) (network.total_bytes_in{cluster!="prod"} / network.total_bytes_in{cluster!="staging"})
 ) | SORT cluster;
@@ -113,7 +113,7 @@ div:double | step:datetime            | cluster:keyword
 ;
 
 division_within_series_grouping_promql
-required_capability: promql_pre_tech_preview_v11
+required_capability: promql_pre_tech_preview_v12
 PROMQL index=k8s step=1h div=(
   max by (cluster) (rate(network.total_bytes_in[1h]) / rate(network.total_bytes_in[1h]))
 ) | SORT cluster;
@@ -142,7 +142,7 @@ ratio:double | step:datetime            | cluster:keyword
 ;
 
 tx_ratio_promql
-required_capability: promql_pre_tech_preview_v11
+required_capability: promql_pre_tech_preview_v12
 PROMQL index=k8s step=1h ratio=(
   max by (cluster) (
     network.eth0.tx /
@@ -172,7 +172,7 @@ ratio:double | step:datetime            | cluster:keyword
 // ;
 // 
 // multiplication_cross_series_agg_scalar_promql
-// required_capability: promql_pre_tech_preview_v11
+// required_capability: promql_pre_tech_preview_v12
 // PROMQL index=k8s step=1h max_bits=(
 //   max by (cluster) (last_over_time(network.total_bytes_in[1h])) * 8
 // ) | SORT max_bits DESC;

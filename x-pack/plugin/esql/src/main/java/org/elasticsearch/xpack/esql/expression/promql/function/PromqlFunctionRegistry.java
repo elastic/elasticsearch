@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
@@ -60,6 +61,7 @@ public class PromqlFunctionRegistry {
         withinSeries("rate", Rate::new),
         withinSeries("first_over_time", FirstOverTime::new),
         withinSeries("last_over_time", LastOverTime::new),
+        withinSeries("deriv", Deriv::new),
         //
         withinSeriesOverTimeUnary("avg_over_time", AvgOverTime::new),
         withinSeriesOverTimeUnary("count_over_time", CountOverTime::new),
@@ -247,7 +249,6 @@ public class PromqlFunctionRegistry {
 
         // Range vector functions (not yet implemented)
         "changes",
-        "deriv",
         "holt_winters",
         "mad_over_time",
         "predict_linear",

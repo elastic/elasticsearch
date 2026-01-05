@@ -1930,8 +1930,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + ", beamWidth="
             + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
             + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
+        assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
     public void testKnnQuantizedFlatVectorsFormat() throws IOException {
@@ -1977,7 +1978,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 + (factory != null ? factory : "null")
                 + "), "
                 + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
             assertThat(knnVectorsFormat, hasToString(expectedString));
         }
     }
@@ -2027,7 +2029,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + "factory="
             + (factory != null ? factory : "null")
             + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
@@ -2129,7 +2132,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), factory="
             + (factory != null ? factory : "null")
             + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 

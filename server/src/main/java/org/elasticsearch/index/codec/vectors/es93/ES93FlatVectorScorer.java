@@ -67,4 +67,9 @@ public class ES93FlatVectorScorer implements FlatVectorsScorer {
     ) throws IOException {
         return FALLBACK.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
+
+    @Override
+    public String toString() {
+        return "ES93FlatVectorScorer(delegate=" + FALLBACK + ")";
+    }
 }

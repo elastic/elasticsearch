@@ -160,7 +160,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             gatewayAllocator,
             createShardsAllocator(settings),
             clusterInfoService,
-            snapshotsInfoService
+            snapshotsInfoService,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
     }
 
@@ -443,23 +444,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         public final GatewayAllocator gatewayAllocator;
         public final ShardsAllocator shardsAllocator;
-
-        public MockAllocationService(
-            AllocationDeciders allocationDeciders,
-            GatewayAllocator gatewayAllocator,
-            ShardsAllocator shardsAllocator,
-            ClusterInfoService clusterInfoService,
-            SnapshotsInfoService snapshotsInfoService
-        ) {
-            this(
-                allocationDeciders,
-                gatewayAllocator,
-                shardsAllocator,
-                clusterInfoService,
-                snapshotsInfoService,
-                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
-            );
-        }
 
         public MockAllocationService(
             AllocationDeciders allocationDeciders,

@@ -127,7 +127,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         return switch (type) {
             case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
             case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
-            case COUNTER_DOUBLE -> new OptimizedRateDoubleGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

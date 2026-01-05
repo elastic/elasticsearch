@@ -322,6 +322,7 @@ public class TopNOperator implements Operator, Accountable {
         boolean success = false;
         try {
             list = inputQueue.popAll();
+            inputQueue.close();
             inputQueue = null;
 
             int p = 0;
@@ -392,7 +393,8 @@ public class TopNOperator implements Operator, Accountable {
             return result.iterator();
         } finally {
             if (success == false) {
-                List<Releasable> close = new ArrayList<>(list);
+                assert builders != null;
+                List<Releasable> close = new ArrayList<>(list.size() + result.size() + builders.length);
                 for (Page p : result) {
                     close.add(p::releaseBlocks);
                 }

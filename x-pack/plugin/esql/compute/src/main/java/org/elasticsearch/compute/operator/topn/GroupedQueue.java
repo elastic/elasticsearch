@@ -25,6 +25,7 @@ class GroupedQueue implements TopNQueue {
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(GroupedQueue.class) + shallowSizeOfInstance(HashMap.class);
     public static final long BYTES_REF_HEADER_SIZE = shallowSizeOfInstance(BytesRef.class);
 
+    // FIXME(gal, NOCOMMIT) Use a BlockHash here
     private final Map<BytesRef, UngroupedQueue> queuesByGroupKey = new HashMap<>(0);
     private final CircuitBreaker breaker;
     private final int topCount;
@@ -99,6 +100,7 @@ class GroupedQueue implements TopNQueue {
                 iterator.remove();
             }
         }
+        // FIXME(gal, NOCOMMIT) This should sort by group key first and then by sort key.
         allRows.sort((r1, r2) -> -TopNOperator.compareRows(r1, r2));
         return allRows;
     }

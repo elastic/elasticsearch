@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -106,7 +107,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolvesDateMath() {
         var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
-        var index = "index-" + date.getYear() + "." + date.getMonthValue();
+        var index = DateTimeFormatter.ofPattern("'index-'yyyy.MM").format(date);
         assertAcked(client().admin().indices().prepareCreate(index));
         indexRandom(true, index, 1);
 

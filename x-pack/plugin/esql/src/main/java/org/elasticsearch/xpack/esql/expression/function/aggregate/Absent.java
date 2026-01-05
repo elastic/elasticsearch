@@ -75,6 +75,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
@@ -132,10 +133,10 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
+            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types or dense_vector"
+            "any type except counter types, dense_vector or date_range"
         );
     }
 

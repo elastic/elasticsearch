@@ -25,12 +25,14 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -60,6 +62,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -272,13 +276,15 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     public void testPromqlMaxOfLongField() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1h (
-                max(network.bytes_in)
-              )
-            """);
+        var plan = planPromql("PROMQL index=k8s step=1h max(network.bytes_in)");
         // In PromQL, the output is always double
         assertThat(plan.output().getFirst().dataType(), equalTo(DataType.DOUBLE));
+        assertThat(plan.output().getFirst().name(), equalTo("max(network.bytes_in)"));
+    }
+
+    public void testPromqlExplicitOutputName() {
+        var plan = planPromql("PROMQL index=k8s step=1h max_bytes=(max(network.bytes_in))");
+        assertThat(plan.output().getFirst().name(), equalTo("max_bytes"));
     }
 
     public void testSort() {
@@ -339,6 +345,30 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
+    }
+
+    /**
+     * Expect the logical plan structure:
+     * Project
+     * \_Eval
+     *   \_Limit
+     *     \_Aggregate
+     *       \_Eval
+     *         \_TimeSeriesAggregate[[...],[SUM(...,PT10M,...), COUNT(...,PT10M,...), ...], BUCKET(@timestamp,PT5M)]
+     */
+    public void testRangeSelectorWithDifferentStep() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))
+            """);
+
+        var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+
+        // Verify bucket is 5 minutes
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+
+        // Verify window is 10 minutes
+        var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
+        assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }
 
     /**
@@ -561,26 +591,60 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var plan = planPromql(testQuery);
     }
 
-    // public void testPromqlArithmetricOperators() {
-    // // TODO doesn't parse
-    // // line 1:27: Invalid query '1+1'[ArithmeticBinaryContext] given; expected LogicalPlan but found VectorBinaryArithmetic
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (1+1)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m ( foo and bar )", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (1+foo)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // assertThat(
-    // error("PROMQL index=k8s step=5m (foo+bar)", tsdb),
-    // equalTo("1:1: arithmetic operators are not supported at this time [foo]")
-    // );
-    // }
+    public void testScalarAndInstantVectorArithmeticOperators() {
+        LogicalPlan plan;
+        plan = planPromql("PROMQL index=k8s step=5m max(network.bytes_in / 1024) by (pod)");
+        Div div = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Div.class);
+        assertThat(div.left().sourceText(), equalTo("network.bytes_in"));
+        assertThat(as(div.right(), Literal.class).value(), equalTo(1024.0));
+    }
+
+    public void testConstantFoldingArithmeticOperators() {
+        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1");
+        var eval = plan.collect(Eval.class).getFirst();
+        var literal = as(eval.fields().getFirst().child(), Literal.class);
+        assertThat(literal.value(), equalTo(2.0));
+    }
+
+    public void testTopLevelArithmeticOperators() {
+        assertThat(
+            error("PROMQL index=k8s step=5m foo and bar", tsAnalyzer),
+            containsString("top-level binary operators are not supported at this time")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m 1+foo", tsAnalyzer),
+            containsString("top-level binary operators are not supported at this time")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m foo+bar", tsAnalyzer),
+            containsString("top-level binary operators are not supported at this time")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m max by (pod) (network.bytes_in) / 1024", tsAnalyzer),
+            containsString("top-level binary operators are not supported at this time")
+        );
+    }
+
+    public void testUnsupportedBinaryOperators() {
+        assertThat(
+            error("PROMQL index=k8s step=5m max(foo or bar)", tsAnalyzer),
+            containsString("VectorBinarySet queries are not supported at this time [foo or bar]")
+        );
+        assertThat(
+            error("PROMQL index=k8s step=5m max(foo > bar)", tsAnalyzer),
+            containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
+        );
+    }
+
+    public void testGroupByAllInstantSelector() {
+        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("network.bytes_in", "step", "_timeseries")));
+    }
+
+    public void testGroupByAllInstantSelectorRate() {
+        var plan = planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("rate", "step", "_timeseries")));
+    }
 
     protected LogicalPlan planPromql(String query) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');

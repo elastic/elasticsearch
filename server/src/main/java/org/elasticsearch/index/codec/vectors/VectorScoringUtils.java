@@ -102,8 +102,7 @@ public final class VectorScoringUtils {
 
         DocIdSetIterator vectorIterator = vectorValues.iterator();
 
-        DocIdSetIterator conjunction =
-            ConjunctionUtils.intersectIterators(List.of(vectorIterator, acceptDocsIterator));
+        DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIterator, acceptDocsIterator));
 
         int doc;
         while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {

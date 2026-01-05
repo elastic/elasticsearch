@@ -16,13 +16,13 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Deprecated geo query. Deprecated in #64227, 7.12/8.0. We do not plan to remove this so we
+ * do not break any users using this.
  * @deprecated use {@link GeoShapeQueryBuilder}
  */
 @Deprecated
@@ -126,11 +128,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         return this;
     }
 
-    /** Returns the validation method to use for geo coordinates. */
-    public GeoValidationMethod getValidationMethod() {
-        return this.validationMethod;
-    }
-
     /**
      * Sets whether the query builder should ignore unmapped fields (and run a
      * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
@@ -141,21 +138,12 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         return this;
     }
 
-    /**
-     * Gets whether the query builder will ignore unmapped fields (and run a
-     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
-     * the field is unmapped.
-     */
-    public boolean ignoreUnmapped() {
-        return ignoreUnmapped;
-    }
-
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
@@ -331,6 +319,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

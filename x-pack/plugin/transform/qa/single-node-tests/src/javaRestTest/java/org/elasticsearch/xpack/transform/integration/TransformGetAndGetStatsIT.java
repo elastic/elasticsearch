@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -27,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -37,11 +37,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransformGetAndGetStatsIT extends TransformRestTestCase {
-
-    private static final String TEST_USER_NAME = "transform_user";
-    private static final String BASIC_AUTH_VALUE_TRANSFORM_USER = basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
-    private static final String TEST_ADMIN_USER_NAME = "transform_admin";
-    private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN = basicAuthHeaderValue(TEST_ADMIN_USER_NAME, TEST_PASSWORD_SECURE_STRING);
     private static final String DANGLING_TASK_ERROR_MESSAGE =
         "Found task for transform [pivot_continuous], but no configuration for it. To delete this transform use DELETE with force=true.";
 
@@ -66,11 +61,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         createReviewsIndex();
         indicesCreated = true;
 
-    }
-
-    @After
-    public void clearOutTransforms() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     @SuppressWarnings("unchecked")
@@ -465,45 +455,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String transformDest = transformId + "_idx";
         String transformSrc = "reviews_cont_pivot_test";
         createReviewsIndex(transformSrc);
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
-        String config = Strings.format("""
-            {
-              "dest": {
-                "index": "%s"
-              },
-              "source": {
-                "index": "%s"
-              },
-              "frequency": "1s",
-              "sync": {
-                "time": {
-                  "field": "timestamp",
-                  "delay": "1s"
-                }
-              },
-              "pivot": {
-                "group_by": {
-                  "reviewer": {
-                    "terms": {
-                      "field": "user_id"
-                    }
-                  }
-                },
-                "aggregations": {
-                  "avg_rating": {
-                    "avg": {
-                      "field": "stars"
-                    }
-                  }
-                }
-              }
-            }""", transformDest, transformSrc);
-
-        createTransformRequest.setJsonEntity(config);
-
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        startAndWaitForContinuousTransform(transformId, transformDest, null);
+        createAndStartTransform(transformId, transformSrc, transformDest);
 
         Request getRequest = createRequestWithAuthAndTimeout(
             "GET",
@@ -580,6 +532,99 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
                 assertThat("changes_last_detected_at is null", checkpointing.get("changes_last_detected_at"), is(notNullValue()));
             }
         }, 120, TimeUnit.SECONDS);
+    }
+
+    private void createAndStartTransform(String transformId, String transformSrc, String transformDest) throws Exception {
+        var createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
+        var config = Strings.format("""
+            {
+              "dest": {
+                "index": "%s"
+              },
+              "source": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", transformDest, transformSrc);
+
+        createTransformRequest.setJsonEntity(config);
+
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        startAndWaitForContinuousTransform(transformId, transformDest, null);
+    }
+
+    /**
+     * For Github Issue #134263
+     * https://github.com/elastic/elasticsearch/issues/134263
+     */
+    public void testGetTransformsDoesNotErrorOnPageSize() throws Exception {
+        var transformId1 = "multiple-transforms-1";
+        var transformSrc = "reviews_multiple_transforms_test";
+        createReviewsIndex(transformSrc);
+        createAndStartTransform(transformId1, transformSrc, transformId1 + "_idx");
+
+        var transformId2 = "multiple-transforms-2";
+        createAndStartTransform(transformId2, transformSrc, transformId2 + "_idx");
+
+        // getting transform 1 on page 1 will not have any errors for transform 2
+        assertThat(getTransformIdFromAll(0, 1), equalTo(transformId1));
+        // getting transform 2 on page 2 will not have any errors for transform 1
+        assertThat(getTransformIdFromAll(1, 1), equalTo(transformId2));
+
+        // getting transform 1 by id will not have any errors for transform 2
+        getTransformConfig(transformId1, null, null);
+        // getting transform 2 by id will not have any errors for transform 1
+        getTransformConfig(transformId2, null, null);
+
+        // getting all transform will not have any errors
+        assertThat(getAllTransformIds(), containsInAnyOrder(transformId1, transformId2));
+
+        // getting a stopped transform 1 will not have any errors for transform 2
+        stopTransform(transformId1, false);
+        assertThat(getTransformIdFromAll(0, 1), equalTo(transformId1));
+    }
+
+    @SuppressWarnings("unchecked")
+    private String getTransformIdFromAll(int from, int size) throws IOException {
+        var params = Strings.format("?from=%d&size=%d", from, size);
+        var request = new Request("GET", getTransformEndpoint() + "_all" + params);
+        var response = adminClient().performRequest(request);
+        var transforms = entityAsMap(response);
+        var transformConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", transforms);
+        var errors = (List<Map<String, String>>) XContentMapValues.extractValue("errors", transforms);
+        assertThat(errors, is(nullValue()));
+        assertThat(transformConfigs, hasSize(1));
+        return (String) transformConfigs.get(0).get("id");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> getAllTransformIds() throws IOException {
+        var transforms = getTransforms(0, 1_000);
+        var configs = (List<Map<String, Object>>) transforms.get("transforms");
+        return configs.stream().map(transform -> transform.get("id")).map(Object::toString).toList();
     }
 
     @SuppressWarnings("unchecked")

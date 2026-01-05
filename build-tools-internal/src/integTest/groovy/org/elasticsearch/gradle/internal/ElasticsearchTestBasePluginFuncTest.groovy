@@ -14,9 +14,55 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
-    def setup() {
-        // see https://github.com/gradle/gradle/issues/24172
-        configurationCacheCompatible = false
+    def "can disable assertions via cmdline param"() {
+        given:
+        file("src/test/java/acme/SomeTests.java").text = """
+        public class SomeTests {
+            @org.junit.Test
+            public void testAsserts() {
+                assert false;
+            }
+        }
+        """
+        buildFile.text = """
+            plugins {
+             id 'java'
+             id 'elasticsearch.test-base'
+            }
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                testImplementation 'junit:junit:4.12'
+            }
+        """
+
+        when:
+        def result = gradleRunner("test").buildAndFail()
+        then:
+        result.task(':test').outcome == TaskOutcome.FAILED
+
+        when:
+        result = gradleRunner("test", "-Dtests.asserts=false").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
+
+        when:
+        result = gradleRunner("test", "-Dtests.jvm.argline=-da").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
+
+        when:
+        result = gradleRunner("test", "-Dtests.jvm.argline=-disableassertions").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
+
+        when:
+        result = gradleRunner("test", "-Dtests.asserts=false", "-Dtests.jvm.argline=-da").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
     }
 
     def "can configure nonInputProperties for test tasks"() {
@@ -61,5 +107,66 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(':test').outcome == TaskOutcome.UP_TO_DATE
+    }
+
+    def "uses new test seed for every invocation"() {
+        given:
+        file("src/test/java/acme/SomeTests.java").text = """
+
+        public class SomeTests {
+            @org.junit.Test
+            public void printTestSeed() {
+                System.out.println("TESTSEED=[" + System.getProperty("tests.seed") + "]");
+            }
+        }
+
+        """
+        buildFile.text = """
+            plugins {
+             id 'java'
+             id 'elasticsearch.test-base'
+            }
+
+            tasks.named('test').configure {
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+
+            tasks.register('test2', Test) {
+                classpath = sourceSets.test.runtimeClasspath
+                testClassesDirs = sourceSets.test.output.classesDirs
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                testImplementation 'junit:junit:4.12'
+            }
+
+        """
+
+        when:
+        def result1 = gradleRunner("cleanTest", "cleanTest2", "test", "test2").build()
+        def result2 = gradleRunner("cleanTest", "cleanTest2", "test", "test2").build()
+
+        then:
+        def seeds1 = result1.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
+        def seeds2 = result2.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
+
+        seeds1.unique().size() == 1
+        seeds2.unique().size() == 1
+
+        verifyAll {
+            seeds1[0] != null
+            seeds2[0] != null
+            seeds1[0] != seeds2[0]
+        }
+        result2.output.contains("Configuration cache entry reused.")
     }
 }

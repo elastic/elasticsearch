@@ -36,8 +36,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             indexShard.store(),
             indexShard.recoveryState().getIndex(),
             "recovery.test.",
-            logger,
-            () -> {}
+            logger
         );
         try (
             IndexOutput indexOutput = multiFileWriter.openAndPutIndexOutput(

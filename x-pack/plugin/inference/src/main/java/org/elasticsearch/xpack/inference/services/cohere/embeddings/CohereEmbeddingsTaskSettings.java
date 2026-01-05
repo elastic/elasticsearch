@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,14 +16,16 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
-import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.cohere.CohereService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
 
 /**
@@ -40,12 +40,6 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "cohere_embeddings_task_settings";
     public static final CohereEmbeddingsTaskSettings EMPTY_SETTINGS = new CohereEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
-    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
-        InputType.INGEST,
-        InputType.SEARCH,
-        InputType.CLASSIFICATION,
-        InputType.CLUSTERING
-    );
 
     public static CohereEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -59,15 +53,15 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
             INPUT_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
-            VALID_REQUEST_VALUES,
+            VALID_INPUT_TYPE_VALUES,
             validationException
         );
-        CohereTruncation truncation = extractOptionalEnum(
+        Truncation truncation = extractOptionalEnum(
             map,
             TRUNCATE,
             ModelConfigurations.TASK_SETTINGS,
-            CohereTruncation::fromString,
-            EnumSet.allOf(CohereTruncation.class),
+            Truncation::fromString,
+            Truncation.ALL,
             validationException
         );
 
@@ -82,20 +76,19 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
      * Creates a new {@link CohereEmbeddingsTaskSettings} by preferring non-null fields from the provided parameters.
      * For the input type, preference is given to requestInputType if it is not null and not UNSPECIFIED.
      * Then preference is given to the requestTaskSettings and finally to originalSettings even if the value is null.
-     *
+     * <p>
      * Similarly, for the truncation field preference is given to requestTaskSettings if it is not null and then to
      * originalSettings.
-     * @param originalSettings the settings stored as part of the inference entity configuration
+     *
+     * @param originalSettings    the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
-     * @param requestInputType the input type passed in the request parameters
      * @return a constructed {@link CohereEmbeddingsTaskSettings}
      */
     public static CohereEmbeddingsTaskSettings of(
         CohereEmbeddingsTaskSettings originalSettings,
-        CohereEmbeddingsTaskSettings requestTaskSettings,
-        InputType requestInputType
+        CohereEmbeddingsTaskSettings requestTaskSettings
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings, requestInputType);
+        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
         var truncationToUse = getValidTruncation(originalSettings, requestTaskSettings);
 
         return new CohereEmbeddingsTaskSettings(inputTypeToUse, truncationToUse);
@@ -103,21 +96,19 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
 
     private static InputType getValidInputType(
         CohereEmbeddingsTaskSettings originalSettings,
-        CohereEmbeddingsTaskSettings requestTaskSettings,
-        InputType requestInputType
+        CohereEmbeddingsTaskSettings requestTaskSettings
     ) {
         InputType inputTypeToUse = originalSettings.inputType;
 
-        if (VALID_REQUEST_VALUES.contains(requestInputType)) {
-            inputTypeToUse = requestInputType;
-        } else if (requestTaskSettings.inputType != null) {
+        // prefer input type in request task settings over input type in persisted task settings
+        if (requestTaskSettings.inputType != null) {
             inputTypeToUse = requestTaskSettings.inputType;
         }
 
         return inputTypeToUse;
     }
 
-    private static CohereTruncation getValidTruncation(
+    private static Truncation getValidTruncation(
         CohereEmbeddingsTaskSettings originalSettings,
         CohereEmbeddingsTaskSettings requestTaskSettings
     ) {
@@ -125,13 +116,13 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     }
 
     private final InputType inputType;
-    private final CohereTruncation truncation;
+    private final Truncation truncation;
 
     public CohereEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(CohereTruncation.class));
+        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(Truncation.class));
     }
 
-    public CohereEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable CohereTruncation truncation) {
+    public CohereEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable Truncation truncation) {
         validateInputType(inputType);
         this.inputType = inputType;
         this.truncation = truncation;
@@ -142,7 +133,12 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
             return;
         }
 
-        assert VALID_REQUEST_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
+        assert VALID_INPUT_TYPE_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return inputType == null && truncation == null;
     }
 
     @Override
@@ -163,7 +159,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         return inputType;
     }
 
-    public CohereTruncation getTruncation() {
+    public Truncation getTruncation() {
         return truncation;
     }
 
@@ -174,7 +170,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -196,7 +192,9 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         return Objects.hash(inputType, truncation);
     }
 
-    public static String invalidInputTypeMessage(InputType inputType) {
-        return Strings.format("received invalid input type value [%s]", inputType.toString());
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        CohereEmbeddingsTaskSettings updatedSettings = CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
+        return of(this, updatedSettings);
     }
 }

@@ -95,7 +95,7 @@ public class InboundAggregatorTests extends ESTestCase {
         for (ReleasableBytesReference reference : references) {
             assertTrue(reference.hasReferences());
         }
-        aggregated.decRef();
+        aggregated.close();
         for (ReleasableBytesReference reference : references) {
             assertFalse(reference.hasReferences());
         }

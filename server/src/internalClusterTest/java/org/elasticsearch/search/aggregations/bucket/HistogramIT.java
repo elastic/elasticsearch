@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -620,7 +619,7 @@ public class HistogramIT extends ESIntegTestCase {
                     int b = (int) (key / interval);
                     assertThat(bucket.getDocCount(), equalTo(valueCounts[b]));
                     assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
-                    Filter filter = bucket.getAggregations().get("filter");
+                    SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                     assertThat(filter, notNullValue());
                     assertThat(bucket.getDocCount(), equalTo(filter.getDocCount()));
                     Max max = filter.getAggregations().get("max");
@@ -915,7 +914,7 @@ public class HistogramIT extends ESIntegTestCase {
                         .subAggregation(histogram("sub_histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 List<? extends Bucket> buckets = histo.getBuckets();

@@ -32,7 +32,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.reservedstate.service.FileSettingsFeatures;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -48,7 +47,6 @@ import java.net.UnknownHostException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.TRANSIENT;
@@ -60,7 +58,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     private ThreadPool threadpool;
     private Environment env;
     private FakeHttpTransport httpTransport;
-    private static final Set<String> nodeFeatures = Set.of(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED.id());
 
     private static Metadata emptyReservedStateMetadata;
     static {
@@ -246,6 +243,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                                 httpTransport.node.getId(),
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(httpTransport.node.getId())
+                                    .setNodeEphemeralId(httpTransport.node.getEphemeralId())
                                     .setReason("testing")
                                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                                     .setStartedAtMillis(randomNonNegativeLong())
@@ -309,26 +307,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         readinessService.close();
     }
 
-    public void testFileSettingsMixedCluster() throws Exception {
-        readinessService.start();
-
-        // initially the service isn't ready because initial cluster state has not been applied yet
-        assertFalse(readinessService.ready());
-
-        ClusterState noFileSettingsState = ClusterState.builder(noFileSettingsState())
-            // the master node is upgraded to support file settings, but existing node2 is not
-            .nodeFeatures(Map.of(httpTransport.node.getId(), nodeFeatures))
-            .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState());
-        readinessService.clusterChanged(event);
-
-        // when upgrading from nodes before file settings exist, readiness should return true once a master is elected
-        assertTrue(readinessService.ready());
-
-        readinessService.stop();
-        readinessService.close();
-    }
-
     private ClusterState emptyState() {
         return ClusterState.builder(new ClusterName("cluster"))
             .nodes(
@@ -346,7 +324,6 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                     .masterNodeId(httpTransport.node.getId())
                     .localNodeId(httpTransport.node.getId())
             )
-            .nodeFeatures(Map.of(httpTransport.node.getId(), nodeFeatures, "node2", nodeFeatures))
             .build();
     }
 }

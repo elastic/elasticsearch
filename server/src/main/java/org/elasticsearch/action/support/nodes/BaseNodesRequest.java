@@ -9,8 +9,8 @@
 
 package org.elasticsearch.action.support.nodes;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest {
+public abstract class BaseNodesRequest extends LegacyActionRequest {
 
     /**
      * Sequence of node specifications that describe the nodes that this request should target. See {@link DiscoveryNodes#resolveNodes} for
@@ -53,14 +53,13 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         return nodesIds;
     }
 
+    @Nullable
     public TimeValue timeout() {
         return this.timeout;
     }
 
-    @SuppressWarnings("unchecked")
-    public final Request timeout(TimeValue timeout) {
+    public final void setTimeout(@Nullable TimeValue timeout) {
         this.timeout = timeout;
-        return (Request) this;
     }
 
     @Override

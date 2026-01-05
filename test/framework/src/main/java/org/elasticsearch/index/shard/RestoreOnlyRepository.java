@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -30,6 +32,7 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -42,9 +45,11 @@ import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 
 /** A dummy repository for testing which just needs restore overridden */
 public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
+    private final ProjectId projectId;
     private final String indexName;
 
-    public RestoreOnlyRepository(String indexName) {
+    public RestoreOnlyRepository(ProjectId projectId, String indexName) {
+        this.projectId = projectId;
         this.indexName = indexName;
     }
 
@@ -56,6 +61,11 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     protected void doClose() {}
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
 
     @Override
     public RepositoryMetadata getMetadata() {
@@ -74,7 +84,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         return null;
     }
 
@@ -117,16 +127,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        return 0;
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        return 0;
-    }
-
-    @Override
     public String startVerification() {
         return null;
     }
@@ -166,5 +166,15 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     ) {
 
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return RepositoriesStats.SnapshotStats.ZERO;
     }
 }

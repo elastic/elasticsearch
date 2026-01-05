@@ -9,13 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -27,8 +25,6 @@ import java.util.Objects;
  * Should be used at node or index level, and not at shard level, since the mappings may be shared across the shards of an index.
  */
 public class NodeMappingStats implements Writeable, ToXContentFragment {
-
-    public static final NodeFeature SEGMENT_LEVEL_FIELDS_STATS = new NodeFeature("mapper.segment_level_fields_stats");
 
     private static final class Fields {
         static final String MAPPINGS = "mappings";
@@ -52,10 +48,8 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public NodeMappingStats(StreamInput in) throws IOException {
         totalCount = in.readVLong();
         totalEstimatedOverhead = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS)) {
-            totalSegments = in.readVLong();
-            totalSegmentFields = in.readVLong();
-        }
+        totalSegments = in.readVLong();
+        totalSegmentFields = in.readVLong();
     }
 
     public NodeMappingStats(long totalCount, long totalEstimatedOverhead, long totalSegments, long totalSegmentFields) {
@@ -93,10 +87,8 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalCount);
         out.writeVLong(totalEstimatedOverhead);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS)) {
-            out.writeVLong(totalSegments);
-            out.writeVLong(totalSegmentFields);
-        }
+        out.writeVLong(totalSegments);
+        out.writeVLong(totalSegmentFields);
     }
 
     @Override

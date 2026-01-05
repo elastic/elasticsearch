@@ -132,13 +132,13 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test_1").get());
 
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().addAlias("test_1", "test_alias")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_1", "test_alias")::get,
             TransportIndicesAliasesAction.NAME,
             "create_only"
         );
 
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().addAlias("test_*", "test_alias")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_*", "test_alias")::get,
             TransportIndicesAliasesAction.NAME,
             "create_only"
         );
@@ -168,19 +168,19 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         final Client client = client().filterWithHeader(headers);
 
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "alias_1")::get,
             TransportIndicesAliasesAction.NAME,
             "create_only"
         );
 
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().removeAlias("test_1", "alias_*")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "alias_*")::get,
             TransportIndicesAliasesAction.NAME,
             "create_only"
         );
 
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().removeAlias("test_1", "_all")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "_all")::get,
             TransportIndicesAliasesAction.NAME,
             "create_only"
         );
@@ -195,19 +195,11 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         final Client client = client().filterWithHeader(headers);
 
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases("test_1").setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get,
-            GetAliasesAction.NAME,
-            "create_only"
-        );
-
-        assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases("_all").setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get,
-            GetAliasesAction.NAME,
-            "create_only"
-        );
-
-        assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases().setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get,
+            client.admin()
+                .indices()
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "test_1")
+                .setIndices("test_1")
+                .setIndicesOptions(IndicesOptions.strictExpand())::get,
             GetAliasesAction.NAME,
             "create_only"
         );
@@ -215,7 +207,27 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(
             client.admin()
                 .indices()
-                .prepareGetAliases("test_alias")
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "_all")
+                .setIndices("test_1")
+                .setIndicesOptions(IndicesOptions.strictExpand())::get,
+            GetAliasesAction.NAME,
+            "create_only"
+        );
+
+        assertThrowsAuthorizationException(
+            client.admin()
+                .indices()
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT)
+                .setIndices("test_1")
+                .setIndicesOptions(IndicesOptions.strictExpand())::get,
+            GetAliasesAction.NAME,
+            "create_only"
+        );
+
+        assertThrowsAuthorizationException(
+            client.admin()
+                .indices()
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "test_alias")
                 .setIndices("test_*")
                 .setIndicesOptions(IndicesOptions.strictExpand())::get,
             GetAliasesAction.NAME,
@@ -224,7 +236,11 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         // this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
         // and there is no way to "allow_no_aliases" like we can do with indices.
-        assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases()::get, GetAliasesAction.NAME, "create_only");
+        assertThrowsAuthorizationException(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT)::get,
+            GetAliasesAction.NAME,
+            "create_only"
+        );
     }
 
     public void testGetAliasesCreateOnlyPermissionIgnoreUnavailable() {
@@ -238,7 +254,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(
             client.admin()
                 .indices()
-                .prepareGetAliases("test_1")
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "test_1")
                 .setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
             GetAliasesAction.NAME,
@@ -248,17 +264,15 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(
             client.admin()
                 .indices()
-                .prepareGetAliases("_all")
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "_all")
                 .setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
             GetAliasesAction.NAME,
             "create_only"
         );
 
-        assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases("alias*")::get, GetAliasesAction.NAME, "create_only");
-
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases().setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*")::get,
             GetAliasesAction.NAME,
             "create_only"
         );
@@ -266,7 +280,17 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(
             client.admin()
                 .indices()
-                .prepareGetAliases("test_alias")
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT)
+                .setIndices("test_1")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
+            GetAliasesAction.NAME,
+            "create_only"
+        );
+
+        assertThrowsAuthorizationException(
+            client.admin()
+                .indices()
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "test_alias")
                 .setIndices("test_*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
             GetAliasesAction.NAME,
@@ -274,7 +298,11 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         );
 
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases().setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
+            client.admin()
+                .indices()
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT)
+                .setIndices("test_*")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
             GetAliasesAction.NAME,
             "create_only"
         );
@@ -282,7 +310,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
         // and there is no way to "allow_no_aliases" like we can do with indices.
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases().setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
             GetAliasesAction.NAME,
             "create_only"
         );
@@ -300,14 +328,22 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test_1").get());
 
         // ok: user has manage_aliases on test_*
-        assertAcked(client.admin().indices().prepareAliases().addAlias("test_1", "test_alias").get());
+        assertAcked(
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_1", "test_alias").get()
+        );
 
         // ok: user has manage_aliases on test_*
-        assertAcked(client.admin().indices().prepareAliases().addAlias("test_*", "test_alias_2").get());
+        assertAcked(
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_*", "test_alias_2").get()
+        );
 
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().addAlias("test_1", "alias_1").addAlias("test_1", "test_alias")::get,
+            client.admin()
+                .indices()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias("test_1", "alias_1")
+                .addAlias("test_1", "test_alias")::get,
             TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test"
         );
@@ -353,17 +389,26 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 .addAlias(new Alias("test_alias_4"))
         );
         // ok: user has manage_aliases on test_*
-        assertAcked(client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias_1").get());
+        assertAcked(
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "test_alias_1").get()
+        );
         // ok: user has manage_aliases on test_*
-        assertAcked(client.admin().indices().prepareAliases().removeAlias("test_*", "test_alias_2").get());
+        assertAcked(
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_*", "test_alias_2").get()
+        );
         // ok: user has manage_aliases on test_*
-        assertAcked(client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias_*").get());
+        assertAcked(
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "test_alias_*").get()
+        );
 
         {
             // fails: all aliases have been deleted, no existing aliases match test_alias_*
             AliasesNotFoundException exception = expectThrows(
                 AliasesNotFoundException.class,
-                client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias_*")::get
+                client.admin()
+                    .indices()
+                    .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .removeAlias("test_1", "test_alias_*")::get
             );
             assertThat(exception.getMessage(), equalTo("aliases [test_alias_*] missing"));
         }
@@ -372,34 +417,37 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             // fails: all aliases have been deleted, no existing aliases match _all
             AliasesNotFoundException exception = expectThrows(
                 AliasesNotFoundException.class,
-                client.admin().indices().prepareAliases().removeAlias("test_1", "_all")::get
+                client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "_all")::get
             );
             assertThat(exception.getMessage(), equalTo("aliases [_all] missing"));
         }
 
         // add unauthorized aliases
         if (randomBoolean()) {
-            assertAcked(indicesAdmin().prepareAliases().addAlias("test_1", "alias_1").get());
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_1", "alias_1").get());
         }
-        assertAcked(indicesAdmin().prepareAliases().addAlias("test_1", "alias_2").get());
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_1", "alias_2").get());
 
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "alias_1")::get,
             TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test"
         );
 
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().removeAlias("test_1", new String[] { "_all", "alias_1" })::get,
+            client.admin()
+                .indices()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .removeAlias("test_1", new String[] { "_all", "alias_1" })::get,
             TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test"
         );
 
         AliasesNotFoundException exception = expectThrows(
             AliasesNotFoundException.class,
-            client.admin().indices().prepareAliases().removeAlias("test_1", "*")::get
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "*")::get
         );
         assertThat(exception.getMessage(), equalTo("aliases [*] missing"));
     }
@@ -415,43 +463,63 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).get());
 
         // ok: user has manage_aliases on test_*
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1"), "test_1", "test_alias");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("test_alias").setIndices("test_1"),
+            "test_1",
+            "test_alias"
+        );
 
         // ok: user has manage_aliases on test_*, test_* gets resolved to test_1
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_*"), "test_1", "test_alias");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("test_alias").setIndices("test_*"),
+            "test_1",
+            "test_alias"
+        );
 
         // ok: user has manage_aliases on test_*, empty indices gets resolved to _all indices (thus test_1)
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("test_alias"), "test_1", "test_alias");
+        assertAliases(client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("test_alias"), "test_1", "test_alias");
 
         // ok: user has manage_aliases on test_*, _all aliases gets resolved to test_alias and empty indices gets resolved to _all
         // indices (thus test_1)
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("_all").setIndices("test_1"), "test_1", "test_alias");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("_all").setIndices("test_1"),
+            "test_1",
+            "test_alias"
+        );
 
         // ok: user has manage_aliases on test_*, empty aliases gets resolved to test_alias and empty indices gets resolved to _all
         // indices (thus test_1)
-        assertAliases(client.admin().indices().prepareGetAliases().setIndices("test_1"), "test_1", "test_alias");
+        assertAliases(client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test_1"), "test_1", "test_alias");
 
         // ok: user has manage_aliases on test_*, test_* aliases gets resolved to test_alias and empty indices gets resolved to _all
         // indices (thus test_1)
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("test_*").setIndices("test_1"), "test_1", "test_alias");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("test_*").setIndices("test_1"),
+            "test_1",
+            "test_alias"
+        );
 
         // ok: user has manage_aliases on test_*, _all aliases gets resolved to test_alias and _all indices becomes test_1
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("_all").setIndices("_all"), "test_1", "test_alias");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("_all").setIndices("_all"),
+            "test_1",
+            "test_alias"
+        );
 
         // ok: user has manage_aliases on test_*, empty aliases gets resolved to test_alias and empty indices becomes test_1
-        assertAliases(client.admin().indices().prepareGetAliases(), "test_1", "test_alias");
+        assertAliases(client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT), "test_1", "test_alias");
 
         // fails: user has manage_aliases on test_*, although _all aliases and empty indices can be resolved, the explicit non
         // authorized alias (alias_1) causes the request to fail
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases().setAliases("_all", "alias_1")::get,
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("_all", "alias_1")::get,
             GetAliasesAction.NAME,
             "create_test_aliases_test"
         );
 
         // fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases().setAliases("alias_1")::get,
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("alias_1")::get,
             GetAliasesAction.NAME,
             "create_test_aliases_test"
         );
@@ -470,14 +538,14 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         // fails: user doesn't have manage_aliases aliases on test_1
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().addAlias("test_1", "test_alias")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_1", "test_alias")::get,
             TransportIndicesAliasesAction.NAME,
             "create_test_aliases_alias"
         );
 
         // fails: user doesn't have manage_aliases aliases on test_1
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().addAlias("test_1", "alias_1")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_1", "alias_1")::get,
             TransportIndicesAliasesAction.NAME,
             "create_test_aliases_alias"
         );
@@ -485,7 +553,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // fails: user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
         IndexNotFoundException indexNotFoundException = expectThrows(
             IndexNotFoundException.class,
-            client.admin().indices().prepareAliases().addAlias("test_*", "alias_1")::get
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_*", "alias_1")::get
         );
         assertThat(indexNotFoundException.toString(), containsString("[test_*]"));
     }
@@ -520,13 +588,16 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         // fails: user doesn't have manage_aliases on test_1
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias")::get,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "test_alias")::get,
             TransportIndicesAliasesAction.NAME,
             "create_test_aliases_alias"
         );
 
         // fails: user doesn't have manage_aliases on test_*, wildcards can't get replaced
-        expectThrows(IndexNotFoundException.class, client.admin().indices().prepareAliases().removeAlias("test_*", "alias_1")::get);
+        expectThrows(
+            IndexNotFoundException.class,
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_*", "alias_1")::get
+        );
     }
 
     public void testGetAliasesCreateAndAliasesPermission2() {
@@ -542,7 +613,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         // fails: user doesn't have manage_aliases aliases on test_1, nor test_alias
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1")::get,
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("test_alias").setIndices("test_1")::get,
             GetAliasesAction.NAME,
             "create_test_aliases_alias"
         );
@@ -550,20 +621,20 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
         GetAliasesResponse getAliasesResponse = client.admin()
             .indices()
-            .prepareGetAliases()
+            .prepareGetAliases(TEST_REQUEST_TIMEOUT)
             .setIndices("test_*")
             .setAliases("test_alias")
             .get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
         // no existing indices to replace empty indices (thus _all)
-        getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("test_alias").get();
+        getAliasesResponse = client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("test_alias").get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
         {
             // fails: no existing aliases to replace wildcards
             assertThrowsAuthorizationException(
-                client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("test_*")::get,
+                client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test_1").setAliases("test_*")::get,
                 GetAliasesAction.NAME,
                 "create_test_aliases_alias"
             );
@@ -571,7 +642,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         {
             // fails: no existing aliases to replace _all
             assertThrowsAuthorizationException(
-                client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("_all")::get,
+                client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test_1").setAliases("_all")::get,
                 GetAliasesAction.NAME,
                 "create_test_aliases_alias"
             );
@@ -579,14 +650,14 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         {
             // fails: no existing aliases to replace empty aliases
             assertThrowsAuthorizationException(
-                client.admin().indices().prepareGetAliases().setIndices("test_1")::get,
+                client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test_1")::get,
                 GetAliasesAction.NAME,
                 "create_test_aliases_alias"
             );
         }
         {
             // fails: no existing aliases to replace empty aliases
-            GetAliasesResponse response = client.admin().indices().prepareGetAliases().get();
+            GetAliasesResponse response = client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).get();
             assertThat(response.getAliases().size(), equalTo(0));
         }
     }
@@ -601,11 +672,11 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
         assertAcked(client.admin().indices().prepareCreate("test_1"));
 
-        assertAcked(client.admin().indices().prepareAliases().addAlias("test_1", "test_alias"));
+        assertAcked(client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_1", "test_alias"));
 
-        assertAcked(client.admin().indices().prepareAliases().addAlias("test_1", "alias_1"));
+        assertAcked(client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_1", "alias_1"));
 
-        assertAcked(client.admin().indices().prepareAliases().addAlias("test_*", "alias_2"));
+        assertAcked(client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test_*", "alias_2"));
     }
 
     public void testCreateIndexAndAliasesCreateAndAliasesPermission3() {
@@ -641,19 +712,23 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         // fails: user doesn't have manage_aliases privilege on non_authorized
         assertThrowsAuthorizationException(
-            client.admin().indices().prepareAliases().removeAlias("test_1", "non_authorized").removeAlias("test_1", "test_alias")::get,
+            client.admin()
+                .indices()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .removeAlias("test_1", "non_authorized")
+                .removeAlias("test_1", "test_alias")::get,
             TransportIndicesAliasesAction.NAME,
             "create_test_aliases_test_alias"
         );
 
-        assertAcked(client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1"));
+        assertAcked(client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "alias_1"));
 
-        assertAcked(client.admin().indices().prepareAliases().removeAlias("test_*", "_all"));
+        assertAcked(client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_*", "_all"));
 
         // fails: all aliases have been deleted, _all can't be resolved to any existing authorized aliases
         AliasesNotFoundException exception = expectThrows(
             AliasesNotFoundException.class,
-            client.admin().indices().prepareAliases().removeAlias("test_1", "_all")::get
+            client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias("test_1", "_all")::get
         );
         assertThat(exception.getMessage(), equalTo("aliases [_all] missing"));
     }
@@ -668,28 +743,58 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
         assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_1")));
 
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1"), "test_1", "test_alias");
-
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("alias_1").setIndices("test_1"), "test_1", "alias_1");
-
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("alias_1").setIndices("test_*"), "test_1", "alias_1");
-
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("test_*").setIndices("test_1"), "test_1", "test_alias");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("test_alias").setIndices("test_1"),
+            "test_1",
+            "test_alias"
+        );
 
         assertAliases(
-            client.admin().indices().prepareGetAliases().setAliases("_all").setIndices("test_1"),
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("alias_1").setIndices("test_1"),
+            "test_1",
+            "alias_1"
+        );
+
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("alias_1").setIndices("test_*"),
+            "test_1",
+            "alias_1"
+        );
+
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("test_*").setIndices("test_1"),
+            "test_1",
+            "test_alias"
+        );
+
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("_all").setIndices("test_1"),
             "test_1",
             "alias_1",
             "test_alias"
         );
 
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("_all"), "test_1", "alias_1", "test_alias");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("_all"),
+            "test_1",
+            "alias_1",
+            "test_alias"
+        );
 
-        assertAliases(client.admin().indices().prepareGetAliases().setIndices("test_1"), "test_1", "alias_1", "test_alias");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test_1"),
+            "test_1",
+            "alias_1",
+            "test_alias"
+        );
 
-        assertAliases(client.admin().indices().prepareGetAliases(), "test_1", "alias_1", "test_alias");
+        assertAliases(client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT), "test_1", "alias_1", "test_alias");
 
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("alias_*").setIndices("test_*"), "test_1", "alias_1");
+        assertAliases(
+            client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("alias_*").setIndices("test_*"),
+            "test_1",
+            "alias_1"
+        );
     }
 
     public void testCreateIndexAliasesOnlyPermission() {
@@ -718,7 +823,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             IndexNotFoundException.class,
             client.admin()
                 .indices()
-                .prepareGetAliases("alias_1")
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias_1")
                 .setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.strictExpandOpen())::get
         );
@@ -728,7 +833,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(
             client.admin()
                 .indices()
-                .prepareGetAliases("non_authorized")
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "non_authorized")
                 .setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.strictExpandOpen())::get,
             GetAliasesAction.NAME,
@@ -739,7 +844,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(
             client.admin()
                 .indices()
-                .prepareGetAliases("alias_1")
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias_1")
                 .setIndices("non_authorized")
                 .setIndicesOptions(IndicesOptions.strictExpandOpen())::get,
             GetAliasesAction.NAME,
@@ -758,7 +863,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // ok: manage_aliases on both test_* and alias_*
         GetAliasesResponse getAliasesResponse = client.admin()
             .indices()
-            .prepareGetAliases("alias_1")
+            .prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias_1")
             .setIndices("test_1")
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .get();
@@ -768,7 +873,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(
             client.admin()
                 .indices()
-                .prepareGetAliases("non_authorized")
+                .prepareGetAliases(TEST_REQUEST_TIMEOUT, "non_authorized")
                 .setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get,
             GetAliasesAction.NAME,
@@ -778,7 +883,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // no manage_aliases privilege on non_authorized index
         getAliasesResponse = client.admin()
             .indices()
-            .prepareGetAliases("alias_1")
+            .prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias_1")
             .setIndices("non_authorized")
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .get();
@@ -795,14 +900,19 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test_delete_1").get());
         assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias_1")));
 
-        assertAcked(client.admin().indices().prepareAliases().removeIndex("test_delete_*").get());
-        assertAliases(client.admin().indices().prepareGetAliases().setAliases("*"), "test_1", "test_alias_1");
+        assertAcked(client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeIndex("test_delete_*").get());
+        assertAliases(client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("*"), "test_1", "test_alias_1");
 
         // test that the remove index wildcard expacnds only to authorized indices
-        assertAcked(client.admin().indices().prepareAliases().removeIndex("*").get());
-        GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("*").get();
+        assertAcked(client.admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeIndex("*").get());
+        GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("*").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
-        assertAliases(indicesAdmin().prepareGetAliases().setAliases("*"), "bogus_index_1", "bogus_alias_1", "bogus_alias_2");
+        assertAliases(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("*", "-.security*"),
+            "bogus_index_1",
+            "bogus_alias_1",
+            "bogus_alias_2"
+        );
     }
 
     public void testAliasesForHiddenIndices() {
@@ -829,18 +939,18 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(
             aliasesClient.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(visibleAlias))
         );
 
         // The index should be returned here when queried by name or by wildcard because the alias is visible
-        final GetAliasesRequestBuilder req = aliasesClient.admin().indices().prepareGetAliases(visibleAlias);
+        final GetAliasesRequestBuilder req = aliasesClient.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT, visibleAlias);
         GetAliasesResponse response = req.get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(visibleAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
 
-        response = indicesAdmin().prepareGetAliases("alias*").get();
+        response = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(visibleAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
@@ -849,25 +959,29 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(
             aliasesClient.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(hiddenIndex).alias(visibleAlias))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(hiddenAlias).isHidden(true))
         );
 
         // Querying by name directly should get the right result
-        response = aliasesClient.admin().indices().prepareGetAliases(hiddenAlias).get();
+        response = aliasesClient.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT, hiddenAlias).get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(hiddenAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), Matchers.equalTo(true));
 
         // querying by wildcard should get the right result because the indices options include hidden by default
-        response = aliasesClient.admin().indices().prepareGetAliases("alias*").get();
+        response = aliasesClient.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*").get();
         assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
         assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(hiddenAlias));
         assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), Matchers.equalTo(true));
 
         // But we should get no results if we specify indices options that don't include hidden
-        response = aliasesClient.admin().indices().prepareGetAliases("alias*").setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
+        response = aliasesClient.admin()
+            .indices()
+            .prepareGetAliases(TEST_REQUEST_TIMEOUT, "alias*")
+            .setIndicesOptions(IndicesOptions.strictExpandOpen())
+            .get();
         assertThat(response.getAliases().get(hiddenIndex), nullValue());
     }
 

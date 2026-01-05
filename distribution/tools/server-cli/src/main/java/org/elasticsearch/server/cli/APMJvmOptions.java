@@ -81,7 +81,10 @@ class APMJvmOptions {
         "metrics_interval", "120s",
         "breakdown_metrics", "false",
         "central_config", "false",
-        "transaction_sample_rate", "0.2"
+        "transaction_sample_rate", "0.2",
+        // Don't collect stacktraces for spans, typically these are of little use as
+        // always pointing to APMTracer.stopTrace invoked from TaskManager
+        "stack_trace_limit", "0"
         );
     // end::noformat
 
@@ -187,20 +190,12 @@ class APMJvmOptions {
     static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
         final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            for (String prefix : List.of("telemetry.", "tracing.apm.")) {
-                if (settingNames.contains(prefix + key)) {
-                    if (propertiesMap.containsKey(key)) {
-                        throw new IllegalStateException(
-                            Strings.format("Duplicate telemetry setting: [telemetry.%s] and [tracing.apm.%s]", key, key)
-                        );
-                    }
-
-                    try (SecureString token = secrets.getString(prefix + key)) {
-                        propertiesMap.put(key, token.toString());
-                    }
+            String prefix = "telemetry.";
+            if (settingNames.contains(prefix + key)) {
+                try (SecureString token = secrets.getString(prefix + key)) {
+                    propertiesMap.put(key, token.toString());
                 }
             }
-
         }
     }
 
@@ -227,44 +222,12 @@ class APMJvmOptions {
     static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        // tracing.apm.agent. is deprecated by telemetry.agent.
         final String telemetryAgentPrefix = "telemetry.agent.";
-        final String deprecatedTelemetryAgentPrefix = "tracing.apm.agent.";
 
         final Settings telemetryAgentSettings = settings.getByPrefix(telemetryAgentPrefix);
         telemetryAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(telemetryAgentSettings.get(key))));
 
-        final Settings apmAgentSettings = settings.getByPrefix(deprecatedTelemetryAgentPrefix);
-        for (String key : apmAgentSettings.keySet()) {
-            if (propertiesMap.containsKey(key)) {
-                throw new IllegalStateException(
-                    Strings.format(
-                        "Duplicate telemetry setting: [%s%s] and [%s%s]",
-                        telemetryAgentPrefix,
-                        key,
-                        deprecatedTelemetryAgentPrefix,
-                        key
-                    )
-                );
-            }
-            propertiesMap.put(key, String.valueOf(apmAgentSettings.get(key)));
-        }
-
         StringJoiner globalLabels = extractGlobalLabels(telemetryAgentPrefix, propertiesMap, settings);
-        if (globalLabels.length() == 0) {
-            globalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
-        } else {
-            StringJoiner tracingGlobalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
-            if (tracingGlobalLabels.length() != 0) {
-                throw new IllegalArgumentException(
-                    "Cannot have global labels with tracing.agent prefix ["
-                        + globalLabels
-                        + "] and telemetry.apm.agent prefix ["
-                        + tracingGlobalLabels
-                        + "]"
-                );
-            }
-        }
         if (globalLabels.length() > 0) {
             propertiesMap.put("global_labels", globalLabels.toString());
         }
@@ -274,7 +237,7 @@ class APMJvmOptions {
             if (propertiesMap.containsKey(key)) {
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Do not set a value for [tracing.apm.agent." + key + "], as this is configured automatically by Elasticsearch"
+                    "Do not set a value for [telemetry.agent." + key + "], as this is configured automatically by Elasticsearch"
                 );
             }
         }
@@ -369,7 +332,7 @@ class APMJvmOptions {
 
         try (var apmStream = Files.list(apmModule)) {
             final List<Path> paths = apmStream.filter(
-                path -> path.getFileName().toString().matches("elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")
+                path -> path.getFileName().toString().matches("elastic-apm-agent-java8-\\d+\\.\\d+\\.\\d+\\.jar")
             ).toList();
 
             if (paths.size() > 1) {

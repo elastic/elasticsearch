@@ -212,14 +212,14 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
         Files.move(
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.78.1.jar"),
-            tempDir.resolve("bcprov-jdk18on-1.78.1.jar")
+            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.79.jar"),
+            tempDir.resolve("bcprov-jdk18on-1.79.jar")
         );
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
         assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
         Files.move(
-            tempDir.resolve("bcprov-jdk18on-1.78.1.jar"),
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.78.1.jar")
+            tempDir.resolve("bcprov-jdk18on-1.79.jar"),
+            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.79.jar")
         );
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);
@@ -507,8 +507,8 @@ public class ArchiveTests extends PackagingTestCase {
             final String nodesStatsResponse = makeRequest("https://localhost:9200/_nodes/stats");
             assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
             final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
-            // 40% of 850MB
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":356515840"));
+            // 40% of (850MB - 100MB overhead) = 40% of 750MB
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":314572800"));
 
             stopElasticsearch();
         } finally {
@@ -571,7 +571,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
-        Path relativeDataPath = installation.data.relativize(installation.home);
+        Path relativeDataPath = getRootTempDir().resolve("custom_data");
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
         sh.setWorkingDirectory(getRootTempDir());
 

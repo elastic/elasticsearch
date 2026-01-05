@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +17,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -58,6 +58,11 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
         this.topN = in.readOptionalVInt();
     }
 
+    @Override
+    public boolean isEmpty() {
+        return topN == null;
+    }
+
     public Integer topN() {
         return topN;
     }
@@ -69,7 +74,7 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_GOOGLE_VERTEX_AI_RERANKING_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -101,5 +106,13 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(topN);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        GoogleVertexAiRerankRequestTaskSettings requestSettings = GoogleVertexAiRerankRequestTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return of(this, requestSettings);
     }
 }

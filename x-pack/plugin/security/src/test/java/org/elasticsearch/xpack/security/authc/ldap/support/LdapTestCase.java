@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.EntitledTestPackages;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -73,6 +74,7 @@ import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFa
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 import static org.hamcrest.Matchers.is;
 
+@EntitledTestPackages(value = { "com.unboundid.ldap.listener" }) // tests start LDAP server that listens for incoming connections
 public abstract class LdapTestCase extends ESTestCase {
 
     protected static final RealmConfig.RealmIdentifier REALM_IDENTIFIER = new RealmConfig.RealmIdentifier("ldap", "ldap1");

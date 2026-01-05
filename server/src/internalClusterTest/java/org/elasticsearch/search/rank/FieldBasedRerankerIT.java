@@ -14,7 +14,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.client.internal.Client;
@@ -193,7 +192,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
                         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
                         for (int i = 0; i < hits.getHits().length; i++) {
                             rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                            rankFeatureDocs[i].featureData(hits.getHits()[i].field(field).getValue().toString());
+                            rankFeatureDocs[i].featureData(List.of(hits.getHits()[i].field(field).getValue().toString()));
                         }
                         return new RankFeatureShardResult(rankFeatureDocs);
                     } catch (Exception ex) {
@@ -205,12 +204,12 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
 
         @Override
         public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
-            return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize()) {
+            return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize(), false) {
                 @Override
                 protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                     float[] scores = new float[featureDocs.length];
                     for (int i = 0; i < featureDocs.length; i++) {
-                        scores[i] = Float.parseFloat(featureDocs[i].featureData);
+                        scores[i] = Float.parseFloat(featureDocs[i].featureData.get(0));
                     }
                     scoreListener.onResponse(scores);
                 }
@@ -234,7 +233,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.RANK_FEATURE_PHASE_ADDED;
+            return TransportVersion.minimumCompatible();
         }
     }
 
@@ -346,7 +345,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
         @Override
         public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
             if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
-                return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize()) {
+                return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize(), false) {
                     @Override
                     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                         throw new UnsupportedOperationException("rfc - simulated failure");

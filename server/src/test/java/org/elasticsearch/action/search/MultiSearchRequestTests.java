@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -16,12 +17,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -99,7 +99,13 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, true, new UsageService().getSearchUsageHolder(), nf -> false)
+            () -> RestMultiSearchAction.parseRequest(
+                restRequest,
+                true,
+                new UsageService().getSearchUsageHolder(),
+                nf -> false,
+                Optional.empty()
+            )
         );
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
@@ -117,7 +123,8 @@ public class MultiSearchRequestTests extends ESTestCase {
             restRequest,
             true,
             new UsageService().getSearchUsageHolder(),
-            nf -> false
+            nf -> false,
+            Optional.empty()
         );
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
@@ -140,7 +147,8 @@ public class MultiSearchRequestTests extends ESTestCase {
             restRequest,
             true,
             new UsageService().getSearchUsageHolder(),
-            nf -> false
+            nf -> false,
+            Optional.empty()
         );
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
@@ -250,7 +258,13 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, true, new UsageService().getSearchUsageHolder(), nf -> false)
+            () -> RestMultiSearchAction.parseRequest(
+                restRequest,
+                true,
+                new UsageService().getSearchUsageHolder(),
+                nf -> false,
+                Optional.empty()
+            )
         );
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
@@ -263,17 +277,18 @@ public class MultiSearchRequestTests extends ESTestCase {
             restRequestWithNewLine,
             true,
             new UsageService().getSearchUsageHolder(),
-            nf -> false
+            nf -> false,
+            Optional.empty()
         );
         assertEquals(3, msearchRequest.requests().size());
     }
 
-    private MultiSearchRequest parseMultiSearchRequestFromString(String request, RestApiVersion restApiVersion) throws IOException {
-        return parseMultiSearchRequest(createRestRequest(request.getBytes(StandardCharsets.UTF_8), restApiVersion));
+    private MultiSearchRequest parseMultiSearchRequestFromString(String request) throws IOException {
+        return parseMultiSearchRequest(createRestRequest(request.getBytes(StandardCharsets.UTF_8)));
     }
 
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
-        return parseMultiSearchRequest(createRestRequest(sample, null));
+        return parseMultiSearchRequest(createRestRequest(sample));
     }
 
     private MultiSearchRequest parseMultiSearchRequest(RestRequest restRequest) throws IOException {
@@ -284,26 +299,17 @@ public class MultiSearchRequestTests extends ESTestCase {
                 new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder(), nf -> false)
             );
             request.add(searchRequest);
-        });
+        }, Optional.empty());
         return request;
     }
 
-    private RestRequest createRestRequest(String sample, RestApiVersion restApiVersion) throws IOException {
+    private RestRequest createRestRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
-        return createRestRequest(data, restApiVersion);
+        return createRestRequest(data);
     }
 
-    private FakeRestRequest createRestRequest(byte[] data, RestApiVersion restApiVersion) {
-        if (restApiVersion != null) {
-            final List<String> contentTypeHeader = Collections.singletonList(
-                compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7)
-            );
-            return new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-                Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-            ).withContent(new BytesArray(data), null).build();
-        } else {
-            return new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON).build();
-        }
+    private FakeRestRequest createRestRequest(byte[] data) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON).build();
     }
 
     @Override
@@ -350,7 +356,9 @@ public class MultiSearchRequestTests extends ESTestCase {
                 null,
                 null,
                 null,
-                true
+                true,
+                Optional.empty(),
+                null
             );
             assertEquals(originalRequest, parsedRequest);
         }
@@ -517,7 +525,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             parseMultiSearchRequestFromString("""
                 {"index": "test"}{{{{{extra chars that shouldn't be here
                 { "query": {"match_all": {}}}
-                """, null);
+                """);
             fail("should have caught first line; extra open brackets");
         } catch (XContentParseException e) {
             assertEquals("[1:18] Unexpected token after end of object", e.getMessage());
@@ -526,7 +534,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             parseMultiSearchRequestFromString("""
                 {"index": "test"}
                 { "query": {"match_all": {}}}{{{{even more chars
-                """, null);
+                """);
             fail("should have caught second line");
         } catch (XContentParseException e) {
             assertEquals("[1:30] Unexpected token after end of object", e.getMessage());
@@ -535,7 +543,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             parseMultiSearchRequestFromString("""
                 {}
                 { "query": {"match_all": {}}}}}}different error message
-                """, null);
+                """);
             fail("should have caught second line; extra closing brackets");
         } catch (XContentParseException e) {
             assertThat(
@@ -546,6 +554,14 @@ public class MultiSearchRequestTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testNullIndex() throws IOException {
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parseMultiSearchRequestFromString("""
+            {"index": null}
+            { "query": {"match_all": {}}}
+            """));
+        assertThat(e.getMessage(), containsString("Expected a list of strings but got null"));
     }
 
     private static MultiSearchRequest mutate(MultiSearchRequest searchRequest) throws IOException {
@@ -588,7 +604,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             }
 
             // scroll is not supported in the current msearch api, so unset it:
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
 
             // only expand_wildcards, ignore_unavailable and allow_no_indices can be specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();

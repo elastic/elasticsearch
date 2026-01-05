@@ -9,10 +9,12 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -33,7 +35,7 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
 
         super(name, subFactories, context, null, CardinalityUpperBound.ONE, metadata);
         weight = context.searcher()
-            .rewrite(context.filterQuery(new MatchAllDocsQuery()))
+            .rewrite(context.filterQuery(Queries.ALL_DOCS_INSTANCE))
             .createWeight(context.searcher(), scoreMode(), 1.0f);
     }
 
@@ -45,6 +47,7 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         grow(1);
+
         scorer.score(new LeafCollector() {
             @Override
             public void collect(int doc) throws IOException {
@@ -55,13 +58,13 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
             public void setScorer(Scorable scorer) throws IOException {
                 sub.setScorer(scorer);
             }
-        }, aggCtx.getLeafReaderContext().reader().getLiveDocs());
+        }, aggCtx.getLeafReaderContext().reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0 : "global aggregator can only be a top level aggregator";
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        assert owningBucketOrds.size() == 1 && owningBucketOrds.get(0) == 0 : "global aggregator can only be a top level aggregator";
         return buildAggregationsForSingleBucket(
             owningBucketOrds,
             (owningBucketOrd, subAggregationResults) -> new InternalGlobal(

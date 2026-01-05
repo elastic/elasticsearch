@@ -108,7 +108,6 @@ public class MultiOrdinalsTests extends ESTestCase {
                     for (Long ord : docOrds) {
                         assertThat(docs.nextOrd(), equalTo(ord));
                     }
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, docs.nextOrd());
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
                     assertFalse(singleOrds.advanceExact(i));
@@ -257,7 +256,6 @@ public class MultiOrdinalsTests extends ESTestCase {
                 for (long ord : ords) {
                     assertThat(docs.nextOrd(), equalTo(ord));
                 }
-                assertThat(docs.nextOrd(), equalTo(SortedSetDocValues.NO_MORE_ORDS));
             }
         }
     }

@@ -9,9 +9,10 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +29,7 @@ import java.util.Objects;
 /**
  * A request to find the list of target shards that might match the query for the given target indices.
  */
-public final class SearchShardsRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class SearchShardsRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
     private String[] indices;
     private final IndicesOptions indicesOptions;
     @Nullable
@@ -42,6 +43,8 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
     private final boolean allowPartialSearchResults;
 
     private final String clusterAlias;
+
+    private ResolvedIndexExpressions resolvedIndexExpressions;
 
     public SearchShardsRequest(
         String[] indices,
@@ -178,5 +181,15 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         int result = Objects.hash(indicesOptions, query, routing, preference, allowPartialSearchResults, clusterAlias);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 }

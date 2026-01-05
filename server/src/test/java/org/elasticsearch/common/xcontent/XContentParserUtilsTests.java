@@ -92,7 +92,7 @@ public class XContentParserUtilsTests extends ESTestCase {
     }
 
     public void testStoredFieldsValueBinary() throws IOException {
-        final byte[] value = randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes("UTF-8");
+        final byte[] value = randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes(StandardCharsets.UTF_8);
         assertParseFieldsSimpleValue(value, (xcontentType, result) -> {
             if (xcontentType.canonical() == XContentType.JSON) {
                 // binary values will be parsed back and returned as base64 strings when reading from json

@@ -9,38 +9,48 @@
 package org.elasticsearch.logstashbridge.plugins;
 
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
-import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
 import org.elasticsearch.plugins.IngestPlugin;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * An external bridge for {@link IngestPlugin}
+ */
 public interface IngestPluginBridge {
-    Map<String, ProcessorBridge.Factory> getProcessors(ProcessorBridge.Parameters parameters);
+    Map<String, ProcessorFactoryBridge> getProcessors(ProcessorParametersBridge parameters);
 
-    static Wrapped wrap(final IngestPlugin delegate) {
-        return new Wrapped(delegate);
+    static ProxyInternal fromInternal(final IngestPlugin delegate) {
+        return new ProxyInternal(delegate);
     }
 
-    class Wrapped extends StableBridgeAPI.Proxy<IngestPlugin> implements IngestPluginBridge, Closeable {
+    /**
+     * An implementation of {@link IngestPluginBridge} that proxies calls to an internal {@link IngestPlugin}
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<IngestPlugin> implements IngestPluginBridge, Closeable {
 
-        private Wrapped(final IngestPlugin delegate) {
+        private ProxyInternal(final IngestPlugin delegate) {
             super(delegate);
         }
 
-        public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
-            return StableBridgeAPI.wrap(this.delegate.getProcessors(parameters.unwrap()), ProcessorBridge.Factory::wrap);
+        public Map<String, ProcessorFactoryBridge> getProcessors(final ProcessorParametersBridge parameters) {
+            return StableBridgeAPI.fromInternal(
+                this.internalDelegate.getProcessors(parameters.toInternal()),
+                ProcessorFactoryBridge::fromInternal
+            );
         }
 
         @Override
-        public IngestPlugin unwrap() {
-            return this.delegate;
+        public IngestPlugin toInternal() {
+            return this.internalDelegate;
         }
 
         @Override
         public void close() throws IOException {
-            if (this.delegate instanceof Closeable closeableDelegate) {
+            if (this.internalDelegate instanceof Closeable closeableDelegate) {
                 closeableDelegate.close();
             }
         }

@@ -35,7 +35,7 @@ class StupidBackoffScorer extends WordScorer {
         if (count < 1) {
             return discount * scoreUnigram(word);
         }
-        return count / (w_1.termStats.totalTermFreq + 0.00000000001d);
+        return count / (w_1.termStats.totalTermFreq() + 0.00000000001d);
     }
 
     @Override
@@ -50,7 +50,7 @@ class StupidBackoffScorer extends WordScorer {
         join(separator, spare, w_2.term, w_1.term, w.term);
         long trigramCount = frequency(spare.get());
         if (trigramCount < 1) {
-            return discount * (bigramCount / (w_1.termStats.totalTermFreq + 0.00000000001d));
+            return discount * (bigramCount / (w_1.termStats.totalTermFreq() + 0.00000000001d));
         }
         return trigramCount / (bigramCount + 0.00000000001d);
     }

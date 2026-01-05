@@ -18,8 +18,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -93,9 +91,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        @UpdateForV9 // condition will always be true from v8, can be removed
-        var originalClusterSupportsNlpModels = oldClusterHasFeature(RestTestLegacyFeatures.ML_NLP_SUPPORTED);
-        assumeTrue("NLP model deployments added in 8.0", originalClusterSupportsNlpModels);
 
         String modelId = "trained-model-full-cluster-restart";
 
@@ -114,7 +109,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
             assertBusy(() -> {
                 try {
                     assertInfer(modelId);
-                    assertNewInfer(modelId);
                 } catch (ResponseException e) {
                     // assertBusy only loops on AssertionErrors, so we have
                     // to convert failure status exceptions to these
@@ -139,16 +133,11 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
                 equalTo("fully_allocated")
             );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
-        }, 90, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
     }
 
     private void assertInfer(String modelId) throws IOException {
         Response inference = infer("my words", modelId);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
-    }
-
-    private void assertNewInfer(String modelId) throws IOException {
-        Response inference = newInfer("my words", modelId);
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
@@ -241,18 +230,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(Strings.format("""
-            {  "docs": [{"input":"%s"}] }
-            """, input));
-
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
-    }
-
-    private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }

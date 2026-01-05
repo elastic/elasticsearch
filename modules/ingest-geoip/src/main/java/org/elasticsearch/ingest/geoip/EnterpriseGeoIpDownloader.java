@@ -19,10 +19,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -33,11 +35,11 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfigurationMetadata;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -56,6 +58,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.IPINFO_SETTINGS_PREFIX;
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_SETTINGS_PREFIX;
 
 /**
@@ -64,12 +67,18 @@ import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecut
  * Downloads are verified against MD5 checksum provided by the server
  * Current state of all stored databases is stored in cluster state in persistent task state
  */
-public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
+@NotMultiProjectCapable(
+    description = "Enterprise GeoIP not available in serverless, we should review this class for MP again after serverless is enabled"
+)
+public class EnterpriseGeoIpDownloader extends AbstractGeoIpDownloader {
 
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloader.class);
 
     // a sha256 checksum followed by two spaces followed by an (ignored) file name
     private static final Pattern SHA256_CHECKSUM_PATTERN = Pattern.compile("(\\w{64})\\s\\s(.*)");
+
+    // an md5 checksum
+    private static final Pattern MD5_CHECKSUM_PATTERN = Pattern.compile("(\\w{32})");
 
     // for overriding in tests
     static String DEFAULT_MAXMIND_ENDPOINT = System.getProperty(
@@ -79,18 +88,23 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     // n.b. a future enhancement might be to allow for a MAXMIND_ENDPOINT_SETTING, but
     // at the moment this is an unsupported system property for use in tests (only)
 
+    // for overriding in tests
+    static String DEFAULT_IPINFO_ENDPOINT = System.getProperty(
+        IPINFO_SETTINGS_PREFIX + "endpoint.default", //
+        "https://ipinfo.io/data"
+    );
+    // n.b. a future enhancement might be to allow for an IPINFO_ENDPOINT_SETTING, but
+    // at the moment this is an unsupported system property for use in tests (only)
+
     static final String DATABASES_INDEX = ".geoip_databases";
     static final int MAX_CHUNK_SIZE = 1024 * 1024;
 
     private final Client client;
     private final HttpClient httpClient;
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
 
     // visible for testing
     protected volatile EnterpriseGeoIpTaskState state;
-    private volatile Scheduler.ScheduledCancellable scheduled;
-    private final Supplier<TimeValue> pollIntervalSupplier;
     private final Function<String, char[]> tokenProvider;
 
     EnterpriseGeoIpDownloader(
@@ -107,12 +121,10 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         Supplier<TimeValue> pollIntervalSupplier,
         Function<String, char[]> tokenProvider
     ) {
-        super(id, type, action, description, parentTask, headers);
+        super(id, type, action, description, parentTask, headers, threadPool, pollIntervalSupplier);
         this.client = client;
         this.httpClient = httpClient;
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.pollIntervalSupplier = pollIntervalSupplier;
         this.tokenProvider = tokenProvider;
     }
 
@@ -128,22 +140,27 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     void updateDatabases() throws IOException {
+        @NotMultiProjectCapable(description = "Enterprise GeoIP not available in serverless")
+        ProjectId projectId = ProjectId.DEFAULT;
         var clusterState = clusterService.state();
-        var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
+        var geoipIndex = clusterState.getMetadata().getProject(projectId).getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
             logger.trace("the geoip index [{}] exists", EnterpriseGeoIpDownloader.DATABASES_INDEX);
-            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+            if (clusterState.routingTable(projectId).index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
                 logger.debug("not updating databases because not all primary shards of [{}] index are active yet", DATABASES_INDEX);
                 return;
             }
-            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            var blockException = clusterState.blocks()
+                .indexBlockedException(projectId, ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
                 throw blockException;
             }
         }
 
         logger.trace("Updating databases");
-        IngestGeoIpMetadata geoIpMeta = clusterState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = clusterState.metadata()
+            .getProject(projectId)
+            .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         // if there are entries in the cs that aren't in the persistent task state,
         // then download those (only)
@@ -236,7 +253,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         logger.debug("Processing database [{}] for configuration [{}]", name, database.id());
 
         try (ProviderDownload downloader = downloaderFor(database)) {
-            if (downloader.validCredentials()) {
+            if (downloader != null && downloader.validCredentials()) {
                 // the name that comes from the enterprise downloader cluster state doesn't include the .mmdb extension,
                 // but the downloading and indexing of database code expects it to be there, so we add it on here before continuing
                 final String fileName = name + ".mmdb";
@@ -365,27 +382,15 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         return buf;
     }
 
-    /**
-     * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
-     */
-    synchronized void runDownloader() {
-        // by the time we reach here, the state will never be null
-        assert this.state != null : "this.setState() is null. You need to call setState() before calling runDownloader()";
-
-        // there's a race condition between here and requestReschedule. originally this scheduleNextRun call was at the end of this
-        // block, but remember that updateDatabases can take seconds to run (it's downloading bytes from the internet), and so during the
-        // very first run there would be no future run scheduled to reschedule in requestReschedule. which meant that if you went from zero
-        // to N(>=2) databases in quick succession, then all but the first database wouldn't necessarily get downloaded, because the
-        // requestReschedule call in the EnterpriseGeoIpDownloaderTaskExecutor's clusterChanged wouldn't have a scheduled future run to
-        // reschedule. scheduling the next run at the beginning of this run means that there's a much smaller window (milliseconds?, rather
-        // than seconds) in which such a race could occur. technically there's a window here, still, but i think it's _greatly_ reduced.
-        scheduleNextRun(pollIntervalSupplier.get());
-        // TODO regardless of the above comment, i like the idea of checking the lowest last-checked time and then running the math to get
-        // to the next interval from then -- maybe that's a neat future enhancement to add
-
+    @Override
+    void runDownloader() {
         if (isCancelled() || isCompleted()) {
+            logger.debug("Not running downloader because task is cancelled or completed");
             return;
         }
+        // by the time we reach here, the state will never be null
+        assert this.state != null : "this.state is null. You need to call setState() before calling runDownloader()";
+
         try {
             updateDatabases(); // n.b. this downloads bytes from the internet, it can take a while
         } catch (Exception e) {
@@ -395,21 +400,6 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             cleanDatabases();
         } catch (Exception e) {
             logger.error("exception during databases cleanup", e);
-        }
-    }
-
-    /**
-     * This method requests that the downloader be rescheduled to run immediately (presumably because a dynamic property supplied by
-     * pollIntervalSupplier or eagerDownloadSupplier has changed, or a pipeline with a geoip processor has been added). This method does
-     * nothing if this task is cancelled, completed, or has not yet been scheduled to run for the first time. It cancels any existing
-     * scheduled run.
-     */
-    public void requestReschedule() {
-        if (isCancelled() || isCompleted()) {
-            return;
-        }
-        if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(TimeValue.ZERO);
         }
     }
 
@@ -429,22 +419,16 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         });
     }
 
-    @Override
-    protected void onCancelled() {
-        if (scheduled != null) {
-            scheduled.cancel();
-        }
-        markAsCompleted();
-    }
-
-    private void scheduleNextRun(TimeValue time) {
-        if (threadPool.scheduler().isShutdown() == false) {
-            scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
-        }
-    }
-
     private ProviderDownload downloaderFor(DatabaseConfiguration database) {
-        return new MaxmindDownload(database.name(), database.maxmind());
+        if (database.provider() instanceof DatabaseConfiguration.Maxmind maxmind) {
+            return new MaxmindDownload(database.name(), maxmind);
+        } else if (database.provider() instanceof DatabaseConfiguration.Ipinfo ipinfo) {
+            return new IpinfoDownload(database.name(), ipinfo);
+        } else {
+            throw new IllegalArgumentException(
+                Strings.format("Unexpected provider [%s] for configuration [%s]", database.provider().getClass(), database.id())
+            );
+        }
     }
 
     class MaxmindDownload implements ProviderDownload {
@@ -478,7 +462,7 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
         @Override
         public boolean validCredentials() {
-            return auth.get() != null;
+            return auth != null && auth.get() != null;
         }
 
         @Override
@@ -519,7 +503,101 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
         @Override
         public void close() throws IOException {
-            auth.close();
+            if (auth != null) auth.close();
+        }
+    }
+
+    class IpinfoDownload implements ProviderDownload {
+
+        final String name;
+        final DatabaseConfiguration.Ipinfo ipinfo;
+        HttpClient.PasswordAuthenticationHolder auth;
+
+        IpinfoDownload(String name, DatabaseConfiguration.Ipinfo ipinfo) {
+            this.name = name;
+            this.ipinfo = ipinfo;
+            this.auth = buildCredentials();
+        }
+
+        @Override
+        public HttpClient.PasswordAuthenticationHolder buildCredentials() {
+            final char[] tokenChars = tokenProvider.apply("ipinfo");
+
+            // if the token is missing or empty, return null as 'no auth'
+            if (tokenChars == null || tokenChars.length == 0) {
+                return null;
+            }
+
+            // ipinfo uses the token as the username component of basic auth, see https://ipinfo.io/developers#authentication
+            return new HttpClient.PasswordAuthenticationHolder(new String(tokenChars), new char[] {});
+        }
+
+        @Override
+        public boolean validCredentials() {
+            return auth != null && auth.get() != null;
+        }
+
+        private static final Set<String> FREE_DATABASES = Set.of("asn", "country", "country_asn");
+
+        @Override
+        public String url(String suffix) {
+            // note: the 'free' databases are in the sub-path 'free/' in terms of the download endpoint
+            final String internalName;
+            if (FREE_DATABASES.contains(name)) {
+                internalName = "free/" + name;
+            } else {
+                internalName = name;
+            }
+
+            // reminder, we're passing the ipinfo token as the username part of http basic auth,
+            // see https://ipinfo.io/developers#authentication
+
+            String endpointPattern = DEFAULT_IPINFO_ENDPOINT;
+            if (endpointPattern.contains("%")) {
+                throw new IllegalArgumentException("Invalid endpoint [" + endpointPattern + "]");
+            }
+            if (endpointPattern.endsWith("/") == false) {
+                endpointPattern += "/";
+            }
+            endpointPattern += "%s.%s";
+
+            // at this point the pattern looks like this (in the default case):
+            // https://ipinfo.io/data/%s.%s
+            // also see https://ipinfo.io/developers/database-download,
+            // and https://ipinfo.io/developers/database-filename-reference for more
+
+            return Strings.format(endpointPattern, internalName, suffix);
+        }
+
+        @Override
+        public Checksum checksum() throws IOException {
+            final String checksumJsonUrl = this.url("mmdb/checksums"); // a minor abuse of the idea of a 'suffix', :shrug:
+            byte[] data = httpClient.getBytes(auth.get(), checksumJsonUrl); // this throws if the auth is bad
+            Map<String, Object> checksums;
+            try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data)) {
+                checksums = parser.map();
+            }
+            @SuppressWarnings("unchecked")
+            String md5 = ((Map<String, String>) checksums.get("checksums")).get("md5");
+            logger.trace("checksum was [{}]", md5);
+
+            var matcher = MD5_CHECKSUM_PATTERN.matcher(md5);
+            boolean match = matcher.matches();
+            if (match == false) {
+                throw new RuntimeException("Unexpected md5 response from [" + checksumJsonUrl + "]");
+            }
+            return Checksum.md5(md5);
+        }
+
+        @Override
+        public CheckedSupplier<InputStream, IOException> download() {
+            final String mmdbUrl = this.url("mmdb");
+            return () -> httpClient.get(auth.get(), mmdbUrl);
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (auth != null) auth.close();
         }
     }
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.document;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -45,16 +45,8 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
         values = in.readCollectionAsList(StreamInput::readGenericValue);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
-        } else {
-            ignoredValues = Collections.emptyList();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            lookupFields = in.readCollectionAsList(LookupField::new);
-        } else {
-            lookupFields = List.of();
-        }
+        ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
+        lookupFields = in.readCollectionAsList(LookupField::new);
     }
 
     public DocumentField(String name, List<Object> values) {
@@ -72,6 +64,15 @@ public class DocumentField implements Writeable, Iterable<Object> {
         this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
         assert lookupFields.isEmpty() || (values.isEmpty() && ignoredValues.isEmpty())
             : "DocumentField can't have both lookup fields and values";
+    }
+
+    /**
+     * Read map of document fields written via {@link StreamOutput#writeMapValues(Map)}.
+     * @param in stream input
+     * @return map of {@link DocumentField} keyed by {@link DocumentField#getName()}
+     */
+    public static Map<String, DocumentField> readFieldsFromMapValues(StreamInput in) throws IOException {
+        return in.readMapValues(DocumentField::new, DocumentField::getName);
     }
 
     /**
@@ -115,17 +116,8 @@ public class DocumentField implements Writeable, Iterable<Object> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeCollection(lookupFields);
-        } else {
-            if (lookupFields.isEmpty() == false) {
-                assert false : "Lookup fields require all nodes be on 8.2 or later";
-                throw new IllegalStateException("Lookup fields require all nodes be on 8.2 or later");
-            }
-        }
+        out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
+        out.writeCollection(lookupFields);
     }
 
     public List<LookupField> getLookupFields() {

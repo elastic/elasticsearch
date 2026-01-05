@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 
@@ -36,7 +37,12 @@ public class DiscoveryNodeUtils {
         return builder(id).address(address).build();
     }
 
+    @Deprecated
     public static DiscoveryNode create(String id, TransportAddress address, Version version) {
+        return builder(id).address(address).version(version).build();
+    }
+
+    public static DiscoveryNode create(String id, TransportAddress address, VersionInformation version) {
         return builder(id).address(address).version(version).build();
     }
 
@@ -67,8 +73,10 @@ public class DiscoveryNodeUtils {
         private TransportAddress address;
         private Map<String, String> attributes = Map.of();
         private Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
+        private BuildVersion buildVersion;
         private Version version;
         private IndexVersion minIndexVersion;
+        private IndexVersion minReadOnlyIndexVersion;
         private IndexVersion maxIndexVersion;
         private String externalId;
 
@@ -107,21 +115,43 @@ public class DiscoveryNodeUtils {
             return this;
         }
 
+        @Deprecated
         public Builder version(Version version) {
             this.version = version;
             return this;
         }
 
+        @Deprecated
         public Builder version(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+            this.buildVersion = BuildVersion.fromVersionId(version.id());
             this.version = version;
             this.minIndexVersion = minIndexVersion;
+            this.minReadOnlyIndexVersion = minIndexVersion;
+            this.maxIndexVersion = maxIndexVersion;
+            return this;
+        }
+
+        public Builder version(
+            BuildVersion version,
+            IndexVersion minIndexVersion,
+            IndexVersion minReadOnlyIndexVersion,
+            IndexVersion maxIndexVersion
+        ) {
+            // see comment in VersionInformation
+            assert version.equals(BuildVersion.current());
+            this.buildVersion = version;
+            this.version = Version.CURRENT;
+            this.minIndexVersion = minIndexVersion;
+            this.minReadOnlyIndexVersion = minReadOnlyIndexVersion;
             this.maxIndexVersion = maxIndexVersion;
             return this;
         }
 
         public Builder version(VersionInformation versions) {
+            this.buildVersion = versions.buildVersion();
             this.version = versions.nodeVersion();
             this.minIndexVersion = versions.minIndexVersion();
+            this.minReadOnlyIndexVersion = versions.minReadOnlyIndexVersion();
             this.maxIndexVersion = versions.maxIndexVersion();
             return this;
         }
@@ -149,10 +179,10 @@ public class DiscoveryNodeUtils {
             }
 
             VersionInformation versionInfo;
-            if (minIndexVersion == null || maxIndexVersion == null) {
+            if (minIndexVersion == null || minReadOnlyIndexVersion == null || maxIndexVersion == null) {
                 versionInfo = VersionInformation.inferVersions(version);
             } else {
-                versionInfo = new VersionInformation(version, minIndexVersion, maxIndexVersion);
+                versionInfo = new VersionInformation(buildVersion, version, minIndexVersion, minReadOnlyIndexVersion, maxIndexVersion);
             }
 
             return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);

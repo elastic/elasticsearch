@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +52,8 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -59,6 +63,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         ThreadPool threadPool,
         MetadataUpdateSettingsService updateSettingsService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
@@ -69,17 +74,19 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             UpdateSettingsRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 
     @Override
     protected ClusterBlockException checkBlock(UpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        ClusterBlockException globalBlock = state.blocks()
+            .globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
         if (globalBlock != null) {
             return globalBlock;
         }
@@ -89,8 +96,13 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                projectMetadata.id(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request)
+            );
     }
 
     @Override
@@ -126,6 +138,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
 
         updateSettingsService.updateSettings(
             new UpdateSettingsClusterStateUpdateRequest(
+                projectResolver.getProjectId(),
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
                 requestSettings,

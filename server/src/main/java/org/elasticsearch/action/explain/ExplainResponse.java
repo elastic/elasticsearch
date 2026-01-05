@@ -10,13 +10,10 @@
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -65,11 +62,7 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     }
 
     public ExplainResponse(StreamInput in) throws IOException {
-        super(in);
         index = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readString();
-        }
         id = in.readString();
         exists = in.readBoolean();
         if (in.readBoolean()) {
@@ -115,9 +108,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeBoolean(exists);
         if (explanation == null) {
@@ -138,10 +128,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX.getPreferredName(), index);
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
-
         builder.field(_ID.getPreferredName(), id);
         builder.field(MATCHED.getPreferredName(), isMatch());
         if (hasExplanation()) {

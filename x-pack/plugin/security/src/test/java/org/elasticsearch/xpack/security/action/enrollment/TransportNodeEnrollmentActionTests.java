@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -77,7 +78,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         Path transportPath = tempDir.resolve("transport.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/transport.p12"), transportPath);
-        when(env.configFile()).thenReturn(tempDir);
+        when(env.configDir()).thenReturn(tempDir);
         final SSLService sslService = mock(SSLService.class);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("keystore.secure_password", "password");
@@ -103,7 +104,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Build.current().version(),
-                    TransportVersion.current(),
+                    new CompatibilityVersions(TransportVersion.current(), Map.of()),
                     IndexVersion.current(),
                     Map.of(),
                     null,
@@ -156,7 +157,10 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         assertThat(response.getNodesAddresses(), hasSize(numberOfNodes));
         assertThat(nodesInfoRequests, hasSize(1));
 
-        assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release.");
+        assertWarnings(
+            "[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
+        );
     }
 
     private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception {

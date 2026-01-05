@@ -99,7 +99,6 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     public VerifyRepositoryResponse() {}
 
     public VerifyRepositoryResponse(StreamInput in) throws IOException {
-        super(in);
         this.nodes = in.readCollectionAsList(NodeView::new);
     }
 

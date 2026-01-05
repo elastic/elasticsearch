@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authc.oidc;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
@@ -14,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
+import org.elasticsearch.xpack.core.security.authc.support.SecuritySettingsUtil;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.net.URI;
@@ -234,32 +234,7 @@ public class OpenIdConnectRealmSettings {
 
             @Override
             public void validate(String value, Map<Setting<?>, Object> settings) {
-                final String namespace = HTTP_PROXY_HOST.getNamespace(HTTP_PROXY_HOST.getConcreteSetting(key));
-                final Setting<Integer> portSetting = HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace);
-                final Integer port = (Integer) settings.get(portSetting);
-                final Setting<String> schemeSetting = HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(namespace);
-                final String scheme = (String) settings.get(schemeSetting);
-                try {
-                    new HttpHost(value, port, scheme);
-                } catch (Exception e) {
-                    throw new IllegalArgumentException(
-                        "HTTP host for hostname ["
-                            + value
-                            + "] (from ["
-                            + key
-                            + "]),"
-                            + " port ["
-                            + port
-                            + "] (from ["
-                            + portSetting.getKey()
-                            + "]) and "
-                            + "scheme ["
-                            + scheme
-                            + "] (from (["
-                            + schemeSetting.getKey()
-                            + "]) is invalid"
-                    );
-                }
+                SecuritySettingsUtil.verifyProxySettings(key, value, settings, HTTP_PROXY_HOST, HTTP_PROXY_SCHEME, HTTP_PROXY_PORT);
             }
 
             @Override

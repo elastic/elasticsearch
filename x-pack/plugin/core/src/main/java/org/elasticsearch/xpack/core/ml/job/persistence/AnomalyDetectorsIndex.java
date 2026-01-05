@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -29,12 +31,17 @@ public final class AnomalyDetectorsIndex {
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/ml/anomalydetection/";
+    private static final String WRITE_ALIAS_PREFIX = ".write-";
     public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private AnomalyDetectorsIndex() {}
 
     public static String jobResultsIndexPrefix() {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
+    }
+
+    public static String jobResultsIndexPattern() {
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*";
     }
 
     /**
@@ -47,14 +54,30 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
+     * Extract the job Id from the alias name.
+     * If not an results index alias null is returned
+     * @param jobResultsAliasedName The alias
+     * @return The job Id
+     */
+    public static Optional<String> jobIdFromAlias(String jobResultsAliasedName) {
+        if (jobResultsAliasedName.length() < AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length()) {
+            return Optional.empty();
+        }
+
+        var jobId = jobResultsAliasedName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
+        if (jobId.startsWith(WRITE_ALIAS_PREFIX)) {
+            jobId = jobId.substring(WRITE_ALIAS_PREFIX.length());
+        }
+        return Optional.of(jobId);
+    }
+
+    /**
      * The name of the alias pointing to the write index for a job
      * @param jobId Job Id
      * @return The write alias
      */
     public static String resultsWriteAlias(String jobId) {
-        // ".write" rather than simply "write" to avoid the danger of clashing
-        // with the read alias of a job whose name begins with "write-"
-        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + ".write-" + jobId;
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_WRITE_PREFIX + jobId;
     }
 
     /**
@@ -91,6 +114,10 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
             finalListener
         );
     }
@@ -123,6 +150,10 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
             stateIndexAndAliasCreated
         );
     }

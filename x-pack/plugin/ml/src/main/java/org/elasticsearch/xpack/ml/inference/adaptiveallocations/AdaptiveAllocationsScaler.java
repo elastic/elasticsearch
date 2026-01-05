@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.ml.inference.adaptiveallocations;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
+
+import java.util.function.Supplier;
 
 /**
  * Processes measured requests counts and inference times and decides whether
@@ -21,12 +22,6 @@ public class AdaptiveAllocationsScaler {
     // visible for testing
     static final double SCALE_UP_THRESHOLD = 0.9;
     private static final double SCALE_DOWN_THRESHOLD = 0.85;
-
-    /**
-     * The time interval without any requests that has to pass, before scaling down
-     * to zero allocations (in case min_allocations = 0).
-     */
-    private static final long SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS = TimeValue.timeValueMinutes(15).getSeconds();
 
     /**
      * If the max_number_of_allocations is not set, use this value for now to prevent scaling up
@@ -40,6 +35,7 @@ public class AdaptiveAllocationsScaler {
     private final String deploymentId;
     private final KalmanFilter1d requestRateEstimator;
     private final KalmanFilter1d inferenceTimeEstimator;
+    private final Supplier<Long> scaleToZeroAfterNoRequestsSeconds;
     private double timeWithoutRequestsSeconds;
 
     private int numberOfAllocations;
@@ -52,8 +48,10 @@ public class AdaptiveAllocationsScaler {
     private Double lastMeasuredInferenceTime;
     private Long lastMeasuredQueueSize;
 
-    AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations) {
+    AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations, Supplier<Long> scaleToZeroAfterNoRequestsSeconds) {
         this.deploymentId = deploymentId;
+        this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
+
         // A smoothing factor of 100 roughly means the last 100 measurements have an effect
         // on the estimated values. The sampling time is 10 seconds, so approximately the
         // last 15 minutes are taken into account.
@@ -122,6 +120,10 @@ public class AdaptiveAllocationsScaler {
         dynamicsChanged = false;
     }
 
+    void resetTimeWithoutRequests() {
+        timeWithoutRequestsSeconds = 0;
+    }
+
     double getLoadLower() {
         double requestRateLower = Math.max(0.0, requestRateEstimator.lower());
         double inferenceTimeLower = Math.max(0.0, inferenceTimeEstimator.hasValue() ? inferenceTimeEstimator.lower() : 1.0);
@@ -143,6 +145,7 @@ public class AdaptiveAllocationsScaler {
     }
 
     Integer scale() {
+
         if (requestRateEstimator.hasValue() == false) {
             return null;
         }
@@ -170,10 +173,14 @@ public class AdaptiveAllocationsScaler {
         if (maxNumberOfAllocations != null) {
             numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
         }
-        if (ScaleToZeroFeatureFlag.isEnabled()
-            && (minNumberOfAllocations == null || minNumberOfAllocations == 0)
-            && timeWithoutRequestsSeconds > SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS) {
-            logger.debug("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
+
+        if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)
+            && timeWithoutRequestsSeconds > scaleToZeroAfterNoRequestsSeconds.get()) {
+
+            if (oldNumberOfAllocations != 0) {
+                // avoid logging this message if there is no change
+                logger.debug("[{}] adaptive allocations scaler: scaling down to zero, because of no requests.", deploymentId);
+            }
             numberOfAllocations = 0;
             neededNumberOfAllocations = 0;
         }
@@ -231,5 +238,13 @@ public class AdaptiveAllocationsScaler {
 
     public Long getLastMeasuredQueueSize() {
         return lastMeasuredQueueSize;
+    }
+
+    public Integer getMinNumberOfAllocations() {
+        return minNumberOfAllocations;
+    }
+
+    public Integer getMaxNumberOfAllocations() {
+        return maxNumberOfAllocations;
     }
 }

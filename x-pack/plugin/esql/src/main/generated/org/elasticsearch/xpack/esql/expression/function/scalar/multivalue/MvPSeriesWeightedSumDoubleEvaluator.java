@@ -8,22 +8,25 @@ import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvPSeriesWeightedSum}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvPSeriesWeightedSumDoubleEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator block;
 
@@ -33,13 +36,15 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public MvPSeriesWeightedSumDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator block,
       CompensatedSum sum, double p, DriverContext driverContext) {
+    this.source = source;
     this.block = block;
     this.sum = sum;
     this.p = p;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -47,6 +52,13 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
     try (DoubleBlock blockBlock = (DoubleBlock) block.eval(page)) {
       return eval(page.getPositionCount(), blockBlock);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += block.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock blockBlock) {
@@ -63,7 +75,7 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
         try {
           MvPSeriesWeightedSum.process(result, p, blockBlock, this.sum, this.p);
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -79,6 +91,18 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
   @Override
   public void close() {
     Releasables.closeExpectNoException(block);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

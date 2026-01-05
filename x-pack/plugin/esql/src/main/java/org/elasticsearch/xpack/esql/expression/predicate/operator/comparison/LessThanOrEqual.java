@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -42,6 +43,7 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
     );
 
     @FunctionInfo(
+        operator = "<=",
         returnType = { "boolean" },
         description = "Check if one field is less than or equal to another. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
@@ -65,7 +67,16 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
     }
 
     public LessThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.LTE, zoneId, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.LTE,
+            zoneId,
+            evaluatorMap,
+            LessThanOrEqualNanosMillisEvaluator.Factory::new,
+            LessThanOrEqualMillisNanosEvaluator.Factory::new
+        );
     }
 
     @Override
@@ -106,6 +117,17 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
     @Evaluator(extraName = "Longs")
     static boolean processLongs(long lhs, long rhs) {
         return lhs <= rhs;
+    }
+
+    @Evaluator(extraName = "MillisNanos")
+    static boolean processMillisNanos(long lhs, long rhs) {
+        // Note, parameters are reversed, so we need to invert the check.
+        return DateUtils.compareNanosToMillis(rhs, lhs) >= 0;
+    }
+
+    @Evaluator(extraName = "NanosMillis")
+    static boolean processNanosMillis(long lhs, long rhs) {
+        return DateUtils.compareNanosToMillis(lhs, rhs) <= 0;
     }
 
     @Evaluator(extraName = "Doubles")

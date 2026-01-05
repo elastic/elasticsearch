@@ -11,6 +11,7 @@ package org.elasticsearch.join.aggregations;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
 import java.util.HashMap;
@@ -39,7 +40,7 @@ public class ParentIT extends AbstractParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setSize(0).setQuery(matchQuery("randomized", true)).addAggregation(parent("to_article", "comment")),
             response -> {
-                Parent parentAgg = response.getAggregations().get("to_article");
+                SingleBucketAggregation parentAgg = response.getAggregations().get("to_article");
                 assertThat("\nResponse: " + response + "\n", parentAgg.getDocCount(), equalTo(articlesWithComment));
             }
         );
@@ -56,7 +57,7 @@ public class ParentIT extends AbstractParentChildTestCase {
                 .setQuery(matchQuery("randomized", true))
                 .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000))),
             response -> {
-                Parent parentAgg = response.getAggregations().get("to_article");
+                SingleBucketAggregation parentAgg = response.getAggregations().get("to_article");
                 assertThat("Response: " + response + "\n", parentAgg.getDocCount(), equalTo(articlesWithComment));
                 Terms categoryTerms = parentAgg.getAggregations().get("category");
                 assertThat(
@@ -123,7 +124,7 @@ public class ParentIT extends AbstractParentChildTestCase {
                         equalTo((long) comments.size())
                     );
 
-                    Parent articleAgg = commenterBucket.getAggregations().get("to_article");
+                    SingleBucketAggregation articleAgg = commenterBucket.getAggregations().get("to_article");
                     assertThat(articleAgg.getName(), equalTo("to_article"));
                     // find all articles for the comments for the current commenter
                     Set<String> articles = articleToControl.values()
@@ -159,7 +160,7 @@ public class ParentIT extends AbstractParentChildTestCase {
                     assertThat(categoryBucket.getKeyAsString(), equalTo(commenter));
                     assertThat(categoryBucket.getDocCount(), equalTo((long) commenterToComments.get(commenter).size()));
 
-                    Parent childrenBucket = categoryBucket.getAggregations().get("to_article");
+                    SingleBucketAggregation childrenBucket = categoryBucket.getAggregations().get("to_article");
                     assertThat(childrenBucket.getName(), equalTo("to_article"));
                 }
             }
@@ -186,7 +187,7 @@ public class ParentIT extends AbstractParentChildTestCase {
 
     public void testNonExistingParentType() throws Exception {
         assertNoFailuresAndResponse(prepareSearch("test").addAggregation(parent("non-existing", "xyz")), response -> {
-            Parent parent = response.getAggregations().get("non-existing");
+            SingleBucketAggregation parent = response.getAggregations().get("non-existing");
             assertThat(parent.getName(), equalTo("non-existing"));
             assertThat(parent.getDocCount(), equalTo(0L));
         });
@@ -216,7 +217,7 @@ public class ParentIT extends AbstractParentChildTestCase {
                         equalTo((long) comments.size())
                     );
 
-                    Parent articleAgg = commenterBucket.getAggregations().get("to_article");
+                    SingleBucketAggregation articleAgg = commenterBucket.getAggregations().get("to_article");
                     assertThat(articleAgg.getName(), equalTo("to_article"));
                     // find all articles for the comments for the current commenter
                     Set<String> articles = articleToControl.values()

@@ -16,12 +16,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
@@ -45,19 +47,24 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportCreateIndexActionTests extends ESTestCase {
 
     private static final String UNMANAGED_SYSTEM_INDEX_NAME = ".my-system";
     private static final String MANAGED_SYSTEM_INDEX_NAME = ".my-managed";
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
+    private static final ProjectId PROJECT_ID = ProjectId.fromId("test_project_id");
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(Metadata.builder().build())
+        .putProjectMetadata(ProjectMetadata.builder(PROJECT_ID).build())
         .nodes(
             DiscoveryNodes.builder()
                 .add(
@@ -104,7 +111,6 @@ public class TransportCreateIndexActionTests extends ESTestCase {
                               }
                             }"
                             """, SystemIndexDescriptor.VERSION_META_KEY))
-                        .setVersionMetaKey("version")
                         .setOrigin("origin")
                         .build()
                 )
@@ -114,25 +120,29 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
     private MetadataCreateIndexService metadataCreateIndexService;
     private TransportCreateIndexAction action;
+    private ThreadContext threadContext;
 
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, SYSTEM_INDICES);
+        threadContext = new ThreadContext(Settings.EMPTY);
+        final var projectResolver = TestProjectResolvers.usingRequestHeader(threadContext);
         this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);
 
         final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        ClusterService mockClusterService = mock(ClusterService.class);
+        when(mockClusterService.state()).thenReturn(CLUSTER_STATE);
         this.action = new TransportCreateIndexAction(
             transportService,
-            mock(ClusterService.class),
+            mockClusterService,
             threadPool,
             metadataCreateIndexService,
             mock(ActionFilters.class),
-            indexNameExpressionResolver,
-            SYSTEM_INDICES
+            SYSTEM_INDICES,
+            projectResolver
         );
     }
 
@@ -227,4 +237,73 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         );
     }
 
+    public void testCreateIndexUnderRequestedProject() {
+        threadContext.putHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, PROJECT_ID.id()));
+
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
+
+        CreateIndexRequest request = new CreateIndexRequest();
+        request.index(randomFrom(UNMANAGED_SYSTEM_INDEX_NAME, MANAGED_SYSTEM_INDEX_NAME + "-primary"));
+        action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> createRequestArgumentCaptor = ArgumentCaptor.forClass(
+            CreateIndexClusterStateUpdateRequest.class
+        );
+        verify(mockListener, times(0)).onFailure(any());
+        verify(metadataCreateIndexService, times(1)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            createRequestArgumentCaptor.capture(),
+            any()
+        );
+
+        CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
+        assertThat(processedRequest.projectId(), is(PROJECT_ID));
+    }
+
+    public void testCreateIndexUnderMissingProject() {
+        threadContext.putHeader(Map.of(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, "unknown_project_id"));
+
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
+
+        CreateIndexRequest request = new CreateIndexRequest();
+        request.index(randomFrom(UNMANAGED_SYSTEM_INDEX_NAME, MANAGED_SYSTEM_INDEX_NAME + "-primary"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener)
+        );
+        assertThat(e.getMessage(), containsString("Could not find project with id [unknown_project_id]"));
+    }
+
+    public void testCreatingSystemIndexForMigration() {
+        CreateIndexRequest request = new CreateIndexRequest();
+        String path = "/test";  // just to test that we pass settings
+        Settings settings = Settings.builder().put(SETTING_INDEX_HIDDEN, true).put(IndexMetadata.SETTING_DATA_PATH, path).build();
+        request.index(MANAGED_SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX)
+            .cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+            .settings(settings);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
+
+        action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
+
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> createRequestArgumentCaptor = ArgumentCaptor.forClass(
+            CreateIndexClusterStateUpdateRequest.class
+        );
+        verify(mockListener, times(0)).onFailure(any());
+        verify(metadataCreateIndexService, times(1)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            createRequestArgumentCaptor.capture(),
+            any()
+        );
+
+        CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
+        assertTrue(processedRequest.settings().getAsBoolean(SETTING_INDEX_HIDDEN, false));
+        assertThat(processedRequest.settings().get(IndexMetadata.SETTING_DATA_PATH, ""), is(path));
+    }
 }

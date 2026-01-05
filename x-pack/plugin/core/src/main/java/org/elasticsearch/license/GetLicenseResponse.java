@@ -17,7 +17,6 @@ public class GetLicenseResponse extends ActionResponse {
     private License license;
 
     GetLicenseResponse(StreamInput in) throws IOException {
-        super(in);
         if (in.readBoolean()) {
             license = License.readLicense(in);
         }

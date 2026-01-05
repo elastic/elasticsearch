@@ -38,10 +38,7 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_security/profile/_has_privileges").build(),
-            Route.builder(POST, "/_security/profile/_has_privileges").build()
-        );
+        return List.of(new Route(GET, "/_security/profile/_has_privileges"), new Route(POST, "/_security/profile/_has_privileges"));
     }
 
     @Override

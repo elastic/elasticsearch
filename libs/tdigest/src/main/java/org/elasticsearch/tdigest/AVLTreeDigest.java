@@ -21,6 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
@@ -32,7 +33,10 @@ import java.util.Random;
 import static org.elasticsearch.tdigest.IntAVLTree.NIL;
 
 public class AVLTreeDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AVLTreeDigest.class);
+
     private final TDigestArrays arrays;
+    private boolean closed = false;
 
     final Random gen = new Random();
     private final double compression;
@@ -43,6 +47,16 @@ public class AVLTreeDigest extends AbstractTDigest {
     // Indicates if a sample has been added after the last compression.
     private boolean needsCompression;
 
+    static AVLTreeDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new AVLTreeDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
     /**
      * A histogram structure that will record a sketch of a distribution.
      *
@@ -51,15 +65,20 @@ public class AVLTreeDigest extends AbstractTDigest {
      *                    quantiles.  Conversely, you should expect to track about 5 N centroids for this
      *                    accuracy.
      */
-    AVLTreeDigest(TDigestArrays arrays, double compression) {
+    private AVLTreeDigest(TDigestArrays arrays, double compression) {
         this.arrays = arrays;
         this.compression = compression;
-        summary = new AVLGroupTree(arrays);
+        summary = AVLGroupTree.create(arrays);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + summary.ramBytesUsed();
     }
 
     /**
      * Sets the seed for the RNG.
-     * In cases where a predicatable tree should be created, this function may be used to make the
+     * In cases where a predictable tree should be created, this function may be used to make the
      * randomness in this AVLTree become more deterministic.
      *
      * @param seed The random seed to use for RNG purposes
@@ -155,7 +174,7 @@ public class AVLTreeDigest extends AbstractTDigest {
         needsCompression = false;
 
         try (AVLGroupTree centroids = summary) {
-            this.summary = new AVLGroupTree(arrays);
+            this.summary = AVLGroupTree.create(arrays);
 
             final int[] nodes = new int[centroids.size()];
             nodes[0] = centroids.first();
@@ -361,6 +380,10 @@ public class AVLTreeDigest extends AbstractTDigest {
 
     @Override
     public void close() {
-        Releasables.close(summary);
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(summary);
+        }
     }
 }

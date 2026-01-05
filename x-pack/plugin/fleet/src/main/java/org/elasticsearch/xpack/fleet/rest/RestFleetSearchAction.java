@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.fleet.rest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -21,6 +20,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.usage.SearchUsageHolder;
 
 import java.io.IOException;
@@ -57,12 +57,11 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        SearchRequest searchRequest;
-        if (request.hasParam("min_compatible_shard_node")) {
-            searchRequest = new SearchRequest(Version.fromString(request.param("min_compatible_shard_node")));
-        } else {
-            searchRequest = new SearchRequest();
-        }
+        SearchRequest searchRequest = new SearchRequest();
+        // access the BwC param, but just drop it
+        // this might be set by old clients
+        request.param("min_compatible_shard_node");
+
         String[] indices = searchRequest.indices();
         if (indices.length > 1) {
             throw new IllegalArgumentException(
@@ -83,6 +82,9 @@ public class RestFleetSearchAction extends BaseRestHandler {
                 throw new IllegalArgumentException(
                     "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
                 );
+            }
+            if (RemoteClusterService.isRemoteIndexName(indices1[0])) {
+                throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices1[0] + "].");
             }
             if (waitForCheckpoints.length != 0) {
                 searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));

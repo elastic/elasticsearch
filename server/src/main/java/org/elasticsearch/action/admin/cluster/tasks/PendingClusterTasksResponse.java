@@ -26,7 +26,6 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
     private final List<PendingClusterTask> pendingTasks;
 
     public PendingClusterTasksResponse(StreamInput in) throws IOException {
-        super(in);
         pendingTasks = in.readCollectionAsList(PendingClusterTask::new);
     }
 
@@ -50,6 +49,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
                 .append(pendingClusterTask.getSource())
                 .append("/")
                 .append(pendingClusterTask.getTimeInQueue())
+                .append(pendingClusterTask.executing() ? "[executing]" : "")
                 .append("\n");
         }
         return sb.toString();

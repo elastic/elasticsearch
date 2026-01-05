@@ -90,7 +90,7 @@ public class MultiFileWriterTests extends IndexShardTestCase {
     }
 
     private MultiFileWriter createMultiFileWriter(boolean verifyOutput) {
-        return new MultiFileWriter(store, mock(RecoveryState.Index.class), "temp_", logger, mock(Runnable.class), verifyOutput);
+        return new MultiFileWriter(store, mock(RecoveryState.Index.class), "temp_", logger, verifyOutput);
     }
 
     private record FileAndMetadata(byte[] bytes, StoreFileMetadata metadata) {}

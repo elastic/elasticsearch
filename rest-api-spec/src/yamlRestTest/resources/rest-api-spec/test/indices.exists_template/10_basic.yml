@@ -31,10 +31,15 @@ setup:
 
 ---
 "Test indices.exists_template with local flag":
+  - requires:
+      test_runner_features: ["allowed_warnings"]
+
   - do:
       indices.exists_template:
         name: test
         local: true
+      allowed_warnings:
+        - "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
 
   - is_false: ''
 

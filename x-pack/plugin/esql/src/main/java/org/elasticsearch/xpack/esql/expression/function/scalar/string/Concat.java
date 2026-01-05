@@ -29,10 +29,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -106,13 +106,13 @@ public class Concat extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var values = children().stream().map(toEvaluator).toArray(ExpressionEvaluator.Factory[]::new);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var values = children().stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new);
         return new ConcatEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "concat"), values);
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef[] values) {
+    static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, BytesRef[] values) {
         scratch.grow(checkedTotalLength(values));
         scratch.clear();
         for (int i = 0; i < values.length; i++) {

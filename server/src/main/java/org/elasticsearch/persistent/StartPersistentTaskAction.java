@@ -17,10 +17,11 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,8 +53,8 @@ public class StartPersistentTaskAction {
             params = in.readNamedWriteable(PersistentTaskParams.class);
         }
 
-        public Request(String taskId, String taskName, PersistentTaskParams params) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String taskId, String taskName, PersistentTaskParams params) {
+            super(masterNodeTimeout);
             this.taskId = taskId;
             this.taskName = taskName;
             this.params = params;
@@ -118,6 +119,7 @@ public class StartPersistentTaskAction {
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
+        private final ProjectResolver projectResolver;
 
         @Inject
         public TransportAction(
@@ -128,7 +130,7 @@ public class StartPersistentTaskAction {
             PersistentTasksClusterService persistentTasksClusterService,
             PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
             PersistentTasksService persistentTasksService,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            ProjectResolver projectResolver
         ) {
             super(
                 INSTANCE.name(),
@@ -137,11 +139,11 @@ public class StartPersistentTaskAction {
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 PersistentTaskResponse::new,
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
+            this.projectResolver = projectResolver;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor();
             clusterService.addListener(
                 new PersistentTasksNodeService(
@@ -167,12 +169,22 @@ public class StartPersistentTaskAction {
             ClusterState state,
             final ActionListener<PersistentTaskResponse> listener
         ) {
-            persistentTasksClusterService.createPersistentTask(
-                request.taskId,
-                request.taskName,
-                request.params,
-                listener.safeMap(PersistentTaskResponse::new)
-            );
+            if (PersistentTasksExecutorRegistry.isClusterScopedTask(request.taskName)) {
+                persistentTasksClusterService.createClusterPersistentTask(
+                    request.taskId,
+                    request.taskName,
+                    request.params,
+                    listener.safeMap(PersistentTaskResponse::new)
+                );
+            } else {
+                persistentTasksClusterService.createProjectPersistentTask(
+                    projectResolver.getProjectId(),
+                    request.taskId,
+                    request.taskName,
+                    request.params,
+                    listener.safeMap(PersistentTaskResponse::new)
+                );
+            }
         }
     }
 }

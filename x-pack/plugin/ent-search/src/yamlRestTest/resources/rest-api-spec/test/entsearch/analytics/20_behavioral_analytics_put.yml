@@ -1,0 +1,43 @@
+teardown:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+  - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.delete_behavioral_analytics:
+        name: test-analytics-collection
+
+---
+"Create Analytics Collection":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+  - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.put_behavioral_analytics:
+        name: test-analytics-collection
+
+  - match: { acknowledged: true }
+  - match: { name: "test-analytics-collection" }
+
+---
+"Create Analytics Collection - analytics collection already exists":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+  - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.put_behavioral_analytics:
+        name: test-analytics-collection
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
+      search_application.put_behavioral_analytics:
+        name: test-analytics-collection
+
+  - match: { error.type: "resource_already_exists_exception" }
+

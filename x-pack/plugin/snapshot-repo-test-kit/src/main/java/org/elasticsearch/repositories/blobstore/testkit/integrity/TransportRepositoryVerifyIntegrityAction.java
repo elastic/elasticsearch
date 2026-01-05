@@ -9,9 +9,9 @@ package org.elasticsearch.repositories.blobstore.testkit.integrity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -57,13 +57,13 @@ class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
         ActionFilters actionFilters,
         Executor executor
     ) {
-        super(ACTION_NAME, transportService, actionFilters, TransportRepositoryVerifyIntegrityAction.Request::new, executor);
+        super(ACTION_NAME, transportService, actionFilters, Request::new, executor);
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
         this.executor = executor;
     }
 
-    static class Request extends ActionRequest {
+    static class Request extends LegacyActionRequest {
         private final DiscoveryNode coordinatingNode;
         private final long coordinatingTaskId;
         private final RepositoryVerifyIntegrityParams requestParams;
@@ -132,6 +132,7 @@ class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
 
             .<RepositoryData>newForked(l -> repository.getRepositoryData(executor, l))
             .andThenApply(repositoryData -> {
+                ensureValidGenId(repositoryData.getGenId());
                 final var cancellableThreads = new CancellableThreads();
                 task.addListener(() -> cancellableThreads.cancel("task cancelled"));
                 final var verifier = new RepositoryIntegrityVerifier(
@@ -154,5 +155,18 @@ class TransportRepositoryVerifyIntegrityAction extends HandledTransportAction<
             )
             .<RepositoryVerifyIntegrityResponse>andThen((l, repositoryIntegrityVerifier) -> repositoryIntegrityVerifier.start(l))
             .addListener(listener);
+    }
+
+    static void ensureValidGenId(long repositoryGenId) {
+        if (repositoryGenId == RepositoryData.EMPTY_REPO_GEN) {
+            throw new IllegalArgumentException("repository is empty, cannot verify its integrity");
+        }
+        if (repositoryGenId < 0) {
+            final var exception = new IllegalStateException(
+                "repository is in an unexpected state [" + repositoryGenId + "], cannot verify its integrity"
+            );
+            assert false : exception; // cannot be unknown, and if corrupt we throw a corruptedStateException from getRepositoryData
+            throw exception;
+        }
     }
 }

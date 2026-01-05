@@ -9,24 +9,25 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.index.mapper.ParsedDocument.DocumentSize;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.xcontent.XContentParser;
 
 public interface XContentMeteringParserDecorator extends XContentParserDecorator {
+    long UNKNOWN_SIZE = -1;
     /**
      * a default noop implementation
      */
     XContentMeteringParserDecorator NOOP = new XContentMeteringParserDecorator() {
         @Override
-        public DocumentSize meteredDocumentSize() {
-            return DocumentSize.UNKNOWN;
+        public long meteredDocumentSize() {
+            return UNKNOWN_SIZE;
         }
 
         @Override
-        public XContentParser decorate(XContentParser xContentParser) {
+        public XContentParser decorate(XContentParser xContentParser, Mapping mapping) {
             return xContentParser;
         }
     };
 
-    DocumentSize meteredDocumentSize();
+    long meteredDocumentSize();
 }

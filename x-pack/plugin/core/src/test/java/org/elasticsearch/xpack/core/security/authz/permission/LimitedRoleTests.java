@@ -239,7 +239,7 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     private static IndexPrivilege randomIndexPrivilege() {
-        return IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names())));
+        return IndexPrivilege.get(randomFrom(IndexPrivilege.names()));
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterReturnsEmpty() {
@@ -353,7 +353,7 @@ public class LimitedRoleTests extends ESTestCase {
         IndicesAccessControl iac = fromRole.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet("_index", "_alias1"),
-            md.getIndicesLookup(),
+            md.getProject(),
             fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(false));
@@ -364,7 +364,7 @@ public class LimitedRoleTests extends ESTestCase {
         iac = fromRole.authorize(
             TransportCreateIndexAction.TYPE.name(),
             Sets.newHashSet("_index", "_index1"),
-            md.getIndicesLookup(),
+            md.getProject(),
             fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(true));
@@ -382,7 +382,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportSearchAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
+                md.getProject(),
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -393,7 +393,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportDeleteIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
+                md.getProject(),
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -404,7 +404,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportCreateIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
+                md.getProject(),
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -422,7 +422,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = role.authorize(
                 TransportSearchAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
+                md.getProject(),
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -433,7 +433,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = role.authorize(
                 TransportDeleteIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
+                md.getProject(),
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -444,7 +444,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = role.authorize(
                 TransportCreateIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_index1"),
-                md.getIndicesLookup(),
+                md.getProject(),
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -529,22 +529,22 @@ public class LimitedRoleTests extends ESTestCase {
 
     public void testAllowedIndicesMatcher() {
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
-        assertThat(fromRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1")), is(true));
-        assertThat(fromRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11")), is(true));
-        assertThat(fromRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2")), is(false));
+        assertThat(fromRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1"), null), is(true));
+        assertThat(fromRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11"), null), is(true));
+        assertThat(fromRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2"), null), is(false));
 
         {
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-1", "ind-2").build();
             assertThat(
-                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1")),
+                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1"), null),
                 is(true)
             );
             assertThat(
-                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11")),
+                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11"), null),
                 is(false)
             );
             assertThat(
-                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2")),
+                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2"), null),
                 is(true)
             );
             Role role;
@@ -553,18 +553,18 @@ public class LimitedRoleTests extends ESTestCase {
             } else {
                 role = fromRole.limitedBy(limitedByRole);
             }
-            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1")), is(true));
-            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11")), is(false));
-            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2")), is(false));
+            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1"), null), is(true));
+            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11"), null), is(false));
+            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2"), null), is(false));
         }
         {
             Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role").add(IndexPrivilege.READ, "ind-*").build();
             assertThat(
-                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1")),
+                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1"), null),
                 is(true)
             );
             assertThat(
-                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2")),
+                limitedByRole.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2"), null),
                 is(true)
             );
             Role role;
@@ -573,16 +573,16 @@ public class LimitedRoleTests extends ESTestCase {
             } else {
                 role = fromRole.limitedBy(limitedByRole);
             }
-            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1")), is(true));
-            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2")), is(false));
+            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1"), null), is(true));
+            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2"), null), is(false));
         }
     }
 
     public void testAllowedIndicesMatcherWithNestedRole() {
         Role role = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role").add(IndexPrivilege.READ, "ind-1*").build();
-        assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1")), is(true));
-        assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11")), is(true));
-        assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2")), is(false));
+        assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1"), null), is(true));
+        assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11"), null), is(true));
+        assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2"), null), is(false));
 
         final int depth = randomIntBetween(2, 4);
         boolean index11Excluded = false;
@@ -598,12 +598,12 @@ public class LimitedRoleTests extends ESTestCase {
             } else {
                 role = role.limitedBy(limitedByRole);
             }
-            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1")), is(true));
+            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-1"), null), is(true));
             assertThat(
-                role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11")),
+                role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-11"), null),
                 is(false == index11Excluded)
             );
-            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2")), is(false));
+            assertThat(role.allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(mockIndexAbstraction("ind-2"), null), is(false));
         }
     }
 
@@ -644,6 +644,101 @@ public class LimitedRoleTests extends ESTestCase {
         rolePredicate = Automatons.predicate(roleAutomaton);
         assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
         assertThat(rolePredicate.test(TransportBulkAction.NAME), is(false));
+    }
+
+    public void testAllowedActionsMatcherWithSelectors() {
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "fromRole")
+            .add(IndexPrivilege.READ_FAILURE_STORE, "ind*")
+            .add(IndexPrivilege.READ, "ind*")
+            .add(IndexPrivilege.READ_FAILURE_STORE, "metric")
+            .add(IndexPrivilege.READ, "logs")
+            .build();
+        Automaton fromRoleAutomaton = fromRole.allowedActionsMatcher("index1");
+        Predicate<String> fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("index1::failures");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("metric");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("metric::failures");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("logs");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("logs::failures");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limitedRole")
+            .add(IndexPrivilege.READ, "index1", "index2")
+            .add(IndexPrivilege.READ_FAILURE_STORE, "index3")
+            .build();
+        Automaton limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index1");
+        Predicate<String> limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(true));
+
+        limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index1");
+        limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(true));
+
+        limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index1::failures");
+        limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(false));
+
+        limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index3");
+        limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(false));
+
+        limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index3::failures");
+        limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(true));
+
+        Role role;
+        if (randomBoolean()) {
+            role = limitedByRole.limitedBy(fromRole);
+        } else {
+            role = fromRole.limitedBy(limitedByRole);
+        }
+
+        Automaton roleAutomaton = role.allowedActionsMatcher("index1");
+        Predicate<String> rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        roleAutomaton = role.allowedActionsMatcher("index1::failures");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("index3");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("index3::failures");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        roleAutomaton = role.allowedActionsMatcher("metric");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("metric::failures");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("logs");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("logs::failures");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
     }
 
     public void testCheckClusterPrivilege() {

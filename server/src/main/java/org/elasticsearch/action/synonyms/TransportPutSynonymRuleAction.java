@@ -41,8 +41,8 @@ public class TransportPutSynonymRuleAction extends HandledTransportAction<PutSyn
         synonymsManagementAPIService.putSynonymRule(
             request.synonymsSetId(),
             request.synonymRule(),
-            listener.map(updateResponse -> new SynonymUpdateResponse(updateResponse))
+            request.refresh(),
+            listener.map(SynonymUpdateResponse::new)
         );
-
     }
 }

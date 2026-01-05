@@ -11,18 +11,17 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 public class InboundPipeline implements Releasable {
 
-    private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
     private final LongSupplier relativeTimeInMillis;
@@ -56,106 +55,75 @@ public class InboundPipeline implements Releasable {
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         if (uncaughtException != null) {
+            reference.close();
             throw new IllegalStateException("Pipeline state corrupted by uncaught exception", uncaughtException);
         }
         try {
-            doHandleBytes(channel, reference);
+            channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
+            statsTracker.markBytesRead(reference.length());
+            if (isClosed) {
+                reference.close();
+                return;
+            }
+            pending.add(reference);
+            doHandleBytes(channel);
         } catch (Exception e) {
             uncaughtException = e;
             throw e;
         }
     }
 
-    public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
-        channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
-        statsTracker.markBytesRead(reference.length());
-        pending.add(reference.retain());
-
-        final ArrayList<Object> fragments = fragmentList.get();
-        boolean continueHandling = true;
-
-        while (continueHandling && isClosed == false) {
-            boolean continueDecoding = true;
-            while (continueDecoding && pending.isEmpty() == false) {
-                try (ReleasableBytesReference toDecode = getPendingBytes()) {
-                    final int bytesDecoded = decoder.decode(toDecode, fragments::add);
-                    if (bytesDecoded != 0) {
-                        releasePendingBytes(bytesDecoded);
-                        if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
-                            continueDecoding = false;
-                        }
-                    } else {
-                        continueDecoding = false;
-                    }
+    private void doHandleBytes(TcpChannel channel) throws IOException {
+        do {
+            CheckedConsumer<Object, IOException> decodeConsumer = f -> forwardFragment(channel, f);
+            int bytesDecoded = decoder.decode(pending.peekFirst(), decodeConsumer);
+            if (bytesDecoded == 0 && pending.size() > 1) {
+                final ReleasableBytesReference[] bytesReferences = new ReleasableBytesReference[pending.size()];
+                int index = 0;
+                for (ReleasableBytesReference pendingReference : pending) {
+                    bytesReferences[index] = pendingReference.retain();
+                    ++index;
+                }
+                try (
+                    ReleasableBytesReference toDecode = new ReleasableBytesReference(
+                        CompositeBytesReference.of(bytesReferences),
+                        () -> Releasables.closeExpectNoException(bytesReferences)
+                    )
+                ) {
+                    bytesDecoded = decoder.decode(toDecode, decodeConsumer);
                 }
             }
-
-            if (fragments.isEmpty()) {
-                continueHandling = false;
+            if (bytesDecoded != 0) {
+                releasePendingBytes(bytesDecoded);
             } else {
-                try {
-                    forwardFragments(channel, fragments);
-                } finally {
-                    for (Object fragment : fragments) {
-                        if (fragment instanceof ReleasableBytesReference) {
-                            ((ReleasableBytesReference) fragment).close();
-                        }
-                    }
-                    fragments.clear();
-                }
+                break;
             }
-        }
+        } while (pending.isEmpty() == false);
     }
 
-    private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
-        for (Object fragment : fragments) {
-            if (fragment instanceof Header) {
-                headerReceived((Header) fragment);
-            } else if (fragment instanceof Compression.Scheme) {
-                assert aggregator.isAggregating();
-                aggregator.updateCompressionScheme((Compression.Scheme) fragment);
-            } else if (fragment == InboundDecoder.PING) {
-                assert aggregator.isAggregating() == false;
-                messageHandler.accept(channel, PING_MESSAGE);
-            } else if (fragment == InboundDecoder.END_CONTENT) {
-                assert aggregator.isAggregating();
-                InboundMessage aggregated = aggregator.finishAggregation();
-                try {
-                    statsTracker.markMessageReceived();
-                    messageHandler.accept(channel, aggregated);
-                } finally {
-                    aggregated.decRef();
-                }
-            } else {
-                assert aggregator.isAggregating();
-                assert fragment instanceof ReleasableBytesReference;
-                aggregator.aggregate((ReleasableBytesReference) fragment);
-            }
+    private void forwardFragment(TcpChannel channel, Object fragment) throws IOException {
+        if (fragment instanceof Header) {
+            headerReceived((Header) fragment);
+        } else if (fragment instanceof Compression.Scheme) {
+            assert aggregator.isAggregating();
+            aggregator.updateCompressionScheme((Compression.Scheme) fragment);
+        } else if (fragment == InboundDecoder.PING) {
+            assert aggregator.isAggregating() == false;
+            messageHandler.accept(channel, PING_MESSAGE);
+        } else if (fragment == InboundDecoder.END_CONTENT) {
+            assert aggregator.isAggregating();
+            statsTracker.markMessageReceived();
+            messageHandler.accept(channel, /* autocloses */ aggregator.finishAggregation());
+        } else {
+            assert aggregator.isAggregating();
+            assert fragment instanceof ReleasableBytesReference;
+            aggregator.aggregate((ReleasableBytesReference) fragment);
         }
     }
 
     protected void headerReceived(Header header) {
         assert aggregator.isAggregating() == false;
         aggregator.headerReceived(header);
-    }
-
-    private static boolean endOfMessage(Object fragment) {
-        return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
-    }
-
-    private ReleasableBytesReference getPendingBytes() {
-        if (pending.size() == 1) {
-            return pending.peekFirst().retain();
-        } else {
-            final ReleasableBytesReference[] bytesReferences = new ReleasableBytesReference[pending.size()];
-            int index = 0;
-            for (ReleasableBytesReference pendingReference : pending) {
-                bytesReferences[index] = pendingReference.retain();
-                ++index;
-            }
-            final Releasable releasable = () -> Releasables.closeExpectNoException(bytesReferences);
-            return new ReleasableBytesReference(CompositeBytesReference.of(bytesReferences), releasable);
-        }
     }
 
     private void releasePendingBytes(int bytesConsumed) {

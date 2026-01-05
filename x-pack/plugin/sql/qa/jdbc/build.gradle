@@ -1,7 +1,13 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.BwcVersions.UnreleasedVersionInfo
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 description = 'Integration tests for SQL JDBC driver'
@@ -72,11 +78,11 @@ subprojects {
 
     // Configure compatibility testing tasks
     // Compatibility testing for JDBC driver started with version 7.9.0
-    BuildParams.bwcVersions.indexCompatible.findAll({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
+    buildParams.bwcVersions.indexCompatible.findAll({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
       def baseName = "v${bwcVersion}"
       def cluster = testClusters.register(baseName)
 
-      UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
+      UnreleasedVersionInfo unreleasedVersion = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
       Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
         // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
         transitive = false

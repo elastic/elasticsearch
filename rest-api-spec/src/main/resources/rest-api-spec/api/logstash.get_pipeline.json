@@ -1,32 +1,37 @@
 {
-  "logstash.get_pipeline":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/logstash-api-get-pipeline.html",
-      "description":"Retrieves Logstash Pipelines used by Central Management"
+  "logstash.get_pipeline": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-logstash-get-pipeline",
+      "description": "Get Logstash pipelines"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_logstash/pipeline",
-          "methods":[ "GET" ]
+          "path": "/_logstash/pipeline",
+          "methods": [
+            "GET"
+          ]
         },
         {
-          "path":"/_logstash/pipeline/{id}",
-          "methods":[ "GET" ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"A comma-separated list of Pipeline IDs"
+          "path": "/_logstash/pipeline/{id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "id": {
+              "type": "list",
+              "description": "A comma-separated list of pipeline identifiers."
             }
           }
         }
       ]
-    },
-    "params":{}
+    }
   }
 }

@@ -12,6 +12,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -239,7 +241,7 @@ public final class ConfigurationUtils {
             processorType,
             processorTag,
             propertyName,
-            "property isn't a boolean, but of type [" + value.getClass().getName() + "]"
+            Strings.format("property isn't a boolean, but of type [%s]", value.getClass().getName())
         );
     }
 
@@ -486,7 +488,8 @@ public final class ConfigurationUtils {
     public static List<Processor> readProcessorConfigs(
         List<Map<String, Object>> processorConfigs,
         ScriptService scriptService,
-        Map<String, Processor.Factory> processorFactories
+        Map<String, Processor.Factory> processorFactories,
+        ProjectId projectId
     ) throws Exception {
         Exception exception = null;
         List<Processor> processors = new ArrayList<>();
@@ -497,7 +500,7 @@ public final class ConfigurationUtils {
                         if (entry.getValue() == null) {
                             throw newConfigurationException(entry.getKey(), null, null, "processor config cannot be [null]");
                         } else {
-                            processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                            processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue(), projectId));
                         }
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
@@ -540,15 +543,35 @@ public final class ConfigurationUtils {
                 Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, propertyValue, Map.of());
                 return scriptService.compile(script, TemplateScript.CONTEXT);
             } else {
-                return (params) -> new TemplateScript(params) {
-                    @Override
-                    public String execute() {
-                        return propertyValue;
-                    }
-                };
+                return new ConstantTemplateScriptFactory(propertyValue);
             }
         } catch (Exception e) {
             throw ConfigurationUtils.newConfigurationException(processorType, processorTag, propertyName, e);
+        }
+    }
+
+    /**
+     * A 'template script' that ignores the model to which it is applied and just always returns a constant String.
+     * <p>
+     * Having a separate named class for this allows for some hot code paths to pre-apply the 'template script' statically,
+     * rather than bothering to invoke it per-document. Note that this is probably only useful if something expensive
+     * is being done with the result of calling the script, and the code can then avoid doing that thing per-document.
+     */
+    public static class ConstantTemplateScriptFactory implements TemplateScript.Factory {
+        final TemplateScript script;
+
+        private ConstantTemplateScriptFactory(String value) {
+            this.script = new TemplateScript(Map.of()) {
+                @Override
+                public String execute() {
+                    return value;
+                }
+            };
+        }
+
+        @Override
+        public TemplateScript newInstance(Map<String, Object> params) {
+            return script;
         }
     }
 
@@ -574,14 +597,15 @@ public final class ConfigurationUtils {
         Map<String, Processor.Factory> processorFactories,
         ScriptService scriptService,
         String type,
-        Object config
+        Object config,
+        ProjectId projectId
     ) throws Exception {
         if (config instanceof Map) {
-            return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
+            return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config, projectId);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = Maps.newMapWithExpectedSize(1);
             normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);
-            return readProcessor(processorFactories, scriptService, type, normalizedScript);
+            return readProcessor(processorFactories, scriptService, type, normalizedScript, projectId);
         } else {
             throw newConfigurationException(type, null, null, "property isn't a map, but of type [" + config.getClass().getName() + "]");
         }
@@ -591,7 +615,8 @@ public final class ConfigurationUtils {
         Map<String, Processor.Factory> processorFactories,
         ScriptService scriptService,
         String type,
-        Map<String, Object> config
+        Map<String, Object> config,
+        ProjectId projectId
     ) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         String description = ConfigurationUtils.readOptionalStringProperty(null, tag, config, DESCRIPTION_KEY);
@@ -606,14 +631,19 @@ public final class ConfigurationUtils {
                 Pipeline.ON_FAILURE_KEY
             );
 
-            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories);
+            List<Processor> onFailureProcessors = readProcessorConfigs(
+                onFailureProcessorConfigs,
+                scriptService,
+                processorFactories,
+                projectId
+            );
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY, "processors list cannot be empty");
             }
 
             try {
-                Processor processor = factory.create(processorFactories, tag, description, config);
+                Processor processor = factory.create(processorFactories, tag, description, config, projectId);
                 if (config.isEmpty() == false) {
                     throw new ElasticsearchParseException(
                         "processor [{}] doesn't support one or more provided configuration parameters {}",

@@ -6,13 +6,13 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname 'org.elasticsearch.index.rankeval.RankEvalPlugin'
+  description = 'The Rank Eval module adds APIs to evaluate ranking quality.'
+  classname = 'org.elasticsearch.index.rankeval.RankEvalPlugin'
 }
 
 restResources {
@@ -21,11 +21,6 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  // Modules who's integration is explicitly tested in integration tests
-  module ':modules:lang-mustache'
+dependencies {
+  clusterModules project(':modules:lang-mustache')
 }
-
-tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTest("rank_eval/30_failures/Response format", "warning does not exist for compatibility")
-})

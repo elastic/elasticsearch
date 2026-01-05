@@ -31,12 +31,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     private final List<Exception> unclosed = Collections.synchronizedList(new ArrayList<>());
 
-    // TODO some version of this test that applies across all aggs
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+    protected AggregatorFunctionSupplier aggregatorFunction() {
         return new FilteredAggregatorFunctionSupplier(
-            new SumIntAggregatorFunctionSupplier(inputChannels),
-            new AnyGreaterThanFactory(unclosed, inputChannels)
+            new SumIntAggregatorFunctionSupplier(),
+            new AnyGreaterThanFactory(unclosed, List.of(1))
         );
     }
 
@@ -152,6 +151,11 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
                 }
                 return result.build().asBlock();
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 0;
         }
 
         @Override

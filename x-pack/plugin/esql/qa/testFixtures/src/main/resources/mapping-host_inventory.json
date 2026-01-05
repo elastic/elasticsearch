@@ -1,0 +1,20 @@
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "name": {
+          "type": "keyword"
+        },
+        "os": {
+          "type": "keyword"
+        },
+        "version": {
+          "type": "keyword"
+        }
+      }
+    },
+    "description": {
+      "type": "keyword"
+    }
+  }
+}

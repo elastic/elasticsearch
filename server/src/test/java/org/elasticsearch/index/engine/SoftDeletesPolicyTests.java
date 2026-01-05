@@ -13,6 +13,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.test.ESTestCase;
@@ -74,7 +75,7 @@ public class SoftDeletesPolicyTests extends ESTestCase {
             releasingLocks.forEach(Releasable::close);
 
             // getting the query has side effects, updating the internal state of the policy
-            final Query query = policy.getRetentionQuery();
+            final Query query = policy.getRetentionQuery(SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
             assertThat(query, instanceOf(PointRangeQuery.class));
             final PointRangeQuery retentionQuery = (PointRangeQuery) query;
 

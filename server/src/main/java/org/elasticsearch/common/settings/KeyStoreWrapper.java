@@ -120,7 +120,8 @@ public class KeyStoreWrapper implements SecureSettings {
     /** The version where lucene directory API changed from BE to LE. */
     public static final int LE_VERSION = 5;
     public static final int HIGHER_KDF_ITERATION_COUNT_VERSION = 6;
-    public static final int CURRENT_VERSION = HIGHER_KDF_ITERATION_COUNT_VERSION;
+    public static final int CIPHER_KEY_BITS_256_VERSION = 7;
+    public static final int CURRENT_VERSION = CIPHER_KEY_BITS_256_VERSION;
 
     /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
@@ -128,14 +129,8 @@ public class KeyStoreWrapper implements SecureSettings {
     /** The number of iterations to derive the cipher key. */
     private static final int KDF_ITERS = 210000;
 
-    /**
-     * The number of bits for the cipher key.
-     *
-     * Note: The Oracle JDK 8 ships with a limited JCE policy that restricts key length for AES to 128 bits.
-     * This can be increased to 256 bits once minimum java 9 is the minimum java version.
-     * See http://www.oracle.com/technetwork/java/javase/terms/readme/jdk9-readme-3852447.html#jce
-     * */
-    private static final int CIPHER_KEY_BITS = 128;
+    /** The number of bits for the cipher key (256 bits are supported as of Java 9).*/
+    private static final int CIPHER_KEY_BITS = 256;
 
     /** The number of bits for the GCM tag. */
     private static final int GCM_TAG_BITS = 128;
@@ -156,6 +151,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // 4: remove distinction between string/files, ES 6.8/7.1
     // 5: Lucene directory API changed to LE, ES 8.0
     // 6: increase KDF iteration count, ES 8.14
+    // 7: increase cipher key length to 256 bits, ES 9.0
 
     /** The metadata format version used to read the current keystore wrapper. */
     private final int formatVersion;
@@ -254,7 +250,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
 
         Directory directory = new NIOFSDirectory(configDir);
-        try (ChecksumIndexInput input = directory.openChecksumInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
+        try (ChecksumIndexInput input = directory.openChecksumInput(KEYSTORE_FILENAME)) {
             final int formatVersion;
             try {
                 formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, CURRENT_VERSION);
@@ -318,8 +314,9 @@ public class KeyStoreWrapper implements SecureSettings {
         return hasPassword;
     }
 
-    private static Cipher createCipher(int opmode, char[] password, byte[] salt, byte[] iv, int kdfIters) throws GeneralSecurityException {
-        PBEKeySpec keySpec = new PBEKeySpec(password, salt, kdfIters, CIPHER_KEY_BITS);
+    private static Cipher createCipher(int opmode, char[] password, byte[] salt, byte[] iv, int kdfIters, int cipherKeyBits)
+        throws GeneralSecurityException {
+        PBEKeySpec keySpec = new PBEKeySpec(password, salt, kdfIters, cipherKeyBits);
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KDF_ALGO);
         SecretKey secretKey;
         try {
@@ -341,6 +338,11 @@ public class KeyStoreWrapper implements SecureSettings {
     private static int getKdfIterationCountForVersion(int formatVersion) {
         // iteration count was increased in version 6; it was 10,000 in previous versions
         return formatVersion < HIGHER_KDF_ITERATION_COUNT_VERSION ? 10000 : KDF_ITERS;
+    }
+
+    private static int getCipherKeyBitsForVersion(int formatVersion) {
+        // cipher key length was increased in version 7; it was 128 bits in previous versions
+        return formatVersion < CIPHER_KEY_BITS_256_VERSION ? 128 : CIPHER_KEY_BITS;
     }
 
     /**
@@ -371,7 +373,14 @@ public class KeyStoreWrapper implements SecureSettings {
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
 
-        Cipher cipher = createCipher(Cipher.DECRYPT_MODE, password, salt, iv, getKdfIterationCountForVersion(formatVersion));
+        Cipher cipher = createCipher(
+            Cipher.DECRYPT_MODE,
+            password,
+            salt,
+            iv,
+            getKdfIterationCountForVersion(formatVersion),
+            getCipherKeyBitsForVersion(formatVersion)
+        );
         try (
             ByteArrayInputStream bytesStream = new ByteArrayInputStream(encryptedBytes);
             CipherInputStream cipherStream = new CipherInputStream(bytesStream, cipher);
@@ -409,11 +418,12 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Encrypt the keystore entries and return the encrypted data. */
-    private byte[] encrypt(char[] password, byte[] salt, byte[] iv, int kdfIterationCount) throws GeneralSecurityException, IOException {
+    private byte[] encrypt(char[] password, byte[] salt, byte[] iv, int kdfIterationCount, int cipherKeyBits)
+        throws GeneralSecurityException, IOException {
         assert isLoaded();
 
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv, kdfIterationCount);
+        Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv, kdfIterationCount, cipherKeyBits);
         try (
             CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
             DataOutputStream output = new DataOutputStream(cipherStream)
@@ -456,7 +466,13 @@ public class KeyStoreWrapper implements SecureSettings {
             byte[] iv = new byte[12];
             random.nextBytes(iv);
             // encrypted data
-            byte[] encryptedBytes = encrypt(password, salt, iv, getKdfIterationCountForVersion(CURRENT_VERSION));
+            byte[] encryptedBytes = encrypt(
+                password,
+                salt,
+                iv,
+                getKdfIterationCountForVersion(CURRENT_VERSION),
+                getCipherKeyBitsForVersion(CURRENT_VERSION)
+            );
 
             // size of data block
             output.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);

@@ -1,5 +1,0 @@
-// Needed for painless script to run
-grant {
-  // needed to create the classloader which allows plugins to extend other plugins
-  permission java.lang.RuntimePermission "createClassLoader";
-};

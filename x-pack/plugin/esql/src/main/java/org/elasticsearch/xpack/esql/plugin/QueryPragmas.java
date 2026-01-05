@@ -12,14 +12,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -27,19 +33,22 @@ import java.util.Objects;
  */
 public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
-    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 3);
+    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
-    private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
+    public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
         "task_concurrency",
         ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
     );
 
-    public static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(
-        DataPartitioning.class,
-        "data_partitioning",
-        DataPartitioning.SEGMENT
-    );
+    /**
+     * How to cut {@link LuceneSliceQueue slices} to cut each shard into. Is parsed to
+     * the enum {@link DataPartitioning} which has more documentation. Not an
+     * {@link Setting#enumSetting} because those can't have {@code null} defaults.
+     * {@code null} here means "use the default from the cluster setting
+     * named {@link PlannerSettings#DEFAULT_DATA_PARTITIONING}."
+     */
+    public static final Setting<String> DATA_PARTITIONING = Setting.simpleString("data_partitioning");
 
     /**
      * Size of a page in entries with {@code 0} being a special value asking
@@ -53,9 +62,37 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
 
-    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
+    public static final Setting<Integer> MAX_CONCURRENT_NODES_PER_CLUSTER = //
+        Setting.intSetting("max_concurrent_nodes_per_cluster", -1, -1);
+    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = //
+        Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 
-    public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", false);
+    public static final Setting<Integer> UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS = //
+        Setting.intSetting("unavailable_shard_resolution_attempts", 10, -1);
+
+    public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
+
+    public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
+
+    public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
+        MappedFieldType.FieldExtractPreference.class,
+        "field_extract_preference",
+        MappedFieldType.FieldExtractPreference.NONE
+    );
+
+    /**
+     * The maximum number of rounding points to push down to Lucene for the {@code roundTo} function at query level.
+     * {@code ReplaceRoundToWithQueryAndTags} checks this threshold before rewriting {@code RoundTo} to range queries.
+     *
+     * There is also a cluster level ESQL_ROUNDTO_PUSHDOWN_THRESHOLD defined in {@code EsqlFlags}.
+     * The query level threshold defaults to -1, which means this query level setting is not set and cluster level upper limit will be used.
+     * The cluster level threshold defaults to 127, it is the same as the maximum number of buckets used in {@code Rounding}.
+     * If query level threshold is set to greater than or equals to 0, the query level threshold will be used, and it overrides the cluster
+     * level threshold.
+     *
+     * If the query level threshold is set to 0, no {@code RoundTo} pushdown will be performed.
+     */
+    public static final Setting<Integer> ROUNDTO_PUSHDOWN_THRESHOLD = Setting.intSetting("roundto_pushdown_threshold", -1, -1);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -86,8 +123,12 @@ public final class QueryPragmas implements Writeable {
         return EXCHANGE_CONCURRENT_CLIENTS.get(settings);
     }
 
-    public DataPartitioning dataPartitioning() {
-        return DATA_PARTITIONING.get(settings);
+    public DataPartitioning dataPartitioning(DataPartitioning defaultDataPartitioning) {
+        String partitioning = DATA_PARTITIONING.get(settings);
+        if (partitioning.isEmpty()) {
+            return defaultDataPartitioning;
+        }
+        return DataPartitioning.valueOf(partitioning.toUpperCase(Locale.ROOT));
     }
 
     public int taskConcurrency() {
@@ -119,6 +160,13 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * The maximum number of nodes to be queried at once by this query. This is safeguard to avoid overloading the cluster.
+     */
+    public int maxConcurrentNodesPerCluster() {
+        return MAX_CONCURRENT_NODES_PER_CLUSTER.get(settings);
+    }
+
+    /**
      * The maximum number of shards can be executed concurrently on a single node by this query. This is a safeguard to avoid
      * opening and holding many shards (equivalent to many file descriptors) or having too many field infos created by a single query.
      */
@@ -127,11 +175,44 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Amount of attempts moved shards could be retried.
+     * This setting is protecting query from endlessly chasing moving shards.
+     */
+    public int unavailableShardResolutionAttempts() {
+        return UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS.get(settings);
+    }
+
+    /**
      * Returns true if each data node should perform a local reduction for sort, limit, topN, stats or false if the coordinator node
      * will perform the reduction.
      */
     public boolean nodeLevelReduction() {
         return NODE_LEVEL_REDUCTION.get(settings);
+    }
+
+    /**
+     * The maximum amount of memory we can use for {@link Expression#fold} during planing. This
+     * defaults to 5% of memory available on the current node. If this method is called on the
+     * coordinating node, this is 5% of the coordinating node's memory. If it's called on a data
+     * node, it's 5% of the data node. That's an <strong>exciting</strong> inconsistency. But it's
+     * important. Bigger nodes have more space to do folding.
+     */
+    public ByteSizeValue foldLimit() {
+        return FOLD_LIMIT.get(settings);
+    }
+
+    /**
+     * The default preference for extracting fields, defaults to {@code NONE}. Some fields must
+     * be extracted in some special way because of how they are used in the plan. But most fields
+     * can be loaded in many ways so they pick the ways that they think are most efficient in their
+     * {@link MappedFieldType#blockLoader} method. This can influence their choice.
+     */
+    public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+        return FIELD_EXTRACT_PREFERENCE.get(settings);
+    }
+
+    public int roundToPushDownThreshold() {
+        return ROUNDTO_PUSHDOWN_THRESHOLD.get(settings);
     }
 
     public boolean isEmpty() {

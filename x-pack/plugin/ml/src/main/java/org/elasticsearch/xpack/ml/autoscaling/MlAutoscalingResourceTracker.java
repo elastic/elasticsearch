@@ -48,7 +48,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 /**
- * backend for new kubernetes based autoscaler.
+ * This handles ML autoscaling just for serverless.
+ * For classic cloud, see: {@link MlAutoscalingDeciderService}.
  */
 public final class MlAutoscalingResourceTracker {
     private static final Logger logger = LogManager.getLogger(MlAutoscalingResourceTracker.class);
@@ -242,72 +243,72 @@ public final class MlAutoscalingResourceTracker {
             final int numMissingProcessors = numMissingAllocations * numberOfThreadsPerAllocation;
             int numExistingProcessorsToBeUsed = Math.min(numMissingProcessors, numberOfAvailableProcessors);
 
+            if (numberOfRequestedAllocations == 0) {
+                continue;
+            }
             if (assignment.getNodeRoutingTable().isEmpty() == false
                 && assignment.getNodeRoutingTable().values().stream().allMatch(r -> r.getState().consumesMemory() == false)) {
                 // Ignore states that don't consume memory, for example all allocations are failed or stopped
                 // if the node routing table is empty, then it will match the above condition, but it needs to be handled in the next branch
                 continue;
+            }
+
+            if (assignment.getNodeRoutingTable().isEmpty() == false) {
+                // if the routing table is non-empty, this is an existing model
+                existingModelMemoryBytes += estimatedMemoryUsage;
             } else {
+                // only increase memory requirements for new models
+                extraPerNodeModelMemoryBytes += Math.max(extraPerNodeModelMemoryBytes, estimatedMemoryUsage);
+                extraModelMemoryInBytes += estimatedMemoryUsage;
+            }
 
-                if (assignment.getNodeRoutingTable().isEmpty() == false) {
-                    // if the routing table is non-empty, this is an existing model
-                    existingModelMemoryBytes += estimatedMemoryUsage;
-                } else {
-                    // only increase memory requirements for new models
-                    extraPerNodeModelMemoryBytes += Math.max(extraPerNodeModelMemoryBytes, estimatedMemoryUsage);
-                    extraModelMemoryInBytes += estimatedMemoryUsage;
+            // if not low priority, check processor requirements.
+            if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
+                if (numMissingProcessors > numberOfAvailableProcessors) {
+                    // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
+                    extraProcessors += numMissingProcessors - numExistingProcessorsToBeUsed;
+                    extraPerNodeProcessors = Math.max(extraPerNodeProcessors, 1); // if extra processors >0, we need at least 1
+                                                                                  // extraPerNodeProcessors
                 }
-
-                // if not low priority, check processor requirements.
-                if (Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority()) == false) {
-                    if (numMissingProcessors > numberOfAvailableProcessors) {
-                        // as assignments can be placed on different nodes, we only need numberOfThreadsPerAllocation here
-                        extraProcessors += numMissingProcessors - numExistingProcessorsToBeUsed;
-                        extraPerNodeProcessors = Math.max(extraPerNodeProcessors, 1); // if extra processors >0, we need at least 1
-                                                                                      // extraPerNodeProcessors
-                    }
-                    if (perNodeAvailableProcessors < numberOfThreadsPerAllocation) {
-                        extraPerNodeProcessors = Math.max(extraPerNodeProcessors, numberOfThreadsPerAllocation);
-                    }
-                    numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
+                if (perNodeAvailableProcessors < numberOfThreadsPerAllocation) {
+                    extraPerNodeProcessors = Math.max(extraPerNodeProcessors, numberOfThreadsPerAllocation);
                 }
+                numberOfAvailableProcessors -= numExistingProcessorsToBeUsed;
+            }
 
-                if (extraProcessors > 0 || extraPerNodeProcessors > 0 || extraModelMemoryInBytes > 0 || extraPerNodeModelMemoryBytes > 0) {
-                    logger.info(
-                        () -> format(
-                            "trained model [%s] assigned to [%s], waiting for [%d] allocations to start due to missing hardware",
-                            modelAssignment.getKey(),
-                            Strings.arrayToCommaDelimitedString(modelAssignment.getValue().getStartedNodes()),
-                            numMissingAllocations
+            if (extraProcessors > 0 || extraPerNodeProcessors > 0 || extraModelMemoryInBytes > 0 || extraPerNodeModelMemoryBytes > 0) {
+                logger.info(
+                    () -> format(
+                        "trained model [%s] assigned to [%s], waiting for [%d] allocations to start due to missing hardware",
+                        modelAssignment.getKey(),
+                        Strings.arrayToCommaDelimitedString(modelAssignment.getValue().getStartedNodes()),
+                        numMissingAllocations
+                    )
+                );
+            }
+
+            for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
+                sumOfCurrentlyExistingAndUsedProcessors += modelAssignment.getValue().getNodeRoutingTable().get(node).getTargetAllocations()
+                    * numberOfThreadsPerAllocation;
+
+                jobRequirementsByNode.computeIfAbsent(node, k -> new ArrayList<>())
+                    .add(
+                        MlJobRequirements.of(
+                            estimatedMemoryUsage,
+                            Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority())
+                                ? 0
+                                : modelAssignment.getValue().getNodeRoutingTable().get(node).getTargetAllocations()
+                                    * numberOfThreadsPerAllocation
                         )
                     );
-                }
-
-                for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
-                    sumOfCurrentlyExistingAndUsedProcessors += modelAssignment.getValue()
-                        .getNodeRoutingTable()
-                        .get(node)
-                        .getTargetAllocations() * numberOfThreadsPerAllocation;
-
-                    jobRequirementsByNode.computeIfAbsent(node, k -> new ArrayList<>())
-                        .add(
-                            MlJobRequirements.of(
-                                estimatedMemoryUsage,
-                                Priority.LOW.equals(modelAssignment.getValue().getTaskParams().getPriority())
-                                    ? 0
-                                    : modelAssignment.getValue().getNodeRoutingTable().get(node).getTargetAllocations()
-                                        * numberOfThreadsPerAllocation
-                            )
-                        );
-                }
-
-                // min(3, max(number of allocations over all deployed models)
-                // the minimum number of nodes is equal to the number of allocations, up to 3
-                // if the number of allocations is greater than 3, then wantedMinNodes is still 3
-                // in theory this should help availability for 2-3 allocations
-                // the planner should split over all available nodes
-                minNodes = Math.min(3, Math.max(minNodes, numberOfRequestedAllocations));
             }
+
+            // min(3, max(number of allocations over all deployed models)
+            // the minimum number of nodes is equal to the number of allocations, up to 3
+            // if the number of allocations is greater than 3, then wantedMinNodes is still 3
+            // in theory this should help availability for 2-3 allocations
+            // the planner should split over all available nodes
+            minNodes = Math.min(3, Math.max(minNodes, numberOfRequestedAllocations));
         }
 
         // dummy autoscaling entity

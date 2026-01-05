@@ -126,7 +126,6 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public MultiSearchResponse(StreamInput in) throws IOException {
-        super(in);
         items = in.readArray(Item::new, Item[]::new);
         tookInMillis = in.readVLong();
     }

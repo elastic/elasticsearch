@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMappings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimulateIndexResponseTests extends ESTestCase {
@@ -48,6 +50,8 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             XContentType.JSON,
             pipelines,
+            List.of(),
+            null,
             null
         );
 
@@ -60,7 +64,8 @@ public class SimulateIndexResponseTests extends ESTestCase {
                           "_index": "%s",
                           "_version": %d,
                           "_source": %s,
-                          "executed_pipelines": [%s]
+                          "executed_pipelines": [%s],
+                          "effective_mapping": {}
                         }""",
                     id,
                     index,
@@ -79,7 +84,9 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             XContentType.JSON,
             pipelines,
-            new ElasticsearchException("Some failure")
+            List.of(),
+            new ElasticsearchException("Some failure"),
+            null
         );
 
         assertEquals(
@@ -92,7 +99,8 @@ public class SimulateIndexResponseTests extends ESTestCase {
                           "_version": %d,
                           "_source": %s,
                           "executed_pipelines": [%s],
-                          "error":{"type":"exception","reason":"Some failure"}
+                          "error":{"type":"exception","reason":"Some failure"},
+                          "effective_mapping": {}
                         }""",
                     id,
                     index,
@@ -102,6 +110,74 @@ public class SimulateIndexResponseTests extends ESTestCase {
                 )
             ),
             Strings.toString(indexResponseWithException)
+        );
+
+        SimulateIndexResponse indexResponseWithIgnoredFields = new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            XContentType.JSON,
+            pipelines,
+            List.of("abc", "def"),
+            null,
+            null
+        );
+
+        assertEquals(
+            XContentHelper.stripWhitespace(
+                Strings.format(
+                    """
+                        {
+                          "_id": "%s",
+                          "_index": "%s",
+                          "_version": %d,
+                          "_source": %s,
+                          "executed_pipelines": [%s],
+                          "ignored_fields": [{"field": "abc"}, {"field": "def"}],
+                          "effective_mapping": {}
+                        }""",
+                    id,
+                    index,
+                    version,
+                    source,
+                    pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(","))
+                )
+            ),
+            Strings.toString(indexResponseWithIgnoredFields)
+        );
+
+        SimulateIndexResponse responseWithEffectiveMapping = new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            XContentType.JSON,
+            pipelines,
+            List.of(),
+            null,
+            new CompressedXContent("{\"properties\":{\"foo\":{\"type\":\"keyword\"}}}")
+        );
+        assertEquals(
+            XContentHelper.stripWhitespace(
+                Strings.format(
+                    """
+                        {
+                          "_id": "%s",
+                          "_index": "%s",
+                          "_version": %d,
+                          "_source": %s,
+                          "executed_pipelines": [%s],
+                          "effective_mapping": {"properties": {"foo": {"type": "keyword"}}}
+                        }""",
+                    id,
+                    index,
+                    version,
+                    source,
+                    pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(","))
+                )
+            ),
+            Strings.toString(responseWithEffectiveMapping)
         );
     }
 
@@ -135,7 +211,13 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             xContentType,
             pipelines,
-            randomBoolean() ? null : new ElasticsearchException("failed")
+            randomList(0, 20, () -> randomAlphaOfLength(15)),
+            randomBoolean() ? null : new ElasticsearchException("failed"),
+            randomEffectiveMapping()
         );
+    }
+
+    private static CompressedXContent randomEffectiveMapping() {
+        return randomBoolean() ? null : randomMappings();
     }
 }

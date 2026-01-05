@@ -10,14 +10,11 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -42,13 +39,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                // types no longer relevant so ignore
-                String type = in.readOptionalString();
-                if (type != null) {
-                    throw new IllegalStateException("types are no longer supported but found [" + type + "]");
-                }
-            }
             id = in.readString();
             cause = in.readException();
         }
@@ -77,10 +67,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                // types not supported so send an empty array to previous versions
-                out.writeOptionalString(null);
-            }
             out.writeString(id);
             out.writeException(cause);
         }
@@ -110,9 +96,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.startObject();
                 Failure failure = response.getFailure();
                 builder.field(Fields._INDEX, failure.getIndex());
-                if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                    builder.field(Fields._TYPE, MapperService.SINGLE_MAPPING_NAME);
-                }
                 builder.field(Fields._ID, failure.getId());
                 ElasticsearchException.generateFailureXContent(builder, params, failure.getCause(), true);
                 builder.endObject();

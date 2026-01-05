@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 public class RestUpdateSecuritySettingsAction extends SecurityBaseRestHandler {
 
     public RestUpdateSecuritySettingsAction(Settings settings, XPackLicenseState licenseState) {
@@ -32,7 +34,7 @@ public class RestUpdateSecuritySettingsAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(RestRequest.Method.PUT, "/_security/settings").build());
+        return List.of(new Route(PUT, "/_security/settings"));
     }
 
     @Override

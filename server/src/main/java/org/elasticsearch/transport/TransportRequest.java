@@ -9,66 +9,14 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.tasks.TaskAwareRequest;
-import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
+import java.net.InetSocketAddress;
 
-public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
-    /**
-     * Parent of this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "no parent".
-     */
-    private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+public interface TransportRequest extends Writeable, RefCounted, TaskAwareRequest {
+    void remoteAddress(InetSocketAddress remoteAddress);
 
-    /**
-     * Request ID. Defaults to -1, meaning "no request ID is set".
-     */
-    private volatile long requestId = -1;
-
-    public TransportRequest() {}
-
-    public TransportRequest(StreamInput in) throws IOException {
-        parentTaskId = TaskId.readFromStream(in);
-    }
-
-    /**
-     * Set a reference to task that created this request.
-     */
-    @Override
-    public void setParentTask(TaskId taskId) {
-        this.parentTaskId = taskId;
-    }
-
-    /**
-     * Get a reference to the task that created this request. Defaults to {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
-     */
-    @Override
-    public TaskId getParentTask() {
-        return parentTaskId;
-    }
-
-    /**
-     * Set the request ID of this request.
-     */
-    @Override
-    public void setRequestId(long requestId) {
-        this.requestId = requestId;
-    }
-
-    @Override
-    public long getRequestId() {
-        return requestId;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        parentTaskId.writeTo(out);
-    }
-
-    @Override
-    public String toString() {
-        return getClass().getName() + "/" + getParentTask();
-    }
+    InetSocketAddress remoteAddress();
 }

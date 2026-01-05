@@ -27,7 +27,6 @@ import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -80,8 +79,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Environment environment = TestEnvironment.newEnvironment(settings);
 
         // This plugin will NOT have a controller daemon
-        Path plugin = environment.modulesFile().resolve("a_plugin");
-        Files.createDirectories(environment.modulesFile());
+        Path plugin = environment.modulesDir().resolve("a_plugin");
+        Files.createDirectories(environment.modulesDir());
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
             plugin,
@@ -111,8 +110,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
      * Two plugins - one with a controller daemon and one without.
      */
     public void testControllerSpawn() throws Exception {
-        assertControllerSpawns(Environment::pluginsFile, false);
-        assertControllerSpawns(Environment::modulesFile, true);
+        assertControllerSpawns(Environment::pluginsDir, false);
+        assertControllerSpawns(Environment::modulesDir, true);
     }
 
     private void assertControllerSpawns(final Function<Environment, Path> pluginsDirFinder, boolean expectSpawn) throws Exception {
@@ -131,8 +130,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         // this plugin will have a controller daemon
         Path plugin = pluginsDirFinder.apply(environment).resolve("test_plugin");
-        Files.createDirectories(environment.modulesFile());
-        Files.createDirectories(environment.pluginsFile());
+        Files.createDirectories(environment.modulesDir());
+        Files.createDirectories(environment.pluginsDir());
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
             plugin,
@@ -217,7 +216,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(settings);
 
-        Path plugin = environment.modulesFile().resolve("test_plugin");
+        Path plugin = environment.modulesDir().resolve("test_plugin");
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
             plugin,
@@ -250,10 +249,10 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
 
-        Files.createDirectories(environment.modulesFile());
-        Files.createDirectories(environment.pluginsFile());
+        Files.createDirectories(environment.modulesDir());
+        Files.createDirectories(environment.pluginsDir());
 
-        final Path desktopServicesStore = environment.modulesFile().resolve(".DS_Store");
+        final Path desktopServicesStore = environment.modulesDir().resolve(".DS_Store");
         Files.createFile(desktopServicesStore);
 
         final Spawner spawner = new Spawner();
@@ -270,7 +269,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     private void createControllerProgram(final Path outputFile) throws IOException {
         final Path outputDir = outputFile.getParent();
         Files.createDirectories(outputDir);
-        Files.write(outputFile, CONTROLLER_SOURCE.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(outputFile, CONTROLLER_SOURCE);
         final PosixFileAttributeView view = Files.getFileAttributeView(outputFile, PosixFileAttributeView.class);
         if (view != null) {
             final Set<PosixFilePermission> perms = new HashSet<>();

@@ -81,7 +81,8 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -212,6 +213,16 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::bytesRefs,
+            () -> new IpFallbackSyntheticSourceReader(null)
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
         return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()));
     }
+
 }

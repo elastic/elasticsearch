@@ -6,7 +6,6 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 // Necessary to use tests in Serverless
@@ -15,11 +14,11 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 group = 'org.elasticsearch.plugin'
 
 esplugin {
-  description 'A test module that can trigger A JVM crash'
-  classname 'org.elasticsearch.test.jvm_crash.JvmCrashPlugin'
+  description = 'A test module that can trigger A JVM crash'
+  classname ='org.elasticsearch.test.jvm_crash.JvmCrashPlugin'
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
-  it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
+  usesDefaultDistribution("to be triaged")
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }

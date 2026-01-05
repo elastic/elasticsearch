@@ -11,14 +11,15 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -33,8 +34,12 @@ public class IsNullTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : DataType.types()) {
-            if (false == DataType.isRepresentable(type)) {
+        Collection<DataType> types = DataType.types();
+        for (DataType type : types) {
+            if ((false == type.isCounter() && false == DataType.isRepresentable(type)) || type == DataType.TSID_DATA_TYPE) {
+                continue;
+            }
+            if (type.supportedVersion().supportedLocally() == false) {
                 continue;
             }
             if (type != DataType.NULL) {

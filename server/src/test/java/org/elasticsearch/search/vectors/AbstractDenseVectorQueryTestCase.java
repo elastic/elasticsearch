@@ -226,7 +226,7 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
                     int n = random().nextInt(100) + 1;
                     TopDocs results = searcher.search(query, n);
                     assert reader.hasDeletions() == false;
-                    assertTrue(results.totalHits.value >= results.scoreDocs.length);
+                    assertTrue(results.totalHits.value() >= results.scoreDocs.length);
                     // verify the results are in descending score order
                     float last = Float.MAX_VALUE;
                     for (ScoreDoc scoreDoc : results.scoreDocs) {

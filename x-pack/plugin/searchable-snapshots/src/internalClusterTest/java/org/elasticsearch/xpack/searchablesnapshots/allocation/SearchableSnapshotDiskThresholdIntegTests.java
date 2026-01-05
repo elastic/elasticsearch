@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -38,6 +39,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -74,7 +76,7 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTestCase {
 
-    private static final long WATERMARK_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
+    private static final long WATERMARK_BYTES = ByteSizeValue.of(10, ByteSizeUnit.KB).getBytes();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -245,7 +247,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             assertThat(
                 state.routingTable()
                     .allShards()
-                    .filter(shardRouting -> state.metadata().index(shardRouting.shardId().getIndex()).isSearchableSnapshot())
+                    .filter(shardRouting -> state.metadata().getProject().index(shardRouting.shardId().getIndex()).isSearchableSnapshot())
                     .allMatch(
                         shardRouting -> shardRouting.state() == ShardRoutingState.STARTED
                             && otherDataNodeId.equals(shardRouting.currentNodeId())
@@ -263,7 +265,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                     .allShards()
                     .filter(
                         shardRouting -> shardRouting.shardId().getIndexName().startsWith("extra-")
-                            && state.metadata().index(shardRouting.shardId().getIndex()).isSearchableSnapshot()
+                            && state.metadata().getProject().index(shardRouting.shardId().getIndex()).isSearchableSnapshot()
                     )
                     .noneMatch(
                         shardRouting -> shardRouting.state() == ShardRoutingState.STARTED
@@ -321,7 +323,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                 state.routingTable()
                     .allShards()
                     .filter(s -> indicesToBeMounted.containsKey(s.shardId().getIndexName().replace(prefix, "")))
-                    .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
+                    .filter(s -> state.metadata().getProject().index(s.shardId().getIndex()).isSearchableSnapshot())
                     .filter(s -> coldNodeId.equals(s.currentNodeId()))
                     .filter(s -> s.state() == ShardRoutingState.INITIALIZING)
                     .count(),
@@ -349,7 +351,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                 state.routingTable()
                     .allShards()
                     .filter(s -> indicesToBeMounted.containsKey(s.shardId().getIndexName().replace(prefix, "")))
-                    .filter(s -> state.metadata().index(s.shardId().getIndex()).isSearchableSnapshot())
+                    .filter(s -> state.metadata().getProject().index(s.shardId().getIndex()).isSearchableSnapshot())
                     .filter(s -> coldNodeId.equals(s.currentNodeId()))
                     .filter(s -> s.state() == ShardRoutingState.STARTED)
                     .count(),
@@ -376,11 +378,21 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,
-                metadata -> new CustomMockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new CustomMockRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    snapshotMetrics
+                )
             );
         }
     }
@@ -390,14 +402,16 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         private static final CountDownLatch RESTORE_SHARD_LATCH = new CountDownLatch(1);
 
         public CustomMockRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             Environment environment,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            super(projectId, metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings, snapshotMetrics);
         }
 
         private void unlockRestore() {

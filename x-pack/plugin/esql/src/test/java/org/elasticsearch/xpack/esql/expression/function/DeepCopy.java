@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 /**
  * Expression that makes a deep copy of the block it receives.
@@ -41,9 +40,7 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory childEval = toEvaluator.apply(child());
         return ctx -> new EvalOperator.ExpressionEvaluator() {
             private final EvalOperator.ExpressionEvaluator child = childEval.get(ctx);
@@ -53,6 +50,11 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
                 try (Block block = child.eval(page)) {
                     return BlockUtils.deepCopyOf(block, ctx.blockFactory());
                 }
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
             }
 
             @Override

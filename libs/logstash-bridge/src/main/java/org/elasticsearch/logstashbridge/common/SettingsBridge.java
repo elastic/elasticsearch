@@ -11,41 +11,28 @@ package org.elasticsearch.logstashbridge.common;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 
-public class SettingsBridge extends StableBridgeAPI.Proxy<Settings> {
+/**
+ * A {@link StableBridgeAPI} for {@link Settings}
+ */
+public interface SettingsBridge extends StableBridgeAPI<Settings> {
 
-    public static SettingsBridge wrap(final Settings delegate) {
-        return new SettingsBridge(delegate);
+    static SettingsBridge fromInternal(final Settings delegate) {
+        return new ProxyInternal(delegate);
     }
 
-    public static Builder builder() {
-        return Builder.wrap(Settings.builder());
+    static SettingsBuilderBridge builder() {
+        return SettingsBuilderBridge.fromInternal(Settings.builder());
     }
 
-    public SettingsBridge(final Settings delegate) {
-        super(delegate);
-    }
-
-    @Override
-    public Settings unwrap() {
-        return this.delegate;
-    }
-
-    public static class Builder extends StableBridgeAPI.Proxy<Settings.Builder> {
-        static Builder wrap(final Settings.Builder delegate) {
-            return new Builder(delegate);
-        }
-
-        private Builder(final Settings.Builder delegate) {
-            super(delegate);
-        }
-
-        public Builder put(final String key, final String value) {
-            this.delegate.put(key, value);
-            return this;
-        }
-
-        public SettingsBridge build() {
-            return new SettingsBridge(this.delegate.build());
+    /**
+     * An implementation of {@link SettingsBridge} that proxies calls to
+     * an internal {@link Settings} instance.
+     *
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<Settings> implements SettingsBridge {
+        ProxyInternal(Settings internalDelegate) {
+            super(internalDelegate);
         }
     }
 }

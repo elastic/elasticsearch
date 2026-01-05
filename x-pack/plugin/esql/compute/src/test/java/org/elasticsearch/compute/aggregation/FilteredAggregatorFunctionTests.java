@@ -27,12 +27,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase {
     private final List<Exception> unclosed = Collections.synchronizedList(new ArrayList<>());
 
-    // TODO some version of this test that applies across all aggs
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+    protected AggregatorFunctionSupplier aggregatorFunction() {
         return new FilteredAggregatorFunctionSupplier(
-            new SumIntAggregatorFunctionSupplier(inputChannels),
-            new FilteredGroupingAggregatorFunctionTests.AnyGreaterThanFactory(unclosed, inputChannels)
+            new SumIntAggregatorFunctionSupplier(),
+            new FilteredGroupingAggregatorFunctionTests.AnyGreaterThanFactory(unclosed, List.of(0))
         );
     }
 
@@ -47,10 +46,10 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
+    protected void assertSimpleOutput(List<Page> input, Block result) {
         long sum = 0;
-        for (Block block : input) {
-            IntBlock ints = (IntBlock) block;
+        for (Page page : input) {
+            IntBlock ints = page.getBlock(0);
             for (int p = 0; p < ints.getPositionCount(); p++) {
                 /*
                  * Perform the sum on the values *only* if any of the
@@ -92,5 +91,20 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
             logger.error("unclosed", tracker);
         }
         assertThat(unclosed, empty());
+    }
+
+    @Override
+    public void testNoneFiltered() {
+        assumeFalse("can't double filter. tests already filter.", true);
+    }
+
+    @Override
+    public void testAllFiltered() {
+        assumeFalse("can't double filter. tests already filter.", true);
+    }
+
+    @Override
+    public void testSomeFiltered() {
+        assumeFalse("can't double filter. tests already filter.", true);
     }
 }

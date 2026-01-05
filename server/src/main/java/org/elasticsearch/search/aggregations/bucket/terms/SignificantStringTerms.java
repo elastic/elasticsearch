@@ -34,14 +34,12 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         public Bucket(
             BytesRef term,
             long subsetDf,
-            long subsetSize,
             long supersetDf,
-            long supersetSize,
             InternalAggregations aggregations,
             DocValueFormat format,
             double score
         ) {
-            super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
+            super(subsetDf, supersetDf, aggregations, format);
             this.termBytes = term;
             this.score = score;
         }
@@ -49,8 +47,8 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         /**
          * Read from a stream.
          */
-        public Bucket(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) throws IOException {
-            super(in, subsetSize, supersetSize, format);
+        public Bucket(StreamInput in, DocValueFormat format) throws IOException {
+            super(format);
             termBytes = in.readBytesRef();
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
@@ -140,16 +138,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, SignificantStringTerms.Bucket prototype) {
-        return new Bucket(
-            prototype.termBytes,
-            prototype.subsetDf,
-            prototype.subsetSize,
-            prototype.supersetDf,
-            prototype.supersetSize,
-            aggregations,
-            prototype.format,
-            prototype.score
-        );
+        return new Bucket(prototype.termBytes, prototype.subsetDf, prototype.supersetDf, aggregations, prototype.format, prototype.score);
     }
 
     @Override
@@ -173,14 +162,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
     }
 
     @Override
-    Bucket createBucket(
-        long subsetDf,
-        long subsetSize,
-        long supersetDf,
-        long supersetSize,
-        InternalAggregations aggregations,
-        SignificantStringTerms.Bucket prototype
-    ) {
-        return new Bucket(prototype.termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format, prototype.score);
+    Bucket createBucket(long subsetDf, long supersetDf, InternalAggregations aggregations, SignificantStringTerms.Bucket prototype) {
+        return new Bucket(prototype.termBytes, subsetDf, supersetDf, aggregations, format, prototype.score);
     }
 }

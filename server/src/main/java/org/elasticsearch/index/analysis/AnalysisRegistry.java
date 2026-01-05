@@ -189,7 +189,11 @@ public final class AnalysisRegistry implements Closeable {
                 }
             });
         }
-        return analyzerProvider.get(environment, analyzer).get();
+
+        return overridePositionIncrementGap(
+            (NamedAnalyzer) analyzerProvider.get(environment, analyzer).get(),
+            TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
+        );
     }
 
     @Override
@@ -720,17 +724,19 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
         }
         NamedAnalyzer analyzer;
-        if (analyzerF instanceof NamedAnalyzer) {
-            // if we got a named analyzer back, use it...
-            analyzer = (NamedAnalyzer) analyzerF;
-            if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
-                // unless the positionIncrementGap needs to be overridden
-                analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
-            }
+        if (analyzerF instanceof NamedAnalyzer namedAnalyzer) {
+            analyzer = overridePositionIncrementGap(namedAnalyzer, overridePositionIncrementGap);
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
         checkVersions(analyzer);
+        return analyzer;
+    }
+
+    private static NamedAnalyzer overridePositionIncrementGap(NamedAnalyzer analyzer, int overridePositionIncrementGap) {
+        if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
+            analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
+        }
         return analyzer;
     }
 

@@ -42,7 +42,7 @@ public class MovingPercentilesTDigestAggregatorTests extends MovingPercentilesAb
                 Document document = new Document();
                 int counter = 0;
                 for (String date : datasetTimes) {
-                    states[counter] = TDigestState.create(50);
+                    states[counter] = TDigestState.createWithoutCircuitBreaking(50);
                     final int numberDocs = randomIntBetween(5, 50);
                     long instant = asLong(date);
                     for (int i = 0; i < numberDocs; i++) {
@@ -93,7 +93,7 @@ public class MovingPercentilesTDigestAggregatorTests extends MovingPercentilesAb
         if (fromIndex == toIndex) {
             return null;
         }
-        TDigestState result = TDigestState.create(buckets[0].compression());
+        TDigestState result = TDigestState.createWithoutCircuitBreaking(buckets[0].compression());
         for (int i = fromIndex; i < toIndex; i++) {
             result.add(buckets[i]);
         }

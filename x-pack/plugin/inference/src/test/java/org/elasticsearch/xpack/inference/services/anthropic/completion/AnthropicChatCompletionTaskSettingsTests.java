@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields;
@@ -22,6 +24,25 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AnthropicChatCompletionTaskSettings> {
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        AnthropicChatCompletionTaskSettings updatedSettings = (AnthropicChatCompletionTaskSettings) initialSettings.updatedTaskSettings(
+            Map.of(
+                AnthropicServiceFields.MAX_TOKENS,
+                newSettings.maxTokens(),
+                AnthropicServiceFields.TEMPERATURE_FIELD,
+                newSettings.temperature(),
+                AnthropicServiceFields.TOP_P_FIELD,
+                newSettings.topP(),
+                AnthropicServiceFields.TOP_K_FIELD,
+                newSettings.topK()
+            )
+        );
+
+        assertEquals(newSettings, updatedSettings);
+    }
 
     public static Map<String, Object> getChatCompletionTaskSettingsMap(
         @Nullable Integer maxTokens,
@@ -52,6 +73,12 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
 
     public static AnthropicChatCompletionTaskSettings createRandom() {
         return new AnthropicChatCompletionTaskSettings(randomNonNegativeInt(), randomDouble(), randomDouble(), randomInt());
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }
 
     public void testFromMap_WithMaxTokens() {
@@ -125,6 +152,17 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
 
     @Override
     protected AnthropicChatCompletionTaskSettings mutateInstance(AnthropicChatCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        var maxTokens = instance.maxTokens();
+        var temperature = instance.temperature();
+        var topP = instance.topP();
+        var topK = instance.topK();
+        switch (randomInt(3)) {
+            case 0 -> maxTokens = randomValueOtherThan(maxTokens, ESTestCase::randomNonNegativeInt);
+            case 1 -> temperature = randomValueOtherThan(temperature, ESTestCase::randomDouble);
+            case 2 -> topP = randomValueOtherThan(topP, ESTestCase::randomDouble);
+            case 3 -> topK = randomValueOtherThan(topK, ESTestCase::randomInt);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AnthropicChatCompletionTaskSettings(maxTokens, temperature, topP, topK);
     }
 }

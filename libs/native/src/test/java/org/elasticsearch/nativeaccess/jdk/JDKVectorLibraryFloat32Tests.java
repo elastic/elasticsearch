@@ -1,0 +1,142 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.nativeaccess.jdk;
+
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteOrder;
+import java.util.function.IntFunction;
+
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
+import static org.hamcrest.Matchers.containsString;
+
+public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests {
+
+    static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+
+    final double delta;
+
+    public JDKVectorLibraryFloat32Tests(SimilarityFunction function, int size) {
+        super(function, size);
+        this.delta = 1e-5 * size; // scale the delta with the size
+    }
+
+    @BeforeClass
+    public static void beforeClass() {
+        VectorSimilarityFunctionsTests.setup();
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        VectorSimilarityFunctionsTests.cleanup();
+    }
+
+    public void testAllZeroValues() {
+        testFloat32Impl(float[]::new);
+    }
+
+    public void testRandomFloats() {
+        testFloat32Impl(JDKVectorLibraryFloat32Tests::randomFloatArray);
+    }
+
+    public void testFloat32Impl(IntFunction<float[]> vectorGeneratorFunc) {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var values = new float[numVecs][dims];
+        var segment = arena.allocate((long) dims * numVecs * Float.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            values[i] = vectorGeneratorFunc.apply(dims);
+            long dstOffset = (long) i * dims * Float.BYTES;
+            MemorySegment.copy(MemorySegment.ofArray(values[i]), JAVA_FLOAT_UNALIGNED, 0L, segment, LAYOUT_LE_FLOAT, dstOffset, dims);
+        }
+
+        final int loopTimes = 1000;
+        for (int i = 0; i < loopTimes; i++) {
+            int first = randomInt(numVecs - 1);
+            int second = randomInt(numVecs - 1);
+            var nativeSeg1 = segment.asSlice((long) first * dims * Float.BYTES, (long) dims * Float.BYTES);
+            var nativeSeg2 = segment.asSlice((long) second * dims * Float.BYTES, (long) dims * Float.BYTES);
+
+            float expected = scalarSimilarity(values[first], values[second]);
+            assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), delta);
+            if (supportsHeapSegments()) {
+                var heapSeg1 = MemorySegment.ofArray(values[first]);
+                var heapSeg2 = MemorySegment.ofArray(values[second]);
+                assertEquals(expected, similarity(heapSeg1, heapSeg2, dims), delta);
+                assertEquals(expected, similarity(nativeSeg1, heapSeg2, dims), delta);
+                assertEquals(expected, similarity(heapSeg1, nativeSeg2, dims), delta);
+            }
+        }
+    }
+
+    public void testIllegalDims() {
+        assumeTrue(notSupportedMsg(), supported());
+        var segment = arena.allocate((long) size * 3 * Float.BYTES);
+
+        Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
+        assertThat(ex.getMessage(), containsString("dimensions differ"));
+
+        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
+    static float[] randomFloatArray(int length) {
+        float[] fa = new float[length];
+        for (int i = 0; i < length; i++) {
+            fa[i] = randomFloat();
+        }
+        return fa;
+    }
+
+    float similarity(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return switch (function) {
+                case DOT_PRODUCT -> (float) getVectorDistance().dotProductHandleFloat32().invokeExact(a, b, length);
+                case SQUARE_DISTANCE -> (float) getVectorDistance().squareDistanceHandleFloat32().invokeExact(a, b, length);
+            };
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    float scalarSimilarity(float[] a, float[] b) {
+        return switch (function) {
+            case DOT_PRODUCT -> dotProductFloat32Scalar(a, b);
+            case SQUARE_DISTANCE -> squareDistanceFloat32Scalar(a, b);
+        };
+    }
+
+    /** Computes the dot product of the given vectors a and b. */
+    static float dotProductFloat32Scalar(float[] a, float[] b) {
+        float res = 0;
+        for (int i = 0; i < a.length; i++) {
+            res += a[i] * b[i];
+        }
+        return res;
+    }
+
+    /** Computes the dot product of the given vectors a and b. */
+    static float squareDistanceFloat32Scalar(float[] a, float[] b) {
+        float squareSum = 0;
+        for (int i = 0; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            squareSum += diff * diff;
+        }
+        return squareSum;
+    }
+}

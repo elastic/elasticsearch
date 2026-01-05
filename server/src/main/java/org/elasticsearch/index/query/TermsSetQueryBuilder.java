@@ -9,10 +9,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.CoveringQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValues;
@@ -20,13 +18,13 @@ import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
@@ -45,8 +43,6 @@ import java.util.Objects;
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
     public static final String NAME = "terms_set";
-
-    public static final TransportVersion MINIMUM_SHOULD_MATCH_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     static final ParseField TERMS_FIELD = new ParseField("terms");
     static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match_field");
@@ -80,9 +76,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         this.values = (List<?>) in.readGenericValue();
         this.minimumShouldMatchField = in.readOptionalString();
         this.minimumShouldMatchScript = in.readOptionalWriteable(Script::new);
-        if (in.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
-            this.minimumShouldMatch = in.readOptionalString();
-        }
+        this.minimumShouldMatch = in.readOptionalString();
     }
 
     @Override
@@ -91,9 +85,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         out.writeGenericValue(values);
         out.writeOptionalString(minimumShouldMatchField);
         out.writeOptionalWriteable(minimumShouldMatchScript);
-        if (out.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
-            out.writeOptionalString(minimumShouldMatch);
-        }
+        out.writeOptionalString(minimumShouldMatch);
     }
 
     // package protected for testing purpose
@@ -273,8 +265,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         // Fail before we attempt to create the term queries:
-        if (values.size() > BooleanQuery.getMaxClauseCount()) {
-            throw new BooleanQuery.TooManyClauses();
+        if (values.size() > IndexSearcher.getMaxClauseCount()) {
+            throw new IndexSearcher.TooManyClauses();
         }
 
         List<Query> queries = createTermQueries(context);
@@ -439,7 +431,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         @Override
         public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
-            SortedNumericDocValues values = fieldData.load(ctx).getLongValues();
+            SortedNumericLongValues values = fieldData.load(ctx).getLongValues();
             return new LongValues() {
 
                 long current = -1;
@@ -481,6 +473,6 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

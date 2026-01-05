@@ -13,7 +13,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -77,7 +76,7 @@ public class FilterIT extends ESIntegTestCase {
 
     public void testSimple() throws Exception {
         assertNoFailuresAndResponse(prepareSearch("idx").addAggregation(filter("tag1", termQuery("tag", "tag1"))), response -> {
-            Filter filter = response.getAggregations().get("tag1");
+            SingleBucketAggregation filter = response.getAggregations().get("tag1");
             assertThat(filter, notNullValue());
             assertThat(filter.getName(), equalTo("tag1"));
             assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
@@ -89,7 +88,7 @@ public class FilterIT extends ESIntegTestCase {
     public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
         assertNoFailuresAndResponse(prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)), response -> {
-            Filter filter = response.getAggregations().get("tag1");
+            SingleBucketAggregation filter = response.getAggregations().get("tag1");
             assertThat(filter, notNullValue());
             assertThat(filter.getDocCount(), equalTo((long) numDocs));
         });
@@ -99,7 +98,7 @@ public class FilterIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("idx").addAggregation(filter("tag1", termQuery("tag", "tag1")).subAggregation(avg("avg_value").field("value"))),
             response -> {
-                Filter filter = response.getAggregations().get("tag1");
+                SingleBucketAggregation filter = response.getAggregations().get("tag1");
                 assertThat(filter, notNullValue());
                 assertThat(filter.getName(), equalTo("tag1"));
                 assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
@@ -130,7 +129,7 @@ public class FilterIT extends ESIntegTestCase {
                 assertThat(histo.getBuckets().size(), greaterThanOrEqualTo(1));
 
                 for (Histogram.Bucket bucket : histo.getBuckets()) {
-                    Filter filter = bucket.getAggregations().get("filter");
+                    SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                     assertThat(filter, notNullValue());
                     assertEquals(bucket.getDocCount(), filter.getDocCount());
                 }
@@ -159,13 +158,13 @@ public class FilterIT extends ESIntegTestCase {
                     histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(filter("filter", matchAllQuery()))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);
                 assertThat(bucket, Matchers.notNullValue());
 
-                Filter filter = bucket.getAggregations().get("filter");
+                SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                 assertThat(filter, Matchers.notNullValue());
                 assertThat(filter.getName(), equalTo("filter"));
                 assertThat(filter.getDocCount(), is(0L));

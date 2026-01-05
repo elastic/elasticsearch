@@ -65,7 +65,7 @@ public class CollectionUtilsTests extends ESTestCase {
         for (List<T> listCopy : List.of(new ArrayList<T>(list), new LinkedList<T>(list))) {
             CollectionUtils.uniquify(listCopy, cmp);
             for (int i = 0; i < listCopy.size() - 1; ++i) {
-                assertThat(cmp.compare(listCopy.get(i), listCopy.get(i + 1)), lessThan(0));
+                assertThat(listCopy.get(i) + " < " + listCopy.get(i + 1), cmp.compare(listCopy.get(i), listCopy.get(i + 1)), lessThan(0));
             }
             assertThat(listCopy.size(), equalTo(size));
         }
@@ -75,9 +75,25 @@ public class CollectionUtilsTests extends ESTestCase {
         assertUniquify(List.<Integer>of(), Comparator.naturalOrder(), 0);
         assertUniquify(List.of(1), Comparator.naturalOrder(), 1);
         assertUniquify(List.of(1, 2, 3), Comparator.naturalOrder(), 3);
+        assertUniquify(List.of(1, 1, 3), Comparator.naturalOrder(), 2);
         assertUniquify(List.of(1, 1, 1), Comparator.naturalOrder(), 1);
         assertUniquify(List.of(1, 2, 2, 3), Comparator.naturalOrder(), 3);
         assertUniquify(List.of(1, 2, 2, 2), Comparator.naturalOrder(), 2);
+        assertUniquify(List.of(1, 2, 2, 3, 3, 5), Comparator.naturalOrder(), 4);
+
+        for (int i = 0; i < 10; ++i) {
+            int uniqueItems = randomIntBetween(1, 10);
+            var list = new ArrayList<Integer>();
+            int next = 1;
+            for (int j = 0; j < uniqueItems; ++j) {
+                int occurences = randomIntBetween(1, 10);
+                while (occurences-- > 0) {
+                    list.add(next);
+                }
+                next++;
+            }
+            assertUniquify(list, Comparator.naturalOrder(), uniqueItems);
+        }
     }
 
     public void testEmptyPartition() {

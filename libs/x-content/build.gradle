@@ -12,14 +12,14 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.embedded-providers'
 
 embeddedProviders {
-  impl 'x-content', project(':libs:elasticsearch-x-content:impl')
+  impl 'x-content', project(':libs:x-content:impl')
 }
 
 dependencies {
-  api project(':libs:elasticsearch-core')
+  api project(':libs:core')
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+    exclude group: 'org.elasticsearch', module: 'x-content'
   }
 }
 

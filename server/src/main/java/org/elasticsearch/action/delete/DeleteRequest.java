@@ -10,7 +10,6 @@
 package org.elasticsearch.action.delete;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -22,7 +21,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -63,10 +61,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
     public DeleteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readString();
         routing = in.readOptionalString();
         version = in.readLong();
@@ -238,12 +232,12 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
-    public void process(IndexRouting indexRouting) {
-        // Nothing to do
+    public int route(IndexRouting indexRouting) {
+        return indexRouting.deleteShard(id, routing);
     }
 
     @Override
-    public int route(IndexRouting indexRouting) {
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
         return indexRouting.deleteShard(id, routing);
     }
 
@@ -260,9 +254,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     private void writeBody(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeOptionalString(routing());
         out.writeLong(version);

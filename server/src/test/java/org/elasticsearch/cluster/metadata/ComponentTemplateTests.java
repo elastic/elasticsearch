@@ -78,30 +78,53 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return randomInstance(lifecycleAllowed, randomOptionalBoolean());
     }
 
-    public static ComponentTemplate randomInstance(boolean lifecycleAllowed, Boolean deprecated) {
-        Settings settings = null;
-        CompressedXContent mappings = null;
-        Map<String, AliasMetadata> aliases = null;
-        DataStreamLifecycle lifecycle = null;
+    public static ComponentTemplate randomInstance(boolean supportsDataStreams, Boolean deprecated) {
+        Template.Builder templateBuilder = Template.builder();
         if (randomBoolean()) {
-            settings = randomSettings();
+            templateBuilder.settings(randomSettings());
         }
         if (randomBoolean()) {
-            mappings = randomMappings();
+            templateBuilder.mappings(randomMappings());
         }
         if (randomBoolean()) {
-            aliases = randomAliases();
+            templateBuilder.aliases(randomAliases());
         }
-        if (randomBoolean() && lifecycleAllowed) {
-            lifecycle = DataStreamLifecycleTests.randomLifecycle();
+        if (randomBoolean() && supportsDataStreams) {
+            templateBuilder.lifecycle(DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate());
         }
-        Template template = new Template(settings, mappings, aliases, lifecycle);
+        if (randomBoolean() && supportsDataStreams) {
+            templateBuilder.dataStreamOptions(randomDataStreamOptionsTemplate());
+        }
+        Template template = templateBuilder.build();
 
         Map<String, Object> meta = null;
         if (randomBoolean()) {
             meta = randomMeta();
         }
-        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, deprecated);
+        final Long createdDate = randomBoolean() ? randomNonNegativeLong() : null;
+        final Long modifiedDate;
+        if (randomBoolean()) {
+            modifiedDate = createdDate == null ? randomNonNegativeLong() : randomLongBetween(createdDate, Long.MAX_VALUE);
+        } else {
+            modifiedDate = null;
+        }
+        return new ComponentTemplate(
+            template,
+            randomBoolean() ? null : randomNonNegativeLong(),
+            meta,
+            deprecated,
+            createdDate,
+            modifiedDate
+        );
+    }
+
+    public static ResettableValue<DataStreamOptions.Template> randomDataStreamOptionsTemplate() {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> ResettableValue.undefined();
+            case 1 -> ResettableValue.reset();
+            case 2 -> ResettableValue.create(DataStreamOptionsTemplateTests.randomDataStreamOptions());
+            default -> throw new IllegalArgumentException("Illegal randomisation branch");
+        };
     }
 
     public static Map<String, AliasMetadata> randomAliases() {
@@ -152,32 +175,52 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return switch (randomIntBetween(0, 3)) {
             case 0 -> {
                 Template ot = orig.template();
-                yield switch (randomIntBetween(0, 3)) {
+                yield switch (randomIntBetween(0, 4)) {
                     case 0 -> new ComponentTemplate(
                         Template.builder(ot).settings(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings)).build(),
                         orig.version(),
                         orig.metadata(),
-                        orig.deprecated()
+                        orig.deprecated(),
+                        orig.createdDateMillis().orElse(null),
+                        orig.modifiedDateMillis().orElse(null)
                     );
                     case 1 -> new ComponentTemplate(
                         Template.builder(ot).mappings(randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings)).build(),
                         orig.version(),
                         orig.metadata(),
-                        orig.deprecated()
+                        orig.deprecated(),
+                        orig.createdDateMillis().orElse(null),
+                        orig.modifiedDateMillis().orElse(null)
                     );
                     case 2 -> new ComponentTemplate(
                         Template.builder(ot).aliases(randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases)).build(),
                         orig.version(),
                         orig.metadata(),
-                        orig.deprecated()
+                        orig.deprecated(),
+                        orig.createdDateMillis().orElse(null),
+                        orig.modifiedDateMillis().orElse(null)
                     );
                     case 3 -> new ComponentTemplate(
                         Template.builder(ot)
-                            .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle))
+                            .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTemplateTests::randomDataLifecycleTemplate))
                             .build(),
                         orig.version(),
                         orig.metadata(),
-                        orig.deprecated()
+                        orig.deprecated(),
+                        orig.createdDateMillis().orElse(null),
+                        orig.modifiedDateMillis().orElse(null)
+                    );
+                    case 4 -> new ComponentTemplate(
+                        Template.builder(ot)
+                            .dataStreamOptions(
+                                randomValueOtherThan(ot.dataStreamOptions(), DataStreamOptionsTemplateTests::randomDataStreamOptions)
+                            )
+                            .build(),
+                        orig.version(),
+                        orig.metadata(),
+                        orig.deprecated(),
+                        orig.createdDateMillis().orElse(null),
+                        orig.modifiedDateMillis().orElse(null)
                     );
                     default -> throw new IllegalStateException("illegal randomization branch");
                 };
@@ -186,19 +229,25 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 orig.template(),
                 randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
                 orig.metadata(),
-                orig.deprecated()
+                orig.deprecated(),
+                orig.createdDateMillis().orElse(null),
+                orig.modifiedDateMillis().orElse(null)
             );
             case 2 -> new ComponentTemplate(
                 orig.template(),
                 orig.version(),
                 randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta),
-                orig.deprecated()
+                orig.deprecated(),
+                orig.createdDateMillis().orElse(null),
+                orig.modifiedDateMillis().orElse(null)
             );
             case 3 -> new ComponentTemplate(
                 orig.template(),
                 orig.version(),
                 orig.metadata(),
-                orig.isDeprecated() ? randomFrom(false, null) : true
+                orig.isDeprecated() ? randomFrom(false, null) : true,
+                orig.createdDateMillis().orElse(null),
+                orig.modifiedDateMillis().orElse(null)
             );
             default -> throw new IllegalStateException("illegal randomization branch");
         };
@@ -254,6 +303,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
+        DataStreamOptions.Template dataStreamOptions = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -263,23 +313,27 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        if (randomBoolean()) {
+            // Do not set random lifecycle to avoid having data_retention and effective_retention in the response.
+            dataStreamOptions = new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(randomBoolean()).buildTemplate());
+        }
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         ComponentTemplate template = new ComponentTemplate(
-            new Template(settings, mappings, aliases, lifecycle),
+            new Template(settings, mappings, aliases, lifecycle, dataStreamOptions),
             randomNonNegativeLong(),
             null
         );
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
-            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConfiguration();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
             ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             template.toXContent(builder, withEffectiveRetention, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(
-                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+                lifecycle.toDataStreamLifecycle().getEffectiveDataRetention(globalRetention, randomBoolean())
             ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }

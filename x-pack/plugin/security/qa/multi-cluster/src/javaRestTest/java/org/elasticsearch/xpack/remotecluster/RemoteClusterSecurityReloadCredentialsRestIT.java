@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 // account for slow stored secure settings updates (involves removing and re-creating the keystore)
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
@@ -197,7 +197,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         final boolean configureSettingsFirst = randomBoolean();
         // it's valid to first configure remote cluster, then credentials
         if (configureSettingsFirst) {
-            putRemoteClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
+            putQueryClusterSettings("my_remote_cluster", fulfillingCluster, false, isProxyMode, randomBoolean());
         }
 
         configureRemoteClusterCredentials("my_remote_cluster", remoteClusterCredentials, keystoreSettings);

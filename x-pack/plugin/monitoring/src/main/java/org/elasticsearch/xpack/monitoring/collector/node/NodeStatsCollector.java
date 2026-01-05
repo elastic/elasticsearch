@@ -77,7 +77,7 @@ public class NodeStatsCollector extends Collector {
             NodesStatsRequestParameters.Metric.THREAD_POOL,
             NodesStatsRequestParameters.Metric.FS
         );
-        request.timeout(getCollectionTimeout());
+        request.setTimeout(getCollectionTimeout());
 
         final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet();
         ensureNoTimeouts(getCollectionTimeout(), response);

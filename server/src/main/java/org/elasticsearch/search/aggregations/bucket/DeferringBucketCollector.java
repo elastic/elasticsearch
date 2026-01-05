@@ -10,6 +10,8 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -37,13 +39,13 @@ public abstract class DeferringBucketCollector extends BucketCollector {
     /**
      * Replay the deferred hits on the selected buckets.
      */
-    public abstract void prepareSelectedBuckets(long... selectedBuckets) throws IOException;
+    public abstract void prepareSelectedBuckets(LongArray selectedBuckets) throws IOException;
 
     /**
      * Wrap the provided aggregator so that it behaves (almost) as if it had
      * been collected directly.
      */
-    public Aggregator wrap(final Aggregator in) {
+    public Aggregator wrap(final Aggregator in, BigArrays bigArrays) {
         return new WrappedAggregator(in);
     }
 
@@ -80,7 +82,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
             return in.buildAggregations(owningBucketOrds);
         }
 

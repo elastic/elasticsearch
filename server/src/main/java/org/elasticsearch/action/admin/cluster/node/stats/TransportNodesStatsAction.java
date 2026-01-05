@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -34,7 +33,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
@@ -179,17 +178,13 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         );
     }
 
-    public static class NodeStatsRequest extends TransportRequest {
+    public static class NodeStatsRequest extends AbstractTransportRequest {
 
         private final NodesStatsRequestParameters nodesStatsRequestParameters;
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
             this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                && in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
-                in.readStringArray(); // formerly nodeIds, now unused
-            }
         }
 
         NodeStatsRequest(NodesStatsRequest request) {
@@ -214,10 +209,6 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             nodesStatsRequestParameters.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                && out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
-                out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
-            }
         }
 
         public NodesStatsRequestParameters getNodesStatsRequestParameters() {

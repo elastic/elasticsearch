@@ -9,11 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -30,8 +29,6 @@ import java.util.Collections;
 import java.util.List;
 
 public class IndexModeFieldMapper extends MetadataFieldMapper {
-
-    static final NodeFeature QUERYING_INDEX_MODE = new NodeFeature("mapper.query_index_mode");
 
     public static final String NAME = "_index_mode";
 
@@ -61,8 +58,13 @@ public class IndexModeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getIndexSettings().getMode().getName();
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override

@@ -12,11 +12,9 @@ package org.elasticsearch.telemetry.apm;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.telemetry.apm.internal.MetricNameValidator;
+import org.elasticsearch.telemetry.apm.internal.MetricValidator;
 import org.elasticsearch.telemetry.metric.Instrument;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -35,7 +33,7 @@ public abstract class AbstractInstrument<T> implements Instrument {
 
     public AbstractInstrument(Meter meter, Builder<T> builder) {
         this.name = builder.getName();
-        this.instrumentBuilder = m -> AccessController.doPrivileged((PrivilegedAction<T>) () -> builder.build(m));
+        this.instrumentBuilder = m -> builder.build(m);
         this.delegate.set(this.instrumentBuilder.apply(meter));
     }
 
@@ -59,7 +57,7 @@ public abstract class AbstractInstrument<T> implements Instrument {
         protected final String unit;
 
         public Builder(String name, String description, String unit) {
-            this.name = MetricNameValidator.validate(name);
+            this.name = MetricValidator.validateMetricName(name);
             this.description = Objects.requireNonNull(description);
             this.unit = Objects.requireNonNull(unit);
         }

@@ -46,6 +46,14 @@ public class RailRoadDiagram {
      * {@code FOO(a, b, c)}.
      */
     static String functionSignature(FunctionDefinition definition) throws IOException {
+        return toSvg(svgSequence(definition));
+    }
+
+    /**
+     * Create the internal representation of a function signature.
+     * Useful for unit testing the SVG output without having to parse SVG.
+     */
+    static Sequence svgSequence(FunctionDefinition definition) {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
@@ -56,47 +64,88 @@ public class RailRoadDiagram {
             expressions.add(new Repetition(seq, 1, null));
             expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
         } else {
-            boolean first = true;
-            List<String> args = EsqlFunctionRegistry.description(definition).argNames();
-            for (String arg : args) {
-                if (arg.endsWith("...")) {
-                    expressions.add(
-                        new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null)
-                    );
-                } else {
-                    if (first) {
-                        first = false;
-                    } else {
-                        expressions.add(new Syntax(","));
+            List<Expression> argExpressions = new ArrayList<>();
+            List<Expression> repetitionExpressions = new ArrayList<>();
+            List<EsqlFunctionRegistry.ArgSignature> args = EsqlFunctionRegistry.description(definition).args();
+            for (int i = 0; i < args.size(); i++) {
+                EsqlFunctionRegistry.ArgSignature arg = args.get(i);
+                String argName = arg.name();
+                if (arg.variadic) {
+                    if (argName.endsWith("...")) {
+                        argName = argName.substring(0, argName.length() - 3);
                     }
-                    expressions.add(new Literal(arg));
+                    argExpressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(argName)), arg.optional ? 0 : 1, null));
+                } else {
+                    List<Expression> currentExpressions;
+                    if (arg.optional) {
+                        currentExpressions = repetitionExpressions;
+                    } else {
+                        currentExpressions = argExpressions;
+                        if (i > 0 && args.get(i - 1).optional) {
+                            repetitionExpressions.add(new Syntax(","));
+                        }
+                        checkRepetition(argExpressions, repetitionExpressions);
+                    }
+                    if (i > 0 && (arg.optional || args.get(i - 1).optional == false)) {
+                        currentExpressions.add(new Syntax(","));
+                    }
+                    currentExpressions.add(new Literal(argName));
                 }
             }
+            checkRepetition(argExpressions, repetitionExpressions);
+            expressions.addAll(argExpressions);
         }
         expressions.add(new Syntax(")"));
+        return new Sequence(expressions.toArray(Expression[]::new));
+    }
+
+    private static void checkRepetition(List<Expression> argExpressions, List<Expression> repetitionExpressions) {
+        if (repetitionExpressions.isEmpty() == false) {
+            // We have collected some optional args, add them as a group
+            argExpressions.add(new Repetition(new Sequence(repetitionExpressions.toArray(Expression[]::new)), 0, 1));
+            repetitionExpressions.clear();
+        }
+    }
+
+    /**
+     * Generate a railroad diagram for an infix operator like the binary operators, search operator or cast operator.
+     * Example output would look like:
+     * <dl>
+     *     <dt>Addition (binary operator)</dt>
+     *     <dd>{@code lhs + rhs}</dd>
+     *     <dt>Search</dt>
+     *     <dd>{@code field : query}</dd>
+     *     <dt>Cast</dt>
+     *     <dd>{@code field :: type}</dd>
+     * </dl>
+     */
+    static String infixOperator(String lhs, String operator, String rhs) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal(lhs));
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal(rhs));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
     /**
-     * Generate a railroad diagram for binary operator. The output would look like
-     * {@code lhs + rhs}.
+     * Generate a railroad diagram for prefix operators like the unary operators.
+     * For example, for negation the output would look like {@code -v}.
      */
-    static String binaryOperator(String operator) throws IOException {
+    static String prefixOperator(String operator, String suffix) throws IOException {
         List<Expression> expressions = new ArrayList<>();
-        expressions.add(new Literal("lhs"));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("rhs"));
+        expressions.add(new Literal(suffix));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
     /**
-     * Generate a railroad diagram for unary operator. The output would look like
-     * {@code -v}.
+     * Generate a railroad diagram for suffix operators like the NULL predicates.
+     * For example, for null checks the output would look like {@code field IS NOT NULL}.
      */
-    static String unaryOperator(String operator) throws IOException {
+    static String suffixOperator(String prefix, String operator) throws IOException {
         List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal(prefix));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("v"));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
@@ -111,21 +160,7 @@ public class RailRoadDiagram {
         toSvg.setLiteralFont(FONT.getOrCompute());
 
         toSvg.setRuleFont(FONT.getOrCompute());
-        return tightenStyles(toSvg.convert(rrDiagram));
-    }
-
-    /**
-     * "Tighten" the styles in the SVG so they beat the styles sitting in the
-     * main page. We need this because we're embedding the SVG into the page.
-     * We need to embed the SVG into the page so it can get fonts loaded in the
-     * primary stylesheet. We need to load a font so they images are consistent
-     * on all clients.
-     */
-    private static String tightenStyles(String svg) {
-        for (String c : new String[] { "c", "k", "s", "j", "l" }) {
-            svg = svg.replace("." + c, "#guide ." + c);
-        }
-        return svg;
+        return toSvg.convert(rrDiagram);
     }
 
     /**

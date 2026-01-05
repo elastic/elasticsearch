@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
@@ -341,13 +342,13 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         BooleanQuery booleanQuery = (BooleanQuery) lateParsingQuery.getInnerQuery();
         assertThat(booleanQuery.clauses().size(), equalTo(2));
         // check the inner ids query, we have to call rewrite to get to check the type it's executed against
-        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
-        TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).getQuery();
-        assertEquals(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(id)), termsQuery);
+        assertThat(booleanQuery.clauses().get(0).occur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(booleanQuery.clauses().get(0).query(), instanceOf(TermInSetQuery.class));
+        TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).query();
+        assertEquals(new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeId(id))), termsQuery);
         // check the type filter
-        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).getQuery());
+        assertThat(booleanQuery.clauses().get(1).occur(), equalTo(BooleanClause.Occur.FILTER));
+        assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).query());
     }
 
     @Override

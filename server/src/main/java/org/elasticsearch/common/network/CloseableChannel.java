@@ -38,6 +38,9 @@ public interface CloseableChannel extends Closeable {
      * channel. If the channel is already closed when the listener is added the listener will immediately be
      * executed by the thread that is attempting to add the listener.
      *
+     * When the close completes but an exception prompted the closure, the exception will be passed to the
+     * listener's onFailure method.
+     *
      * @param listener to be executed
      */
     void addCloseListener(ActionListener<Void> listener);

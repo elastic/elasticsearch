@@ -10,15 +10,18 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class TopNExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -29,6 +32,16 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     private final Expression limit;
     private final List<Order> order;
+    /**
+     * Attributes that may be extracted as doc values even if that makes them
+     * less accurate. This is mostly used for geo fields which lose a lot of
+     * precision in their doc values, but in some cases doc values provides
+     * <strong>enough</strong> precision to do the job.
+     * <p>
+     * This is never serialized between nodes and only used locally.
+     * </p>
+     */
+    private final Set<Attribute> docValuesAttributes;
 
     /**
      * Estimate of the number of bytes that'll be loaded per position before
@@ -37,10 +50,22 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
     private final Integer estimatedRowSize;
 
     public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Integer estimatedRowSize) {
+        this(source, child, order, limit, estimatedRowSize, Set.of());
+    }
+
+    private TopNExec(
+        Source source,
+        PhysicalPlan child,
+        List<Order> order,
+        Expression limit,
+        Integer estimatedRowSize,
+        Set<Attribute> docValuesAttributes
+    ) {
         super(source, child);
         this.order = order;
         this.limit = limit;
         this.estimatedRowSize = estimatedRowSize;
+        this.docValuesAttributes = docValuesAttributes;
     }
 
     private TopNExec(StreamInput in) throws IOException {
@@ -51,6 +76,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteable(Expression.class),
             in.readOptionalVInt()
         );
+        // docValueAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -60,6 +86,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         out.writeCollection(order());
         out.writeNamedWriteable(limit());
         out.writeOptionalVInt(estimatedRowSize());
+        // docValueAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -74,7 +101,11 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public TopNExec replaceChild(PhysicalPlan newChild) {
-        return new TopNExec(source(), newChild, order, limit, estimatedRowSize);
+        return new TopNExec(source(), newChild, order, limit, estimatedRowSize, docValuesAttributes);
+    }
+
+    public TopNExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
+        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes);
     }
 
     public Expression limit() {
@@ -83,6 +114,10 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     public List<Order> order() {
         return order;
+    }
+
+    public Set<Attribute> docValuesAttributes() {
+        return docValuesAttributes;
     }
 
     /**
@@ -95,13 +130,19 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {
+        final List<Attribute> output = output();
+        final boolean needsSortedDocIds = output.stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE);
+        state.add(needsSortedDocIds, output);
         int size = state.consumeAllFields(true);
-        return Objects.equals(this.estimatedRowSize, size) ? this : new TopNExec(source(), child(), order, limit, size);
+        size = Math.max(size, 1);
+        return Objects.equals(this.estimatedRowSize, size)
+            ? this
+            : new TopNExec(source(), child(), order, limit, size, docValuesAttributes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize);
+        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes);
     }
 
     @Override
@@ -111,7 +152,8 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             var other = (TopNExec) obj;
             equals = Objects.equals(order, other.order)
                 && Objects.equals(limit, other.limit)
-                && Objects.equals(estimatedRowSize, other.estimatedRowSize);
+                && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+                && Objects.equals(docValuesAttributes, other.docValuesAttributes);
         }
         return equals;
     }

@@ -1,0 +1,50 @@
+---
+test source modes:
+  - requires:
+      cluster_features: ["cluster.stats.source_modes"]
+      reason: requires source modes features
+
+  - do:
+      indices.create:
+        index: test-synthetic
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+
+  - do:
+      indices.create:
+        index: test-stored
+
+  - do:
+      indices.create:
+        index: test-disabled
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: disabled
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "test-synthetic" } }'
+          - '{ "name": "aaaa", "some_string": "AaAa", "some_int": 1000, "some_double": 123.456789, "some_bool": true }'
+          - '{ "create": { "_index": "test-stored" } }'
+          - '{ "name": "bbbb", "some_string": "BbBb", "some_int": 2000, "some_double": 321.987654, "some_bool": false }'
+          - '{ "create": { "_index": "test-disabled" } }'
+          - '{ "name": "cccc", "some_string": "CcCc", "some_int": 3000, "some_double": 421.484654, "some_bool": false }'
+
+  - do:
+      search:
+        index: test-*
+  - match: { hits.total.value: 3 }
+
+  - do:
+      cluster.stats: { }
+
+  - match: { indices.mappings.source_modes.disabled: 1 }
+  - match: { indices.mappings.source_modes.stored: 1 }
+  - match: { indices.mappings.source_modes.synthetic: 1 }

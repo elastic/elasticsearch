@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -80,6 +81,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private TaskResultsService taskResultsService;
 
+    private final String nodeId;
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
     private final Tracer tracer;
@@ -95,11 +97,19 @@ public class TaskManager implements ClusterStateApplier {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
     }
 
+    // For testing (especially the creating a random node ID, which some tests rely on)
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
+        this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID());
+    }
+
+    // TODO Both of the above overloads should be moved to the test package.
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
         this.threadPool = threadPool;
         this.taskHeaders = Set.copyOf(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.tracer = tracer;
+        this.nodeId = nodeId;
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -129,7 +139,7 @@ public class TaskManager implements ClusterStateApplier {
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        assert threadContext.hasTraceContext() == false : "Expected threadContext to have no traceContext fields";
+        assert threadContext.hasApmTraceContext() == false : "Expected threadContext to have no APM trace context";
 
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
@@ -141,7 +151,13 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+        Task task = request.createTask(
+            new TaskId(nodeId, taskIdGenerator.incrementAndGet()),
+            type,
+            action,
+            request.getParentTask(),
+            headers
+        );
         Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
@@ -154,21 +170,24 @@ public class TaskManager implements ClusterStateApplier {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
             if (traceRequest) {
-                startTrace(threadContext, task);
+                maybeStartTrace(threadContext, task);
             }
         }
         return task;
     }
 
-    // package private for testing
-    void startTrace(ThreadContext threadContext, Task task) {
+    /**
+     * Start a new trace span if a parent trace context already exists.
+     * For REST actions this will be the case, otherwise {@link Tracer#startTrace} can be used.
+     */
+    void maybeStartTrace(ThreadContext threadContext, Task task) {
+        if (threadContext.hasParentApmTraceContext() == false) {
+            return;
+        }
         TaskId parentTask = task.getParentTaskId();
-        Map<String, Object> attributes = Map.of(
-            Tracer.AttributeKeys.TASK_ID,
-            task.getId(),
-            Tracer.AttributeKeys.PARENT_TASK_ID,
-            parentTask.toString()
-        );
+        Map<String, Object> attributes = parentTask.isSet()
+            ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
+            : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
         tracer.startTrace(threadContext, task, task.getAction(), attributes);
     }
 
@@ -234,7 +253,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, requestId, holder);
         if (traceRequest) {
-            startTrace(threadPool.getThreadContext(), task);
+            maybeStartTrace(threadPool.getThreadContext(), task);
         }
         // Check if this task was banned before we start it.
         if (task.getParentTaskId().isSet()) {
@@ -333,7 +352,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            tracer.stopTrace(task);
+            tracer.stopTrace(task); // stop trace if started / known by tracer
             for (RemovedTaskListener listener : removedTaskListeners) {
                 listener.onRemoved(task);
             }
@@ -736,11 +755,11 @@ public class TaskManager implements ClusterStateApplier {
             return curr;
         });
         if (tracker.registered.compareAndSet(false, true)) {
-            channel.addCloseListener(ActionListener.wrap(r -> {
+            channel.addCloseListener(ActionListener.running(() -> {
                 final ChannelPendingTaskTracker removedTracker = channelPendingTaskTrackers.remove(channel);
                 assert removedTracker == tracker;
                 onChannelClosed(tracker);
-            }, e -> { assert false : new AssertionError("must not be here", e); }));
+            }));
         }
         return tracker;
     }

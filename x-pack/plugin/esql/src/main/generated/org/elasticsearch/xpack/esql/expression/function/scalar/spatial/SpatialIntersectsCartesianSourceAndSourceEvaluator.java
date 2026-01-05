@@ -8,22 +8,25 @@ import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class SpatialIntersectsCartesianSourceAndSourceEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SpatialIntersectsCartesianSourceAndSourceEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator left;
 
@@ -31,13 +34,15 @@ public final class SpatialIntersectsCartesianSourceAndSourceEvaluator implements
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public SpatialIntersectsCartesianSourceAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator left, EvalOperator.ExpressionEvaluator right,
       DriverContext driverContext) {
+    this.source = source;
     this.left = left;
     this.right = right;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -47,6 +52,14 @@ public final class SpatialIntersectsCartesianSourceAndSourceEvaluator implements
         return eval(page.getPositionCount(), leftBlock, rightBlock);
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += left.baseRamBytesUsed();
+    baseRamBytesUsed += right.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock leftBlock, BytesRefBlock rightBlock) {
@@ -66,7 +79,7 @@ public final class SpatialIntersectsCartesianSourceAndSourceEvaluator implements
         try {
           SpatialIntersects.processCartesianSourceAndSource(result, p, leftBlock, rightBlock);
         } catch (IllegalArgumentException | IOException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -82,6 +95,18 @@ public final class SpatialIntersectsCartesianSourceAndSourceEvaluator implements
   @Override
   public void close() {
     Releasables.closeExpectNoException(left, right);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

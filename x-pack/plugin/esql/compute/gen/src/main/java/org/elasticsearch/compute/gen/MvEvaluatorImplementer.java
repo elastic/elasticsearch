@@ -128,15 +128,16 @@ public class MvEvaluatorImplementer {
     private TypeSpec type() {
         TypeSpec.Builder builder = TypeSpec.classBuilder(implementation);
         builder.addJavadoc("{@link $T} implementation for {@link $T}.\n", EXPRESSION_EVALUATOR, declarationType);
-        builder.addJavadoc("This class is generated. Do not edit it.");
+        builder.addJavadoc("This class is generated. Edit {@code " + getClass().getSimpleName() + "} instead.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         if (warnExceptions.isEmpty()) {
             builder.superclass(ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR);
         } else {
             builder.superclass(ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR);
-
-            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+            builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
+            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
         }
+        builder.addField(EvaluatorImplementer.baseRamBytesUsed(implementation));
 
         builder.addMethod(ctor());
         builder.addMethod(name());
@@ -156,6 +157,10 @@ public class MvEvaluatorImplementer {
         }
 
         builder.addType(factory());
+        if (warnExceptions.isEmpty() == false) {
+            builder.addMethod(EvaluatorImplementer.warnings());
+        }
+        builder.addMethod(baseRamBytesUsed());
         return builder.build();
     }
 
@@ -165,10 +170,10 @@ public class MvEvaluatorImplementer {
             builder.addParameter(SOURCE, "source");
         }
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
-        builder.addStatement("super(driverContext, field)");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("super(driverContext, field)");
         if (warnExceptions.isEmpty() == false) {
-            builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
+            builder.addStatement("this.source = source");
         }
         return builder.build();
     }
@@ -241,7 +246,7 @@ public class MvEvaluatorImplementer {
                 body.accept(builder);
                 String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
                 builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
-                builder.addStatement("warnings.registerException(e)");
+                builder.addStatement("warnings().registerException(e)");
                 builder.addStatement("builder.appendNull()");
                 builder.endControlFlow();
             } else {
@@ -577,5 +582,13 @@ public class MvEvaluatorImplementer {
                 fetch(builder, "result", resultType, "first + idx", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
             }
         }
+    }
+
+    MethodSpec baseRamBytesUsed() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("baseRamBytesUsed").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC).returns(TypeName.LONG);
+
+        builder.addStatement("return BASE_RAM_BYTES_USED + field.baseRamBytesUsed()");
+        return builder.build();
     }
 }

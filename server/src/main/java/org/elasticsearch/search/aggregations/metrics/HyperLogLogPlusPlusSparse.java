@@ -36,11 +36,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         this.lc = new LinearCounting(precision, bigArrays, initialBuckets);
     }
 
-    @Override
-    public long maxOrd() {
-        return lc.sizes.size();
-    }
-
     /** Needs to be called before adding elements into a bucket */
     protected void ensureCapacity(long bucketOrd, long size) {
         lc.ensureCapacity(bucketOrd, size);
@@ -135,8 +130,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             return size;
         }
 
-        @Override
-        protected HashesIterator values(long bucketOrd) {
+        private HashesIterator values(long bucketOrd) {
             return new LinearCountingIterator(values.get(bucketOrd), size(bucketOrd));
         }
 

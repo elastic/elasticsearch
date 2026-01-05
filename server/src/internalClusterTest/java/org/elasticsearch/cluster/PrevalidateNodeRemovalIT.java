@@ -152,7 +152,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         ensureRed(indexName);
         // Ensure that node1 still has data for the unassigned index
         NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class, node1);
-        Index index = internalCluster().clusterService().state().metadata().index(indexName).getIndex();
+        Index index = internalCluster().clusterService().state().metadata().getProject().index(indexName).getIndex();
         ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, new ShardId(index, 0), "");
         assertNotNull("local index shards not found", shardPath);
         // Prevalidate removal of node1
@@ -179,28 +179,35 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         // make it red!
         internalCluster().stopNode(node1);
         ensureRed(indexName);
+        CountDownLatch stallPrevalidateShardPathActionLatch = new CountDownLatch(1);
         MockTransportService.getInstance(node2)
             .addRequestHandlingBehavior(TransportPrevalidateShardPathAction.ACTION_NAME + "[n]", (handler, request, channel, task) -> {
                 logger.info("drop the check shards request");
+                safeAwait(stallPrevalidateShardPathActionLatch);
+                handler.messageReceived(request, channel, task);
             });
-        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder()
-            .setNames(node2)
-            .build(TEST_REQUEST_TIMEOUT)
-            .masterNodeTimeout(TimeValue.timeValueSeconds(1))
-            .timeout(TimeValue.timeValueSeconds(1));
-        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
-        assertFalse("prevalidation result should return false", resp.getPrevalidation().isSafe());
-        String node2Id = getNodeId(node2);
-        assertThat(
-            resp.getPrevalidation().message(),
-            equalTo("cannot prevalidate removal of nodes with the following IDs: [" + node2Id + "]")
-        );
-        assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
-        NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
-        assertThat(nodeResult.name(), equalTo(node2));
-        assertFalse(nodeResult.result().isSafe());
-        assertThat(nodeResult.result().message(), startsWith("failed contacting the node"));
-        assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.UNABLE_TO_VERIFY));
+        try {
+            PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder()
+                .setNames(node2)
+                .build(TEST_REQUEST_TIMEOUT)
+                .masterNodeTimeout(TimeValue.timeValueSeconds(1))
+                .timeout(TimeValue.timeValueSeconds(1));
+            PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
+            assertFalse("prevalidation result should return false", resp.getPrevalidation().isSafe());
+            String node2Id = getNodeId(node2);
+            assertThat(
+                resp.getPrevalidation().message(),
+                equalTo("cannot prevalidate removal of nodes with the following IDs: [" + node2Id + "]")
+            );
+            assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
+            NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().nodes().get(0);
+            assertThat(nodeResult.name(), equalTo(node2));
+            assertFalse(nodeResult.result().isSafe());
+            assertThat(nodeResult.result().message(), startsWith("failed contacting the node"));
+            assertThat(nodeResult.result().reason(), equalTo(NodesRemovalPrevalidation.Reason.UNABLE_TO_VERIFY));
+        } finally {
+            stallPrevalidateShardPathActionLatch.countDown();
+        }
     }
 
     private void ensureRed(String indexName) throws Exception {

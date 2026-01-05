@@ -57,7 +57,6 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
     }
 
     public MigrateToDataTiersResponse(StreamInput in) throws IOException {
-        super(in);
         removedIndexTemplateName = in.readOptionalString();
         migratedPolicies = in.readStringCollectionAsList();
         migratedIndices = in.readStringCollectionAsList();

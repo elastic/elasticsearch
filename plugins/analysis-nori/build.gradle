@@ -6,12 +6,12 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.nori.AnalysisNoriPlugin'
+  description = 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.'
+  classname ='org.elasticsearch.plugin.analysis.nori.AnalysisNoriPlugin'
 }
 
 dependencies {

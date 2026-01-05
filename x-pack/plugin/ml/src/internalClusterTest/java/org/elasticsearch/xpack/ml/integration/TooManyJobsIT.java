@@ -15,7 +15,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.util.List;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
     public void testCloseFailedJob() throws Exception {
@@ -84,9 +87,9 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
         ensureTemplatesArePresent();
-        logger.info("[{}] is [{}]", MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes);
+        logger.info("[{}] is [{}]", MachineLearningField.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes);
         // Set our lazy node number
-        updateClusterSettings(Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes));
+        updateClusterSettings(Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes));
         // create and open first job, which succeeds:
         Job.Builder job = createJob("lazy-node-validation-job-1", ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
@@ -222,6 +225,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                             .get()
                             .getState()
                             .getMetadata()
+                            .getProject()
                             .custom(PersistentTasksCustomMetadata.TYPE);
                         assertEquals(MlTasks.getJobState(job.getId(), tasks), JobState.OPENED);
                     }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
@@ -18,17 +20,27 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
-    static final MethodHandle dot7u$mh;
-    static final MethodHandle sqr7u$mh;
+    static final Logger logger = LogManager.getLogger(JdkVectorLibrary.class);
 
-    static final VectorSimilarityFunctions INSTANCE;
+    static final MethodHandle dot7u$mh;
+    static final MethodHandle dot7uBulk$mh;
+    static final MethodHandle dot7uBulkWithOffsets$mh;
+    static final MethodHandle sqr7u$mh;
+    static final MethodHandle sqr7uBulk$mh;
+    static final MethodHandle sqr7uBulkWithOffsets$mh;
+    static final MethodHandle dotf32$mh;
+    static final MethodHandle sqrf32$mh;
+
+    public static final JdkVectorSimilarityFunctions INSTANCE;
 
     static {
         LoaderHelper.loadLibrary("vec");
@@ -36,34 +48,45 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         try {
             int caps = (int) vecCaps$mh.invokeExact();
-            if (caps != 0) {
-                if (caps == 2) {
-                    dot7u$mh = downcallHandle(
-                        "dot7u_2",
-                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
-                        LinkerHelperUtil.critical()
-                    );
-                    sqr7u$mh = downcallHandle(
-                        "sqr7u_2",
-                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
-                        LinkerHelperUtil.critical()
-                    );
-                } else {
-                    dot7u$mh = downcallHandle(
-                        "dot7u",
-                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
-                        LinkerHelperUtil.critical()
-                    );
-                    sqr7u$mh = downcallHandle(
-                        "sqr7u",
-                        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
-                        LinkerHelperUtil.critical()
-                    );
-                }
+            logger.info("vec_caps=" + caps);
+            if (caps > 0) {
+                String suffix = caps == 2 ? "_2" : "";
+                FunctionDescriptor intSingle = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT);
+                FunctionDescriptor floatSingle = FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT);
+                FunctionDescriptor bulk = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
+                FunctionDescriptor bulkOffsets = FunctionDescriptor.ofVoid(
+                    ADDRESS,
+                    ADDRESS,
+                    JAVA_INT,
+                    JAVA_INT,
+                    ADDRESS,
+                    JAVA_INT,
+                    ADDRESS
+                );
+
+                dot7u$mh = downcallHandle("vec_dot7u" + suffix, intSingle, LinkerHelperUtil.critical());
+                dot7uBulk$mh = downcallHandle("vec_dot7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
+                dot7uBulkWithOffsets$mh = downcallHandle("vec_dot7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
+                sqr7u$mh = downcallHandle("vec_sqr7u" + suffix, intSingle, LinkerHelperUtil.critical());
+                sqr7uBulk$mh = downcallHandle("vec_sqr7u_bulk" + suffix, bulk, LinkerHelperUtil.critical());
+                sqr7uBulkWithOffsets$mh = downcallHandle("vec_sqr7u_bulk_offsets" + suffix, bulkOffsets, LinkerHelperUtil.critical());
+                dotf32$mh = downcallHandle("vec_dotf32" + suffix, floatSingle, LinkerHelperUtil.critical());
+                sqrf32$mh = downcallHandle("vec_sqrf32" + suffix, floatSingle, LinkerHelperUtil.critical());
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
+                if (caps < 0) {
+                    logger.warn("""
+                        Your CPU supports vector capabilities, but they are disabled at OS level. For optimal performance, \
+                        enable them in your OS/Hypervisor/VM/container""");
+                }
                 dot7u$mh = null;
+                dot7uBulk$mh = null;
+                dot7uBulkWithOffsets$mh = null;
                 sqr7u$mh = null;
+                sqr7uBulk$mh = null;
+                sqr7uBulkWithOffsets$mh = null;
+                dotf32$mh = null;
+                sqrf32$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -89,14 +112,28 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @param length the vector dimensions
          */
         static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
-            assert length >= 0;
-            if (a.byteSize() != b.byteSize()) {
-                throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
-            }
-            if (length > a.byteSize()) {
-                throw new IllegalArgumentException("length: " + length + ", greater than vector dimensions: " + a.byteSize());
-            }
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return dot7u(a, b, length);
+        }
+
+        static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            Objects.checkFromIndexSize(0, length * count, (int) a.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) b.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
+            dot7uBulk(a, b, length, count, result);
+        }
+
+        static void dotProduct7uBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            dot7uBulkWithOffsets(a, b, length, pitch, offsets, count, result);
         }
 
         /**
@@ -109,19 +146,89 @@ public final class JdkVectorLibrary implements VectorLibrary {
          * @param length the vector dimensions
          */
         static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
-            assert length >= 0;
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return sqr7u(a, b, length);
+        }
+
+        static void squareDistance7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            Objects.checkFromIndexSize(0, length * count, (int) a.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) b.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
+            sqr7uBulk(a, b, length, count, result);
+        }
+
+        static void squareDistance7uBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            sqr7uBulkWithOffsets(a, b, length, pitch, offsets, count, result);
+        }
+
+        /**
+         * Computes the dot product of given float32 vectors.
+         *
+         * @param a      address of the first vector
+         * @param b      address of the second vector
+         * @param elementCount the vector dimensions, number of float32 elements in the segment
+         */
+        static float dotProductF32(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
+            return dotf32(a, b, elementCount);
+        }
+
+        /**
+         * Computes the square distance of given float32 vectors.
+         *
+         * @param a      address of the first vector
+         * @param b      address of the second vector
+         * @param elementCount the vector dimensions, number of float32 elements in the segment
+         */
+        static float squareDistanceF32(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize() / Float.BYTES);
+            return sqrf32(a, b, elementCount);
+        }
+
+        private static void checkByteSize(MemorySegment a, MemorySegment b) {
             if (a.byteSize() != b.byteSize()) {
                 throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
             }
-            if (length > a.byteSize()) {
-                throw new IllegalArgumentException("length: " + length + ", greater than vector dimensions: " + a.byteSize());
-            }
-            return sqr7u(a, b, length);
         }
 
         private static int dot7u(MemorySegment a, MemorySegment b, int length) {
             try {
                 return (int) JdkVectorLibrary.dot7u$mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static void dot7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            try {
+                JdkVectorLibrary.dot7uBulk$mh.invokeExact(a, b, length, count, result);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static void dot7uBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            try {
+                JdkVectorLibrary.dot7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
@@ -135,17 +242,100 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static void sqr7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            try {
+                JdkVectorLibrary.sqr7uBulk$mh.invokeExact(a, b, length, count, result);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static void sqr7uBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            try {
+                JdkVectorLibrary.sqr7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float dotf32(MemorySegment a, MemorySegment b, int length) {
+            try {
+                return (float) JdkVectorLibrary.dotf32$mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float sqrf32(MemorySegment a, MemorySegment b, int length) {
+            try {
+                return (float) JdkVectorLibrary.sqrf32$mh.invokeExact(a, b, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         static final MethodHandle DOT_HANDLE_7U;
+        static final MethodHandle DOT_HANDLE_7U_BULK;
+        static final MethodHandle DOT_HANDLE_7U_BULK_WITH_OFFSETS;
         static final MethodHandle SQR_HANDLE_7U;
+        static final MethodHandle SQR_HANDLE_7U_BULK;
+        static final MethodHandle SQR_HANDLE_7U_BULK_WITH_OFFSETS;
+        static final MethodHandle DOT_HANDLE_FLOAT32;
+        static final MethodHandle SQR_HANDLE_FLOAT32;
 
         static {
             try {
                 var lookup = MethodHandles.lookup();
-                var mt = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
-                DOT_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", mt);
-                SQR_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", mt);
+
+                MethodType singleInt7Scorer = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                MethodType bulkInt7Scorer = MethodType.methodType(
+                    void.class,
+                    MemorySegment.class,
+                    MemorySegment.class,
+                    int.class,
+                    int.class,
+                    MemorySegment.class
+                );
+                MethodType bulkInt7OffsetScorer = MethodType.methodType(
+                    void.class,
+                    MemorySegment.class,
+                    MemorySegment.class,
+                    int.class,
+                    int.class,
+                    MemorySegment.class,
+                    int.class,
+                    MemorySegment.class
+                );
+
+                DOT_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", singleInt7Scorer);
+                DOT_HANDLE_7U_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7uBulk", bulkInt7Scorer);
+                DOT_HANDLE_7U_BULK_WITH_OFFSETS = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "dotProduct7uBulkWithOffsets",
+                    bulkInt7OffsetScorer
+                );
+
+                SQR_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", singleInt7Scorer);
+                SQR_HANDLE_7U_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7uBulk", bulkInt7Scorer);
+                SQR_HANDLE_7U_BULK_WITH_OFFSETS = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "squareDistance7uBulkWithOffsets",
+                    bulkInt7OffsetScorer
+                );
+
+                MethodType singleFloatScorer = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
+                DOT_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", singleFloatScorer);
+                SQR_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32", singleFloatScorer);
             } catch (NoSuchMethodException | IllegalAccessException e) {
-                throw new RuntimeException(e);
+                throw new AssertionError(e);
             }
         }
 
@@ -155,8 +345,38 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         @Override
+        public MethodHandle dotProductHandle7uBulk() {
+            return DOT_HANDLE_7U_BULK;
+        }
+
+        @Override
+        public MethodHandle dotProductHandle7uBulkWithOffsets() {
+            return DOT_HANDLE_7U_BULK_WITH_OFFSETS;
+        }
+
+        @Override
         public MethodHandle squareDistanceHandle7u() {
             return SQR_HANDLE_7U;
+        }
+
+        @Override
+        public MethodHandle squareDistanceHandle7uBulk() {
+            return SQR_HANDLE_7U_BULK;
+        }
+
+        @Override
+        public MethodHandle squareDistanceHandle7uBulkWithOffsets() {
+            return SQR_HANDLE_7U_BULK_WITH_OFFSETS;
+        }
+
+        @Override
+        public MethodHandle dotProductHandleFloat32() {
+            return DOT_HANDLE_FLOAT32;
+        }
+
+        @Override
+        public MethodHandle squareDistanceHandleFloat32() {
+            return SQR_HANDLE_FLOAT32;
         }
     }
 }

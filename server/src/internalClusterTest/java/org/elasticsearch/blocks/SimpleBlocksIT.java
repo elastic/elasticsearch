@@ -14,16 +14,26 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -266,6 +276,78 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(indexName).setSize(0), nbDocs);
     }
 
+    public void testReAddUnverifiedIndexBlock() {
+        ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        final int nbDocs = randomIntBetween(0, 50);
+        indexRandom(
+            randomBoolean(),
+            false,
+            randomBoolean(),
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
+        );
+
+        final APIBlock block = APIBlock.WRITE;
+        try {
+            AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
+            assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response.isAcknowledged());
+            assertIndexHasBlock(block, indexName);
+
+            removeVerified(projectId, indexName);
+
+            AddIndexBlockResponse response2 = indicesAdmin().prepareAddBlock(block, indexName).get();
+            assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response2.isAcknowledged());
+            assertIndexHasBlock(block, indexName);
+        } finally {
+            disableIndexBlock(indexName, block);
+        }
+
+    }
+
+    private static void removeVerified(ProjectId projectId, String indexName) {
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        internalCluster().clusterService(internalCluster().getMasterName())
+            .createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
+                @Override
+                public Tuple<ClusterState, Object> executeTask(
+                    ClusterStateTaskListener clusterStateTaskListener,
+                    ClusterState clusterState
+                ) {
+                    ProjectMetadata project = clusterState.metadata().getProject(projectId);
+                    IndexMetadata indexMetadata = project.index(indexName);
+                    Settings.Builder settingsBuilder = Settings.builder().put(indexMetadata.getSettings());
+                    settingsBuilder.remove(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
+                    return Tuple.tuple(
+                        ClusterState.builder(clusterState)
+                            .metadata(
+                                Metadata.builder(clusterState.metadata())
+                                    .put(
+                                        ProjectMetadata.builder(project)
+                                            .put(
+                                                IndexMetadata.builder(indexMetadata)
+                                                    .settings(settingsBuilder)
+                                                    .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                                            )
+                                    )
+                            )
+                            .build(),
+                        null
+                    );
+                }
+
+                @Override
+                public void taskSucceeded(ClusterStateTaskListener clusterStateTaskListener, Object ignored) {
+                    listener.onResponse(null);
+                }
+            })
+            .submitTask("test", e -> fail(e), null);
+
+        listener.actionGet();
+    }
+
     public void testSameBlockTwice() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
@@ -300,8 +382,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        assertThat(clusterState.metadata().getProject(projectId).indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
+        assertThat(clusterState.routingTable(projectId).allShards().allMatch(ShardRouting::unassigned), is(true));
 
         final APIBlock block = randomAddableBlock();
         try {
@@ -330,8 +413,11 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             startInParallel(threadCount, i -> {
                 try {
-                    indicesAdmin().prepareAddBlock(block, indexName).get();
-                    assertIndexHasBlock(block, indexName);
+                    AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
+                    // Check that the block has been added only for the request that won the race
+                    if (response.isAcknowledged() && response.getIndices().isEmpty() == false) {
+                        assertIndexHasBlock(block, indexName);
+                    }
                 } catch (final ClusterBlockException e) {
                     assertThat(e.blocks(), hasSize(1));
                     assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
@@ -394,7 +480,11 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             }
             indices[i] = indexName;
         }
-        assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indices().size(), equalTo(indices.length));
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject(projectId).indices().size(),
+            equalTo(indices.length)
+        );
 
         final List<Thread> threads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -436,27 +526,223 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     static void assertIndexHasBlock(APIBlock block, final String... indices) {
         final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         for (String index : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).indices().get(index);
             final Settings indexSettings = indexMetadata.getSettings();
             assertThat(indexSettings.hasValue(block.settingName()), is(true));
             assertThat(indexSettings.getAsBoolean(block.settingName(), false), is(true));
-            assertThat(clusterState.blocks().hasIndexBlock(index, block.getBlock()), is(true));
+            assertThat(clusterState.blocks().hasIndexBlock(projectId, index, block.getBlock()), is(true));
             assertThat(
                 "Index " + index + " must have only 1 block with [id=" + block.getBlock().id() + "]",
                 clusterState.blocks()
-                    .indices()
+                    .indices(projectId)
                     .getOrDefault(index, emptySet())
                     .stream()
                     .filter(clusterBlock -> clusterBlock.id() == block.getBlock().id())
                     .count(),
                 equalTo(1L)
             );
+            if (block.getBlock().contains(ClusterBlockLevel.WRITE)) {
+                assertThat(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexSettings), is(true));
+            }
         }
     }
 
     public static void disableIndexBlock(String index, APIBlock block) {
         disableIndexBlock(index, block.settingName());
+    }
+
+    public void testRemoveBlockToMissingIndex() {
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), "test")
+        );
+        assertThat(e.getMessage(), is("no such index [test]"));
+    }
+
+    public void testRemoveBlockToOneMissingIndex() {
+        createIndex("test1");
+        final IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), "test1", "test2")
+        );
+        assertThat(e.getMessage(), is("no such index [test2]"));
+    }
+
+    public void testRemoveBlockNoIndex() {
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock())
+        );
+        assertThat(e.getMessage(), containsString("index is missing"));
+    }
+
+    public void testRemoveBlockNullIndex() {
+        expectThrows(
+            NullPointerException.class,
+            () -> indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAddableBlock(), (String[]) null)
+        );
+    }
+
+    public void testCannotRemoveReadOnlyAllowDeleteBlock() {
+        createIndex("test1");
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, APIBlock.READ_ONLY_ALLOW_DELETE, "test1")
+        );
+        assertThat(e.getMessage(), containsString("read_only_allow_delete block is for internal use only"));
+    }
+
+    public void testRemoveIndexBlock() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        final int nbDocs = randomIntBetween(0, 50);
+        indexRandom(
+            randomBoolean(),
+            false,
+            randomBoolean(),
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
+        );
+
+        final APIBlock block = randomAddableBlock();
+        try {
+            // First add the block
+            AddIndexBlockResponse addResponse = indicesAdmin().prepareAddBlock(block, indexName).get();
+            assertTrue(
+                "Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + addResponse,
+                addResponse.isAcknowledged()
+            );
+            assertIndexHasBlock(block, indexName);
+
+            // Then remove the block
+            RemoveIndexBlockResponse removeResponse = indicesAdmin().prepareRemoveBlock(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                block,
+                indexName
+            ).get();
+            assertTrue(
+                "Remove block [" + block + "] from index [" + indexName + "] not acknowledged: " + removeResponse,
+                removeResponse.isAcknowledged()
+            );
+            assertIndexDoesNotHaveBlock(block, indexName);
+        } finally {
+            // Ensure cleanup
+            disableIndexBlock(indexName, block);
+        }
+
+        indicesAdmin().prepareRefresh(indexName).get();
+        assertHitCount(prepareSearch(indexName).setSize(0), nbDocs);
+    }
+
+    public void testRemoveBlockIdempotent() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        final APIBlock block = randomAddableBlock();
+        try {
+            // First add the block
+            assertAcked(indicesAdmin().prepareAddBlock(block, indexName));
+            assertIndexHasBlock(block, indexName);
+
+            // Remove the block
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, indexName));
+            assertIndexDoesNotHaveBlock(block, indexName);
+
+            // Second remove should be acked too (idempotent behavior)
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, indexName));
+            assertIndexDoesNotHaveBlock(block, indexName);
+        } finally {
+            disableIndexBlock(indexName, block);
+        }
+    }
+
+    public void testRemoveBlockOneMissingIndexIgnoreMissing() throws Exception {
+        createIndex("test1");
+        final APIBlock block = randomAddableBlock();
+        try {
+            // First add the block to test1
+            assertAcked(indicesAdmin().prepareAddBlock(block, "test1"));
+            assertIndexHasBlock(block, "test1");
+
+            // Remove from both test1 and test2 (missing), with lenient options
+            assertBusy(
+                () -> assertAcked(
+                    indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, "test1", "test2")
+                        .setIndicesOptions(lenientExpandOpen())
+                )
+            );
+            assertIndexDoesNotHaveBlock(block, "test1");
+        } finally {
+            disableIndexBlock("test1", block);
+        }
+    }
+
+    static void assertIndexDoesNotHaveBlock(APIBlock block, final String... indices) {
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        for (String index : indices) {
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).indices().get(index);
+            final Settings indexSettings = indexMetadata.getSettings();
+            assertThat(
+                "Index " + index + " should not have block setting [" + block.settingName() + "]",
+                indexSettings.getAsBoolean(block.settingName(), false),
+                is(false)
+            );
+            assertThat(
+                "Index " + index + " should not have block [" + block.getBlock() + "]",
+                clusterState.blocks().hasIndexBlock(projectId, index, block.getBlock()),
+                is(false)
+            );
+        }
+    }
+
+    public void testRemoveWriteBlockAlsoRemovesVerifiedReadOnlySetting() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        try {
+            // Add write block
+            AddIndexBlockResponse addResponse = indicesAdmin().prepareAddBlock(APIBlock.WRITE, indexName).get();
+            assertTrue("Add write block not acknowledged: " + addResponse, addResponse.isAcknowledged());
+            assertIndexHasBlock(APIBlock.WRITE, indexName);
+
+            // Verify VERIFIED_READ_ONLY_SETTING is set
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            IndexMetadata indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+            assertThat(
+                "VERIFIED_READ_ONLY_SETTING should be true",
+                MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()),
+                is(true)
+            );
+
+            // Remove write block
+            RemoveIndexBlockResponse removeResponse = indicesAdmin().prepareRemoveBlock(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                APIBlock.WRITE,
+                indexName
+            ).get();
+            assertTrue("Remove write block not acknowledged: " + removeResponse, removeResponse.isAcknowledged());
+            assertIndexDoesNotHaveBlock(APIBlock.WRITE, indexName);
+
+            // Verify VERIFIED_READ_ONLY_SETTING is also removed
+            state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+            assertThat(
+                "VERIFIED_READ_ONLY_SETTING should be false after removing write block",
+                MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()),
+                is(false)
+            );
+
+        } finally {
+            disableIndexBlock(indexName, APIBlock.WRITE);
+        }
     }
 
     /**

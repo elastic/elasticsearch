@@ -11,8 +11,10 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -55,11 +57,41 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             return null;
         }
 
+        // NOTE: FieldFetcher for non-metadata fields, as well as `_id` and `_source`.
+        // We need to retain `_id` and `_source` here to correctly populate the `StoredFieldSpecs` created by the
+        // `FieldFetcher` constructor.
         final SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
-        final FieldFetcher fieldFetcher = fetchFieldsContext == null ? null
-            : fetchFieldsContext.fields() == null ? null
-            : fetchFieldsContext.fields().isEmpty() ? null
-            : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields());
+        final FieldFetcher fieldFetcher = (fetchFieldsContext == null
+            || fetchFieldsContext.fields() == null
+            || fetchFieldsContext.fields().isEmpty())
+                ? null
+                : FieldFetcher.create(
+                    searchExecutionContext,
+                    fetchFieldsContext.fields()
+                        .stream()
+                        .filter(
+                            fieldAndFormat -> (searchExecutionContext.isMetadataField(fieldAndFormat.field) == false
+                                || searchExecutionContext.getFieldType(fieldAndFormat.field).isStored() == false
+                                || IdFieldMapper.NAME.equals(fieldAndFormat.field)
+                                || SourceFieldMapper.NAME.equals(fieldAndFormat.field))
+                        )
+                        .toList()
+                );
+
+        // NOTE: Collect stored metadata fields requested via `fields` (in FetchFieldsContext) like for instance the _ignored source field
+        final Set<FieldAndFormat> fetchContextMetadataFields = new HashSet<>();
+        if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
+            for (final FieldAndFormat fieldAndFormat : fetchFieldsContext.fields()) {
+                // NOTE: _id and _source are always retrieved anyway, no need to do it explicitly. See FieldsVisitor.
+                if (SourceFieldMapper.NAME.equals(fieldAndFormat.field) || IdFieldMapper.NAME.equals(fieldAndFormat.field)) {
+                    continue;
+                }
+                if (searchExecutionContext.isMetadataField(fieldAndFormat.field)
+                    && searchExecutionContext.getFieldType(fieldAndFormat.field).isStored()) {
+                    fetchContextMetadataFields.add(fieldAndFormat);
+                }
+            }
+        }
 
         final FieldFetcher metadataFieldFetcher;
         if (storedFieldsContext != null
@@ -73,6 +105,10 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                         continue;
                     }
                     final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
+                    // NOTE: Exclude _ignored_source when requested via wildcard '*'
+                    if (matchingFieldName.equals(IgnoredSourceFieldMapper.NAME) && Regex.isSimpleMatchPattern(storedField)) {
+                        continue;
+                    }
                     // NOTE: checking if the field is stored is required for backward compatibility reasons and to make
                     // sure we also handle here stored fields requested via `stored_fields`, which was previously a
                     // responsibility of StoredFieldsPhase.
@@ -81,9 +117,14 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     }
                 }
             }
+            // NOTE: Include also metadata stored fields requested via `fields`
+            metadataFields.addAll(fetchContextMetadataFields);
             metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields);
         } else {
-            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, DEFAULT_METADATA_FIELDS);
+            // NOTE: Include also metadata stored fields requested via `fields`
+            final Set<FieldAndFormat> allMetadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
+            allMetadataFields.addAll(fetchContextMetadataFields);
+            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, allMetadataFields);
         }
         return new FetchSubPhaseProcessor() {
             @Override

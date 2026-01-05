@@ -1,5 +1,0 @@
-pr: 112440
-summary: "logs-apm.error-*: define log.level field as keyword"
-area: Data streams
-type: bug
-issues: []

@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongBytesRefTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Comparator;
 import java.util.List;
@@ -35,13 +34,8 @@ public class MinBytesRefGroupingAggregatorFunctionTests extends GroupingAggregat
     }
 
     @Override
-    protected DataType acceptedDataType() {
-        return DataType.IP;
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MinBytesRefAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinBytesRefAggregatorFunctionSupplier();
     }
 
     @Override

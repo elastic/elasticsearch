@@ -12,8 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -132,7 +130,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
      * @return this
      */
     public GeoShapeQueryBuilder strategy(SpatialStrategy strategy) {
-        if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
+        if (strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
             throw new IllegalArgumentException(
                 "strategy ["
                     + strategy.getStrategyName()
@@ -217,11 +215,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
             } else if (STRATEGY_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 String strategyName = parser.text();
                 strategy = SpatialStrategy.fromString(strategyName);
-                if (strategy == null) {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
-                } else {
-                    this.strategy = strategy;
-                }
+                this.strategy = strategy;
                 return true;
             }
             return false;
@@ -273,6 +267,6 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

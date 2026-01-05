@@ -21,11 +21,12 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.mapper.IndexType;
 
 import java.util.Arrays;
 
@@ -38,7 +39,9 @@ public class XYQueriesUtils {
      *  Note that lucene only supports intersects spatial relation so we build other relations
      *  using just that one.
      * */
-    public static Query toXYPointQuery(Geometry geometry, String fieldName, ShapeRelation relation, boolean indexed, boolean hasDocValues) {
+    public static Query toXYPointQuery(Geometry geometry, String fieldName, ShapeRelation relation, IndexType indexType) {
+        boolean indexed = indexType.hasPoints();
+        boolean hasDocValues = indexType.hasDocValues();
         assert indexed || hasDocValues;
         final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
         // XYPointField only supports intersects query so we build all the relationships using that logic.
@@ -90,7 +93,7 @@ public class XYQueriesUtils {
     private static Query buildContainsQuery(String fieldName, boolean isIndexed, boolean hasDocValues, XYGeometry... luceneGeometries) {
         // for non-point data the result is always false
         if (allPoints(luceneGeometries) == false) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         // for a unique point, it behaves like intersect
         if (luceneGeometries.length == 1) {
@@ -285,10 +288,12 @@ public class XYQueriesUtils {
 
     /** Generates a lucene query for a field that has been previously indexed using {@link XYShape}.It expects
      * either {code indexed} or {@code has docValues} to be true or both to be true. */
-    public static Query toXYShapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, boolean indexed, boolean hasDocValues) {
+    public static Query toXYShapeQuery(Geometry geometry, String fieldName, ShapeRelation relation, IndexType indexType) {
+        boolean indexed = indexType.hasPoints();
+        boolean hasDocValues = indexType.hasDocValues();
         assert indexed || hasDocValues;
         if (geometry == null || geometry.isEmpty()) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
         Query query;

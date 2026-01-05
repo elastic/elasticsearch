@@ -15,7 +15,6 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 @Aggregator({ @IntermediateState(name = "max", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
@@ -59,15 +58,11 @@ class MaxIpAggregator {
         }
     }
 
-    public static void combineStates(GroupingState state, int groupId, GroupingState otherState, int otherGroupId) {
-        state.combine(groupId, otherState, otherGroupId);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(selected, ctx.driverContext());
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(selected, driverContext);
-    }
-
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
         private final BytesRef scratch = new BytesRef();
         private final IpArrayState internalState;
 
@@ -81,13 +76,8 @@ class MaxIpAggregator {
             }
         }
 
-        public void combine(int groupId, GroupingState otherState, int otherGroupId) {
-            if (otherState.internalState.hasValue(otherGroupId)) {
-                add(groupId, otherState.internalState.get(otherGroupId, otherState.scratch));
-            }
-        }
-
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             internalState.toIntermediate(blocks, offset, selected, driverContext);
         }
 
@@ -95,7 +85,8 @@ class MaxIpAggregator {
             return internalState.toValuesBlock(selected, driverContext);
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             internalState.enableGroupIdTracking(seen);
         }
 
@@ -105,7 +96,7 @@ class MaxIpAggregator {
         }
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
         private final BytesRef internalState;
         private boolean seen;
 
@@ -121,7 +112,8 @@ class MaxIpAggregator {
             }
         }
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(internalState, 1);
             blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
         }

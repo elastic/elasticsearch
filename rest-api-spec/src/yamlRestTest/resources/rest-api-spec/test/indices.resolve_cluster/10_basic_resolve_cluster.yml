@@ -20,8 +20,6 @@ setup:
   - do:
       indices.close:
         index: index2
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
 ---
 "Resolve cluster with indices and aliases":
@@ -41,7 +39,7 @@ setup:
   - do:
       indices.resolve_cluster:
         name: '*'
-        expand_wildcards: [closed]
+        expand_wildcards: closed
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
@@ -67,7 +65,7 @@ setup:
   - do:
       indices.resolve_cluster:
         name: 'index2*'
-        expand_wildcards: [open,closed]
+        expand_wildcards: open,closed
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
@@ -77,7 +75,7 @@ setup:
   - do:
       indices.resolve_cluster:
         name: 'index2*'
-        expand_wildcards: [closed]
+        expand_wildcards: closed
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
@@ -117,7 +115,7 @@ setup:
   - do:
       indices.resolve_cluster:
         name: 'my_alias2,doesnotexist*'
-        expand_wildcards: [all]
+        expand_wildcards: all
 
   - match: {(local).connected: true}
   - match: {(local).skip_unavailable: false}
@@ -143,10 +141,10 @@ setup:
   - do:
       indices.resolve_cluster:
         name: '*'
-        expand_wildcards: [all]
-        ignore_unavailable: [true]
-        ignore_throttled: [true]
-        allow_no_indices: [true]
+        expand_wildcards: all
+        ignore_unavailable: true
+        ignore_throttled: true
+        allow_no_indices: true
       allowed_warnings:
         - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
 
@@ -159,10 +157,10 @@ setup:
   - do:
       indices.resolve_cluster:
         name: '*'
-        expand_wildcards: [open]
-        ignore_unavailable: [false]
-        ignore_throttled: [false]
-        allow_no_indices: [false]
+        expand_wildcards: open
+        ignore_unavailable: false
+        ignore_throttled: false
+        allow_no_indices: false
       allowed_warnings:
         - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
 
@@ -172,3 +170,14 @@ setup:
   - is_false: (local).error # should not be present
   - exists: (local).version.number
 
+---
+"Resolve cluster with no index expression":
+  - requires:
+      cluster_features: ["gte_v8.18.0"]
+      reason: "resolve cluster with no index expression introduced in 8.18"
+
+  - do:
+      indices.resolve_cluster:
+        timeout: 400s
+
+  - is_false: (local).error # should not be present - body should be empty since no remotes configured

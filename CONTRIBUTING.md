@@ -49,6 +49,13 @@ We add the `help wanted` label to existing GitHub issues for which community
 contributions are particularly welcome, and we use the `good first issue` label
 to mark issues that we think will be suitable for new contributors.
 
+We generally do not assign issues to contributors outside of Elastic, but
+please check the discussion on the issue to see if anyone else is working on
+the same topic. If there are other active contributors in the same area then it
+is a good idea to reach out to them so you can work together on the issue. If
+there hasn't been any discussion for a while then go ahead and start working on
+the issue yourself.
+
 The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
 
 ### Fork and clone the repository
@@ -168,16 +175,13 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 
 #### Checkstyle
 
-If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
-check the Elasticsearch code. However, the Checkstyle configuration file does
-not work by default with the IntelliJ plugin, so instead an IDE-specific config
-file is generated automatically after IntelliJ finishes syncing. You can
-manually generate the file with `./gradlew configureIdeCheckstyle` in case
-it is removed due to a `./gradlew clean` or other action.
+IntelliJ should automatically configure checkstyle. It does so by running
+`configureIdeCheckstyle` on import. That makes `.idea/checkstyle-idea.xml`
+configuration file. IntelliJ points checkstyle at that.
 
-IntelliJ should be automatically configured to use the generated rules after
-import via the `.idea/checkstyle-idea.xml` configuration file. No further
-action is required.
+Things like `./gradlew clean` or `git clean -xdf` can nuke the file. You can
+regenerate it by running `./gradlew -Didea.active=true configureIdeCheckstyle`,
+but generally shouldn't have to.
 
 #### Formatting
 
@@ -205,6 +209,18 @@ Alternative manual steps for IntelliJ.
    2. Gear icon > Import Scheme > Eclipse XML Profile
    3. Navigate to the file `build-conventions/formatterConfig.xml`
    4. Click "OK"
+
+#### Options
+
+When importing to IntelliJ, we offer a few options that can be used to
+configure the behaviour of the import:
+
+| Property                                   | Description                                                                                          | Values (* = default) |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------|----------------------|
+| `org.elasticsearch.idea-configuration-cache` | Should IntelliJ enable the Gradle Configuration cache to speed up builds when generating run configs | *`true`, `false`         |
+| `org.elasticsearch.idea-delegate-to-gradle`  | Should IntelliJ use Gradle for all generated run / test configs or prompt each time                  | `true`, *`false`         |
+
+These options can be set anywhere on the Gradle config path including in `~/.gradle/gradle.properties`
 
 ### REST endpoint conventions
 
@@ -401,7 +417,8 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> [!NOTE]
+> If you have imported the project into IntelliJ IDEA the project will
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
@@ -467,7 +484,7 @@ expensive messages that will usually be discarded:
 
 Logging is an important behaviour of the system and sometimes deserves its own
 unit tests, especially if there is complex logic for computing what is logged
-and when to log it. You can use a `org.elasticsearch.test.MockLogAppender` to
+and when to log it. You can use a `org.elasticsearch.test.MockLog` to
 make assertions about the logs that are being emitted.
 
 Logging is a powerful diagnostic technique, but it is not the only possibility.
@@ -660,51 +677,11 @@ node cannot continue to operate as a member of the cluster:
 
 Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
 
-### Version numbers in the Elasticsearch codebase
+### Versioning Elasticsearch
 
-Starting in 8.8.0, we have separated out the version number representations
-of various aspects of Elasticsearch into their own classes, using their own
-numbering scheme separate to release version. The main ones are
-`TransportVersion` and `IndexVersion`, representing the version of the
-inter-node binary protocol and index data + metadata respectively.
-
-Separated version numbers are comprised of an integer number. The semantic
-meaning of a version number are defined within each `*Version` class.  There
-is no direct mapping between separated version numbers and the release version.
-The versions used by any particular instance of Elasticsearch can be obtained
-by querying `/_nodes/info` on the node.
-
-#### Using separated version numbers
-
-Whenever a change is made to a component versioned using a separated version
-number, there are a few rules that need to be followed:
-
-1. Each version number represents a specific modification to that component,
-   and should not be modified once it is defined. Each version is immutable
-   once merged into `main`.
-2. To create a new component version, add a new constant to the respective class
-   with a descriptive name of the change being made. Increment the integer
-   number according to the particular `*Version` class.
-
-If your pull request has a conflict around your new version constant,
-you need to update your PR from `main` and change your PR to use the next
-available version number.
-
-### Checking for cluster features
-
-As part of developing a new feature or change, you might need to determine
-if all nodes in a cluster have been upgraded to support your new feature.
-This can be done using `FeatureService`. To define and check for a new
-feature in a cluster:
-
-1. Define a new `NodeFeature` constant with a unique id for the feature
-   in a class related to the change you're doing.
-2. Return that constant from an instance of `FeatureSpecification.getFeatures`,
-   either an existing implementation or a new implementation. Make sure
-   the implementation is added as an SPI implementation in `module-info.java`
-   and `META-INF/services`.
-3. To check if all nodes in the cluster support the new feature, call
-`FeatureService.clusterHasFeature(ClusterState, NodeFeature)`
+There are various concepts used to identify running node versions,
+and the capabilities and compatibility of those nodes. For more information,
+see `docs/internal/Versioning.md`
 
 ### Creating a distribution
 

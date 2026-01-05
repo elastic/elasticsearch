@@ -10,7 +10,11 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -26,15 +30,32 @@ import java.util.Objects;
  */
 final class DefaultBuildVersion extends BuildVersion {
 
-    public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
+    public static final BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
 
-    private final int versionId;
-    private final Version version;
+    final Version version;
 
     DefaultBuildVersion(int versionId) {
         assert versionId >= 0 : "Release version IDs must be non-negative integers";
-        this.versionId = versionId;
         this.version = Version.fromId(versionId);
+    }
+
+    DefaultBuildVersion(String version) {
+        this.version = Version.fromString(Objects.requireNonNull(version));
+    }
+
+    DefaultBuildVersion(StreamInput in) throws IOException {
+        this(in.readVInt());
+    }
+
+    @Override
+    public boolean canRemoveAssumedFeatures() {
+        /*
+         * We can remove assumed features if the node version is the next major version.
+         * This is because the next major version can only form a cluster with the
+         * latest minor version of the previous major, so any features introduced before that point
+         * (that are marked as assumed in the running code version) are automatically met by that version.
+         */
+        return version.major == Version.CURRENT.major + 1;
     }
 
     @Override
@@ -48,13 +69,23 @@ final class DefaultBuildVersion extends BuildVersion {
     }
 
     @Override
-    public int id() {
-        return versionId;
+    public String toNodeMetadata() {
+        return Integer.toString(version.id());
     }
 
     @Override
-    public Version toVersion() {
-        return version;
+    public BuildVersion minimumCompatibilityVersion() {
+        return fromVersionId(version.minimumCompatibilityVersion().id);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(version.id());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(version.id());
     }
 
     @Override
@@ -62,16 +93,16 @@ final class DefaultBuildVersion extends BuildVersion {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DefaultBuildVersion that = (DefaultBuildVersion) o;
-        return versionId == that.versionId;
+        return version.equals(that.version);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(versionId);
+        return Objects.hash(version.id());
     }
 
     @Override
     public String toString() {
-        return Version.fromId(versionId).toString();
+        return version.toString();
     }
 }

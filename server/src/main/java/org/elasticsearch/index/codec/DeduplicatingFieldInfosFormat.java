@@ -49,11 +49,12 @@ public final class DeduplicatingFieldInfosFormat extends FieldInfosFormat {
             deduplicated[i++] = new FieldInfo(
                 FieldMapper.internFieldName(fi.getName()),
                 fi.number,
-                fi.hasVectors(),
+                fi.hasTermVectors(),
                 fi.omitsNorms(),
                 fi.hasPayloads(),
                 fi.getIndexOptions(),
                 fi.getDocValuesType(),
+                fi.docValuesSkipIndexType(),
                 fi.getDocValuesGen(),
                 internStringStringMap(fi.attributes()),
                 fi.getPointDimensionCount(),

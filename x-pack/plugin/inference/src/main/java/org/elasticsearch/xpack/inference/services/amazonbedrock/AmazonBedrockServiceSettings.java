@@ -24,7 +24,6 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_AMAZON_BEDROCK_ADDED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
@@ -101,7 +100,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_AMAZON_BEDROCK_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     public String region() {

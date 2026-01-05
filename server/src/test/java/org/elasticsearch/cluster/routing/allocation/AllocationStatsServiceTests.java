@@ -21,15 +21,19 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ClusterServiceUtils;
 
 import java.util.Map;
@@ -69,20 +73,23 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
             )
             .build();
 
-        var clusterInfo = new ClusterInfo(
-            Map.of(),
-            Map.of(),
-            Map.of(ClusterInfo.shardIdentifierFromRouting(shardId, true), currentShardSize),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        var clusterInfo = ClusterInfo.builder()
+            .shardSizes(Map.of(ClusterInfo.shardIdentifierFromRouting(shardId, true), currentShardSize))
+            .build();
 
         var queue = new DeterministicTaskQueue();
         try (var clusterService = ClusterServiceUtils.createClusterService(state, queue.getThreadPool())) {
-            var service = new AllocationStatsService(clusterService, () -> clusterInfo, createShardAllocator(), TEST_WRITE_LOAD_FORECASTER);
+            var service = new AllocationStatsService(
+                clusterService,
+                () -> clusterInfo,
+                createShardAllocator(),
+                new NodeAllocationStatsAndWeightsCalculator(
+                    TEST_WRITE_LOAD_FORECASTER,
+                    new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+                )
+            );
             assertThat(
-                service.stats(),
+                service.stats(() -> {}),
                 allOf(
                     aMapWithSize(1),
                     hasEntry(
@@ -91,6 +98,9 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     )
                 )
             );
+
+            // Verify that the ensureNotCancelled Runnable is tested during execution.
+            assertThrows(TaskCancelledException.class, () -> service.stats(() -> { throw new TaskCancelledException("cancelled"); }));
         }
     }
 
@@ -120,7 +130,10 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                 clusterService,
                 EmptyClusterInfoService.INSTANCE,
                 createShardAllocator(),
-                TEST_WRITE_LOAD_FORECASTER
+                new NodeAllocationStatsAndWeightsCalculator(
+                    TEST_WRITE_LOAD_FORECASTER,
+                    new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+                )
             );
             assertThat(
                 service.stats(),
@@ -163,7 +176,10 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     threadPool,
                     clusterService,
                     (innerState, strategy) -> innerState,
-                    TelemetryProvider.NOOP
+                    EMPTY_NODE_ALLOCATION_STATS,
+                    TEST_ONLY_EXPLAINER,
+                    DesiredBalanceMetrics.NOOP,
+                    AllocationBalancingRoundMetrics.NOOP
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {
@@ -176,7 +192,10 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                         );
                     }
                 },
-                TEST_WRITE_LOAD_FORECASTER
+                new NodeAllocationStatsAndWeightsCalculator(
+                    TEST_WRITE_LOAD_FORECASTER,
+                    new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+                )
             );
             assertThat(
                 service.stats(),
@@ -198,7 +217,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 return null;
             }
         };

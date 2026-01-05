@@ -62,7 +62,6 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.desiredNodes = DesiredNodes.readFrom(in);
         }
 

@@ -18,7 +18,9 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -141,9 +143,10 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
 
         if (nodeBuilders.isEmpty()) {
             // No node-specific configuration so assume a single-node cluster
-            nodeSpecs = List.of(new DefaultLocalNodeSpecBuilder(this).build(clusterSpec));
+            nodeSpecs = List.of(new DefaultLocalNodeSpecBuilder(this).build(clusterSpec, 0));
         } else {
-            nodeSpecs = nodeBuilders.stream().map(node -> node.build(clusterSpec)).toList();
+            AtomicInteger nodeIndex = new AtomicInteger(0);
+            nodeSpecs = nodeBuilders.stream().map(node -> node.build(clusterSpec, nodeIndex.getAndIncrement())).toList();
         }
 
         clusterSpec.setNodes(nodeSpecs);
@@ -154,6 +157,7 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
 
     public static class DefaultLocalNodeSpecBuilder extends AbstractLocalSpecBuilder<LocalNodeSpecBuilder> implements LocalNodeSpecBuilder {
         private String name;
+        private boolean unsetName = false;
 
         protected DefaultLocalNodeSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
             super(parent);
@@ -161,15 +165,37 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
 
         @Override
         public DefaultLocalNodeSpecBuilder name(String name) {
-            this.name = name;
+            if (unsetName) {
+                throw new IllegalStateException("Cannot set name when 'withoutName()` has been used");
+            }
+            this.name = Objects.requireNonNull(
+                name,
+                "Name cannot be set to null. Consider using '.withoutName()' method if you need node without explicitly set name"
+            );
             return this;
         }
 
-        private LocalNodeSpec build(LocalClusterSpec cluster) {
+        @Override
+        public DefaultLocalNodeSpecBuilder withoutName() {
+            if (name != null) {
+                throw new IllegalStateException("Cannot use 'withoutName()', because name has been set for the node");
+            }
+            this.unsetName = true;
+            return this;
+        }
+
+        private String resolveName(LocalClusterSpec cluster, int nodeIndex) {
+            if (unsetName) {
+                return null;
+            }
+            return name == null ? cluster.getName() + "-" + nodeIndex : name;
+        }
+
+        private LocalNodeSpec build(LocalClusterSpec cluster, int nodeIndex) {
 
             return new LocalNodeSpec(
                 cluster,
-                name,
+                resolveName(cluster, nodeIndex),
                 Optional.ofNullable(getVersion()).orElse(Version.CURRENT),
                 getSettingsProviders(),
                 getSettings(),
@@ -186,7 +212,8 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
                 getExtraConfigFiles(),
                 getSystemPropertyProviders(),
                 getSystemProperties(),
-                getJvmArgs()
+                getJvmArgs(),
+                Optional.ofNullable(getConfigDirSupplier()).map(Supplier::get).orElse(null)
             );
         }
     }

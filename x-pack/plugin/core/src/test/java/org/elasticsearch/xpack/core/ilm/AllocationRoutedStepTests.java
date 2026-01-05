@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -27,7 +30,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.buildUnassignedInfo;
@@ -109,7 +111,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testRequireConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = Collections.singletonMap(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "foo", "bar");
+        Map<String, String> requires = Map.of(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "foo", "bar");
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
@@ -159,8 +161,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
         Settings clusterSettings = Settings.builder().put("cluster.routing.allocation.exclude._id", "node1").build();
         Settings.Builder nodeSettingsBuilder = Settings.builder();
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices).transientSettings(clusterSettings))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(project).transientSettings(clusterSettings))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
@@ -176,18 +179,19 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                             .build()
                     )
             )
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
-        Result actualResult = step.isConditionMet(index, clusterState);
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
+        Result actualResult = step.isConditionMet(index, state);
 
         Result expectedResult = new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(1, 1));
-        assertEquals(expectedResult.isComplete(), actualResult.isComplete());
-        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+        assertEquals(expectedResult.complete(), actualResult.complete());
+        assertEquals(expectedResult.informationContext(), actualResult.informationContext());
     }
 
     public void testExcludeConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> excludes = Collections.singletonMap(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
+        Map<String, String> excludes = Map.of(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
@@ -218,7 +222,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testIncludeConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> includes = Collections.singletonMap(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
+        Map<String, String> includes = Map.of(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
@@ -490,13 +494,13 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testExecuteIndexMissing() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
+        ProjectState state = projectStateWithEmptyProject();
 
         AllocationRoutedStep step = createRandomInstance();
 
-        Result actualResult = step.isConditionMet(index, clusterState);
-        assertFalse(actualResult.isComplete());
-        assertNull(actualResult.getInfomationContext());
+        Result actualResult = step.isConditionMet(index, state);
+        assertFalse(actualResult.complete());
+        assertNull(actualResult.informationContext());
     }
 
     private void assertAllocateStatus(
@@ -517,8 +521,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .build();
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices))
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).indices(indices).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
@@ -534,10 +539,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                             .build()
                     )
             )
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
-        Result actualResult = step.isConditionMet(index, clusterState);
-        assertEquals(expectedResult.isComplete(), actualResult.isComplete());
-        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
+        Result actualResult = step.isConditionMet(index, state);
+        assertEquals(expectedResult.complete(), actualResult.complete());
+        assertEquals(expectedResult.informationContext(), actualResult.informationContext());
     }
 }

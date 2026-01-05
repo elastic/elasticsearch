@@ -14,23 +14,20 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import java.util.List;
 
 public class InternalElasticsearchDistributionTypes {
-    public static ElasticsearchDistributionType DEB = new DebElasticsearchDistributionType();
-    public static ElasticsearchDistributionType RPM = new RpmElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER = new DockerElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_UBI = new DockerUbiElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_IRONBANK = new DockerIronBankElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_CLOUD = new DockerCloudElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_CLOUD_ESS = new DockerCloudEssElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_WOLFI = new DockerWolfiElasticsearchDistributionType();
 
-    public static List<ElasticsearchDistributionType> ALL_INTERNAL = List.of(
+    public static final ElasticsearchDistributionType DEB = new DebElasticsearchDistributionType();
+    public static final ElasticsearchDistributionType RPM = new RpmElasticsearchDistributionType();
+    public static final ElasticsearchDistributionType DOCKER = new DockerElasticsearchDistributionType();
+    public static final ElasticsearchDistributionType DOCKER_IRONBANK = new DockerIronBankElasticsearchDistributionType();
+    public static final ElasticsearchDistributionType DOCKER_CLOUD_ESS = new DockerCloudEssElasticsearchDistributionType();
+    public static final ElasticsearchDistributionType DOCKER_WOLFI = new DockerWolfiElasticsearchDistributionType();
+
+    public static final List<ElasticsearchDistributionType> ALL_INTERNAL = List.of(
         DEB,
         RPM,
         DOCKER,
-        DOCKER_UBI,
         DOCKER_IRONBANK,
-        DOCKER_CLOUD,
-        DOCKER_CLOUD_ESS,
-        DOCKER_WOLFI
+        DOCKER_WOLFI,
+        DOCKER_CLOUD_ESS
     );
 }

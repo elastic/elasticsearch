@@ -38,9 +38,10 @@ nanos:date_nanos
 mv_min on date nanos
 required_capability: date_nanos_type
 
-FROM date_nanos | SORT millis ASC | EVAL nanos = MV_MIN(nanos) | KEEP nanos | LIMIT 1;
+FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_MIN(nanos) |  KEEP nanos; 
 
 nanos:date_nanos
+2023-03-23T12:15:03.360103847Z
 2023-01-23T13:55:01.543123456Z
 ;
 
@@ -56,9 +57,10 @@ ct:integer
 mv_first on date nanos
 required_capability: date_nanos_type
 
-FROM date_nanos | SORT millis ASC | EVAL nanos = MV_FIRST(nanos) | KEEP nanos | LIMIT 1;
+FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_FIRST(nanos) |  KEEP nanos;
 
 nanos:date_nanos
+2023-03-23T12:15:03.360103847Z
 2023-01-23T13:55:01.543123456Z
 ;
 
@@ -200,6 +202,716 @@ d:date_nanos
 null
 ;
 
+date nanos greater than
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+
+FROM date_nanos | WHERE MV_MIN(nanos) > TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+;
+
+date nanos greater than, no mv min
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos > TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos > TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+;
+
+implicit casting to nanos, date only
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) > "2023-10-23" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date only, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos > "2023-10-23" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2023-10-23\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date only, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+;
+
+implicit casting to nanos, date only, equality test, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos == "2023-10-23" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+warningRegex:Line 2:9: evaluation of \[nanos == \\\"2023-10-23\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date             | nanos:date_nanos              
+;
+
+
+implicit casting to nanos, date plus time to seconds
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) > "2023-10-23T00:00:00" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to seconds, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos > "2023-10-23T00:00:00" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2023-10-23T00:00:00\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to seconds, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+;
+
+implicit casting to nanos, date plus time to seconds, equality test, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos == "2023-10-23T12:27:28" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+warningRegex:Line 2:9: evaluation of \[nanos == \\\"2023-10-23T12:27:28\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date             | nanos:date_nanos              
+;
+
+implicit casting to nanos, date plus time to millis
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) > "2023-10-23T00:00:00.000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to millis, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos > "2023-10-23T00:00:00.000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2023-10-23T00:00:00\.000\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to millis, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28.948" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+;
+
+implicit casting to nanos, date plus time to millis, equality test, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos == "2023-10-23T12:27:28.948" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+warningRegex:Line 2:9: evaluation of \[nanos == \\\"2023-10-23T12:27:28\.948\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date             | nanos:date_nanos              
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+;
+
+implicit casting to nanos, date plus time to nanos
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) > "2023-10-23T00:00:00.000000000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to nanos, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos > "2023-10-23T00:00:00.000000000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2023-10-23T00:00:00\.000000000\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date             | nanos:date_nanos              
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z
+;
+
+implicit casting to nanos, date plus time to nanos, equality test
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_MIN(nanos) == "2023-10-23T12:27:28.948000000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+
+millis:date             | nanos:date_nanos              
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+;
+
+implicit casting to nanos, date plus time to nanos, equality test, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos == "2023-10-23T12:27:28.948000000" 
+| SORT nanos DESC 
+| KEEP millis, nanos;
+warningRegex:Line 2:9: evaluation of \[nanos == \\\"2023-10-23T12:27:28\.948000000\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date             | nanos:date_nanos              
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
+;
+
+date nanos greater than millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) > TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+;
+
+date nanos greater than millis, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos > TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos > TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+;
+
+date nanos greater than or equal
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+
+FROM date_nanos | WHERE MV_MIN(nanos) >= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos greater than or equal, no mv min
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos >= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos >= TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos greater than or equal millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) >= TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos greater than or equal millis, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos >= TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos >= TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos less than
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+
+// tag::to_date_nanos[]
+FROM date_nanos
+| WHERE MV_MIN(nanos) < TO_DATE_NANOS("2023-10-23T12:27:28.948Z")
+    AND millis > "2000-01-01"
+| SORT nanos DESC
+// end::to_date_nanos[]
+;
+
+// tag::to_date_nanos-result[]
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+// end::to_date_nanos-result[]
+;
+
+date nanos less than, no mv min
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos < TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos < TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos less than millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) < TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+date nanos less than millis, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos < TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos < TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos less than equal
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+
+FROM date_nanos | WHERE MV_MIN(nanos) <= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos less than equal, no mv min
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos <= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos <= TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos less than equal millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) <= TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos less than equal millis, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos <= TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos <= TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos equals
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+
+FROM date_nanos | WHERE MV_MIN(nanos) == TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z");
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos equals, no mv min
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos == TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z");
+warningRegex:Line 1:25: evaluation of \[nanos == TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos equals millis exact match
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) == TO_DATETIME("2023-10-23T12:27:28.948Z");
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos equals millis exact match, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos == TO_DATETIME("2023-10-23T12:27:28.948Z");
+warningRegex:Line 1:25: evaluation of \[nanos == TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+date nanos equals millis without exact match
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) == TO_DATETIME("2023-10-23T13:33:34.937");
+
+millis:date              | nanos:date_nanos               | num:long
+;
+
+date nanos equals millis without exact match, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos == TO_DATETIME("2023-10-23T13:33:34.937");
+warningRegex:Line 1:25: evaluation of \[nanos == TO_DATETIME\(\\\"2023-10-23T13:33:34\.937\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+;
+
+date nanos not equals
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+
+FROM date_nanos | WHERE MV_MIN(nanos) != TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") AND millis > "2000-01-01" | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos not equals, no mv min
+required_capability: to_date_nanos
+required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos != TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") AND millis > "2000-01-01" | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos != TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos not equals millis
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+
+FROM date_nanos | WHERE MV_MIN(nanos) != TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+date nanos not equals millis, no mv min
+required_capability: date_nanos_type
+required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos | WHERE nanos != TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
+warningRegex:Line 1:25: evaluation of \[nanos != TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T13:53:55.832Z | 2023-10-23T13:53:55.832987654Z | 1698069235832987654
+2023-10-23T13:52:55.015Z | 2023-10-23T13:52:55.015787878Z | 1698069175015787878
+2023-10-23T13:51:54.732Z | 2023-10-23T13:51:54.732102837Z | 1698069114732102837
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937193000Z | 1698068014937193000
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
+;
+
+Date nanos date extract
+required_capability: date_nanos_date_extract
+
+FROM date_nanos
+| EVAL nn = MV_MAX(nanos)
+| EVAL year = DATE_EXTRACT("year", nn), ns = DATE_EXTRACT("nano_of_second", nn)
+| KEEP nn, year, ns
+| SORT nn DESC;
+
+nn:date_nanos                  | year:long | ns:long
+2023-10-23T13:55:01.543123456Z | 2023      | 543123456
+2023-10-23T13:53:55.832987654Z | 2023      | 832987654
+2023-10-23T13:52:55.015787878Z | 2023      | 015787878
+2023-10-23T13:51:54.732102837Z | 2023      | 732102837
+2023-10-23T13:33:34.937193000Z | 2023      | 937193000
+2023-10-23T12:27:28.948000000Z | 2023      | 948000000
+2023-10-23T12:15:03.360103847Z | 2023      | 360103847
+2023-10-23T12:15:03.360103847Z | 2023      | 360103847
+2023-03-23T12:15:03.360103847Z | 2023      | 360103847
+2023-03-23T12:15:03.360103847Z | 2023      | 360103847
+;
+
+Date nanos date extract, no mv max
+required_capability: date_nanos_date_extract
+
+FROM date_nanos
+| EVAL nn = nanos
+| EVAL year = DATE_EXTRACT("year", nn), ns = DATE_EXTRACT("nano_of_second", nn)
+| KEEP nn, year, ns
+| SORT nn DESC;
+# NB: sorting of the MV results isn't deterministic, so we ignore ordering here
+ignoreOrder:true
+warning:Line 3:15: evaluation of [DATE_EXTRACT(\"year\", nn)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:15: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:46: evaluation of [DATE_EXTRACT(\"nano_of_second\", nn)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:46: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+nn:date_nanos                  | year:long | ns:long
+2023-10-23T13:55:01.543123456Z | 2023      | 543123456
+2023-10-23T13:53:55.832987654Z | 2023      | 832987654
+2023-10-23T13:52:55.015787878Z | 2023      | 015787878
+2023-10-23T13:51:54.732102837Z | 2023      | 732102837
+2023-10-23T13:33:34.937193000Z | 2023      | 937193000
+2023-10-23T12:27:28.948000000Z | 2023      | 948000000
+2023-10-23T12:15:03.360103847Z | 2023      | 360103847
+2023-10-23T12:15:03.360103847Z | 2023      | 360103847
+[2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193Z, 2023-03-23T12:15:03.360103847Z]    | null      | null     
+[2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z] | null      | null     
+;
 
 date nanos to long, index version
 required_capability: to_date_nanos
@@ -213,6 +925,7 @@ l:long
 1698069114732102837
 1698068014937193000
 1698064048948000000
+1698063303360103847
 1698063303360103847
 ;
 
@@ -229,6 +942,7 @@ d:date_nanos
 2023-10-23T13:33:34.937193000Z
 2023-10-23T12:27:28.948000000Z
 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360103847Z
 ;
 
 date_nanos to date nanos, index version
@@ -243,6 +957,7 @@ d:date_nanos
 2023-10-23T13:51:54.732102837Z
 2023-10-23T13:33:34.937193000Z
 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360103847Z
 2023-10-23T12:15:03.360103847Z
 ;
 
@@ -262,4 +977,895 @@ ROW a = TO_DATE_NANOS(null), b = TO_DATE_NANOS(null + 1::long), c = TO_DATE_NANO
 
 a:date_nanos | b:date_nanos | c:date_nanos
 null         | null         | null
+;
+
+Coalasce date nanos
+required_capability: to_date_nanos
+
+ROW a = COALESCE(null, TO_DATE_NANOS(1698069301543123456));
+
+a:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+Case date nanos result
+required_capability: to_date_nanos
+
+ROW a = CASE(false, TO_DATE_NANOS(0::long), TO_DATE_NANOS(1698069301543123456));
+
+a:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+Greatest date nanos
+required_capability: least_greatest_for_datenanos
+
+ROW a = GREATEST(TO_DATE_NANOS("2023-10-23T13:55:01.543123456"), TO_DATE_NANOS("2023-10-23T13:53:55.832987654"));
+
+a:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+Least date nanos
+required_capability: least_greatest_for_datenanos
+
+ROW a = LEAST(TO_DATE_NANOS("2023-10-23T13:55:01.543123456"), TO_DATE_NANOS("2023-10-23T13:53:55.832987654"));
+
+a:date_nanos
+2023-10-23T13:53:55.832987654Z
+;
+
+mv_dedup over date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | WHERE millis < "2000-01-01" | EVAL a = MV_DEDUPE(nanos) | SORT millis DESC | KEEP a;
+
+a:date_nanos
+[2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193000Z, 2023-03-23T12:15:03.360103847Z]
+2023-03-23T12:15:03.360103847Z
+;
+
+mv_sort over date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | WHERE millis < "2000-01-01" | EVAL a = MV_SORT(nanos, "asc") | SORT millis DESC | KEEP a;
+
+a:date_nanos
+[2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193000Z, 2023-03-23T12:15:03.360103847Z]
+[2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z]
+;
+
+mv_slice over date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | WHERE millis < "2000-01-01" | EVAL a = MV_SLICE(MV_SORT(nanos, "asc"), 1, 2) | SORT millis DESC | KEEP a;
+
+a:date_nanos
+[2023-02-23T13:33:34.937193000Z, 2023-03-23T12:15:03.360103847Z]
+[2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z]
+;
+
+
+Max and Min of date nanos
+required_capability: date_nanos_aggregations
+
+FROM date_nanos | STATS max = MAX(nanos), min = MIN(nanos);
+
+max:date_nanos                 | min:date_nanos
+2023-10-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543123456Z
+;
+
+Count and count distinct of date nanos
+required_capability: date_nanos_aggregations
+
+FROM date_nanos | WHERE millis > "2020-01-01" | STATS count = COUNT(nanos), count_distinct = COUNT_DISTINCT(nanos);
+
+count:long | count_distinct:long
+8          | 7
+;
+
+Values aggregation on date nanos
+required_capability: date_nanos_aggregations
+
+FROM date_nanos | WHERE millis > "2020-01-01" | STATS v = MV_SORT(VALUES(nanos), "DESC");
+
+v:date_nanos
+[2023-10-23T13:55:01.543123456Z, 2023-10-23T13:53:55.832987654Z, 2023-10-23T13:52:55.015787878Z, 2023-10-23T13:51:54.732102837Z, 2023-10-23T13:33:34.937193000Z, 2023-10-23T12:27:28.948000000Z, 2023-10-23T12:15:03.360103847Z]
+;
+
+Date trunc on date nanos
+required_capability: date_trunc_date_nanos
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| EVAL yr = DATE_TRUNC(1 year, nanos), mo = DATE_TRUNC(1 month, nanos), mn = DATE_TRUNC(10 minutes, nanos), ms = DATE_TRUNC(1 millisecond, nanos)
+| SORT nanos DESC
+| KEEP yr, mo, mn, ms;
+
+yr:date_nanos                  | mo:date_nanos                  | mn:date_nanos                  | ms:date_nanos                 
+2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T13:50:00.000000000Z | 2023-10-23T13:55:01.543000000Z
+2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T13:50:00.000000000Z | 2023-10-23T13:53:55.832000000Z
+2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T13:50:00.000000000Z | 2023-10-23T13:52:55.015000000Z
+2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T13:50:00.000000000Z | 2023-10-23T13:51:54.732000000Z
+2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T13:30:00.000000000Z | 2023-10-23T13:33:34.937000000Z
+2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T12:20:00.000000000Z | 2023-10-23T12:27:28.948000000Z
+2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T12:10:00.000000000Z | 2023-10-23T12:15:03.360000000Z
+2023-01-01T00:00:00.000000000Z | 2023-10-01T00:00:00.000000000Z | 2023-10-23T12:10:00.000000000Z | 2023-10-23T12:15:03.360000000Z
+;
+
+Bucket Date nanos by Year
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY yr = BUCKET(nanos, 1 year)
+| SORT yr DESC;
+
+ct:long | yr:date_nanos
+8       | 2023-01-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Year, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY yr = BUCKET(nanos, 5, "1999-01-01", NOW())
+| SORT yr DESC;
+
+ct:long | yr:date_nanos
+8       | 2023-01-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Month
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mo = BUCKET(nanos, 1 month)
+| SORT mo DESC;
+
+ct:long | mo:date_nanos
+8       | 2023-10-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Month, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mo = BUCKET(nanos, 20, "2023-01-01", "2023-12-31")
+| SORT mo DESC;
+
+ct:long | mo:date_nanos
+8       | 2023-10-01T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by Week, range version
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mo = BUCKET(nanos, 55, "2023-01-01", "2023-12-31")
+| SORT mo DESC;
+
+ct:long | mo:date_nanos
+8       | 2023-10-23T00:00:00.000000000Z 
+;
+
+Bucket Date nanos by 10 minutes
+required_capability: date_trunc_date_nanos
+required_capability: date_nanos_bucket
+required_capability: string_literal_auto_casting
+
+FROM date_nanos 
+| WHERE millis > "2020-01-01" 
+| STATS ct = count(*) BY mn = BUCKET(nanos, 10 minutes)
+| SORT mn DESC;
+
+ct:long | mn:date_nanos                 
+4       | 2023-10-23T13:50:00.000000000Z
+1       | 2023-10-23T13:30:00.000000000Z
+1       | 2023-10-23T12:20:00.000000000Z
+2       | 2023-10-23T12:10:00.000000000Z
+;
+
+Add date nanos
+required_capability: date_nanos_add_subtract
+
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| EVAL mo = nanos + 1 month, hr = nanos + 1 hour, dy = nanos - 4 days, mn = nanos - 2 minutes
+| SORT millis DESC
+| KEEP mo, hr, dy, mn;
+
+mo:date_nanos                  | hr:date_nanos                  | dy:date_nanos                  | mn:date_nanos                  
+2023-11-23T13:55:01.543123456Z | 2023-10-23T14:55:01.543123456Z | 2023-10-19T13:55:01.543123456Z | 2023-10-23T13:53:01.543123456Z
+2023-11-23T13:53:55.832987654Z | 2023-10-23T14:53:55.832987654Z | 2023-10-19T13:53:55.832987654Z | 2023-10-23T13:51:55.832987654Z
+2023-11-23T13:52:55.015787878Z | 2023-10-23T14:52:55.015787878Z | 2023-10-19T13:52:55.015787878Z | 2023-10-23T13:50:55.015787878Z
+2023-11-23T13:51:54.732102837Z | 2023-10-23T14:51:54.732102837Z | 2023-10-19T13:51:54.732102837Z | 2023-10-23T13:49:54.732102837Z
+2023-11-23T13:33:34.937193000Z | 2023-10-23T14:33:34.937193000Z | 2023-10-19T13:33:34.937193000Z | 2023-10-23T13:31:34.937193000Z
+2023-11-23T12:27:28.948000000Z | 2023-10-23T13:27:28.948000000Z | 2023-10-19T12:27:28.948000000Z | 2023-10-23T12:25:28.948000000Z
+2023-11-23T12:15:03.360103847Z | 2023-10-23T13:15:03.360103847Z | 2023-10-19T12:15:03.360103847Z | 2023-10-23T12:13:03.360103847Z
+2023-11-23T12:15:03.360103847Z | 2023-10-23T13:15:03.360103847Z | 2023-10-19T12:15:03.360103847Z | 2023-10-23T12:13:03.360103847Z
+;
+
+datePlusPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.000123456Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day;
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T01:01:01.000123456Z | 2104-04-16T01:01:01.000123456Z
+;
+
+datePlusPeriodFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = 4 years + 3 months + 2 weeks + 1 day + n | keep then;
+
+then:date_nanos
+2057-07-19T00:00:00.000123456Z
+;
+
+datePlusMixedPeriodsFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-01T00:00:00.000123456Z")
+| eval then = 4 years + 3 months + 1 year + 2 weeks + 1 month + 1 day + 1 week + 1 day + n
+| keep then;
+
+then:date_nanos
+2058-08-24T00:00:00.000123456Z
+;
+
+datePlusSumOfPeriodsFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = (4 years + 3 months + 2 weeks + 1 day) + n | keep then;
+
+then:date_nanos
+2057-07-19T00:00:00.000123456Z
+;
+
+datePlusNegatedPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2104-04-16T01:01:01.000123456Z")
+| eval plus = dt + (-(4 years + 3 months + 2 weeks + 1 day));
+
+dt:date_nanos                  | plus:date_nanos
+2104-04-16T01:01:01.000123456Z | 2100-01-01T01:01:01.000123456Z
+;
+
+dateMinusPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2104-04-16T01:01:01.000123456Z")
+| eval minus = dt - 4 years - 3 months - 2 weeks - 1 day;
+
+dt:date_nanos                  | minus:date_nanos
+2104-04-16T01:01:01.000123456Z | 2100-01-01T01:01:01.000123456Z
+;
+
+dateMinusPeriodFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2057-07-19T00:00:00.000123456Z") | eval then = -4 years - 3 months - 2 weeks - 1 day + n | keep then;
+
+then:date_nanos
+2053-04-04T00:00:00.000123456Z
+;
+
+dateMinusSumOfNegativePeriods
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = n - (-4 years - 3 months - 2 weeks - 1 day)| keep then;
+
+then:date_nanos
+2057-07-19T00:00:00.000123456Z
+;
+
+dateMinusPeriodsFromLeftMultipleEvals
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z")
+| eval x = -4 years + n
+| eval y = -3 months + x, then = y + (-2 weeks - 1 day)
+| keep then;
+
+then:date_nanos
+2048-12-20T00:00:00.000123456Z
+;
+
+datePlusDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T00:00:00.000123456Z")
+| eval plus = dt + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T00:00:00.000123456Z | 2100-01-01T01:01:01.001123456Z
+;
+
+datePlusDurationFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = 1 hour + 1 minute + 1 second + 1 milliseconds + n  | keep then;
+
+then:date_nanos
+2053-04-04T01:01:01.001123456Z
+;
+
+datePlusMixedDurationsFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z")
+| eval then = 1 hour + 1 minute + 2 hour + 1 second + 2 minute + 1 milliseconds + 2 second + 2 millisecond + n
+| keep then;
+
+then:date_nanos
+2053-04-04T03:03:03.003123456Z
+;
+
+datePlusSumOfDurationsFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = (1 hour + 1 minute + 1 second + 1 milliseconds) + n | keep then;
+
+then:date_nanos
+2053-04-04T01:01:01.001123456Z
+;
+
+datePlusNegatedDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus = dt + (-(1 hour + 1 minute + 1 second + 1 milliseconds));
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T01:01:01.001123456Z | 2100-01-01T00:00:00.000123456Z
+;
+
+datePlusNull
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus_post = dt + null, plus_pre = null + dt;
+
+dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
+2100-01-01T01:01:01.001123456Z | null                 | null
+;
+
+datePlusNullAndDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus_post = dt + null + 1 hour, plus_pre = 1 second + null + dt;
+
+dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
+2100-01-01T01:01:01.001123456Z | null                 | null
+;
+
+datePlusNullAndPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus_post = dt + null + 2 years, plus_pre = 3 weeks + null + dt;
+
+dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
+2100-01-01T01:01:01.001123456Z | null                 | null
+;
+
+datePlusQuarter
+required_capability: date_nanos_add_subtract
+
+required_capability: timespan_abbreviations
+row dt = to_date_nanos("2100-01-01T01:01:01.000123456Z")
+| eval plusQuarter = dt + 2 quarters
+;
+
+dt:date_nanos                  | plusQuarter:date_nanos
+2100-01-01T01:01:01.000123456Z | 2100-07-01T01:01:01.000123456Z
+;
+
+datePlusAbbreviatedDurations
+required_capability: timespan_abbreviations
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T00:00:00.000123456Z")
+| eval plusDurations = dt + 1 h + 2 min + 2 sec + 1 s + 4 ms
+;
+
+dt:date_nanos              | plusDurations:date_nanos
+2100-01-01T00:00:00.000123456Z | 2100-01-01T01:02:03.004123456Z
+;
+
+datePlusAbbreviatedPeriods
+required_capability: timespan_abbreviations
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T00:00:00.000123456Z")
+| eval plusDurations = dt + 0 yr + 1y + 2 q + 3 mo + 4 w + 3 d
+;
+
+dt:date_nanos                  | plusDurations:date_nanos
+2100-01-01T00:00:00.000123456Z | 2101-11-01T00:00:00.000123456Z
+;
+
+
+dateMinusDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval minus = dt - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:date_nanos                  | minus:date_nanos
+2100-01-01T01:01:01.001123456Z | 2100-01-01T00:00:00.000123456Z
+;
+
+dateMinusDurationFromLeft
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T01:01:01.001123456Z") | eval then = -1 hour - 1 minute - 1 second - 1 milliseconds + n | keep then;
+
+then:date_nanos
+2053-04-04T00:00:00.000123456Z
+;
+
+dateMinusSumOfNegativeDurations
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T00:00:00.000123456Z") | eval then = n - (-1 hour - 1 minute - 1 second - 1 milliseconds) | keep then;
+
+then:date_nanos
+2053-04-04T01:01:01.001123456Z
+;
+
+dateMinusDurationsFromLeftMultipleEvals
+required_capability: date_nanos_add_subtract
+
+row n = to_date_nanos("2053-04-04T04:03:02.001123456Z")
+| eval x = -4 hour + n
+| eval y = -3 minute + x, then = y + (-2 second - 1 millisecond)
+| keep then
+;
+
+then:date_nanos
+2053-04-04T00:00:00.000123456Z
+;
+
+dateMinusNull
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
+| eval minus = dt - null
+;
+
+dt:date_nanos                  | minus:date_nanos
+2053-04-04T04:03:02.001123456Z | null
+;
+
+dateMinusNullAndPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
+| eval minus = dt - null - 4 minutes
+;
+
+dt:date_nanos                  | minus:date_nanos
+2053-04-04T04:03:02.001123456Z | null
+;
+
+dateMinusNullAndDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
+| eval minus = dt - 6 days - null
+;
+
+dt:date_nanos                  | minus:date_nanos
+2053-04-04T04:03:02.001123456Z | null
+;
+
+datePlusPeriodAndDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T00:00:00.000123456Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T00:00:00.000123456Z | 2104-04-16T01:01:01.001123456Z
+;
+
+dateMinusPeriodAndDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2104-04-16T01:01:01.001123456Z")
+| eval minus = dt - 4 years - 3 months - 2 weeks - 1 day - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:date_nanos              |minus:date_nanos
+2104-04-16T01:01:01.001123456Z |2100-01-01T00:00:00.000123456Z
+;
+
+datePlusPeriodMinusDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:date_nanos                  | plus:date_nanos
+2100-01-01T01:01:01.001123456Z | 2104-04-16T00:00:00.000123456Z
+;
+
+datePlusDurationMinusPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos("2104-04-16T00:00:00.000123456Z")
+| eval plus = dt - 4 years - 3 months - 2 weeks - 1 day + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:date_nanos                  | plus:date_nanos
+2104-04-16T00:00:00.000123456Z | 2100-01-01T01:01:01.001123456Z
+;
+
+dateMathArithmeticOverflow from addition
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(9223372036854775807)
+| eval plus = dt + 1 day
+| keep plus;
+
+warning:Line 2:15: evaluation of [dt + 1 day] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:15: java.time.DateTimeException: Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807
+plus:date_nanos
+null
+;
+
+date nanos subtraction before 1970
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(0::long)
+| eval minus = dt - 1 day
+| keep minus;
+
+warning:Line 2:16: evaluation of [dt - 1 day] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:16: java.time.DateTimeException: Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807
+minus:date_nanos
+null
+;
+
+dateMathDateException
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(0::long)
+| eval plus = dt + 2147483647 years
+| keep plus;
+
+warning:Line 2:15: evaluation of [dt + 2147483647 years] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:15: java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
+
+plus:date_nanos
+null
+;
+
+dateMathNegatedPeriod
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(0::long)
+| eval plus = -(-1 year) + dt
+| keep plus;
+
+plus:date_nanos
+1971-01-01T00:00:00.000Z
+;
+
+dateMathNegatedDuration
+required_capability: date_nanos_add_subtract
+
+row dt = to_date_nanos(0::long)
+| eval plus = -(-1 second) + dt
+| keep plus;
+
+plus:date_nanos
+1970-01-01T00:00:01.000Z
+;
+
+Date Nanos IN constant date nanos
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+
+FROM date_nanos 
+| WHERE MV_FIRST(nanos) IN (TO_DATE_NANOS("2023-10-23T13:55:01.543123456Z"), TO_DATE_NANOS("2023-10-23T12:27:28.948Z"), TO_DATE_NANOS("2017-10-23T13:53:55.832987654Z"));
+ignoreOrder:true
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+Date Nanos IN constant date nanos, no mv first
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos IN (TO_DATE_NANOS("2023-10-23T13:55:01.543123456Z"), TO_DATE_NANOS("2023-10-23T12:27:28.948Z"), TO_DATE_NANOS("2017-10-23T13:53:55.832987654Z"));
+ignoreOrder:true
+warningRegex:Line 2:9: evaluation of \[nanos IN \(TO_DATE_NANOS\(\\\"2023-10-23T13:55:01\.543123456Z\\\"\), TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\), TO_DATE_NANOS\(\\\"2017-10-23T13:53:55\.832987654Z\\\"\)\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+Date Nanos IN constant date nanos, implicit casting
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE MV_FIRST(nanos) IN ("2023-10-23T13:55:01.543123456Z", "2023-10-23T12:27:28.948Z", "2017-10-23T13:53:55.832987654Z");
+ignoreOrder:true
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+Date Nanos IN constant date nanos, implicit casting, no mv function
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE nanos IN ("2023-10-23T13:55:01.543123456Z", "2023-10-23T12:27:28.948Z", "2017-10-23T13:53:55.832987654Z");
+ignoreOrder:true
+warningRegex:Line 2:9: evaluation of \[nanos IN \(\\\"2023-10-23T13:55:01\.543123456Z\\\", \\\"2023-10-23T12:27:28\.948Z\\\", \\\"2017-10-23T13:53:55\.832987654Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+Date Nanos IN date nanos field, implicit casting
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
+
+FROM date_nanos 
+| WHERE "2023-10-23T13:55:01.543123456Z" IN (MV_FIRST(nanos));
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+;
+
+Date Nanos IN date nanos field, implicit casting, no mv function 
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos 
+| WHERE "2023-10-23T13:55:01.543123456Z" IN (nanos);
+ignoreOrder:true
+warningRegex:Line 2:9: evaluation of \[\\\"2023-10-23T13:55:01\.543123456Z\\\" IN \(nanos\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
+;
+
+# TODO: should this one work without the mv function? doesn't seem to.
+Date nanos IN millisecond date field
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
+
+# Note: It is important to have two dates in the IN so the optimizer doesn't turn this into an ==
+FROM date_nanos
+| WHERE MV_FIRST(nanos) IN (TO_DATETIME("2023-10-23T12:27:28.948"), TO_DATETIME("2020-02-02"));
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+Millisecond field IN date nanos constants
+required_capability: date_nanos_in_operator
+required_capability: to_date_nanos
+required_capability: date_nanos_implicit_casting
+
+# Note: It is important to have two dates in the IN so the optimizer doesn't turn this into an ==
+FROM date_nanos
+| WHERE MV_FIRST(millis) IN (TO_DATE_NANOS("2023-10-23T12:27:28.948"), TO_DATE_NANOS("2020-02-02"));
+
+millis:date              | nanos:date_nanos               | num:long
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
+;
+
+Date Nanos Format
+required_capability: date_nanos_date_format
+
+FROM date_nanos
+| EVAL sv_nanos = MV_MAX(nanos)
+| EVAL a = DATE_FORMAT(sv_nanos), b = DATE_FORMAT("yyyy-MM-dd", sv_nanos), c = DATE_FORMAT("strict_date_optional_time_nanos", sv_nanos)
+| KEEP sv_nanos, a, b, c;
+ignoreOrder:true
+
+sv_nanos:date_nanos               | a:keyword             | b:keyword  | c:keyword
+2023-10-23T13:55:01.543123456Z | 2023-10-23T13:55:01.543Z | 2023-10-23 | 2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832987654Z | 2023-10-23T13:53:55.832Z | 2023-10-23 | 2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015787878Z | 2023-10-23T13:52:55.015Z | 2023-10-23 | 2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z | 2023-10-23T13:51:54.732Z | 2023-10-23 | 2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193000Z | 2023-10-23T13:33:34.937Z | 2023-10-23 | 2023-10-23T13:33:34.937193Z
+2023-10-23T12:27:28.948000000Z | 2023-10-23T12:27:28.948Z | 2023-10-23 | 2023-10-23T12:27:28.948Z
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z | 2023-10-23 | 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z | 2023-10-23 | 2023-10-23T12:15:03.360103847Z
+2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23 | 2023-03-23T12:15:03.360103847Z
+2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23 | 2023-03-23T12:15:03.360103847Z
+;
+
+Date Nanos Date Diff
+required_capability: date_nanos_date_diff
+required_capability: to_date_nanos
+
+FROM date_nanos
+| EVAL n = MV_MAX(nanos)
+| EVAL diff_sec = DATE_DIFF("seconds", TO_DATE_NANOS("2023-10-23T12:15:03.360103847Z"), n)
+| EVAL diff_sec_m = DATE_DIFF("seconds", TO_DATETIME("2023-10-23T12:15:03.360103847Z"), n)
+| KEEP diff_sec, diff_sec_m, n;
+ignoreOrder:true
+
+# Note - it is expected that the millisecond diff is slightly different due to rounding.
+diff_sec:integer | diff_sec_m:integer | n:date_nanos
+5998             | 5998             | 2023-10-23T13:55:01.543123456Z
+5932             | 5932             | 2023-10-23T13:53:55.832987654Z
+5871             | 5871             | 2023-10-23T13:52:55.015787878Z
+5811             | 5811             | 2023-10-23T13:51:54.732102837Z
+4711             | 4711             | 2023-10-23T13:33:34.937193000Z
+745              | 745              | 2023-10-23T12:27:28.948000000Z
+0                | 0                | 2023-10-23T12:15:03.360103847Z
+0                | 0                | 2023-10-23T12:15:03.360103847Z
+-18489600        | -18489599        | 2023-03-23T12:15:03.360103847Z
+-18489600        | -18489599        | 2023-03-23T12:15:03.360103847Z
+;
+
+Regression out of bounds in where clause
+required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| WHERE nanos >= to_datenanos("2010-03-20T15:08:25.608Z") AND nanos <= to_datenanos("2026-03-20T15:08:25.608Z")
+| KEEP nanos;
+ignoreOrder:true
+warningRegex:Line 3:63: evaluation of \[nanos <= to_datenanos\(\\\"2026-03-20T15:08:25\.608Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:63: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 3:9: evaluation of \[nanos >= to_datenanos\(\\\"2010-03-20T15:08:25\.608Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+nanos:date_nanos
+2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193Z   
+2023-10-23T12:27:28.948Z      
+2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360103847Z
+;
+
+Range Without Included Endpoints
+required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| WHERE nanos > to_datenanos("2023-10-23T12:15:03.360103847") AND nanos < to_datenanos("2023-10-23T13:53:55.832987654Z")
+| KEEP nanos;
+ignoreOrder:true
+warningRegex:Line 3:67: evaluation of \[nanos < to_datenanos\(\\\"2023-10-23T13:53:55\.832987654Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:67: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 3:9: evaluation of \[nanos > to_datenanos\(\\\"2023-10-23T12:15:03\.360103847\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+nanos:date_nanos
+2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948000000Z
+;
+
+Range Without Included Endpoints with implicit casting
+required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| WHERE nanos > "2023-10-23T12:15:03.360103847" AND nanos < "2023-10-23T13:53:55.832987654Z"
+| KEEP nanos;
+ignoreOrder:true
+warningRegex:Line 3:53: evaluation of \[nanos < \\\"2023-10-23T13:53:55\.832987654Z\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:53: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 3:9: evaluation of \[nanos > \\\"2023-10-23T12:15:03\.360103847\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+nanos:date_nanos
+2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948000000Z
+;
+
+Range With Now date math
+required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
+
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| WHERE nanos > TO_DATETIME("2023-10-23T12:27:28.948") AND nanos < now() - 1d
+| KEEP nanos;
+ignoreOrder:true
+warningRegex:Line 3:60: evaluation of \[nanos < now\(\) - 1d\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:60: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 3:9: evaluation of \[nanos > TO_DATETIME\(\\\"2023-10-23T12:27:28\.948\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+nanos:date_nanos
+2023-10-23T13:55:01.543123456Z
+2023-10-23T13:53:55.832987654Z
+2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193000Z
+;
+
+Mixed Nanos Millis Range Compare
+required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
+required_capability:  fix_date_nanos_mixed_range_pushdown_bug
+
+FROM date_nanos
+| WHERE millis > "2020-01-01"
+| WHERE nanos > to_datenanos("2023-10-23T12:15:03.360103847") AND nanos < to_datetime("2023-10-23T13:53:55.832")
+| KEEP nanos;
+ignoreOrder:true
+warningRegex:Line 3:67: evaluation of \[nanos < to_datetime\(\\\"2023-10-23T13:53:55\.832\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:67: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 3:9: evaluation of \[nanos > to_datenanos\(\\\"2023-10-23T12:15:03\.360103847\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+nanos:date_nanos
+2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948000000Z
+;
+
+Mixed Nanos Millis Range Compare, millis field
+required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
+required_capability:  fix_date_nanos_mixed_range_pushdown_bug
+
+FROM date_nanos
+| WHERE millis > to_datenanos("2023-10-23T12:15:03.360103847") AND millis < to_datetime("2023-10-23T13:53:55.832")
+| KEEP nanos;
+ignoreOrder:true
+warningRegex:Line 3:67: evaluation of \[nanos < to_datetime\(\\\"2023-10-23T13:53:55\.832Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:67: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 3:9: evaluation of \[nanos > to_datenanos\(\\\"2023-10-23T12:15:03\.360103847\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+nanos:date_nanos
+2023-10-23T13:52:55.015787878Z
+2023-10-23T13:51:54.732102837Z
+2023-10-23T13:33:34.937193000Z
+2023-10-23T12:27:28.948000000Z
 ;

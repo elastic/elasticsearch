@@ -1,44 +1,63 @@
 {
-  "esql.async_query":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/esql-async-query-api.html",
-      "description":"Executes an ESQL request asynchronously"
+  "esql.async_query": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query",
+      "description": "Run an async ES|QL query"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": ["application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_query/async",
-          "methods":[
+          "path": "/_query/async",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "format":{
-        "type":"string",
-        "description":"a short version of the Accept header, e.g. json, yaml"
+    "params": {
+      "format": {
+        "type": "enum",
+        "description": "A short version of the Accept header, e.g. json, yaml.\n\n`csv`, `tsv`, and `txt` formats will return results in a tabular format, excluding other metadata fields from the response.\n\nFor async requests, nothing will be returned if the async query doesn't finish within the timeout.\nThe query ID and running status are available in the `X-Elasticsearch-Async-Id` and `X-Elasticsearch-Async-Is-Running` HTTP headers of the response, respectively.",
+        "options": [
+          "csv",
+          "json",
+          "tsv",
+          "txt",
+          "yaml",
+          "cbor",
+          "smile",
+          "arrow"
+        ]
       },
-      "delimiter":{
-        "type":"string",
-        "description":"The character to use between values within a CSV row. Only valid for the csv format.",
-        "default":false
+      "delimiter": {
+        "type": "string",
+        "description": "The character to use between values within a CSV row. Only valid for the csv format.",
+        "default": ","
       },
       "drop_null_columns": {
         "type": "boolean",
         "description": "Should entirely null columns be removed from the results? Their name and type will be returning in a new `all_columns` section.",
         "default": false
+      },
+      "allow_partial_results": {
+        "type": "boolean",
+        "description": "If `true`, partial results will be returned if there are shard failures, but\nthe query can continue to execute on other clusters and shards.\nIf `false`, the entire query will fail if there are\nany failures.",
+        "default": true
       }
     },
-    "body":{
-      "description":"Use the `query` element to start a query. Use `columnar` to format the answer.",
-      "required":true
+    "body": {
+      "description": "Use the `query` element to start a query. Use `columnar` to format the answer.",
+      "required": true
     }
   }
 }

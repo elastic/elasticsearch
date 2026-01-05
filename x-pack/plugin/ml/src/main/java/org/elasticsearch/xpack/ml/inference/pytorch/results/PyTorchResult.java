@@ -36,7 +36,7 @@ public record PyTorchResult(
     private static final ParseField THREAD_SETTINGS = new ParseField("thread_settings");
     private static final ParseField ACK = new ParseField("ack");
 
-    public static ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>(
         "pytorch_result",
         a -> new PyTorchResult(
             (String) a[0],

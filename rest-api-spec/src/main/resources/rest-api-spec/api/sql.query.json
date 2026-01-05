@@ -1,35 +1,52 @@
 {
-  "sql.query":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-search-api.html",
-      "description":"Executes a SQL request"
+  "sql.query": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-query",
+      "description": "Get SQL search results"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_sql",
-          "methods":[
+          "path": "/_sql",
+          "methods": [
             "POST",
             "GET"
           ]
         }
       ]
     },
-    "params":{
-      "format":{
-        "type":"string",
-        "description":"a short version of the Accept header, e.g. json, yaml"
+    "params": {
+      "format": {
+        "type": "enum",
+        "description": "The format for the response.\nYou can also specify a format using the `Accept` HTTP header.\nIf you specify both this parameter and the `Accept` HTTP header, this parameter takes precedence.",
+        "options": [
+          "csv",
+          "json",
+          "tsv",
+          "txt",
+          "yaml",
+          "cbor",
+          "smile"
+        ]
+      },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     },
-    "body":{
-      "description":"Use the `query` element to start a query. Use the `cursor` element to continue a query.",
-      "required":true
+    "body": {
+      "description": "Use the `query` element to start a query. Use the `cursor` element to continue a query.",
+      "required": true
     }
   }
 }

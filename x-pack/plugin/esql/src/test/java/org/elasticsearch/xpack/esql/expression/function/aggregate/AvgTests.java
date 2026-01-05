@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -37,7 +40,10 @@ public class AvgTests extends AbstractAggregationTestCase {
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
+            MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
         ).flatMap(List::stream).map(AvgTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.add(
@@ -53,7 +59,7 @@ public class AvgTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true, (v, p) -> "numeric except unsigned_long or counter types");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
     }
 
     @Override
@@ -64,25 +70,60 @@ public class AvgTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
+            var fieldData = fieldTypedData.multiRowData();
 
-            Object expected = switch (fieldTypedData.type().widenSmallNumeric()) {
-                case INTEGER -> fieldTypedData.multiRowData()
-                    .stream()
-                    .map(v -> (Integer) v)
-                    .collect(Collectors.summarizingInt(Integer::intValue))
-                    .getAverage();
-                case LONG -> fieldTypedData.multiRowData()
-                    .stream()
-                    .map(v -> (Long) v)
-                    .collect(Collectors.summarizingLong(Long::longValue))
-                    .getAverage();
-                case DOUBLE -> fieldTypedData.multiRowData()
-                    .stream()
-                    .map(v -> (Double) v)
-                    .collect(Collectors.summarizingDouble(Double::doubleValue))
-                    .getAverage();
-                default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
-            };
+            Object expected = null;
+
+            if (fieldData.size() == 1) {
+                // For single elements, we directly return them to avoid precision issues
+                expected = switch (fieldTypedData.type()) {
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) fieldData.get(0);
+                        yield aggMetric.sum() / (aggMetric.count().doubleValue());
+                    }
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        var expHisto = (ExponentialHistogram) fieldData.get(0);
+                        yield expHisto.valueCount() == 0 ? null : expHisto.sum() / expHisto.valueCount();
+                    }
+                    case TDIGEST -> {
+                        var tDigest = (TDigestHolder) fieldData.get(0);
+                        yield tDigest.getValueCount() == 0 ? null : tDigest.getSum() / tDigest.getValueCount();
+                    }
+                    default -> ((Number) fieldData.get(0)).doubleValue();
+                };
+            } else if (fieldData.size() > 1) {
+                expected = switch (fieldTypedData.type().widenSmallNumeric()) {
+                    case INTEGER -> fieldData.stream()
+                        .map(v -> (Integer) v)
+                        .collect(Collectors.summarizingInt(Integer::intValue))
+                        .getAverage();
+                    case LONG -> fieldData.stream().map(v -> (Long) v).collect(Collectors.summarizingLong(Long::longValue)).getAverage();
+                    case DOUBLE -> fieldData.stream()
+                        .map(v -> (Double) v)
+                        .collect(Collectors.summarizingDouble(Double::doubleValue))
+                        .getAverage();
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        double sum = fieldData.stream()
+                            .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
+                            .sum();
+                        double count = fieldData.stream()
+                            .mapToInt(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).count())
+                            .sum();
+                        yield count == 0 ? null : sum / count;
+                    }
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        double sum = fieldData.stream().mapToDouble(v -> ((ExponentialHistogram) v).sum()).sum();
+                        double count = fieldData.stream().mapToLong(v -> ((ExponentialHistogram) v).valueCount()).sum();
+                        yield count == 0 ? null : sum / count;
+                    }
+                    case TDIGEST -> {
+                        double sum = fieldData.stream().mapToDouble(v -> ((TDigestHolder) v).getSum()).sum();
+                        double count = fieldData.stream().mapToLong(v -> ((TDigestHolder) v).getValueCount()).sum();
+                        yield count == 0 ? null : sum / count;
+                    }
+                    default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
+                };
+            }
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),

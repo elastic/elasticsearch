@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -73,8 +76,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
 
 public class TransportRollupSearchAction extends TransportAction<SearchRequest, SearchResponse> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportRollupSearchAction.class);
 
     private final Client client;
     private final NamedWriteableRegistry registry;
@@ -82,6 +89,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
+    private final ProjectResolver projectResolver;
     private static final Logger logger = LogManager.getLogger(RollupSearchAction.class);
 
     @Inject
@@ -93,7 +101,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         BigArrays bigArrays,
         ScriptService scriptService,
         ClusterService clusterService,
-        IndexNameExpressionResolver resolver
+        IndexNameExpressionResolver resolver,
+        ProjectResolver projectResolver
     ) {
         super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -102,6 +111,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.resolver = resolver;
+        this.projectResolver = projectResolver;
 
         transportService.registerRequestHandler(
             actionName,
@@ -115,8 +125,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request);
-        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().indices());
+        final var project = projectResolver.getProjectMetadata(clusterService.state());
+        RollupSearchContext rollupSearchContext = separateIndices(indices, project.indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 

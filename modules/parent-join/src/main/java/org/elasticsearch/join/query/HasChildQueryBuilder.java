@@ -20,7 +20,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,6 +51,8 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  * A query builder for {@code has_child} query.
  */
 public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
+
+    private static final MatchNoDocsQuery CANNOT_LOAD_EMPTY_READER = new MatchNoDocsQuery("Can't load against an empty reader");
     public static final String NAME = "has_child";
 
     /**
@@ -316,7 +317,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         Joiner joiner = Joiner.getJoiner(context);
         if (joiner == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] no join field has been configured");
             }
@@ -324,7 +325,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(
                     context,
@@ -336,7 +337,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         String parentJoinField = joiner.parentJoinField(type);
         if (context.isFieldMapped(parentJoinField) == false) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             throw new QueryShardException(context, "[" + NAME + "] no parent join field [" + parentJoinField + "] configured");
         }
@@ -428,7 +429,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     // blow up since for this query to work we have to have a DirectoryReader otherwise
                     // we can't load global ordinals - for this to work we simply check if the reader has no leaves
                     // and rewrite to match nothing
-                    return new MatchNoDocsQuery("Can't load against an empty reader");
+                    return CANNOT_LOAD_EMPTY_READER;
                 }
                 throw new IllegalStateException(
                     "can't load global ordinals for reader of type: " + searcher.getClass() + " must be a DirectoryReader"
@@ -543,6 +544,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

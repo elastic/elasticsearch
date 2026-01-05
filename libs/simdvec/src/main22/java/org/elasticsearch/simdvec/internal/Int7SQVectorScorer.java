@@ -15,7 +15,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.IOException;
@@ -23,7 +23,9 @@ import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7u;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProduct7uBulkWithOffsets;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistance7u;
+import static org.elasticsearch.simdvec.internal.Similarities.squareDistance7uBulkWithOffsets;
 
 public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
@@ -35,11 +37,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     byte[] scratch;
 
     /** Return an optional whose value, if present, is the scorer. Otherwise, an empty optional is returned. */
-    public static Optional<RandomVectorScorer> create(
-        VectorSimilarityFunction sim,
-        RandomAccessQuantizedByteVectorValues values,
-        float[] queryVector
-    ) {
+    public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector) {
         checkDimensions(queryVector.length, values.dimension());
         var input = values.getSlice();
         if (input == null) {
@@ -63,12 +61,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         };
     }
 
-    Int7SQVectorScorer(
-        MemorySegmentAccessInput input,
-        RandomAccessQuantizedByteVectorValues values,
-        byte[] queryVector,
-        float queryCorrection
-    ) {
+    Int7SQVectorScorer(MemorySegmentAccessInput input, QuantizedByteVectorValues values, byte[] queryVector, float queryCorrection) {
         super(values);
         this.input = input;
         assert queryVector.length == values.getVectorByteLength();
@@ -105,7 +98,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     }
 
     public static final class DotProductScorer extends Int7SQVectorScorer {
-        public DotProductScorer(MemorySegmentAccessInput in, RandomAccessQuantizedByteVectorValues values, byte[] query, float correction) {
+        public DotProductScorer(MemorySegmentAccessInput in, QuantizedByteVectorValues values, byte[] query, float correction) {
             super(in, values, query, correction);
         }
 
@@ -119,10 +112,33 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
             return Math.max((1 + adjustedDistance) / 2, 0f);
         }
+
+        @Override
+        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
+            if (vectorsSeg == null) {
+                super.bulkScore(nodes, scores, numNodes);
+            } else {
+                var ordinalsSeg = MemorySegment.ofArray(nodes);
+                var scoresSeg = MemorySegment.ofArray(scores);
+
+                var vectorPitch = vectorByteSize + Float.BYTES;
+                dotProduct7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
+
+                for (int i = 0; i < numNodes; ++i) {
+                    var dotProduct = scores[i];
+                    var secondOrd = nodes[i];
+                    long secondByteOffset = (long) secondOrd * vectorPitch;
+                    var nodeCorrection = Float.intBitsToFloat(input.readInt(secondByteOffset + vectorByteSize));
+                    float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
+                    scores[i] = Math.max((1 + adjustedDistance) / 2, 0f);
+                }
+            }
+        }
     }
 
     public static final class EuclideanScorer extends Int7SQVectorScorer {
-        public EuclideanScorer(MemorySegmentAccessInput in, RandomAccessQuantizedByteVectorValues values, byte[] query, float correction) {
+        public EuclideanScorer(MemorySegmentAccessInput in, QuantizedByteVectorValues values, byte[] query, float correction) {
             super(in, values, query, correction);
         }
 
@@ -133,10 +149,30 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             float adjustedDistance = sqDist * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
         }
+
+        @Override
+        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
+            if (vectorsSeg == null) {
+                super.bulkScore(nodes, scores, numNodes);
+            } else {
+                var ordinalsSeg = MemorySegment.ofArray(nodes);
+                var scoresSeg = MemorySegment.ofArray(scores);
+
+                var vectorPitch = vectorByteSize + Float.BYTES;
+                squareDistance7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
+
+                for (int i = 0; i < numNodes; ++i) {
+                    var squareDistance = scores[i];
+                    float adjustedDistance = squareDistance * scoreCorrectionConstant;
+                    scores[i] = 1 / (1f + adjustedDistance);
+                }
+            }
+        }
     }
 
     public static final class MaxInnerProductScorer extends Int7SQVectorScorer {
-        public MaxInnerProductScorer(MemorySegmentAccessInput in, RandomAccessQuantizedByteVectorValues values, byte[] query, float corr) {
+        public MaxInnerProductScorer(MemorySegmentAccessInput in, QuantizedByteVectorValues values, byte[] query, float corr) {
             super(in, values, query, corr);
         }
 
@@ -152,6 +188,30 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 return 1 / (1 + -1 * adjustedDistance);
             }
             return adjustedDistance + 1;
+        }
+
+        @Override
+        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+            MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
+            if (vectorsSeg == null) {
+                super.bulkScore(nodes, scores, numNodes);
+            } else {
+                var ordinalsSeg = MemorySegment.ofArray(nodes);
+                var scoresSeg = MemorySegment.ofArray(scores);
+
+                var vectorPitch = vectorByteSize + Float.BYTES;
+                dotProduct7uBulkWithOffsets(vectorsSeg, query, vectorByteSize, vectorPitch, ordinalsSeg, numNodes, scoresSeg);
+
+                for (int i = 0; i < numNodes; ++i) {
+                    var dotProduct = scores[i];
+                    var secondOrd = nodes[i];
+                    long secondByteOffset = (long) secondOrd * vectorPitch;
+                    var nodeCorrection = Float.intBitsToFloat(input.readInt(secondByteOffset + vectorByteSize));
+                    float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
+                    adjustedDistance = adjustedDistance < 0 ? 1 / (1 + -1 * adjustedDistance) : adjustedDistance + 1;
+                    scores[i] = adjustedDistance;
+                }
+            }
         }
     }
 

@@ -12,12 +12,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,6 +28,29 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.rerank.G
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<GoogleVertexAiRerankTaskSettings> {
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.topN() != null) {
+            newSettingsMap.put(GoogleVertexAiRerankTaskSettings.TOP_N, newSettings.topN());
+        }
+        GoogleVertexAiRerankTaskSettings updatedSettings = (GoogleVertexAiRerankTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.topN() == null) {
+            assertEquals(initialSettings.topN(), updatedSettings.topN());
+        } else {
+            assertEquals(newSettings.topN(), updatedSettings.topN());
+        }
+    }
 
     public void testFromMap_TopNIsSet() {
         var topN = 1;
@@ -110,7 +135,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
 
     @Override
     protected GoogleVertexAiRerankTaskSettings mutateInstance(GoogleVertexAiRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleVertexAiRerankTaskSettingsTests::createRandom);
+        return new GoogleVertexAiRerankTaskSettings(randomValueOtherThan(instance.topN(), ESTestCase::randomNonNegativeIntOrNull));
     }
 
     @Override
@@ -122,7 +147,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
     }
 
     private static GoogleVertexAiRerankTaskSettings createRandom() {
-        return new GoogleVertexAiRerankTaskSettings(randomFrom(new Integer[] { null, randomNonNegativeInt() }));
+        return new GoogleVertexAiRerankTaskSettings(randomNonNegativeIntOrNull());
     }
 
     private static Map<String, Object> getTaskSettingsMap(@Nullable Object topN) {

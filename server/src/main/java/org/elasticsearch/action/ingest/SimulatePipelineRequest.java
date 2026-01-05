@@ -9,15 +9,19 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -35,24 +39,26 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
-public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
+public class SimulatePipelineRequest extends LegacyActionRequest implements ToXContentObject {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
-    private final BytesReference source;
+    private final ReleasableBytesReference source;
     private final XContentType xContentType;
     private RestApiVersion restApiVersion;
 
     /**
      * Creates a new request with the given source and its content type
      */
-    public SimulatePipelineRequest(BytesReference source, XContentType xContentType) {
+    public SimulatePipelineRequest(ReleasableBytesReference source, XContentType xContentType) {
         this(source, xContentType, RestApiVersion.current());
     }
 
-    public SimulatePipelineRequest(BytesReference source, XContentType xContentType, RestApiVersion restApiVersion) {
+    public SimulatePipelineRequest(ReleasableBytesReference source, XContentType xContentType, RestApiVersion restApiVersion) {
         this.source = Objects.requireNonNull(source);
+        assert source.hasReferences();
         this.xContentType = Objects.requireNonNull(xContentType);
         this.restApiVersion = restApiVersion;
     }
@@ -61,7 +67,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         super(in);
         id = in.readOptionalString();
         verbose = in.readBoolean();
-        source = in.readBytesReference();
+        source = in.readReleasableBytesReference();
         xContentType = in.readEnum(XContentType.class);
     }
 
@@ -87,6 +93,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     }
 
     public BytesReference getSource() {
+        assert source.hasReferences();
         return source;
     }
 
@@ -126,6 +133,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 
     static Parsed parseWithPipelineId(
+        ProjectId projectId,
         String pipelineId,
         Map<String, Object> config,
         boolean verbose,
@@ -135,7 +143,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         if (pipelineId == null) {
             throw new IllegalArgumentException("param [pipeline] is null");
         }
-        Pipeline pipeline = ingestService.getPipeline(pipelineId);
+        Pipeline pipeline = ingestService.getPipeline(projectId, pipelineId);
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
         }
@@ -143,19 +151,28 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService, RestApiVersion restApiVersion)
-        throws Exception {
+    static Parsed parse(
+        ProjectId projectId,
+        Map<String, Object> config,
+        boolean verbose,
+        IngestService ingestService,
+        RestApiVersion restApiVersion,
+        Predicate<NodeFeature> hasFeature
+    ) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = Pipeline.create(
             SIMULATED_PIPELINE_ID,
             pipelineConfig,
             ingestService.getProcessorFactories(),
-            ingestService.getScriptService()
+            ingestService.getScriptService(),
+            projectId,
+            hasFeature
         );
         List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Unconditionally deprecate the _type field once V8 BWC support is removed
     private static List<IngestDocument> parseDocs(Map<String, Object> config, RestApiVersion restApiVersion) {
         List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, config, Fields.DOCS);
         if (docs.isEmpty()) {
@@ -172,7 +189,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             String index = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.INDEX.getFieldName(), "_index");
             String id = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, Metadata.ID.getFieldName(), "_id");
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null, dataMap, Metadata.ROUTING.getFieldName());
-            if (restApiVersion == RestApiVersion.V_7 && dataMap.containsKey(Metadata.TYPE.getFieldName())) {
+            if (dataMap.containsKey(Metadata.TYPE.getFieldName())) {
                 deprecationLogger.compatibleCritical(
                     "simulate_pipeline_with_types",
                     "[types removal] specifying _type in pipeline simulation requests is deprecated"
@@ -247,5 +264,25 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
 
     public RestApiVersion getRestApiVersion() {
         return restApiVersion;
+    }
+
+    @Override
+    public final void incRef() {
+        source.incRef();
+    }
+
+    @Override
+    public final boolean tryIncRef() {
+        return source.tryIncRef();
+    }
+
+    @Override
+    public final boolean decRef() {
+        return source.decRef();
+    }
+
+    @Override
+    public final boolean hasReferences() {
+        return source.hasReferences();
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.xcontent.ToXContent;
 
 /**
  * Same as {@link RestChunkedToXContentListener} but decrements the ref count on the response it receives by one after serialization of the
@@ -23,6 +24,10 @@ public class RestRefCountedChunkedToXContentListener<Response extends ChunkedToX
     Response> {
     public RestRefCountedChunkedToXContentListener(RestChannel channel) {
         super(channel);
+    }
+
+    public RestRefCountedChunkedToXContentListener(RestChannel channel, ToXContent.Params params) {
+        super(channel, params);
     }
 
     @Override

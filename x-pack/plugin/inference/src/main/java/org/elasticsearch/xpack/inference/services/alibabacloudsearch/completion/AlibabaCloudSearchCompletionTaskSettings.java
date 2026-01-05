@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -94,9 +93,14 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return parameters == null || parameters.isEmpty();
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (parameters != null) {
+        if (parameters != null && parameters.isEmpty() == false) {
             builder.field(PARAMETERS, parameters);
         }
         builder.endObject();
@@ -110,7 +114,7 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_ALIBABACLOUD_SEARCH_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -133,5 +137,13 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
 
     public Map<String, Object> getParameters() {
         return parameters;
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AlibabaCloudSearchCompletionTaskSettings updatedSettings = AlibabaCloudSearchCompletionTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return of(this, updatedSettings);
     }
 }

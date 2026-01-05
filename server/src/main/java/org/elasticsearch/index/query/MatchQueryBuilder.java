@@ -13,14 +13,12 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -37,11 +35,7 @@ import java.util.Objects;
  * result of the analysis.
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
-    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "cutoff_freqency is not supported. "
-        + "The [match] query can skip block of documents efficiently if the total number of hits is not tracked";
-    public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency").withAllDeprecated(
-        CUTOFF_FREQUENCY_DEPRECATION_MSG
-    ).forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
+
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
@@ -118,10 +112,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
-        // cutoff_frequency has been removed
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalFloat();
-        }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
     }
 
@@ -140,10 +130,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
-        // cutoff_frequency has been removed
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalFloat(null);
-        }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
     }
 
@@ -528,15 +514,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             queryName = parser.text();
                         } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                             autoGenerateSynonymsPhraseQuery = parser.booleanValue();
-                        } else if (parser.getRestApiVersion() == RestApiVersion.V_7
-                            && CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                throw new ParsingException(parser.getTokenLocation(), CUTOFF_FREQUENCY_DEPRECATION_MSG);
-                            } else {
-                                throw new ParsingException(
-                                    parser.getTokenLocation(),
-                                    "[" + NAME + "] query does not support [" + currentFieldName + "]"
-                                );
-                            }
+                        } else {
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
+                        }
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -576,6 +559,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

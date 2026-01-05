@@ -12,6 +12,7 @@ package org.elasticsearch.reservedstate.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
@@ -68,7 +69,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @Override
-    public TransformState transform(Object input, TransformState prevState) {
+    public TransformState transform(Map<String, Object> input, TransformState prevState) {
         ClusterUpdateSettingsRequest request = prepare(input, prevState.keys());
 
         // allow empty requests, this is how we clean up settings
@@ -90,6 +91,11 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
             .collect(Collectors.toSet());
 
         return new TransformState(state, currentKeys);
+    }
+
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(Map.of(), prevState).state();
     }
 
     @Override

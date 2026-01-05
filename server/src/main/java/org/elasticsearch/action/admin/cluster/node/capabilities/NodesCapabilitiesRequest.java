@@ -11,18 +11,20 @@ package org.elasticsearch.action.admin.cluster.node.capabilities;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 
+import java.util.Optional;
 import java.util.Set;
 
-public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilitiesRequest> {
+public class NodesCapabilitiesRequest extends BaseNodesRequest {
 
     private RestRequest.Method method = RestRequest.Method.GET;
     private String path = "/";
     private Set<String> parameters = Set.of();
     private Set<String> capabilities = Set.of();
-    private RestApiVersion restApiVersion = RestApiVersion.current();
+    private @Nullable RestApiVersion restApiVersion;
 
     public NodesCapabilitiesRequest() {
         // send to all nodes
@@ -75,7 +77,7 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
         return this;
     }
 
-    public RestApiVersion restApiVersion() {
-        return restApiVersion;
+    public Optional<RestApiVersion> restApiVersion() {
+        return Optional.ofNullable(restApiVersion);
     }
 }

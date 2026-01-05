@@ -48,8 +48,8 @@ public class SearchSortValuesAndFormats implements Writeable {
     }
 
     public SearchSortValuesAndFormats(StreamInput in) throws IOException {
-        this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
-        this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        this.rawSortValues = Lucene.readSortValues(in);
+        this.formattedSortValues = Lucene.readSortValues(in);
         this.sortValueFormats = new DocValueFormat[formattedSortValues.length];
         for (int i = 0; i < sortValueFormats.length; ++i) {
             sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);

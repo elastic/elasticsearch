@@ -25,7 +25,9 @@ import org.gradle.api.provider.Provider;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 import javax.inject.Inject;
 
@@ -89,7 +91,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private void setupDistributionContainer(Project project) {
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             var fileConfiguration = project.getConfigurations().create(DISTRO_CONFIG_PREFIX + name);
+            fileConfiguration.setCanBeConsumed(false);
             var extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
+            extractedConfiguration.setCanBeConsumed(false);
             extractedConfiguration.getAttributes()
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
             var distribution = new ElasticsearchDistribution(
@@ -139,8 +143,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     private DistributionDependency resolveDependencyNotation(Project project, ElasticsearchDistribution distro) {
         return distributionsResolutionStrategies.stream()
+            .sorted(Comparator.comparing(DistributionResolution::getPriority).reversed())
             .map(r -> r.getResolver().resolve(project, distro))
-            .filter(d -> d != null)
+            .filter(Objects::nonNull)
             .findFirst()
             .orElseGet(() -> DistributionDependency.of(dependencyNotation(distro)));
     }
@@ -186,10 +191,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
             repo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
         });
-        project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
-            exclusiveContentRepository.filter(config -> config.includeGroup(group));
-            exclusiveContentRepository.forRepositories(ivyRepo);
-        });
+        if (project != project.getRootProject()) {
+            project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
+                exclusiveContentRepository.filter(config -> config.includeGroup(group));
+                exclusiveContentRepository.forRepositories(ivyRepo);
+            });
+        }
     }
 
     private static void setupDownloadServiceRepo(Project project) {

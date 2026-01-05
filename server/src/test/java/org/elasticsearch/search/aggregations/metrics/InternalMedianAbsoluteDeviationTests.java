@@ -23,7 +23,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
 
     @Override
     protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
-        final TDigestState valuesSketch = TDigestState.create(randomFrom(50.0, 100.0, 200.0, 500.0, 1000.0));
+        final TDigestState valuesSketch = TDigestState.createWithoutCircuitBreaking(randomFrom(50.0, 100.0, 200.0, 500.0, 1000.0));
         final int numberOfValues = frequently() ? randomIntBetween(0, 1000) : 0;
         for (int i = 0; i < numberOfValues; i++) {
             valuesSketch.add(randomDouble());

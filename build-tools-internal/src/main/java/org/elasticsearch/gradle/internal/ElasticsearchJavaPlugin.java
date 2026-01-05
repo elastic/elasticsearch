@@ -15,8 +15,10 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -24,32 +26,49 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 import java.util.Map;
 
+import javax.inject.Inject;
+
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * A wrapper around Gradle's Java plugin that applies our
  * common configuration for production code.
  */
 public class ElasticsearchJavaPlugin implements Plugin<Project> {
+
+    private final JavaToolchainService javaToolchains;
+
+    @Inject
+    ElasticsearchJavaPlugin(JavaToolchainService javaToolchains) {
+        this.javaToolchains = javaToolchains;
+    }
+
     @Override
     public void apply(Project project) {
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        Property<BuildParameterExtension> buildParams = loadBuildParams(project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaModulePathPlugin.class);
 
         // configureConfigurations(project);
-        configureJars(project);
-        configureJarManifest(project);
-        configureJavadoc(project);
+        configureJars(project, buildParams.get());
+        configureJarManifest(project, buildParams.get());
+        configureJavadoc(project, buildParams.get());
         testCompileOnlyDeps(project);
     }
 
@@ -63,7 +82,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     /**
      * Adds additional manifest info to jars
      */
-    static void configureJars(Project project) {
+    static void configureJars(Project project, BuildParameterExtension buildParams) {
+        String buildDate = buildParams.getBuildDate().toString();
+        JavaVersion gradleJavaVersion = buildParams.getGradleJavaVersion();
         project.getTasks().withType(Jar.class).configureEach(jarTask -> {
             // we put all our distributable files under distributions
             jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
@@ -75,14 +96,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 public void execute(Task task) {
                     // this doFirst is added before the info plugin, therefore it will run
                     // after the doFirst added by the info plugin, and we can override attributes
-                    jarTask.getManifest()
-                        .attributes(
-                            Map.of("Build-Date", BuildParams.getBuildDate(), "Build-Java-Version", BuildParams.getGradleJavaVersion())
-                        );
+                    jarTask.getManifest().attributes(Map.of("Build-Date", buildDate, "Build-Java-Version", gradleJavaVersion));
                 }
             });
         });
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
+        project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
             project.getTasks().withType(ShadowJar.class).configureEach(shadowJar -> {
                 /*
                  * Replace the default "-all" classifier with null
@@ -102,10 +120,13 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
     }
 
-    private static void configureJarManifest(Project project) {
+    private static void configureJarManifest(Project project, BuildParameterExtension buildParams) {
+        Provider<String> gitOrigin = buildParams.getGitOrigin();
+        Provider<String> gitRevision = buildParams.getGitRevision();
+
         project.getPlugins().withType(InfoBrokerPlugin.class).whenPluginAdded(manifestPlugin -> {
-            manifestPlugin.add("Module-Origin", toStringable(BuildParams::getGitOrigin));
-            manifestPlugin.add("Change", toStringable(BuildParams::getGitRevision));
+            manifestPlugin.add("Module-Origin", toStringable(() -> gitOrigin.get()));
+            manifestPlugin.add("Change", toStringable(() -> gitRevision.get()));
             manifestPlugin.add("X-Compile-Elasticsearch-Version", toStringable(VersionProperties::getElasticsearch));
             manifestPlugin.add("X-Compile-Lucene-Version", toStringable(VersionProperties::getLucene));
             manifestPlugin.add(
@@ -120,7 +141,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         project.getPluginManager().apply("nebula.info-jar");
     }
 
-    private static void configureJavadoc(Project project) {
+    private void configureJavadoc(Project project, BuildParameterExtension buildParams) {
         project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
             /*
              * Generate docs using html5 to suppress a warning from `javadoc`
@@ -128,6 +149,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
              */
             CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
             javadocOptions.addBooleanOption("html5", true);
+
+            javadoc.getJavadocTool().set(javaToolchains.javadocToolFor(spec -> {
+                spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
+            }));
         });
 
         TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");

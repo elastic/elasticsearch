@@ -29,8 +29,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Request;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Response;
@@ -79,7 +79,6 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -99,9 +98,15 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     protected void masterOperation(Task ignoredTask, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
         TransformNodes.warnIfNoTransformNodes(state);
+        if (TransformMetadata.upgradeMode(state)) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Cannot upgrade Transforms while the Transform feature is upgrading.", RestStatus.CONFLICT)
+            );
+            return;
+        }
 
         // do not allow in mixed clusters
-        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
+        if (state.nodes().isMixedVersionCluster()) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot upgrade transforms while cluster upgrade is in progress.", RestStatus.CONFLICT)
             );

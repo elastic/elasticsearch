@@ -12,7 +12,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
 import java.util.Arrays;
@@ -62,7 +63,8 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 blockFactory.newConstantBytesRefBlockWith(new BytesRef(), 0),
                 blockFactory.newBytesRefBlockBuilder(0).build(),
                 blockFactory.newBytesRefBlockBuilder(0).appendBytesRef(new BytesRef()).build().filter(),
-                blockFactory.newBytesRefBlockBuilder(0).appendNull().build().filter()
+                blockFactory.newBytesRefBlockBuilder(0).appendNull().build().filter(),
+                (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
             );
             assertAllEquals(blocks);
         }
@@ -356,17 +358,20 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
         boolean grow = randomBoolean();
         BytesRefBlock.Builder builder1 = blockFactory.newBytesRefBlockBuilder(grow ? 0 : positions);
         BytesRefBlock.Builder builder2 = blockFactory.newBytesRefBlockBuilder(grow ? 0 : positions);
+        ConstantNullBlock.Builder builder3 = new ConstantNullBlock.Builder(blockFactory);
         for (int p = 0; p < positions; p++) {
             builder1.appendNull();
             builder2.appendNull();
+            builder3.appendNull();
         }
         BytesRefBlock block1 = builder1.build();
         BytesRefBlock block2 = builder2.build();
+        Block block3 = builder3.build();
         assertEquals(positions, block1.getPositionCount());
         assertTrue(block1.mayHaveNulls());
         assertTrue(block1.isNull(0));
 
-        List<BytesRefBlock> blocks = List.of(block1, block2);
+        List<Block> blocks = List.of(block1, block2, block3);
         assertAllEquals(blocks);
     }
 

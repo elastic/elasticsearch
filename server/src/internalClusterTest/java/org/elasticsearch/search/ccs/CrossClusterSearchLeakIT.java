@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("cluster_a");
     }
 

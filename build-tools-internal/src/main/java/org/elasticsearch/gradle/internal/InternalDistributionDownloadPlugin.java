@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
@@ -35,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
+
 /**
  * An internal elasticsearch build plugin that registers additional
  * distribution resolution strategies to the 'elasticsearch.download-distribution' plugin
@@ -47,6 +48,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        var buildParams = loadBuildParams(project).get();
+
         DistributionDownloadPlugin distributionDownloadPlugin = project.getPlugins().apply(DistributionDownloadPlugin.class);
         Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
@@ -55,7 +58,10 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         distributionDownloadPlugin.setDockerAvailability(
             dockerSupport.map(dockerSupportService -> dockerSupportService.getDockerAvailability().isAvailable())
         );
-        registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
+        registerInternalDistributionResolutions(
+            DistributionDownloadPlugin.getRegistrationsContainer(project),
+            buildParams.getBwcVersionsProvider()
+        );
     }
 
     /**
@@ -66,9 +72,9 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
      * <p>
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
-    private void registerInternalDistributionResolutions(List<DistributionResolution> resolutions) {
+    private void registerInternalDistributionResolutions(List<DistributionResolution> resolutions, Provider<BwcVersions> bwcVersions) {
         resolutions.add(new DistributionResolution("local-build", (project, distribution) -> {
-            if (isCurrentVersion(distribution)) {
+            if (isCurrentVersion(distribution) && distribution.isDetachedVersion() == false) {
                 // non-external project, so depend on local build
                 return new ProjectBasedDistributionDependency(
                     config -> projectDependency(project.getDependencies(), distributionProjectPath(distribution), config)
@@ -78,9 +84,9 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         }));
 
         resolutions.add(new DistributionResolution("bwc", (project, distribution) -> {
-            BwcVersions.UnreleasedVersionInfo unreleasedInfo = BuildParams.getBwcVersions()
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.get()
                 .unreleasedInfo(Version.fromString(distribution.getVersion()));
-            if (unreleasedInfo != null) {
+            if (unreleasedInfo != null && distribution.isDetachedVersion() == false) {
                 if (distribution.getBundledJdk() == false) {
                     throw new GradleException(
                         "Configuring a snapshot bwc distribution ('"
@@ -92,6 +98,28 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 String projectConfig = getProjectConfig(distribution, unreleasedInfo);
                 return new ProjectBasedDistributionDependency(
                     (config) -> projectDependency(project.getDependencies(), unreleasedInfo.gradleProjectPath(), projectConfig)
+                );
+            }
+            return null;
+        }));
+
+        // Distribution resolution for "detached" versions. This allows for building from source for any version, including the current
+        // version of existing released versions from a commit form the main branch. This is done by passing certain system properties, ex:
+        //
+        // -Dtests.bwc.refspec.main=deadbeef -Dtests.bwc.main.version=9.0.0
+        //
+        // The distribution version set by 'test.bwc.main.version' property should map to the version returned by the commit
+        // referenced in 'tests.bwc.refspec.main'.
+        resolutions.add(new DistributionResolution("detached", (project, distribution) -> {
+            if (distribution.isDetachedVersion()) {
+                BwcVersions.UnreleasedVersionInfo unreleasedVersionInfo = new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(distribution.getVersion()),
+                    "main",
+                    ":distribution:bwc:main"
+                );
+                String projectConfig = getProjectConfig(distribution, unreleasedVersionInfo);
+                return new ProjectBasedDistributionDependency(
+                    (config) -> projectDependency(project.getDependencies(), unreleasedVersionInfo.gradleProjectPath(), projectConfig)
                 );
             }
             return null;
@@ -166,14 +194,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER) {
             return projectName + "docker" + archString + "-export";
         }
-        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_UBI) {
-            return projectName + "ubi-docker" + archString + "-export";
-        }
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_IRONBANK) {
             return projectName + "ironbank-docker" + archString + "-export";
-        }
-        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD) {
-            return projectName + "cloud-docker" + archString + "-export";
         }
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS) {
             return projectName + "cloud-ess-docker" + archString + "-export";

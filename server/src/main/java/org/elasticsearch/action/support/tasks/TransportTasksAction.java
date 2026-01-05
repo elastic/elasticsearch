@@ -30,8 +30,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -214,7 +214,7 @@ public abstract class TransportTasksAction<
         if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             Task task = taskManager.getTask(request.getTargetTaskId().getId());
-            if (task != null) {
+            if (task != null && match(task)) {
                 if (request.match(task)) {
                     return List.of((OperationTask) task);
                 } else {
@@ -226,12 +226,17 @@ public abstract class TransportTasksAction<
         } else {
             final var tasks = new ArrayList<OperationTask>();
             for (Task task : taskManager.getTasks().values()) {
-                if (request.match(task)) {
+                if (match(task) && request.match(task)) {
                     tasks.add((OperationTask) task);
                 }
             }
             return tasks;
         }
+    }
+
+    // Determine if a task should be processed, allows subclass to extend filtering of tasks
+    protected boolean match(Task task) {
+        return true;
     }
 
     protected abstract TasksResponse newResponse(
@@ -243,10 +248,11 @@ public abstract class TransportTasksAction<
 
     /**
      * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
+     *
      * @param actionTask The related transport action task. Can be used to create a task ID to handle upstream transport cancellations.
-     * @param request the original transport request
-     * @param task the task on which the operation is taking place
-     * @param listener the listener to signal.
+     * @param request    the original transport request
+     * @param task       the task on which the operation is taking place
+     * @param listener   the listener to signal.
      */
     protected abstract void taskOperation(
         CancellableTask actionTask,
@@ -271,7 +277,7 @@ public abstract class TransportTasksAction<
         }
     }
 
-    private class NodeTaskRequest extends TransportRequest {
+    private class NodeTaskRequest extends AbstractTransportRequest {
         private final TasksRequest tasksRequest;
 
         protected NodeTaskRequest(StreamInput in) throws IOException {
@@ -329,7 +335,6 @@ public abstract class TransportTasksAction<
         protected List<TaskResponse> results;
 
         NodeTasksResponse(StreamInput in) throws IOException {
-            super(in);
             nodeId = in.readString();
             int resultsSize = in.readVInt();
             results = new ArrayList<>(resultsSize);

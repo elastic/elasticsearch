@@ -32,7 +32,6 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -59,6 +58,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
@@ -94,6 +94,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@ESTestCase.WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     @Override
@@ -531,8 +532,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             nodeNameToNodeId.put(cursor.getValue().getName(), cursor.getKey());
         }
 
-        final GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
-            .activePrimaryShardsGrouped(new String[] { indexName }, false);
+        final List<ShardIterator> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[] { indexName }, false);
         final List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         final ShardRouting shardRouting = iterators.iterator().next().nextOrNull();
         assertThat(shardRouting, notNullValue());
@@ -562,7 +562,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             command.findAndProcessShardPath(
                 options,
                 environmentByNodeName.get(nodeName),
-                environmentByNodeName.get(nodeName).dataFiles(),
+                environmentByNodeName.get(nodeName).dataDirs(),
                 state,
                 shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath))
             );
@@ -571,8 +571,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     private Path getPathToShardData(String indexName, String dirSuffix) {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
-            .activePrimaryShardsGrouped(new String[] { indexName }, false);
+        List<ShardIterator> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[] { indexName }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
@@ -604,7 +603,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     private static void disableTranslogFlush(String index) {
         updateIndexSettings(
             Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)),
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB)),
             index
         );
     }

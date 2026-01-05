@@ -12,10 +12,12 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.nio.ShortBuffer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION;
@@ -82,6 +84,44 @@ public final class VectorEncoderDecoder {
                 vector[dim] = byteBuffer.getFloat((dim * Float.BYTES) + vectorBR.offset);
             }
         }
+    }
+
+    public static void decodeBFloat16DenseVector(BytesRef vectorBR, float[] vector) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
+        }
+        ShortBuffer sb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+        BFloat16.bFloat16ToFloat(sb, vector);
+    }
+
+    /**
+     * Decodes a BytesRef into the provided array of bytes
+     * @param vectorBR - dense vector encoded in BytesRef
+     * @param vector - array of bytes where the decoded vector should be stored
+     */
+    public static void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, byte[] vector) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
+        }
+        if (indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+            ByteBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN);
+            fb.get(vector);
+        } else {
+            ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+            for (int dim = 0; dim < vector.length; dim++) {
+                vector[dim] = byteBuffer.get(dim * vectorBR.offset);
+            }
+        }
+    }
+
+    public static float[] getMultiMagnitudes(BytesRef magnitudes) {
+        assert magnitudes.length % Float.BYTES == 0;
+        float[] multiMagnitudes = new float[magnitudes.length / Float.BYTES];
+        ByteBuffer byteBuffer = ByteBuffer.wrap(magnitudes.bytes, magnitudes.offset, magnitudes.length).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < magnitudes.length / Float.BYTES; i++) {
+            multiMagnitudes[i] = byteBuffer.getFloat();
+        }
+        return multiMagnitudes;
     }
 
 }

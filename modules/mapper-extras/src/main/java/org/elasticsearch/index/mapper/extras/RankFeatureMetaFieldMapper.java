@@ -11,9 +11,9 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -38,7 +38,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         // made visible for tests
         RankFeatureMetaFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(NAME, IndexType.NONE, false, Collections.emptyMap());
         }
 
         @Override
@@ -48,7 +48,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
+            throw new IllegalArgumentException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 
         @Override

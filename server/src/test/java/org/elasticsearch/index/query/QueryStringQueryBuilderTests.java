@@ -45,6 +45,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MapperService;
@@ -749,7 +750,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createSearchExecutionContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
         assertThat(e.getMessage(), containsString("would require more than 10000 effort."));
     }
 
@@ -775,7 +776,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createSearchExecutionContext())
         );
-        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("Determinizing automaton"));
         assertThat(e.getMessage(), containsString("would require more than 10 effort."));
     }
 
@@ -925,10 +926,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(2));
-        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
-        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanQuery.clauses().get(1).getQuery(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "bar"))));
+        assertThat(booleanQuery.clauses().get(0).occur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(booleanQuery.clauses().get(0).query(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "foo"))));
+        assertThat(booleanQuery.clauses().get(1).occur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(booleanQuery.clauses().get(1).query(), equalTo(new TermQuery(new Term(TEXT_FIELD_NAME, "bar"))));
     }
 
     public void testToQueryPhraseQueryBoostAndSlop() throws IOException {
@@ -947,13 +948,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder("foo bar").field("invalid*");
         Query query = queryStringQueryBuilder.toQuery(createSearchExecutionContext());
 
-        Query expectedQuery = new MatchNoDocsQuery("empty fields");
+        Query expectedQuery = Queries.NO_DOCS_INSTANCE;
         assertThat(expectedQuery, equalTo(query));
 
         queryStringQueryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":foo bar").field("invalid*");
         query = queryStringQueryBuilder.toQuery(createSearchExecutionContext());
         expectedQuery = new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "foo")), Occur.SHOULD)
-            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
+            .add(Queries.NO_DOCS_INSTANCE, Occur.SHOULD)
             .build();
         assertThat(expectedQuery, equalTo(query));
     }
@@ -1058,16 +1059,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         SearchExecutionContext contextNoType = createShardContextWithNoType();
         query = queryBuilder.toQuery(contextNoType);
-        assertThat(query, equalTo(new MatchNoDocsQuery()));
+        assertThat(query, equalTo(Queries.NO_DOCS_INSTANCE));
 
         queryBuilder = new QueryStringQueryBuilder("*:*");
         query = queryBuilder.toQuery(context);
-        Query expected = new MatchAllDocsQuery();
+        Query expected = Queries.ALL_DOCS_INSTANCE;
         assertThat(query, equalTo(expected));
 
         queryBuilder = new QueryStringQueryBuilder("*");
         query = queryBuilder.toQuery(context);
-        expected = new MatchAllDocsQuery();
+        expected = Queries.ALL_DOCS_INSTANCE;
         assertThat(query, equalTo(expected));
     }
 
@@ -1164,32 +1165,32 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testLenientRewriteToMatchNoDocs() throws IOException {
         // Term
         Query query = new QueryStringQueryBuilder("hello").field(INT_FIELD_NAME).lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // prefix
         query = new QueryStringQueryBuilder("hello*").field(INT_FIELD_NAME).lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // Fuzzy
         query = new QueryStringQueryBuilder("hello~2").field(INT_FIELD_NAME).lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
     }
 
     public void testUnmappedFieldRewriteToMatchNoDocs() throws IOException {
         // Default unmapped field
         Query query = new QueryStringQueryBuilder("hello").field("unmapped_field").lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello").lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello").lenient(true)
             .field("unmapped_field")
             .field("another_field")
             .toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // Multi block
         query = new QueryStringQueryBuilder("first unmapped:second").field(TEXT_FIELD_NAME)
@@ -1198,7 +1199,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .defaultOperator(Operator.AND)
             .toQuery(createSearchExecutionContext());
         BooleanQuery expected = new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
             .build();
         assertEquals(expected, query);
 
@@ -1206,8 +1207,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("another_unmapped")
             .defaultOperator(Operator.AND)
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
             .build();
         assertEquals(expected, query);
 

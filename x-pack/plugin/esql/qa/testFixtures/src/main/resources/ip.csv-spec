@@ -16,7 +16,6 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 equals
-required_capability: mv_warn
 
 from hosts | sort host, card | where ip0 == ip1 | keep card, host, ip0, ip1;
 warningRegex:evaluation of \[ip0 == ip1\] failed, treating result as null. Only first 20 failures recorded.
@@ -60,7 +59,6 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 lessThan
-required_capability: mv_warn
 
 from hosts | sort host, card, ip1 | where ip0 < ip1 | keep card, host, ip0, ip1;
 warningRegex:evaluation of \[ip0 < ip1\] failed, treating result as null. Only first 20 failures recorded.
@@ -73,7 +71,6 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 notEquals
-required_capability: mv_warn
 
 from hosts | sort host, card, ip1 | where ip0 != ip1 | keep card, host, ip0, ip1;
 warningRegex:evaluation of \[ip0 != ip1\] failed, treating result as null. Only first 20 failures recorded.
@@ -125,7 +122,6 @@ null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
 ;
 
 conditional
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1;
 ignoreOrder:true
@@ -146,7 +142,6 @@ fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb
 ;
 
 in
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -168,7 +163,6 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 
 
 inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -188,7 +182,6 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 ;
 
 cidrMatchSimple
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip1, "127.0.0.2/32") | keep card, host, ip0, ip1;
 warningRegex:evaluation of \[cidr_match\(ip1, \\\"127.0.0.2/32\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -199,7 +192,6 @@ eth1           |beta           |127.0.0.1      |127.0.0.2
 ;
 
 cidrMatchNullField
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip0, "127.0.0.2/32") is null | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -213,11 +205,10 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 cdirMatchMultipleArgs
-required_capability: mv_warn
 
 //tag::cdirMatchMultipleArgs[]
-FROM hosts 
-| WHERE CIDR_MATCH(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+FROM hosts
+| WHERE CIDR_MATCH(ip1, "127.0.0.2/32", "127.0.0.3/32")
 | KEEP card, host, ip0, ip1
 //end::cdirMatchMultipleArgs[]
 ;
@@ -233,7 +224,6 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFunctionArg
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip1, concat("127.0.0.2", "/32"), "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -246,7 +236,6 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFieldArg
-required_capability: mv_warn
 
 from hosts | eval cidr="127.0.0.2" | where cidr_match(ip1, cidr, "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -280,6 +269,86 @@ warning:Line 2:33: java.lang.IllegalArgumentException: 'foo' is not an IP string
 str1:keyword |str2:keyword |ip1:ip  |ip2:ip
 1.1.1.1      |foo          |1.1.1.1 |null
 // end::to_ip-result[]
+;
+
+convertFromStringLeadingZerosDecimal
+required_capability: to_ip_leading_zeros
+// tag::to_ip_leading_zeros_decimal[]
+ROW s = "1.1.010.1" | EVAL ip = TO_IP(s, {"leading_zeros":"decimal"})
+// end::to_ip_leading_zeros_decimal[]
+;
+
+// tag::to_ip_leading_zeros_decimal-result[]
+s:keyword | ip:ip
+1.1.010.1 | 1.1.10.1
+// end::to_ip_leading_zeros_decimal-result[]
+;
+
+convertFromStringLeadingZerosOctal
+required_capability: to_ip_leading_zeros
+// tag::to_ip_leading_zeros_octal[]
+ROW s = "1.1.010.1" | EVAL ip = TO_IP(s, {"leading_zeros":"octal"})
+// end::to_ip_leading_zeros_octal[]
+;
+
+// tag::to_ip_leading_zeros_octal-result[]
+s:keyword | ip:ip
+1.1.010.1 | 1.1.8.1
+// end::to_ip_leading_zeros_octal-result[]
+;
+
+convertFromStringFancy
+required_capability: to_ip_leading_zeros
+FROM logs
+| KEEP @timestamp, system, message
+| SORT @timestamp
+| LIMIT 4
+| EVAL client = CASE(
+    system == "ping",
+        TO_IP(REPLACE(message, "Pinging ", ""), {"leading_zeros": "octal"}),
+    system == "java" AND STARTS_WITH(message, "Doing java stuff for "),
+        TO_IP(REPLACE(message, "Doing java stuff for ", ""), {"leading_zeros": "decimal"}))
+;
+
+@timestamp:datetime      | system:keyword | message:text                        | client:ip
+2023-10-23T13:55:01.543Z | ping           | Pinging 192.168.86.046              | 192.168.86.38
+2023-10-23T13:55:01.544Z | cron           | Running cats (cycle 1)              | null
+2023-10-23T13:55:01.545Z | java           | Doing java stuff for 192.168.86.038 | 192.168.86.38
+2023-10-23T13:55:01.546Z | java           | More java stuff                     | null
+;
+
+toIpInAgg#[skip:-8.12.99,reason:StatsNestedExp introduced in v8.13.0]
+ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
+;
+
+COUNT(*):long | ip:ip
+            1 | 1.1.1.1
+;
+
+toIpInSort#[skip:-8.13.99,reason:SortByExpression introduced in 8.14]
+ROW s = "1.1.1.1" | SORT TO_IP(s)
+;
+
+s:keyword
+1.1.1.1
+;
+
+toIpInAggOctal
+required_capability: to_ip_leading_zeros
+ROW s = "1.1.010.1" | STATS COUNT(*) BY ip = TO_IP(s, {"leading_zeros":"octal"})
+;
+
+COUNT(*):long | ip:ip
+            1 | 1.1.8.1
+;
+
+toIpInSortOctal
+required_capability: to_ip_leading_zeros
+ROW s = "1.1.010.1" | SORT TO_IP(s, {"leading_zeros":"octal"})
+;
+
+s:keyword
+1.1.010.1
 ;
 
 cdirMatchOrsIPs
@@ -329,7 +398,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9                       
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                         |fe81::cae2:65ff:fece:feb9
 ;
 
-cdirMatchEqualsInsOrsIPs
+cidrMatchEqualsInsOrsIPs
 required_capability: combine_disjunctive_cidrmatches
 
 FROM hosts
@@ -366,7 +435,6 @@ eth0           |beta           |127.0.0.1  |::1
 ;
 
 pushDownIPWithIn
-required_capability: mv_warn
 
 from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1")) | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -380,7 +448,6 @@ eth0           |beta           |127.0.0.1   |::1
 ;
 
 pushDownIPWithComparision
-required_capability: mv_warn
 
 from hosts | where ip1 > to_ip("127.0.0.1") | keep card, ip1;
 ignoreOrder:true
@@ -505,6 +572,39 @@ required_capability: agg_values
 fe80::cae2:65ff:fece:feb9 | gamma
 ;
 
+valuesGroupedMvMin
+required_capability: agg_values
+
+  FROM hosts
+| EVAL host=SUBSTRING(host, 0, 1)
+| STATS ip0=MV_MIN(VALUES(ip0)) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+                      ::1 | a
+                127.0.0.1 | b
+fe80::cae2:65ff:fece:feb9 | e
+fe80::cae2:65ff:fece:feb9 | g
+;
+
+valuesGroupedMvMax
+required_capability: agg_values
+
+  FROM hosts
+| EVAL host=SUBSTRING(host, 0, 1)
+| STATS ip0=MV_MAX(VALUES(ip0)) BY host
+| SORT host
+;
+
+                   ip0:ip | host:keyword
+                127.0.0.1 | a
+                127.0.0.1 | b
+fe82::cae2:65ff:fece:fec0 | e
+fe80::cae2:65ff:fece:feb9 | g
+
+;
+
 implictCastingEqual
 required_capability: string_literal_auto_casting_extended
 from hosts | where mv_first(ip0) == "127.0.0.1" | keep host, ip0 | sort host;
@@ -561,8 +661,8 @@ beta         | 127.0.0.1
 ipPrefix
 required_capability: fn_ip_prefix
 //tag::ipPrefix[]
-row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
-| eval ip4_prefix = ip_prefix(ip4, 24, 0), ip6_prefix = ip_prefix(ip6, 0, 112);
+ROW ip4 = to_ip("1.2.3.4"), ip6 = TO_IP("fe80::cae2:65ff:fece:feb9")
+| EVAL ip4_prefix = IP_PREFIX(ip4, 24, 0), ip6_prefix = IP_PREFIX(ip6, 0, 112);
 //end::ipPrefix[]
 
 //tag::ipPrefix-result[]
@@ -661,4 +761,162 @@ row ip4 = to_ip("1.2.3.4")
 
 ip4:ip  | a:ip | b:ip | c:ip
 1.2.3.4 | null | null | null
+;
+
+networkDirectionSimple
+required_capability: network_direction
+
+FROM hosts
+| WHERE MV_COUNT(ip0) == 1 AND MV_COUNT(ip1) == 1
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["loopback"])
+| KEEP ip0, ip1, direction
+| SORT direction, ip0, ip1
+;
+
+ip0:ip                    | ip1:ip                    | direction:keyword
+fe80::cae2:65ff:fece:feb9 | fe81::cae2:65ff:fece:feb9 | external
+fe80::cae2:65ff:fece:feb9 | 127.0.0.3                 | inbound
+::1                       | ::1                       | internal
+127.0.0.1                 | ::1                       | internal
+127.0.0.1                 | 127.0.0.1                 | internal
+127.0.0.1                 | 127.0.0.2                 | internal
+127.0.0.1                 | 128.0.0.1                 | outbound
+;
+
+networkDirectionFromRow
+required_capability: network_direction
+
+ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip, networks = ["loopback", "private"]
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, networks)
+| DROP networks
+;
+
+ip0:ip  | ip1:ip  | direction:keyword
+1.2.3.4 | 5.6.7.8 | external
+;
+
+networkDirectionFromRowUsingAlias
+required_capability: network_direction
+
+ROW ip0 = "1.2.3.4"::ip, ip1 = "5.6.7.8"::ip, networks = ["loopback", "private"]
+| EVAL direction = NETDIR(ip0, ip1, networks)
+| DROP networks
+;
+
+ip0:ip  | ip1:ip  | direction:keyword
+1.2.3.4 | 5.6.7.8 | external
+;
+
+networkDirectionFromRowWithInlineNetworks
+required_capability: network_direction
+
+// tag::networkDirectionFromRowWithInlineNetworks[]
+ROW ip0 = "127.0.0.1"::ip, ip1 = "5.6.7.8"::ip
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["loopback", "private"])
+// end::networkDirectionFromRowWithInlineNetworks[]
+;
+
+// tag::networkDirectionFromRowWithInlineNetworks-result[]
+ip0:ip    | ip1:ip  | direction:keyword
+127.0.0.1 | 5.6.7.8 | outbound
+// end::networkDirectionFromRowWithInlineNetworks-result[]
+;
+
+networkDirectionFromIpPrefix
+required_capability: network_direction
+
+ROW ip0 = "192.168.1.123"::ip, ip1 = "8.8.8.8"::ip
+| EVAL direction = NETWORK_DIRECTION(IP_PREFIX(ip0, 24, 0), ip1, ["private"])
+| KEEP ip0, ip1, direction
+;
+
+ip0:ip          | ip1:ip  | direction:keyword
+192.168.1.123   | 8.8.8.8 | outbound
+;
+
+networkDirectionBadIp
+required_capability: network_direction
+
+ROW ip0 = null::ip, ip1 = "8.8.8.8"::ip
+| EVAL direction = NETWORK_DIRECTION(TO_IP(ip0), ip1, ["loopback"])
+;
+
+ip0:ip | ip1:ip  | direction:keyword
+null   | 8.8.8.8 | null
+;
+
+networkDirectionBadNetworksArray
+required_capability: network_direction
+
+ROW ip0 = "127.0.0.1"::ip, ip1 = "8.8.8.8"::ip 
+| EVAL direction = NETWORK_DIRECTION(ip0, ip1, ["invalid_network"]);
+warning:Line 2:20: evaluation of [NETWORK_DIRECTION(ip0, ip1, [\"invalid_network\"])] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: 'invalid_network' is not an IP string literal.
+
+ip0:ip      |ip1:ip    |direction:keyword
+127.0.0.1   |8.8.8.8   |null
+;
+
+mvMinRow
+  ROW ip=["192.168.0.1", "10.10.0.1"]::IP
+| EVAL ip=MV_MIN(ip)
+;
+
+  ip:ip
+10.10.0.1
+;
+
+mvMaxRow
+  ROW ip=["192.168.0.1", "10.10.0.1"]::IP
+| EVAL ip=MV_MAX(ip)
+;
+
+  ip:ip
+192.168.0.1
+;
+
+groupMv
+  FROM hosts
+| STATS COUNT(*) BY ip0=ip0
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+3             | fe80::cae2:65ff:fece:feb9
+1             | fe80::cae2:65ff:fece:fec0
+1             | fe80::cae2:65ff:fece:fec1
+1             | fe81::cae2:65ff:fece:feb9
+1             | fe82::cae2:65ff:fece:fec0
+1             | null
+;
+
+groupMvMin
+  FROM hosts
+| STATS COUNT(*) BY ip0=MV_MIN(ip0)
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+3             | fe80::cae2:65ff:fece:feb9
+1             | fe81::cae2:65ff:fece:feb9
+1             | null
+;
+
+groupMvMax
+  FROM hosts
+| STATS COUNT(*) BY ip0=MV_MAX(ip0)
+| SORT ip0 ASC
+;
+
+COUNT(*):long | ip0:ip
+1             | ::1
+4             | 127.0.0.1
+2             | fe80::cae2:65ff:fece:feb9
+1             | fe80::cae2:65ff:fece:fec1
+1             | fe82::cae2:65ff:fece:fec0
+1             | null
 ;

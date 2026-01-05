@@ -18,14 +18,16 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-
-import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
@@ -34,10 +36,14 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ClusterHealthStatus status;
     final ClusterSnapshotStats clusterSnapshotStats;
     final RepositoryUsageStats repositoryUsageStats;
-
     final CCSTelemetrySnapshot ccsMetrics;
+    final CCSTelemetrySnapshot esqlMetrics;
     final long timestamp;
     final String clusterUUID;
+    private final Map<String, RemoteClusterStats> remoteClustersStats;
+
+    public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
+    public static final String ESQL_TELEMETRY_FIELD_NAME = "_esql";
 
     public ClusterStatsResponse(
         long timestamp,
@@ -48,14 +54,17 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         MappingStats mappingStats,
         AnalysisStats analysisStats,
         VersionStats versionStats,
-        ClusterSnapshotStats clusterSnapshotStats
+        ClusterSnapshotStats clusterSnapshotStats,
+        Map<String, RemoteClusterStats> remoteClustersStats,
+        boolean skipMRT
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
-        ccsMetrics = new CCSTelemetrySnapshot();
+        ccsMetrics = new CCSTelemetrySnapshot(skipMRT == false);
+        esqlMetrics = new CCSTelemetrySnapshot(false);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -64,7 +73,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                 break;
             }
         }
-        nodes.forEach(node -> ccsMetrics.add(node.getCcsMetrics()));
+        nodes.forEach(node -> {
+            ccsMetrics.add(node.getSearchCcsMetrics());
+            esqlMetrics.add(node.getEsqlCcsMetrics());
+        });
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
 
@@ -75,6 +87,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             // stats should be the same on every node so just pick one of them
             .findAny()
             .orElse(RepositoryUsageStats.EMPTY);
+        this.remoteClustersStats = remoteClustersStats;
     }
 
     public String getClusterUUID() {
@@ -99,6 +112,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
     public CCSTelemetrySnapshot getCcsMetrics() {
         return ccsMetrics;
+    }
+
+    public Map<String, RemoteClusterStats> getRemoteClustersStats() {
+        return remoteClustersStats;
     }
 
     @Override
@@ -136,11 +153,21 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         builder.field("repositories");
         repositoryUsageStats.toXContent(builder, params);
 
-        if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
-            builder.startObject("ccs");
-            ccsMetrics.toXContent(builder, params);
+        builder.startObject("ccs");
+        if (remoteClustersStats != null) {
+            builder.field("clusters", remoteClustersStats);
+        }
+        builder.startObject(CCS_TELEMETRY_FIELD_NAME);
+        ccsMetrics.toXContent(builder, params);
+        builder.endObject();
+
+        if (esqlMetrics.getTotalCount() > 0) {
+            builder.startObject(ESQL_TELEMETRY_FIELD_NAME);
+            esqlMetrics.toXContent(builder, params);
             builder.endObject();
         }
+
+        builder.endObject();
 
         return builder;
     }
@@ -150,4 +177,76 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         return Strings.toString(this, true, true);
     }
 
+    /**
+     * Represents the information about a remote cluster.
+     */
+    public record RemoteClusterStats(
+        String clusterUUID,
+        String mode,
+        Optional<Boolean> skipUnavailable,
+        String transportCompress,
+        Set<String> versions,
+        String status,
+        long nodesCount,
+        long shardsCount,
+        long indicesCount,
+        long indicesBytes,
+        long heapBytes,
+        long memBytes
+    ) implements ToXContentFragment {
+        public RemoteClusterStats(String mode, Optional<Boolean> skipUnavailable, String transportCompress) {
+            this(
+                "unavailable",
+                mode,
+                skipUnavailable,
+                transportCompress.toLowerCase(Locale.ROOT),
+                Set.of(),
+                "unavailable",
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+            );
+        }
+
+        public RemoteClusterStats acceptResponse(RemoteClusterStatsResponse remoteResponse) {
+            return new RemoteClusterStats(
+                remoteResponse.getClusterUUID(),
+                mode,
+                skipUnavailable,
+                transportCompress,
+                remoteResponse.getVersions(),
+                remoteResponse.getStatus().name().toLowerCase(Locale.ROOT),
+                remoteResponse.getNodesCount(),
+                remoteResponse.getShardsCount(),
+                remoteResponse.getIndicesCount(),
+                remoteResponse.getIndicesBytes(),
+                remoteResponse.getHeapBytes(),
+                remoteResponse.getMemBytes()
+            );
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("cluster_uuid", clusterUUID);
+            builder.field("mode", mode);
+            if (skipUnavailable.isPresent()) {
+                builder.field("skip_unavailable", skipUnavailable.get());
+            }
+            builder.field("transport.compress", transportCompress);
+            builder.field("status", status);
+            builder.field("version", versions);
+            builder.field("nodes_count", nodesCount);
+            builder.field("shards_count", shardsCount);
+            builder.field("indices_count", indicesCount);
+            builder.humanReadableField("indices_total_size_in_bytes", "indices_total_size", ByteSizeValue.ofBytes(indicesBytes));
+            builder.humanReadableField("max_heap_in_bytes", "max_heap", ByteSizeValue.ofBytes(heapBytes));
+            builder.humanReadableField("mem_total_in_bytes", "mem_total", ByteSizeValue.ofBytes(memBytes));
+            builder.endObject();
+            return builder;
+        }
+    }
 }

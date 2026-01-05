@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -227,6 +226,8 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
         assertDimension(true, BooleanFieldMapper.BooleanFieldType::isDimension);
         assertDimension(false, BooleanFieldMapper.BooleanFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {
@@ -235,30 +236,14 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
     }
 
@@ -312,51 +297,69 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         return true;
     }
 
+    private class BooleanSyntheticSourceSupport implements SyntheticSourceSupport {
+        Boolean nullValue = usually() ? null : randomBoolean();
+        private boolean ignoreMalformed;
+
+        BooleanSyntheticSourceSupport(boolean ignoreMalformed) {
+            this.ignoreMalformed = ignoreMalformed;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) throws IOException {
+            if (randomBoolean()) {
+                Tuple<Boolean, Boolean> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<Boolean, Boolean>> values = randomList(1, maxVals, this::generateValue);
+            List<Boolean> in = values.stream().map(Tuple::v1).toList();
+            List<Boolean> outList = values.stream().map(Tuple::v2).sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Boolean, Boolean> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            boolean b = randomBoolean();
+            return Tuple.tuple(b, b);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            minimalMapping(b);
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+            b.field("ignore_malformed", ignoreMalformed);
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of();
+        }
+    };
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new SyntheticSourceSupport() {
-            Boolean nullValue = usually() ? null : randomBoolean();
-
-            @Override
-            public SyntheticSourceExample example(int maxVals) throws IOException {
-                if (randomBoolean()) {
-                    Tuple<Boolean, Boolean> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
-                }
-                List<Tuple<Boolean, Boolean>> values = randomList(1, maxVals, this::generateValue);
-                List<Boolean> in = values.stream().map(Tuple::v1).toList();
-                List<Boolean> outList = values.stream().map(Tuple::v2).sorted().toList();
-                Object out = outList.size() == 1 ? outList.get(0) : outList;
-                return new SyntheticSourceExample(in, out, this::mapping);
-            }
-
-            private Tuple<Boolean, Boolean> generateValue() {
-                if (nullValue != null && randomBoolean()) {
-                    return Tuple.tuple(null, nullValue);
-                }
-                boolean b = randomBoolean();
-                return Tuple.tuple(b, b);
-            }
-
-            private void mapping(XContentBuilder b) throws IOException {
-                minimalMapping(b);
-                if (nullValue != null) {
-                    b.field("null_value", nullValue);
-                }
-                b.field("ignore_malformed", ignoreMalformed);
-            }
-
-            @Override
-            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of();
-            }
-        };
+        return new BooleanSyntheticSourceSupport(ignoreMalformed);
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        // Just assert that we expect a boolean. Otherwise no munging.
-        return v -> (Boolean) v;
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode keepMode) {
+        return new BooleanSyntheticSourceSupport(ignoreMalformed) {
+            @Override
+            public SyntheticSourceExample example(int maxVals) throws IOException {
+                var example = super.example(maxVals);
+                // Need the expectedForSyntheticSource as inputValue since MapperTestCase#testSyntheticSourceKeepArrays
+                // uses the inputValue as both the input and expected.
+                return new SyntheticSourceExample(
+                    example.expectedForSyntheticSource(),
+                    example.expectedForSyntheticSource(),
+                    example.mapping()
+                );
+            }
+        };
     }
 
     protected IngestScriptSupport ingestScriptSupport() {
@@ -391,5 +394,14 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 };
             }
         };
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO: boolean field mapper uses a numeric comparator but is indexed with Terms
+            // so skipping doesn't work here.
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
     }
 }

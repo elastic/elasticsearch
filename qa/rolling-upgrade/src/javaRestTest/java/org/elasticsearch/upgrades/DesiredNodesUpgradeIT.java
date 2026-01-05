@@ -11,17 +11,14 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -43,24 +40,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
         desiredNodesVersion = upgradedNodes + 1;
     }
 
-    private enum ProcessorsPrecision {
-        DOUBLE,
-        FLOAT
-    }
-
     public void testUpgradeDesiredNodes() throws Exception {
-        assumeTrue("Desired nodes was introduced in 8.1", oldClusterHasFeature(RestTestLegacyFeatures.DESIRED_NODE_API_SUPPORTED));
-
-        if (oldClusterHasFeature(DesiredNode.DOUBLE_PROCESSORS_SUPPORTED)) {
-            assertUpgradedNodesCanReadDesiredNodes();
-        } else if (oldClusterHasFeature(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED)) {
-            assertDesiredNodesUpdatedWithRoundedUpFloatsAreIdempotent();
-        } else {
-            assertDesiredNodesWithFloatProcessorsAreRejectedInOlderVersions();
-        }
-    }
-
-    private void assertUpgradedNodesCanReadDesiredNodes() throws Exception {
         if (isMixedCluster() || isUpgradedCluster()) {
             final Map<String, Object> desiredNodes = getLatestDesiredNodes();
             final String historyId = extractValue(desiredNodes, "history_id");
@@ -69,58 +49,8 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
             assertThat(version, is(equalTo(desiredNodesVersion - 1)));
         }
 
-        addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(desiredNodesVersion, ProcessorsPrecision.DOUBLE);
+        addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(desiredNodesVersion);
         assertAllDesiredNodesAreActualized();
-    }
-
-    private void assertDesiredNodesUpdatedWithRoundedUpFloatsAreIdempotent() throws Exception {
-        // We define the same set of desired nodes to ensure that they are equal across all
-        // the test runs, otherwise we cannot guarantee an idempotent update in this test
-        final var desiredNodes = getNodeNames().stream()
-            .map(
-                nodeName -> new DesiredNode(
-                    Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
-                    1238.49922909,
-                    ByteSizeValue.ofGb(32),
-                    ByteSizeValue.ofGb(128),
-                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
-                )
-            )
-            .toList();
-
-        if (isMixedCluster()) {
-            updateDesiredNodes(desiredNodes, desiredNodesVersion - 1);
-        }
-        for (int i = 0; i < 2; i++) {
-            updateDesiredNodes(desiredNodes, desiredNodesVersion);
-        }
-
-        final Map<String, Object> latestDesiredNodes = getLatestDesiredNodes();
-        final int latestDesiredNodesVersion = extractValue(latestDesiredNodes, "version");
-        assertThat(latestDesiredNodesVersion, is(equalTo(desiredNodesVersion)));
-
-        if (isUpgradedCluster()) {
-            assertAllDesiredNodesAreActualized();
-        }
-    }
-
-    private void assertDesiredNodesWithFloatProcessorsAreRejectedInOlderVersions() throws Exception {
-        if (isOldCluster()) {
-            addClusterNodesToDesiredNodesWithIntegerProcessors(1);
-        } else if (isMixedCluster()) {
-            // Processor ranges or float processors are forbidden during upgrades: 8.2 -> 8.3 clusters
-            final var responseException = expectThrows(
-                ResponseException.class,
-                () -> addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(desiredNodesVersion, ProcessorsPrecision.FLOAT)
-            );
-            final var statusCode = responseException.getResponse().getStatusLine().getStatusCode();
-            assertThat(statusCode, is(equalTo(400)));
-        } else {
-            assertAllDesiredNodesAreActualized();
-            addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(4, ProcessorsPrecision.FLOAT);
-        }
-
-        getLatestDesiredNodes();
     }
 
     private Map<String, Object> getLatestDesiredNodes() throws IOException {
@@ -143,50 +73,30 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
         }
     }
 
-    private void addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(int version, ProcessorsPrecision processorsPrecision)
-        throws Exception {
+    private void addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(int version) throws Exception {
         final List<DesiredNode> nodes;
         if (randomBoolean()) {
             nodes = getNodeNames().stream()
                 .map(
                     nodeName -> new DesiredNode(
                         Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
-                        processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : 0.5f,
+                        randomDoubleProcessorCount(),
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                        ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                        clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
+                        ByteSizeValue.ofGb(randomIntBetween(128, 256))
                     )
                 )
                 .toList();
         } else {
             nodes = getNodeNames().stream().map(nodeName -> {
-                double minProcessors = processorsPrecision == ProcessorsPrecision.DOUBLE
-                    ? randomDoubleProcessorCount()
-                    : randomFloatProcessorCount();
+                double minProcessors = randomDoubleProcessorCount();
                 return new DesiredNode(
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                     new DesiredNode.ProcessorsRange(minProcessors, minProcessors + randomIntBetween(10, 20)),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                    ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
+                    ByteSizeValue.ofGb(randomIntBetween(128, 256))
                 );
             }).toList();
         }
-        updateDesiredNodes(nodes, version);
-    }
-
-    private void addClusterNodesToDesiredNodesWithIntegerProcessors(int version) throws Exception {
-        final var nodes = getNodeNames().stream()
-            .map(
-                nodeName -> new DesiredNode(
-                    Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
-                    randomIntBetween(1, 24),
-                    ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                    ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    clusterHasFeature(DesiredNode.DESIRED_NODE_VERSION_DEPRECATED) ? null : Build.current().version()
-                )
-            )
-            .toList();
         updateDesiredNodes(nodes, version);
     }
 
@@ -224,10 +134,6 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private double randomDoubleProcessorCount() {
         return randomDoubleBetween(0.5, 512.1234, true);
-    }
-
-    private float randomFloatProcessorCount() {
-        return randomIntBetween(1, 512) + randomFloat();
     }
 
     @SuppressWarnings("unchecked")

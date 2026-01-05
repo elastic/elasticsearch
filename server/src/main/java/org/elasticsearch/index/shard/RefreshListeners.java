@@ -147,8 +147,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             if (refreshForcers == 0 && roomForListener(maxRefreshes, listeners, checkpointRefreshListeners)) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContextPreservingResponseHeaders();
                 Consumer<Boolean> contextPreservingListener = forced -> {
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        storedContext.restore();
+                    try (var ignore = threadContext.restoreExistingContext(storedContext)) {
                         listener.accept(forced);
                     }
                 };

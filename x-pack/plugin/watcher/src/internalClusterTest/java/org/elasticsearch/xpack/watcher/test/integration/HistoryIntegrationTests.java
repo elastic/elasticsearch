@@ -120,7 +120,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertBusy(() -> { assertHitCount(getWatchHistory(), 1); });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, ".watcher-history*").get();
         XContentSource source = new XContentSource(
             response.getMappings().values().iterator().next().source().uncompressed(),
             XContentType.JSON
@@ -130,7 +130,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
             String chainedPath = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.chain.properties.chained.properties.search"
                 + ".properties.request.properties.body.enabled";
-            assertThat(source.getValue(chainedPath), is(false));
+            assertThat(source.getValue(chainedPath), nullValue());
         } else {
             String path = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
@@ -162,17 +162,17 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertBusy(() -> { assertHitCount(getWatchHistory(), 1); });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, ".watcher-history*").get();
         XContentSource source = new XContentSource(
             response.getMappings().values().iterator().next().source().uncompressed(),
             XContentType.JSON
         );
 
-        // lets make sure the body fields are disabled
+        // let's make sure the body fields are disabled or, in the case of chained, the whole object is not indexed
         if (useChained) {
             String path = SINGLE_MAPPING_NAME
                 + ".properties.result.properties.input.properties.chain.properties.chained.properties.payload.enabled";
-            assertThat(source.getValue(path), is(false));
+            assertThat(source.getValue(path), nullValue());
         } else {
             String path = SINGLE_MAPPING_NAME + ".properties.result.properties.input.properties.payload.enabled";
             assertThat(source.getValue(path), is(false));
@@ -225,7 +225,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             // also ensure that the status field is disabled in the watch history
-            GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
+            GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, ".watcher-history*").get();
             XContentSource mappingSource = new XContentSource(
                 response.getMappings().values().iterator().next().source().uncompressed(),
                 XContentType.JSON

@@ -13,8 +13,8 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 
 public final class HttpProxyTestContainer extends DockerEnvironmentAwareTestContainer {
 
-    public static final String DOCKER_BASE_IMAGE = "nginx:latest";
     private static final Integer PORT = 8888;
+    private static final Integer TLS_PORT = 8889;
 
     /**
      * for packer caching only
@@ -25,15 +25,18 @@ public final class HttpProxyTestContainer extends DockerEnvironmentAwareTestCont
 
     public HttpProxyTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-http-proxy-fixture").withDockerfileFromBuilder(
-                builder -> builder.from(DOCKER_BASE_IMAGE).copy("oidc/nginx.conf", "/etc/nginx/nginx.conf").build()
-            ).withFileFromClasspath("oidc/nginx.conf", "/oidc/nginx.conf")
+            new ImageFromDockerfile("es-http-proxy-fixture").withFileFromClasspath("Dockerfile", "nginx/Dockerfile")
+                .withFileFromClasspath("nginx/nginx.conf", "/nginx/nginx.conf")
         );
-        addExposedPort(PORT);
+        addExposedPorts(PORT, TLS_PORT);
         withNetwork(network);
     }
 
     public Integer getProxyPort() {
         return getMappedPort(PORT);
+    }
+
+    public Integer getTlsPort() {
+        return getMappedPort(TLS_PORT);
     }
 }

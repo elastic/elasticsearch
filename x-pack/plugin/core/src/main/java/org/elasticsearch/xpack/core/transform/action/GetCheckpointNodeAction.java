@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -88,7 +87,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
         }
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends LegacyActionRequest implements IndicesRequest {
 
         private final Set<ShardId> shards;
         private final OriginalIndices originalIndices;
@@ -104,11 +103,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             super(in);
             this.shards = in.readCollectionAsImmutableSet(ShardId::new);
             this.originalIndices = OriginalIndices.readOriginalIndices(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.timeout = in.readOptionalTimeValue();
-            } else {
-                this.timeout = null;
-            }
+            this.timeout = in.readOptionalTimeValue();
         }
 
         @Override
@@ -121,9 +116,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             super.writeTo(out);
             out.writeCollection(shards);
             OriginalIndices.writeOriginalIndices(originalIndices, out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeOptionalTimeValue(timeout);
-            }
+            out.writeOptionalTimeValue(timeout);
         }
 
         public Set<ShardId> getShards() {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -37,12 +38,11 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
@@ -60,16 +60,27 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "cartesian_point",
             "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
-            "text",
+            "unsigned_long",
             "version" },
-        description = "Returns a subset of the multivalued field using the start and end index values.",
+        description = """
+            Returns a subset of the multivalued field using the start and end index values.
+            This is most useful when reading from a function that emits multivalued columns
+            in a known order like <<esql-split>> or <<esql-mv_sort>>.""",
+        detailedDescription = """
+            The order that <<esql-multivalued-fields, multivalued fields>> are read from
+            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
+            rely on that.""",
         examples = { @Example(file = "ints", tag = "mv_slice_positive"), @Example(file = "ints", tag = "mv_slice_negative") }
     )
     public MvSlice(
@@ -81,14 +92,19 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" },
             description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
@@ -123,7 +139,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(start);
         out.writeOptionalNamedWriteable(end);
@@ -152,7 +168,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field, DataType::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -178,12 +194,10 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (start.foldable() && end.foldable()) {
-            int startOffset = stringToInt(String.valueOf(start.fold()));
-            int endOffset = stringToInt(String.valueOf(end.fold()));
+            int startOffset = stringToInt(String.valueOf(start.fold(toEvaluator.foldCtx())));
+            int endOffset = stringToInt(String.valueOf(end.fold(toEvaluator.foldCtx())));
             checkStartEnd(startOffset, endOffset);
         }
         return switch (PlannerUtils.toElementType(field.dataType())) {
@@ -234,7 +248,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 
     static int adjustIndex(int oldOffset, int fieldValueCount, int first) {
@@ -251,7 +265,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "Boolean", warnExceptions = { InvalidArgumentException.class })
-    static void process(BooleanBlock.Builder builder, int position, BooleanBlock field, int start, int end) {
+    static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end);
         int first = field.getFirstValueIndex(position);
@@ -275,7 +289,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "Int", warnExceptions = { InvalidArgumentException.class })
-    static void process(IntBlock.Builder builder, int position, IntBlock field, int start, int end) {
+    static void process(IntBlock.Builder builder, @Position int position, IntBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end);
         int first = field.getFirstValueIndex(position);
@@ -299,7 +313,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "Long", warnExceptions = { InvalidArgumentException.class })
-    static void process(LongBlock.Builder builder, int position, LongBlock field, int start, int end) {
+    static void process(LongBlock.Builder builder, @Position int position, LongBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end);
         int first = field.getFirstValueIndex(position);
@@ -323,7 +337,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "Double", warnExceptions = { InvalidArgumentException.class })
-    static void process(DoubleBlock.Builder builder, int position, DoubleBlock field, int start, int end) {
+    static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end);
         int first = field.getFirstValueIndex(position);
@@ -347,7 +361,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Evaluator(extraName = "BytesRef", warnExceptions = { InvalidArgumentException.class })
-    static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock field, int start, int end) {
+    static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock field, int start, int end) {
         int fieldValueCount = field.getValueCount(position);
         checkStartEnd(start, end); // append null here ?
         int first = field.getFirstValueIndex(position);

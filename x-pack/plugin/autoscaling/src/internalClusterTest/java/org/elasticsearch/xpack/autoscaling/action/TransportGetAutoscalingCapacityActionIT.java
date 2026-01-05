@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.autoscaling.action;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.os.OsProbe;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
@@ -28,7 +27,6 @@ import static org.hamcrest.Matchers.greaterThan;
     value = "org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacityAction:debug",
     reason = "to ensure we log autoscaling capacity response on DEBUG level"
 )
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTestCase {
 
     public void testCurrentCapacity() throws Exception {

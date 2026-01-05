@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,9 +65,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         slop = in.readVInt();
         maxExpansions = in.readVInt();
         analyzer = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            this.zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
-        }
+        zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
     }
 
     @Override
@@ -78,9 +75,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         out.writeVInt(slop);
         out.writeVInt(maxExpansions);
         out.writeOptionalString(analyzer);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            zeroTermsQuery.writeTo(out);
-        }
+        zeroTermsQuery.writeTo(out);
     }
 
     /** Returns the field name used in this query. */
@@ -100,11 +95,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     public MatchPhrasePrefixQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
-    }
-
-    /** Get the analyzer to use, if previously set, otherwise {@code null} */
-    public String analyzer() {
-        return this.analyzer;
     }
 
     /** Sets a slop factor for phrase queries */
@@ -295,6 +285,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

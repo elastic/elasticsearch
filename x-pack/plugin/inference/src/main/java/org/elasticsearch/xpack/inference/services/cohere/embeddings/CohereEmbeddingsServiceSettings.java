@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -82,7 +82,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
      * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
      * type was persisted as a CohereEmbeddingType enum. After
      * DenseVectorFieldMapper.ElementType was used.
-     *
+     * <p>
      * Parse either and convert to a CohereEmbeddingType
      */
     static CohereEmbeddingType fromCohereOrDenseVectorEnumValues(String enumString, ValidationException validationException) {
@@ -174,13 +174,18 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
         out.writeOptionalEnum(CohereEmbeddingType.translateToVersion(embeddingType, out.getTransportVersion()));
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

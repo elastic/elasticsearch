@@ -15,7 +15,6 @@
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -35,7 +34,7 @@ def ccsSupportedVersion = bwcVersion -> {
   return currentVersion.minor == 0 || (currentVersion.major == bwcVersion.major && currentVersion.minor - bwcVersion.minor <= 1)
 }
 
-BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
 
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 2

@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -36,19 +36,38 @@ import static java.util.Collections.singletonList;
  * extraction.
  */
 public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
+    public static String ALL_FIELDS_PROJECTED = "<all-fields-projected>";
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
-        Holder<AttributeSet> requiredAttributes = new Holder<>(plan.outputSet());
+        AttributeSet.Builder requiredAttrBuilder = plan.outputSet().asBuilder();
 
-        // This will require updating should we choose to have non-unary execution plans in the future.
-        return plan.transformDown(UnaryExec.class, currentPlanNode -> {
+        return plan.transformDown(currentPlanNode -> {
             if (keepTraversing.get() == false) {
                 return currentPlanNode;
             }
+
+            // for non-unary execution plans, we apply the rule for each child
+            if (currentPlanNode instanceof MergeExec mergeExec) {
+                keepTraversing.set(FALSE);
+                List<PhysicalPlan> newChildren = new ArrayList<>();
+                boolean changed = false;
+
+                for (var child : mergeExec.children()) {
+                    var newChild = apply(child);
+
+                    if (newChild != child) {
+                        changed = true;
+                    }
+
+                    newChildren.add(newChild);
+                }
+                return changed ? new MergeExec(mergeExec.source(), newChildren, mergeExec.output()) : mergeExec;
+            }
+
             if (currentPlanNode instanceof ExchangeExec exec) {
                 keepTraversing.set(FALSE);
                 var child = exec.child();
@@ -58,13 +77,25 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     // no need for projection when dealing with aggs
                     if (logicalFragment instanceof Aggregate == false) {
-                        List<Attribute> output = new ArrayList<>(requiredAttributes.get());
+                        // we should respect the order of the attributes
+                        List<Attribute> output = new ArrayList<>();
+                        for (Attribute attribute : logicalFragment.output()) {
+                            if (requiredAttrBuilder.contains(attribute)) {
+                                output.add(attribute);
+                                requiredAttrBuilder.remove(attribute);
+                            }
+                        }
+                        // requiredAttrBuilder should be empty unless the plan is inconsistent due to a bug.
+                        // This can happen in case of remote ENRICH, see https://github.com/elastic/elasticsearch/issues/118531
+                        // TODO: stop adding the remaining required attributes once remote ENRICH is fixed.
+                        output.addAll(requiredAttrBuilder.build());
+
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                         // to avoid the block from being trimmed
                         if (output.isEmpty()) {
-                            var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", Literal.NULL, null, true);
+                            var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
                             List<Alias> fields = singletonList(alias);
                             logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
                             output = Expressions.asAttributes(fields);
@@ -74,16 +105,16 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                             Source.EMPTY,
                             new Project(logicalFragment.source(), logicalFragment, output),
                             fragmentExec.esFilter(),
-                            fragmentExec.estimatedRowSize(),
-                            fragmentExec.reducer()
+                            fragmentExec.estimatedRowSize()
                         );
                         return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
                     }
                 }
             } else {
-                AttributeSet childOutput = currentPlanNode.inputSet();
-                AttributeSet addedAttributes = currentPlanNode.outputSet().subtract(childOutput);
-                requiredAttributes.set(requiredAttributes.get().subtract(addedAttributes).combine(currentPlanNode.references()));
+                AttributeSet.Builder addedAttrBuilder = currentPlanNode.outputSet().asBuilder();
+                addedAttrBuilder.removeIf(currentPlanNode.inputSet()::contains);
+                requiredAttrBuilder.removeIf(addedAttrBuilder::contains);
+                requiredAttrBuilder.addAll(currentPlanNode.references());
             }
             return currentPlanNode;
         });

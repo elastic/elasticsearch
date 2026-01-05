@@ -14,10 +14,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -29,8 +31,10 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentDataHelperTests extends ESTestCase {
@@ -57,6 +61,7 @@ public class XContentDataHelperTests extends ESTestCase {
         parser.nextToken();
 
         var encoded = XContentDataHelper.encodeToken(parser);
+        assertThat(XContentDataHelper.isEncodedObject(encoded), equalTo(value instanceof Map));
         var decoded = XContentFactory.jsonBuilder();
         XContentDataHelper.decodeAndWrite(decoded, encoded);
 
@@ -65,7 +70,7 @@ public class XContentDataHelperTests extends ESTestCase {
 
     public void testBoolean() throws IOException {
         boolean b = randomBoolean();
-        assertEquals(b, Boolean.parseBoolean(encodeAndDecode(b)));
+        assertEquals(b, Booleans.parseBoolean(encodeAndDecode(b)));
     }
 
     public void testString() throws IOException {
@@ -124,6 +129,7 @@ public class XContentDataHelperTests extends ESTestCase {
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parser.nextToken();
             var encoded = XContentDataHelper.encodeToken(parser);
+            assertFalse(XContentDataHelper.isEncodedObject(encoded));
 
             var decoded = XContentFactory.jsonBuilder();
             XContentDataHelper.decodeAndWrite(decoded, encoded);
@@ -132,12 +138,13 @@ public class XContentDataHelperTests extends ESTestCase {
         }
 
         var encoded = XContentDataHelper.encodeXContentBuilder(builder);
+        assertTrue(XContentDataHelper.isEncodedObject(encoded));
 
         var decoded = XContentFactory.jsonBuilder();
         XContentDataHelper.decodeAndWrite(decoded, encoded);
         var decodedBytes = BytesReference.bytes(builder);
 
-        assertEquals(originalBytes, decodedBytes);
+        assertThat(decodedBytes, equalBytes(originalBytes));
     }
 
     public void testObject() throws IOException {
@@ -147,13 +154,71 @@ public class XContentDataHelperTests extends ESTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
-        XContentDataHelper.decodeAndWrite(builder, XContentDataHelper.encodeToken(p));
+        var encoded = XContentDataHelper.encodeToken(p);
+        assertTrue(XContentDataHelper.isEncodedObject(encoded));
+        XContentDataHelper.decodeAndWrite(builder, encoded);
         assertEquals(object, Strings.toString(builder));
 
         XContentBuilder builder2 = XContentFactory.jsonBuilder();
         builder2.humanReadable(true);
         XContentDataHelper.decodeAndWrite(builder2, XContentDataHelper.encodeXContentBuilder(builder));
         assertEquals(object, Strings.toString(builder2));
+    }
+
+    public void testObjectWithFilter() throws IOException {
+        String object = "{\"name\":\"foo\",\"path\":{\"filter\":{\"keep\":[0],\"field\":\"value\"}}}";
+        String filterObject = "{\"name\":\"foo\",\"path\":{\"filter\":{\"keep\":[0]}}}";
+
+        XContentParser p = createParser(JsonXContent.jsonXContent, object);
+        assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+            null,
+            null,
+            Set.of("path.filter.field"),
+            true
+        );
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.humanReadable(true);
+        XContentDataHelper.decodeAndWriteXContent(parserConfig, builder, XContentType.JSON, XContentDataHelper.encodeToken(p));
+        assertEquals(filterObject, Strings.toString(builder));
+
+        XContentBuilder builder2 = XContentFactory.jsonBuilder();
+        builder2.humanReadable(true);
+        XContentDataHelper.decodeAndWriteXContent(
+            parserConfig,
+            builder2,
+            XContentType.JSON,
+            XContentDataHelper.encodeXContentBuilder(builder)
+        );
+        assertEquals(filterObject, Strings.toString(builder2));
+    }
+
+    public void testObjectWithFilterRootPath() throws IOException {
+        String object = "{\"name\":\"foo\",\"path\":{\"filter\":{\"keep\":[0],\"field\":\"value\"}}}";
+        String filterObject = "{\"path\":{\"filter\":{\"keep\":[0]}}}";
+
+        XContentParser p = createParser(JsonXContent.jsonXContent, object);
+        assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+            "root.obj.sub_obj",
+            Set.of("root.obj.sub_obj.path"),
+            Set.of("root.obj.sub_obj.path.filter.field"),
+            true
+        );
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.humanReadable(true);
+        XContentDataHelper.decodeAndWriteXContent(parserConfig, builder, XContentType.JSON, XContentDataHelper.encodeToken(p));
+        assertEquals(filterObject, Strings.toString(builder));
+
+        XContentBuilder builder2 = XContentFactory.jsonBuilder();
+        builder2.humanReadable(true);
+        XContentDataHelper.decodeAndWriteXContent(
+            parserConfig,
+            builder2,
+            XContentType.JSON,
+            XContentDataHelper.encodeXContentBuilder(builder)
+        );
+        assertEquals(filterObject, Strings.toString(builder2));
     }
 
     public void testArrayInt() throws IOException {
@@ -252,7 +317,7 @@ public class XContentDataHelperTests extends ESTestCase {
 
         var destination = XContentFactory.contentBuilder(xContentType);
         destination.startObject();
-        XContentDataHelper.writeMerged(destination, "foo", List.of(firstEncoded, secondEncoded));
+        XContentDataHelper.writeMerged(XContentParserConfiguration.EMPTY, destination, "foo", List.of(firstEncoded, secondEncoded));
         destination.endObject();
 
         return XContentHelper.convertToMap(BytesReference.bytes(destination), false, xContentType).v2();

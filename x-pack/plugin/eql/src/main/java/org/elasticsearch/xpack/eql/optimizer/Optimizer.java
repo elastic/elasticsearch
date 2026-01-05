@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
 import org.elasticsearch.xpack.eql.util.StringUtils;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
@@ -252,6 +252,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     }
 
+    static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn {
+
+        @Override
+        protected boolean shouldValidateIn() {
+            return true;
+        }
+    }
+
     static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
 
         @Override
@@ -409,23 +417,29 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             List<Expression> and = Predicates.splitAnd(condition);
             for (Expression exp : and) {
-                // if there are no conjunction and at least one key matches, save the expression along with the key
-                // and its ordinal so it can be replaced
-                if (exp.anyMatch(Or.class::isInstance) == false) {
-                    // comparisons against variables are not done
-                    // hence why on the first key match, the expression is picked up
-                    exp.anyMatch(e -> {
-                        for (int i = 0; i < keys.size(); i++) {
-                            Expression key = keys.get(i);
-                            if (e.semanticEquals(key)) {
-                                constraints.add(new Constraint(exp, filter, i));
-                                return true;
-                            }
-                        }
-                        return false;
-                    });
+                // if the expression only involves filter keys, it's simple enough (eg. there are no conjunction), and at least one key
+                // matches, save the expression along with the key and its ordinal so it can be replaced
+                if (exp.anyMatch(Or.class::isInstance)) {
+                    continue;
                 }
+
+                // expressions that involve attributes other than the keys have to be discarded
+                if (exp.anyMatch(x -> x instanceof Attribute && keys.stream().noneMatch(k -> x.semanticEquals(k)))) {
+                    continue;
+                }
+
+                exp.anyMatch(e -> {
+                    for (int i = 0; i < keys.size(); i++) {
+                        Expression key = keys.get(i);
+                        if (e.semanticEquals(key)) {
+                            constraints.add(new Constraint(exp, filter, i));
+                            return true;
+                        }
+                    }
+                    return false;
+                });
             }
+
             return constraints;
         }
 

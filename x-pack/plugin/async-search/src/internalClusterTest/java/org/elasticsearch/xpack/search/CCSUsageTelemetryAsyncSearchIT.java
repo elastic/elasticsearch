@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -23,6 +22,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,15 +51,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@TestLogging(
+    reason = "testing debug log output to identify race condition",
+    value = "org.elasticsearch.xpack.search.MutableSearchResponse:DEBUG,org.elasticsearch.xpack.search.AsyncSearchTask:DEBUG"
+)
 public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE1 = "cluster-a";
     private static final String REMOTE2 = "cluster-b";
-    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
-
-    @BeforeClass
-    protected static void skipIfTelemetryDisabled() {
-        assumeTrue("Skipping test as CCS_TELEMETRY_FEATURE_FLAG is disabled", CCS_TELEMETRY_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected boolean reuseClusters() {
@@ -68,7 +65,7 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
     }
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE1, REMOTE2);
     }
 
@@ -95,7 +92,7 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
     }
 
     private SubmitAsyncSearchRequest makeSearchRequest(String... indices) {
-        CrossClusterAsyncSearchIT.SearchListenerPlugin.blockQueryPhase();
+        CrossClusterAsyncSearchIT.SearchListenerPlugin.blockLocalQueryPhase();
 
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indices);
         request.setCcsMinimizeRoundtrips(randomBoolean());
@@ -228,7 +225,8 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
         SubmitAsyncSearchRequest searchRequest = makeSearchRequest(localIndex, REMOTE1 + ":" + remoteIndex);
-        CrossClusterAsyncSearchIT.SearchListenerPlugin.blockQueryPhase();
+        CrossClusterAsyncSearchIT.SearchListenerPlugin.blockLocalQueryPhase();
+        CrossClusterAsyncSearchIT.SearchListenerPlugin.blockRemoteQueryPhase();
 
         String nodeName = cluster(LOCAL_CLUSTER).getRandomNodeName();
         final AsyncSearchResponse response = cluster(LOCAL_CLUSTER).client(nodeName)
@@ -240,7 +238,8 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
             response.decRef();
             assertTrue(response.isRunning());
         }
-        CrossClusterAsyncSearchIT.SearchListenerPlugin.waitSearchStarted();
+        CrossClusterAsyncSearchIT.SearchListenerPlugin.waitLocalSearchStarted();
+        CrossClusterAsyncSearchIT.SearchListenerPlugin.waitRemoteSearchStarted();
 
         ActionFuture<ListTasksResponse> cancelFuture;
         try {
@@ -298,7 +297,8 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
                 assertTrue(taskInfo.description(), taskInfo.cancelled());
             }
         } finally {
-            CrossClusterAsyncSearchIT.SearchListenerPlugin.allowQueryPhase();
+            CrossClusterAsyncSearchIT.SearchListenerPlugin.allowLocalQueryPhase();
+            CrossClusterAsyncSearchIT.SearchListenerPlugin.allowRemoteQueryPhase();
         }
 
         assertBusy(() -> assertTrue(cancelFuture.isDone()));
@@ -322,7 +322,7 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
     }
 
     private Map<String, Object> setupClusters() {
-        String localIndex = "demo";
+        String localIndex = "local";
         int numShardsLocal = randomIntBetween(2, 10);
         Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
         assertAcked(
@@ -334,7 +334,7 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
         );
         indexDocs(client(LOCAL_CLUSTER), localIndex);
 
-        String remoteIndex = "prod";
+        String remoteIndex = "remote";
         int numShardsRemote = randomIntBetween(2, 10);
         for (String clusterAlias : remoteClusterAlias()) {
             final InternalTestCluster remoteCluster = cluster(clusterAlias);

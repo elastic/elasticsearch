@@ -8,12 +8,9 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +25,6 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -190,7 +186,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(randomEvents(xType), null, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -198,7 +194,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomBoolean(),
                 randomAlphaOfLength(10),
                 randomBoolean(),
-                randomBoolean()
+                randomBoolean(),
+                ShardSearchFailure.EMPTY_ARRAY
             );
         }
     }
@@ -222,7 +219,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             hits = new EqlSearchResponse.Hits(null, seq, totalHits);
         }
         if (randomBoolean()) {
-            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
+            return new EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(), ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return new EqlSearchResponse(
                 hits,
@@ -230,7 +227,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 randomBoolean(),
                 randomAlphaOfLength(10),
                 randomBoolean(),
-                randomBoolean()
+                randomBoolean(),
+                ShardSearchFailure.EMPTY_ARRAY
             );
         }
     }
@@ -273,7 +271,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
             instance.isTimeout(),
             instance.id(),
             instance.isRunning(),
-            instance.isPartial()
+            instance.isPartial(),
+            ShardSearchFailure.EMPTY_ARRAY
         );
     }
 
@@ -283,27 +282,8 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
         }
         List<Event> mutatedEvents = new ArrayList<>(original.size());
         for (Event e : original) {
-            mutatedEvents.add(
-                new Event(
-                    e.index(),
-                    e.id(),
-                    e.source(),
-                    version.onOrAfter(TransportVersions.V_7_13_0) ? e.fetchFields() : null,
-                    version.onOrAfter(TransportVersions.V_8_10_X) ? e.missing() : e.index().isEmpty()
-                )
-            );
+            mutatedEvents.add(new Event(e.index(), e.id(), e.source(), e.fetchFields(), e.missing()));
         }
         return mutatedEvents;
-    }
-
-    public void testEmptyIndexAsMissingEvent() throws IOException {
-        Event event = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, false);
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersions.V_8_9_X);// 8.9.1
-        event.writeTo(out);
-        ByteArrayStreamInput in = new ByteArrayStreamInput(out.bytes().array());
-        in.setTransportVersion(TransportVersions.V_8_9_X);
-        Event event2 = Event.readFrom(in);
-        assertTrue(event2.missing());
     }
 }

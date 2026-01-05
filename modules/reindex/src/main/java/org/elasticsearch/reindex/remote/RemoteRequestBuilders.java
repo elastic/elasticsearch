@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -53,7 +54,7 @@ final class RemoteRequestBuilders {
         Request request = new Request("POST", path.toString());
 
         if (searchRequest.scroll() != null) {
-            TimeValue keepAlive = searchRequest.scroll().keepAlive();
+            TimeValue keepAlive = searchRequest.scroll();
             // V_5_0_0
             if (remoteVersion.before(Version.fromId(5000099))) {
                 /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
@@ -140,12 +141,32 @@ final class RemoteRequestBuilders {
                 }
             }
 
-            if (searchRequest.source().fetchSource() != null) {
-                entity.field("_source", searchRequest.source().fetchSource());
-            } else {
+            var fetchSource = searchRequest.source().fetchSource();
+            if (fetchSource == null) {
                 if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
                     // Versions before 1.0 don't support `"_source": true` so we have to ask for the source as a stored field.
                     entity.field("_source", true);
+                }
+            } else {
+                if (remoteVersion.onOrAfter(Version.V_9_1_0) || fetchSource.excludeVectors() == null) {
+                    entity.field("_source", fetchSource);
+                } else {
+                    // Versions before 9.1.0 don't support "exclude_vectors" so we need to manually convert.
+                    if (fetchSource.includes().length == 0 && fetchSource.excludes().length == 0) {
+                        if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
+                            // Versions before 1.0 don't support `"_source": true` so we have to ask for the source as a stored field.
+                            entity.field("_source", true);
+                        }
+                    } else {
+                        entity.startObject("_source");
+                        if (fetchSource.includes().length > 0) {
+                            entity.field(FetchSourceContext.INCLUDES_FIELD.getPreferredName(), fetchSource.includes());
+                        }
+                        if (fetchSource.excludes().length > 0) {
+                            entity.field(FetchSourceContext.EXCLUDES_FIELD.getPreferredName(), fetchSource.excludes());
+                        }
+                        entity.endObject();
+                    }
                 }
             }
 

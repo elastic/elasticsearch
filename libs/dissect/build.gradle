@@ -9,7 +9,7 @@
 
 dependencies {
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-dissect'
+    exclude group: 'org.elasticsearch', module: 'dissect'
   }
   testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   testImplementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"

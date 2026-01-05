@@ -11,18 +11,19 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
-import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -51,9 +52,22 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
         float[] vector = randomVector(dim);
         int k = randomIntBetween(1, 100);
         int numCands = randomIntBetween(k + 20, 1000);
+        Float visitPercentage = randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true);
         Float similarity = randomBoolean() ? null : randomFloat();
+        RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
+            ? null
+            : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
 
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(field, vector, null, k, numCands, similarity);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            field,
+            vector,
+            null,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            similarity
+        );
 
         List<QueryBuilder> preFilterQueryBuilders = new ArrayList<>();
 
@@ -75,12 +89,9 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
 
     @Override
     protected KnnRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return KnnRetrieverBuilder.fromXContent(
+        return (KnnRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == KnnRetrieverBuilder.KNN_RETRIEVER_SUPPORTED
-            )
+            new RetrieverParserContext(new SearchUsage(), Predicates.never())
         );
     }
 
@@ -94,6 +105,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
             assertNull(source.query());
             assertThat(source.knnSearch().size(), equalTo(1));
             assertThat(source.knnSearch().get(0).getFilterQueries().size(), equalTo(knnRetriever.preFilterQueryBuilders.size()));
+            assertThat(source.knnSearch().get(0).getRescoreVectorBuilder(), equalTo(knnRetriever.rescoreVectorBuilder()));
             for (int j = 0; j < knnRetriever.preFilterQueryBuilders.size(); j++) {
                 assertThat(
                     source.knnSearch().get(0).getFilterQueries().get(j),
@@ -122,17 +134,15 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
         final int preFilters = knnRetriever.preFilterQueryBuilders.size();
         QueryBuilder topDocsQuery = knnRetriever.topDocsQuery();
         assertNotNull(topDocsQuery);
-        assertThat(topDocsQuery, instanceOf(BoolQueryBuilder.class));
-        assertThat(((BoolQueryBuilder) topDocsQuery).filter().size(), equalTo(1 + preFilters));
-        assertThat(((BoolQueryBuilder) topDocsQuery).filter().get(0), instanceOf(RankDocsQueryBuilder.class));
-        for (int i = 0; i < preFilters; i++) {
-            assertThat(
-                ((BoolQueryBuilder) topDocsQuery).filter().get(i + 1),
-                instanceOf(knnRetriever.preFilterQueryBuilders.get(i).getClass())
-            );
+        assertThat(topDocsQuery, anyOf(instanceOf(RankDocsQueryBuilder.class), instanceOf(BoolQueryBuilder.class)));
+        if (topDocsQuery instanceof BoolQueryBuilder bq) {
+            assertThat(bq.must().size(), equalTo(1));
+            assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
+            assertThat(bq.filter().size(), equalTo(preFilters));
+            for (int i = 0; i < preFilters; i++) {
+                assertThat(bq.filter().get(i), instanceOf(knnRetriever.preFilterQueryBuilders.get(i).getClass()));
+            }
         }
-        assertThat(((BoolQueryBuilder) topDocsQuery).should().size(), equalTo(1));
-        assertThat(((BoolQueryBuilder) topDocsQuery).should().get(0), instanceOf(ExactKnnQueryBuilder.class));
     }
 
     @Override

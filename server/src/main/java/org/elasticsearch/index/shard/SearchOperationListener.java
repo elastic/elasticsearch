@@ -15,6 +15,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * An listener for search, fetch and context events.
@@ -64,6 +65,37 @@ public interface SearchOperationListener {
      * @see #onFailedFetchPhase(SearchContext)
      */
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
+
+    /**
+     * Executed before the DFS phase is executed
+     * @param searchContext the current search context
+     */
+    default void onPreDfsPhase(SearchContext searchContext) {}
+
+    /**
+     * Executed after the query DFS successfully finished.
+     * Note: this is not invoked if the DFS phase execution failed.
+     * @param searchContext the current search context
+     * @param tookInNanos the number of nanoseconds the query execution took
+     *
+     * @see #onFailedQueryPhase(SearchContext)
+     */
+    default void onDfsPhase(SearchContext searchContext, long tookInNanos) {}
+
+    /**
+     * Executed if a dfs phased failed.
+     * @param searchContext the current search context
+     */
+    default void onFailedDfsPhase(SearchContext searchContext) {}
+
+    /**
+     * Executed after the can-match phase successfully finished.
+     * Note: this is not invoked if the can match phase execution failed.
+     *
+     * @param searchRequestAttributes the attributes of the search request
+     * @param tookInNanos the number of nanoseconds the can-match execution took
+     */
+    default void onCanMatchPhase(Map<String, Object> searchRequestAttributes, long tookInNanos) {}
 
     /**
      * Executed when a new reader context was created
@@ -178,6 +210,50 @@ public interface SearchOperationListener {
                     listener.onFetchPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> "onFetchPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onPreDfsPhase(SearchContext searchContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onPreDfsPhase(searchContext);
+                } catch (Exception e) {
+                    logger.warn(() -> "onPreDfsPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onFailedDfsPhase(SearchContext searchContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onFailedDfsPhase(searchContext);
+                } catch (Exception e) {
+                    logger.warn(() -> "onFailedDfsPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onDfsPhase(searchContext, tookInNanos);
+                } catch (Exception e) {
+                    logger.warn(() -> "onDfsPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onCanMatchPhase(Map<String, Object> searchRequestAttributes, long tookInNanos) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onCanMatchPhase(searchRequestAttributes, tookInNanos);
+                } catch (Exception e) {
+                    logger.warn(() -> "onCanMatchPhase listener [" + listener + "] failed", e);
                 }
             }
         }

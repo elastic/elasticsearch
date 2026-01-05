@@ -81,7 +81,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * This class implements CRUD operation for the
  * datafeed configuration document
  *
- * The number of datafeeds returned in a search it limited to
+ * The number of datafeeds returned in a search is limited to
  * {@link MlConfigIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
  * In most cases we expect 10s or 100s of datafeeds to be defined and
  * a search for all datafeeds should return all.
@@ -226,7 +226,7 @@ public class DatafeedConfigProvider {
             listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 Set<String> datafeedIds = new HashSet<>();
                 // There cannot be more than one datafeed per job
-                assert response.getHits().getTotalHits().value <= jobIds.size();
+                assert response.getHits().getTotalHits().value() <= jobIds.size();
                 SearchHit[] hits = response.getHits().getHits();
 
                 for (SearchHit hit : hits) {
@@ -259,7 +259,7 @@ public class DatafeedConfigProvider {
             listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 Map<String, DatafeedConfig.Builder> datafeedsByJobId = new HashMap<>();
                 // There cannot be more than one datafeed per job
-                assert response.getHits().getTotalHits().value <= jobIds.size();
+                assert response.getHits().getTotalHits().value() <= jobIds.size();
                 SearchHit[] hits = response.getHits().getHits();
                 for (SearchHit hit : hits) {
                     DatafeedConfig.Builder builder = parseLenientlyFromSource(hit.getSourceRef());

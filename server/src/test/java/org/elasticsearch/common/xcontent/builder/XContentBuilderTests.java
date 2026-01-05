@@ -167,7 +167,7 @@ public class XContentBuilderTests extends ESTestCase {
         gen.writeStartObject();
         gen.writeStringField("name", "something");
         gen.flush();
-        bos.write(", source : { test : \"value\" }".getBytes("UTF8"));
+        bos.write(", source : { test : \"value\" }".getBytes(StandardCharsets.UTF_8));
         gen.writeStringField("name2", "something2");
         gen.writeEndObject();
         gen.close();
@@ -189,7 +189,7 @@ public class XContentBuilderTests extends ESTestCase {
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
         String expectedCalendar = XContentElasticsearchExtension.DEFAULT_FORMATTER.format(calendar.toInstant());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject().timeField("date", date).endObject();
+        builder.startObject().timestampField("date", date).endObject();
         assertThat(Strings.toString(builder), equalTo("{\"date\":\"" + expectedDate + "\"}"));
 
         builder = XContentFactory.contentBuilder(XContentType.JSON);

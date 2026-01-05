@@ -25,6 +25,8 @@ package org.elasticsearch.tdigest.arrays;
  * Minimal interface for BigArrays-like classes used within TDigest.
  */
 public interface TDigestArrays {
+    void adjustBreaker(long size);
+
     TDigestDoubleArray newDoubleArray(int initialSize);
 
     TDigestIntArray newIntArray(int initialSize);

@@ -10,7 +10,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitTests;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -18,6 +17,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;

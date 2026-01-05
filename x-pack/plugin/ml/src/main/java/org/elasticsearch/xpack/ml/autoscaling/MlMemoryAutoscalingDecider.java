@@ -809,7 +809,7 @@ class MlMemoryAutoscalingDecider {
         MlMemoryAutoscalingCapacity scaleDownResult,
         MlMemoryAutoscalingCapacity currentCapacity
     ) {
-        if (scaleDownResult == null || currentCapacity == null) {
+        if (scaleDownResult == null || currentCapacity == null || currentCapacity.isUndetermined()) {
             return null;
         }
         MlMemoryAutoscalingCapacity newCapacity = MlMemoryAutoscalingCapacity.builder(
@@ -851,7 +851,7 @@ class MlMemoryAutoscalingDecider {
      */
     Optional<NativeMemoryCapacity> calculateFutureAvailableCapacity(Collection<DiscoveryNode> mlNodes, ClusterState clusterState) {
         return calculateFutureAvailableCapacity(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE),
+            clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE),
             mlNodes.stream()
                 .map(node -> nodeLoadDetector.detectNodeLoad(clusterState, node, maxOpenJobs, maxMachineMemoryPercent, useAuto))
                 .toList()

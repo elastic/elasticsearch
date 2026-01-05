@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -81,6 +81,8 @@ public class QueryRule implements Writeable, ToXContentObject {
         }
     }
 
+    public static final NodeFeature NUMERIC_VALIDATION = new NodeFeature("query_rules.numeric_validation", true);
+
     /**
      * Public constructor.
      *
@@ -129,18 +131,12 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.type = QueryRuleType.queryRuleType(in.readString());
         this.criteria = in.readCollectionAsList(QueryRuleCriteria::new);
         this.actions = in.readGenericMap();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
-            this.priority = in.readOptionalVInt();
-        } else {
-            this.priority = null;
-        }
+        this.priority = in.readOptionalVInt();
 
         validate();
     }
 
     private void validate() {
-
         if (priority != null && (priority < MIN_PRIORITY || priority > MAX_PRIORITY)) {
             throw new IllegalArgumentException("Priority was " + priority + ", must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
         }
@@ -155,6 +151,13 @@ public class QueryRule implements Writeable, ToXContentObject {
                 throw new ElasticsearchParseException(type.toString() + " query rule actions must contain only one of either ids or docs");
             }
         }
+
+        criteria.forEach(criterion -> {
+            List<Object> values = criterion.criteriaValues();
+            if (values != null) {
+                values.forEach(criterion.criteriaType()::validateInput);
+            }
+        });
     }
 
     private void validateIdOrDocAction(Object action) {
@@ -175,9 +178,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         out.writeString(type.toString());
         out.writeCollection(criteria);
         out.writeGenericMap(actions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
-            out.writeOptionalVInt(priority);
-        }
+        out.writeOptionalVInt(priority);
     }
 
     @SuppressWarnings("unchecked")
@@ -331,12 +332,8 @@ public class QueryRule implements Writeable, ToXContentObject {
         return new AppliedQueryRules(pinnedDocs, excludedDocs);
     }
 
-    @SuppressWarnings("unchecked")
-    private List<SpecifiedDocument> identifyMatchingDocs(Map<String, Object> matchCriteria) {
-        List<SpecifiedDocument> matchingDocs = new ArrayList<>();
+    public boolean isRuleMatch(Map<String, Object> matchCriteria) {
         Boolean isRuleMatch = null;
-
-        // All specified criteria in a rule must match for the rule to be applied
         for (QueryRuleCriteria criterion : criteria) {
             for (String match : matchCriteria.keySet()) {
                 final Object matchValue = matchCriteria.get(match);
@@ -349,8 +346,13 @@ public class QueryRule implements Writeable, ToXContentObject {
                 }
             }
         }
+        return isRuleMatch != null && isRuleMatch;
+    }
 
-        if (isRuleMatch != null && isRuleMatch) {
+    @SuppressWarnings("unchecked")
+    private List<SpecifiedDocument> identifyMatchingDocs(Map<String, Object> matchCriteria) {
+        List<SpecifiedDocument> matchingDocs = new ArrayList<>();
+        if (isRuleMatch(matchCriteria)) {
             if (actions.containsKey(IDS_FIELD.getPreferredName())) {
                 matchingDocs.addAll(
                     ((List<String>) actions.get(IDS_FIELD.getPreferredName())).stream().map(id -> new SpecifiedDocument(null, id)).toList()

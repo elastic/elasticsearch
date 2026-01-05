@@ -35,15 +35,26 @@ user2:
 metadata1_read2:
   cluster: []
   indices:
-    - names: [ 'index-user1' ]
+    - names: [ 'index-user1', 'lookup-user1' ]
+      privileges: [ 'view_index_metadata' ]
+    - names: [ 'index-user2', 'lookup-user2' ]
+      privileges: [ 'read' ]
+
+metadata1_alias_read2:
+  cluster: []
+  indices:
+    - names: [ 'index-user1', 'lookup-first-alias' ]
       privileges: [ 'view_index_metadata' ]
     - names: [ 'index-user2' ]
       privileges: [ 'read' ]
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
 
 alias_user1:
   cluster: []
   indices:
-    - names: [ 'first-alias' ]
+    - names: [ 'first-alias', 'lookup-first-alias' ]
       privileges:
         - read
 
@@ -92,3 +103,144 @@ fls_user:
       privileges: [ 'read' ]
       field_security:
         grant: [ value ]
+
+fls_user2:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org", "value" ]
+
+fls_user2_alias:
+  cluster: []
+  indices:
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org", "value" ]
+
+fls_user3:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org", "value", "other" ]
+
+fls_user3_alias:
+  cluster: []
+  indices:
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org", "value", "other" ]
+
+
+fls_user4_1:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org" ]
+
+fls_user4_1_alias:
+  cluster: []
+  indices:
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org" ]
+
+fls_user4_2:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "value" ]
+
+fls_user4_2_alias:
+  cluster: []
+  indices:
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "value" ]
+
+dls_user:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "marketing"}}'
+
+dls_user2:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+
+
+logs_foo_all:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+
+logs_foo_16_only:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "term": {
+            "data_stream.namespace": "16"
+          }
+        }
+
+logs_foo_after_2021:
+  cluster: []
+  indices:
+    - names: [ 'logs-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+
+logs_foo_after_2021_pattern:
+  cluster: []
+  indices:
+    - names: [ 'logs-*' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+
+logs_foo_after_2021_alias:
+  cluster: []
+  indices:
+    - names: [ 'alias-foo' ]
+      privileges: [ 'read' ]
+      query: |
+        {
+          "range": {
+            "@timestamp": {"gte": "2021-01-01T00:00:00"}
+          }
+        }
+
+user_without_monitor_privileges:
+  cluster: []
+
+user_with_monitor_privileges:
+  cluster:
+    - monitor_esql

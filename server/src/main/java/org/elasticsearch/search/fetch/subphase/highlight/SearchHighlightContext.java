@@ -40,7 +40,7 @@ public class SearchHighlightContext {
         private final String field;
         private final FieldOptions fieldOptions;
 
-        Field(String field, FieldOptions fieldOptions) {
+        public Field(String field, FieldOptions fieldOptions) {
             assert field != null;
             assert fieldOptions != null;
             this.field = field;

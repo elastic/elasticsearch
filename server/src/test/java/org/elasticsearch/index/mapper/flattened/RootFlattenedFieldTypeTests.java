@@ -22,8 +22,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 
 import java.io.IOException;
@@ -33,8 +36,17 @@ import java.util.Map;
 
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
+    private static final Mapper.IgnoreAbove IGNORE_ABOVE = new Mapper.IgnoreAbove(null, IndexMode.STANDARD);
+
     private static RootFlattenedFieldType createDefaultFieldType(int ignoreAbove) {
-        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, ignoreAbove);
+        return new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, true),
+            Collections.emptyMap(),
+            false,
+            false,
+            new Mapper.IgnoreAbove(ignoreAbove)
+        );
     }
 
     public void testValueForDisplay() {
@@ -56,12 +68,11 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         RootFlattenedFieldType unsearchable = new RootFlattenedFieldType(
             "field",
-            false,
-            true,
+            IndexType.terms(false, true),
             Collections.emptyMap(),
             false,
             false,
-            Integer.MAX_VALUE
+            IGNORE_ABOVE
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -70,23 +81,21 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testExistsQuery() {
         RootFlattenedFieldType ft = new RootFlattenedFieldType(
             "field",
-            true,
-            false,
+            IndexType.terms(true, false),
             Collections.emptyMap(),
             false,
             false,
-            Integer.MAX_VALUE
+            IGNORE_ABOVE
         );
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
 
         RootFlattenedFieldType withDv = new RootFlattenedFieldType(
             "field",
-            true,
-            true,
+            IndexType.terms(true, true),
             Collections.emptyMap(),
             false,
             false,
-            Integer.MAX_VALUE
+            IGNORE_ABOVE
         );
         assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
     }

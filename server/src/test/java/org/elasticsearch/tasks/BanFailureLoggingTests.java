@@ -25,10 +25,10 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 
@@ -133,7 +133,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             childTransportService.registerRequestHandler(
                 "internal:testAction[c]",
                 threadPool.executor(ThreadPool.Names.MANAGEMENT), // busy-wait for cancellation but not on a transport thread
-                (StreamInput in) -> new TransportRequest(in) {
+                (StreamInput in) -> new AbstractTransportRequest(in) {
                     @Override
                     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                         return new CancellableTask(id, type, action, "", parentTaskId, headers);
@@ -157,13 +157,13 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             parentTransportService.addSendBehavior(sendRequestBehavior);
 
-            AbstractSimpleTransportTestCase.connectToNode(parentTransportService, childTransportService.getLocalDiscoNode());
+            AbstractSimpleTransportTestCase.connectToNode(parentTransportService, childTransportService.getLocalNode());
 
             final CancellableTask parentTask = (CancellableTask) parentTransportService.getTaskManager()
                 .register("transport", "internal:testAction", new ParentRequest());
 
             parentTransportService.sendChildRequest(
-                childTransportService.getLocalDiscoNode(),
+                childTransportService.getLocalNode(),
                 "internal:testAction[c]",
                 new EmptyRequest(),
                 parentTask,
@@ -172,7 +172,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             );
 
             try (MockLog mockLog = MockLog.capture(TaskCancellationService.class)) {
-                for (MockLog.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
+                for (MockLog.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalNode())) {
                     mockLog.addExpectation(expectation);
                 }
 

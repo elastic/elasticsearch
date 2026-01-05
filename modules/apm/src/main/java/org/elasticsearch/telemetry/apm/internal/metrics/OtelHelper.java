@@ -15,6 +15,7 @@ import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.telemetry.apm.internal.MetricValidator;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
@@ -30,6 +31,9 @@ class OtelHelper {
         if (attributes == null || attributes.isEmpty()) {
             return Attributes.empty();
         }
+
+        MetricValidator.assertValidAttributeNames(attributes);
+
         var builder = Attributes.builder();
         attributes.forEach((k, v) -> {
             if (v instanceof String value) {

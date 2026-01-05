@@ -35,6 +35,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -184,50 +185,43 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         // Composite aggregator must be at the top of the aggregation tree
-        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
+        assert owningBucketOrds.size() == 1 && owningBucketOrds.get(0) == 0L;
         if (deferredCollectors != NO_OP_BUCKET_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
             runDeferredCollections();
         }
 
-        int num = Math.min(size, (int) queue.size());
+        final int num = Math.min(size, (int) queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
-        long[] bucketOrdsToCollect = new long[(int) queue.size()];
-        for (int i = 0; i < queue.size(); i++) {
-            bucketOrdsToCollect[i] = i;
+        try (LongArray bucketOrdsToCollect = bigArrays().newLongArray(queue.size())) {
+            for (int i = 0; i < queue.size(); i++) {
+                bucketOrdsToCollect.set(i, i);
+            }
+            var subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
+            while (queue.size() > 0) {
+                int slot = queue.pop();
+                CompositeKey key = queue.toCompositeKey(slot);
+                InternalAggregations aggs = subAggsForBuckets.apply(slot);
+                long docCount = queue.getDocCount(slot);
+                buckets[(int) queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, docCount, aggs);
+            }
+            CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
+            return new InternalAggregation[] {
+                new InternalComposite(
+                    name,
+                    size,
+                    sourceNames,
+                    formats,
+                    Arrays.asList(buckets),
+                    lastBucket,
+                    reverseMuls,
+                    missingOrders,
+                    earlyTerminated,
+                    metadata()
+                ) };
         }
-        var subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
-        while (queue.size() > 0) {
-            int slot = queue.pop();
-            CompositeKey key = queue.toCompositeKey(slot);
-            InternalAggregations aggs = subAggsForBuckets.apply(slot);
-            long docCount = queue.getDocCount(slot);
-            buckets[(int) queue.size()] = new InternalComposite.InternalBucket(
-                sourceNames,
-                formats,
-                key,
-                reverseMuls,
-                missingOrders,
-                docCount,
-                aggs
-            );
-        }
-        CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
-        return new InternalAggregation[] {
-            new InternalComposite(
-                name,
-                size,
-                sourceNames,
-                formats,
-                Arrays.asList(buckets),
-                lastBucket,
-                reverseMuls,
-                missingOrders,
-                earlyTerminated,
-                metadata()
-            ) };
     }
 
     @Override
@@ -244,6 +238,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             false,
             metadata()
         );
+
     }
 
     private void finishLeaf() {
@@ -278,7 +273,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
      * optimization and null if index sort is not applicable.
      */
     private Sort buildIndexSortPrefix(LeafReaderContext context) throws IOException {
-        Sort indexSort = context.reader().getMetaData().getSort();
+        Sort indexSort = context.reader().getMetaData().sort();
         if (indexSort == null) {
             return null;
         }
@@ -466,7 +461,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             // Visit documents sorted by the leading source of the composite definition and terminates
             // when the leading source value is guaranteed to be greater than the lowest composite bucket
             // in the queue.
-            DocIdSet docIdSet = sortedDocsProducer.processLeaf(topLevelQuery(), queue, aggCtx.getLeafReaderContext(), fillDocIdSet);
+            DocIdSet docIdSet = sortedDocsProducer.processLeaf(queue, aggCtx.getLeafReaderContext(), fillDocIdSet);
             if (fillDocIdSet) {
                 entries.add(new Entry(aggCtx, docIdSet));
             }

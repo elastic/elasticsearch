@@ -29,10 +29,11 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
-import java.util.function.Function;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 
 public class ToBase64 extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToBase64", ToBase64::new);
@@ -42,7 +43,10 @@ public class ToBase64 extends UnaryScalarFunction {
         description = "Encode a string to a base64 string.",
         examples = @Example(file = "string", tag = "to_base64")
     )
-    public ToBase64(Source source, @Param(name = "string", type = { "keyword", "text" }, description = "A string.") Expression string) {
+    public ToBase64(
+        Source source,
+        @Param(name = "string", type = { "keyword", "text", "_tsid" }, description = "A string.") Expression string
+    ) {
         super(source, string);
     }
 
@@ -60,7 +64,9 @@ public class ToBase64 extends UnaryScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
+
+        return TypeResolutions.isType(field, dt -> dt == TSID_DATA_TYPE, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT, "_tsid")
+            .or(isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT));
     }
 
     @Override
@@ -79,7 +85,7 @@ public class ToBase64 extends UnaryScalarFunction {
     }
 
     @Evaluator(warnExceptions = { ArithmeticException.class })
-    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, build = true) BytesRefBuilder oScratch) {
+    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRefBuilder oScratch) {
         int outLength = Math.multiplyExact(4, (Math.addExact(field.length, 2) / 3));
         byte[] bytes = new byte[field.length];
         System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
@@ -90,9 +96,7 @@ public class ToBase64 extends UnaryScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BYTES_REF -> new ToBase64Evaluator.Factory(source(), toEvaluator.apply(field), context -> new BytesRefBuilder());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;

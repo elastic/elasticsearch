@@ -43,15 +43,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+    public StringFieldType(String name, IndexType indexType, boolean isStored, TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, indexType, isStored, textSearchInfo, meta);
     }
 
     @Override
@@ -101,9 +94,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         failIfNotIndexed();
         Term prefix = new Term(name(), indexedValueForSearch(value));
         if (caseInsensitive) {
-            return method == null
-                ? new CaseInsensitivePrefixQuery(prefix, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
-                : new CaseInsensitivePrefixQuery(prefix, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+            return method == null ? new CaseInsensitivePrefixQuery(prefix, false) : new CaseInsensitivePrefixQuery(prefix, false, method);
         }
         return method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
     }
@@ -170,9 +161,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             term = new Term(name(), indexedValueForSearch(value));
         }
         if (caseInsensitive) {
-            return method == null
-                ? new CaseInsensitiveWildcardQuery(term)
-                : new CaseInsensitiveWildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+            return method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
         }
         return method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
     }

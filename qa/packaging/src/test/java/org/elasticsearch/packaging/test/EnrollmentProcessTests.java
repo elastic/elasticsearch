@@ -116,7 +116,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
                 makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"),
                 containsString("\"number_of_nodes\":2")
             ),
-            20,
+            60,
             TimeUnit.SECONDS
         );
 
@@ -141,12 +141,21 @@ public class EnrollmentProcessTests extends PackagingTestCase {
                 );
             }
 
-            final String tokenValue = result.stdout()
+            final List<String> filteredResult = result.stdout()
                 .lines()
                 .filter(line -> line.startsWith("WARNING:") == false)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("Failed to find any non-warning output lines"));
-            enrollmentTokenHolder.set(tokenValue);
+                .filter(line -> line.matches("\\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\[main\\].*") == false)
+                .toList();
+
+            if (filteredResult.size() > 1) {
+                throw new AssertionError(
+                    "Result from elasticsearch-create-enrollment-token contains unexpected output. Output was: \n" + result.stdout()
+                );
+            } else if (filteredResult.isEmpty()) {
+                throw new AssertionError("Failed to find any non-warning output lines. Output was: \n" + result.stdout());
+            }
+
+            enrollmentTokenHolder.set(filteredResult.getFirst());
         }, 30, TimeUnit.SECONDS);
 
         return enrollmentTokenHolder.get();

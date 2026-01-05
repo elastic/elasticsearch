@@ -19,12 +19,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -153,9 +153,21 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
     private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value, DocValueFormat format) {
         try {
             switch (sortType) {
-                case DOC, INT:
-                    if (value instanceof Number) {
-                        return ((Number) value).intValue();
+                case DOC:
+                    if (value instanceof Number valueNumber) {
+                        return (valueNumber).intValue();
+                    }
+                    return Integer.parseInt(value.toString());
+
+                case INT:
+                    // As mixing INT and LONG sort in a single request is allowed,
+                    // we may get search_after values that are larger than Integer.MAX_VALUE
+                    // in this case convert them to Integer.MAX_VALUE
+                    if (value instanceof Number valueNumber) {
+                        if (valueNumber.longValue() > Integer.MAX_VALUE) {
+                            valueNumber = Integer.MAX_VALUE;
+                        }
+                        return (valueNumber).intValue();
                     }
                     return Integer.parseInt(value.toString());
 

@@ -22,7 +22,7 @@ public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<German
     private final GermanAnalyzer analyzer;
 
     GermanAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new GermanAnalyzer(
             Analysis.parseStopWords(env, settings, GermanAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

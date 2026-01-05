@@ -36,6 +36,13 @@ public class BlockValueAsserter {
                     case DOUBLE -> assertDoubleRowValues((DoubleBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case BYTES_REF -> assertBytesRefRowValues((BytesRefBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     case BOOLEAN -> assertBooleanRowValues((BooleanBlock) block, firstValueIndex, valueCount, expectedRowValues);
+                    case AGGREGATE_METRIC_DOUBLE -> assertAggregateMetricRowValues(
+                        (AggregateMetricDoubleBlock) block,
+                        firstValueIndex,
+                        valueCount,
+                        expectedRowValues
+                    );
+                    case LONG_RANGE -> assertLongRangeValues((LongRangeBlock) block, firstValueIndex, valueCount, expectedRowValues);
                     default -> throw new IllegalArgumentException("Unsupported element type [" + block.elementType() + "]");
                 }
             }
@@ -93,6 +100,30 @@ public class BlockValueAsserter {
                 expectedValue = (Boolean) expectedRowValues.get(valueIndex);
             }
             assertThat(block.getBoolean(firstValueIndex + valueIndex), is(equalTo(expectedValue)));
+        }
+    }
+
+    private static void assertAggregateMetricRowValues(
+        AggregateMetricDoubleBlock block,
+        int firstValueIndex,
+        int valueCount,
+        List<Object> expectedRowValues
+    ) {
+        for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+            AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral expectedValue =
+                (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) expectedRowValues.get(valueIndex);
+            assertThat(block.minBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.min())));
+            assertThat(block.maxBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.max())));
+            assertThat(block.sumBlock().getDouble(firstValueIndex + valueIndex), is(equalTo(expectedValue.sum())));
+            assertThat(block.countBlock().getInt(firstValueIndex + valueIndex), is(equalTo(expectedValue.count())));
+        }
+    }
+
+    private static void assertLongRangeValues(LongRangeBlock block, int firstValueIdx, int valueCount, List<Object> expectedRowValues) {
+        for (int idx = 0; idx < valueCount; idx++) {
+            var expectedValue = (LongRangeBlockBuilder.LongRange) expectedRowValues.get(idx);
+            assertThat(block.getFromBlock().getLong(firstValueIdx + idx), equalTo(expectedValue.from()));
+            assertThat(block.getToBlock().getLong(firstValueIdx + idx), equalTo(expectedValue.to()));
         }
     }
 }

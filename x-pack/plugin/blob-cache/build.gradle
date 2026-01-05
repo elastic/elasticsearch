@@ -9,11 +9,11 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-    name 'blob-cache'
-    description 'Provides a blob store cache'
-    classname 'org.elasticsearch.blobcache.BlobCachePlugin'
+    name = 'blob-cache'
+    description = 'Provides a blob store cache'
+    classname = 'org.elasticsearch.blobcache.BlobCachePlugin'
 }
 
 dependencies {
-    compileOnly project(path: ':libs:elasticsearch-native')
+    compileOnly project(path: ':libs:native')
 }

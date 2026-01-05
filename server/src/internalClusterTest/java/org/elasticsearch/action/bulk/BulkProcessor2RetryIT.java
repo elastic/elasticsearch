@@ -141,11 +141,11 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
         assertResponse(prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0), results -> {
             assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
             if (rejectedExecutionExpected) {
-                assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), lessThanOrEqualTo(numberOfAsyncOps));
             } else if (finalRejectedAfterAllRetries) {
-                assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), lessThan(numberOfAsyncOps));
             } else {
-                assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), equalTo(numberOfAsyncOps));
             }
         });
     }

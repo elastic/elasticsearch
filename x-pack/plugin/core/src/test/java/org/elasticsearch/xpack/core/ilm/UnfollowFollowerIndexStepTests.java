@@ -14,7 +14,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.mockito.Mockito;
 
-import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +30,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
     public void testUnFollow() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -42,16 +42,17 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, null, null);
+        var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
     }
 
     public void testRequestNotAcknowledged() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -61,17 +62,18 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.FALSE);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, null, null));
+        var state = projectStateWithEmptyProject();
+        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null));
         assertThat(e.getMessage(), is("unfollow request failed to be acknowledged"));
     }
 
     public void testUnFollowUnfollowFailed() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -84,16 +86,17 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(error, expectThrows(RuntimeException.class, () -> performActionAndWait(step, indexMetadata, null, null)));
+        var state = projectStateWithEmptyProject();
+        assertSame(error, expectThrows(RuntimeException.class, () -> performActionAndWait(step, indexMetadata, state, null)));
     }
 
     public void testFailureToReleaseRetentionLeases() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -107,9 +110,10 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, null, null);
+        var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
     }
 }

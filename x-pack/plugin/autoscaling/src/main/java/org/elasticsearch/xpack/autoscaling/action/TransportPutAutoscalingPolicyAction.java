@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -53,19 +52,10 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final AutoscalingCalculateCapacityService.Holder policyValidatorHolder,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
-        this(
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver,
-            policyValidatorHolder.get(),
-            autoscalingLicenseChecker
-        );
+        this(transportService, clusterService, threadPool, actionFilters, policyValidatorHolder.get(), autoscalingLicenseChecker);
     }
 
     TransportPutAutoscalingPolicyAction(
@@ -73,7 +63,6 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final PolicyValidator policyValidator,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
@@ -84,7 +73,6 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.policyValidator = policyValidator;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -94,7 +95,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
             true
         );
 
-        final MustacheScriptEngine mustache = new MustacheScriptEngine();
+        final MustacheScriptEngine mustache = new MustacheScriptEngine(Settings.EMPTY);
 
         when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenAnswer(inv -> {
             assertThat(inv.getArguments(), arrayWithSize(2));

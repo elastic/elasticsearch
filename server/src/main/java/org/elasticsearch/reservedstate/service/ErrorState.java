@@ -9,15 +9,42 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 
-record ErrorState(String namespace, Long version, List<String> errors, ReservedStateErrorMetadata.ErrorKind errorKind) {
-    ErrorState(String namespace, Long version, Exception e, ReservedStateErrorMetadata.ErrorKind errorKind) {
-        this(namespace, version, List.of(stackTrace(e)), errorKind);
+record ErrorState(
+    Optional<ProjectId> projectId,
+    String namespace,
+    Long version,
+    ReservedStateVersionCheck versionCheck,
+    List<String> errors,
+    ReservedStateErrorMetadata.ErrorKind errorKind
+) {
+
+    ErrorState(
+        String namespace,
+        Long version,
+        ReservedStateVersionCheck versionCheck,
+        Exception e,
+        ReservedStateErrorMetadata.ErrorKind errorKind
+    ) {
+        this(Optional.empty(), namespace, version, versionCheck, List.of(stackTrace(e)), errorKind);
+    }
+
+    ErrorState(
+        ProjectId projectId,
+        String namespace,
+        Long version,
+        ReservedStateVersionCheck versionCheck,
+        Exception e,
+        ReservedStateErrorMetadata.ErrorKind errorKind
+    ) {
+        this(Optional.of(projectId), namespace, version, versionCheck, List.of(stackTrace(e)), errorKind);
     }
 
     public String toString() {

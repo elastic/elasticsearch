@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -16,9 +15,10 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -265,14 +265,9 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-                aliasesVersion = in.readVLong();
-            } else {
-                aliasesVersion = 0;
-            }
+            aliasesVersion = in.readVLong();
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();
@@ -304,9 +299,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-                out.writeVLong(aliasesVersion);
-            }
+            out.writeVLong(aliasesVersion);
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
@@ -354,6 +347,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             IndicesService indicesService
         ) {
@@ -363,6 +357,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 Request::new,
                 threadPool.executor(ThreadPool.Names.SEARCH)
@@ -465,7 +460,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             );
             if (e instanceof TimeoutException) {
                 try {
-                    final IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                    final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
                     if (indexMetadata == null) {
                         listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
                         return;
@@ -502,7 +497,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, InternalRequest request) {
             return state.routingTable()
                 .shardRoutingTable(request.concreteIndex(), request.request().getShard().id())
                 .activeInitializingShardsRandomIt();
@@ -564,7 +559,17 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true, true, false)) {
+        try (
+            Translog.Snapshot snapshot = indexShard.newChangesSnapshot(
+                "ccr",
+                fromSeqNo,
+                toSeqNo,
+                true,
+                true,
+                false,
+                maxBatchSize.getBytes()
+            )
+        ) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);

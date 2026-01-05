@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
@@ -184,5 +185,20 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
 
     public boolean isAllowReleaseResources() {
         return allowReleaseResources;
+    }
+
+    static EnumSet<ClusterBlockLevel> filterLevels(EnumSet<ClusterBlockLevel> levels, Predicate<ClusterBlockLevel> predicate) {
+        assert levels != null;
+        int size = levels.size();
+        if (size == 0 || (size == 1 && predicate.test(levels.iterator().next()))) {
+            return levels;
+        }
+        var filteredLevels = EnumSet.noneOf(ClusterBlockLevel.class);
+        for (ClusterBlockLevel level : levels) {
+            if (predicate.test(level)) {
+                filteredLevels.add(level);
+            }
+        }
+        return filteredLevels;
     }
 }

@@ -22,9 +22,9 @@ final class CountedCollector<R extends SearchPhaseResult> {
     private final SearchPhaseResults<R> resultConsumer;
     private final CountDown counter;
     private final Runnable onFinish;
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
 
-    CountedCollector(SearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
+    CountedCollector(SearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, AbstractSearchAsyncAction<?> context) {
         this.resultConsumer = resultConsumer;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;
@@ -50,7 +50,7 @@ final class CountedCollector<R extends SearchPhaseResult> {
     }
 
     /**
-     * Escalates the failure via {@link SearchPhaseContext#onShardFailure(int, SearchShardTarget, Exception)}
+     * Escalates the failure via {@link AbstractSearchAsyncAction#onShardFailure(int, SearchShardTarget, Exception)}
      * and then runs {@link #countDown()}
      */
     void onFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {

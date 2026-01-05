@@ -21,6 +21,9 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -33,11 +36,13 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -46,19 +51,23 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.index.IndexVersionUtils.getPreviousVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -78,20 +87,27 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersion.current(),
+            metadata
+        );
 
         expectThrows(
             IllegalStateException.class,
             () -> NodeJoinExecutor.ensureIndexCompatibility(
                 IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
                 metadata
             )
@@ -100,18 +116,195 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedIndices() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(IndexVersion.fromId(6080099))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
         Metadata metadata = metaBuilder.build();
         expectThrows(
             IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata)
+            () -> NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                metadata
+            )
         );
+    }
+
+    public void testJoinClusterWithReadOnlyCompatibleIndices() {
+        var randomBlock = randomFrom(IndexMetadata.SETTING_BLOCKS_WRITE, IndexMetadata.SETTING_READ_ONLY);
+        {
+            var indexMetadata = IndexMetadata.builder("searchable-snapshot")
+                .settings(
+                    Settings.builder()
+                        .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                        .put(randomBlock, true)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(indexMetadata, false).build()
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("searchable-snapshot-no-write-block")
+                .settings(
+                    Settings.builder()
+                        .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("archive")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099)))
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                        .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(indexMetadata, false).build()
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("archive-no-write-block")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099)))
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("legacy")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099))))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
+        var indexCreated = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
+        );
+        {
+            var indexMetadata = IndexMetadata.builder("regular")
+                .settings(
+                    Settings.builder()
+                        .put(randomBlock, true)
+                        .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(indexMetadata, false).build()
+            );
+        }
+        {
+            var settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated);
+            if (randomBoolean()) {
+                settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), randomBoolean());
+            }
+            if (randomBoolean()) {
+                settings.put(randomBlock, false);
+            }
+            var indexMetadata = IndexMetadata.builder("regular").settings(settings).numberOfShards(1).numberOfReplicas(1).build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
+        {
+            var settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated);
+            if (randomBoolean()) {
+                settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), false);
+            }
+            if (randomBoolean()) {
+                settings.put(randomBlock, randomBoolean());
+            }
+
+            var indexMetadata = IndexMetadata.builder("regular-not-read-only-verified")
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
     }
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
@@ -227,23 +420,252 @@ public class NodeJoinExecutorTests extends ESTestCase {
         );
     }
 
+    @SuppressForbidden(reason = "we need to actually check what is in cluster state")
+    private static Map<String, Set<String>> getRecordedNodeFeatures(ClusterState state) {
+        return state.clusterFeatures().nodeFeatures();
+    }
+
+    private static Version nextMajor() {
+        return Version.fromId((Version.CURRENT.major + 1) * 1_000_000 + 99);
+    }
+
+    public void testCanJoinClusterWithAssumedFeatures() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true), new NodeFeature("af2", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1", "af2"));
+        features.put(otherNode.getId(), Set.of("f1", "af1", "af2"));
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(features)
+            .build();
+
+        // it is valid for major+1 versions to join clusters assumed features still present
+        // this can happen in the process of marking, then removing, assumed features
+        // they should still be recorded appropriately
+        DiscoveryNode newNode = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNode,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1", "af2"),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
+            )
+        );
+        features.put(newNode.getId(), Set.of("f1", "af2"));
+
+        // extra final check that the recorded cluster features are as they should be
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
+    public void testJoinClusterWithAssumedFeaturesDoesntAllowNonAssumed() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1"));
+        features.put(otherNode.getId(), Set.of("f1", "af1"));
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(features)
+            .build();
+
+        DiscoveryNode newNodeNextMajor = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeNextMajor,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    NO_FAILURE_LISTENER,
+                    0L
+                )
+            )
+        );
+        features.put(newNodeNextMajor.getId(), Set.of("f1"));
+
+        // even though a next major has joined without af1, this doesnt allow the current major to join with af1 missing features
+        DiscoveryNode newNodeCurMajor = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        AtomicReference<Exception> ex = new AtomicReference<>();
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeCurMajor,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    ActionTestUtils.assertNoSuccessListener(ex::set),
+                    0L
+                )
+            )
+        );
+        assertThat(ex.get().getMessage(), containsString("missing required features [af1]"));
+
+        // a next major can't join missing non-assumed features
+        DiscoveryNode newNodeNextMajorMissing = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        ex.set(null);
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNodeNextMajorMissing,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of(),
+                    TEST_REASON,
+                    ActionTestUtils.assertNoSuccessListener(ex::set),
+                    0L
+                )
+            )
+        );
+        assertThat(ex.get().getMessage(), containsString("missing required features [f1]"));
+
+        // extra final check that the recorded cluster features are as they should be, and newNodeNextMajor hasn't gained af1
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
+    /*
+     * Same as above but the current major missing features is processed in the same execution
+     */
+    public void testJoinClusterWithAssumedFeaturesDoesntAllowNonAssumedSameExecute() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("af1", true));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        Map<String, Set<String>> features = new HashMap<>();
+        features.put(masterNode.getId(), Set.of("f1", "af1"));
+        features.put(otherNode.getId(), Set.of("f1", "af1"));
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(features)
+            .build();
+
+        DiscoveryNode newNodeNextMajor = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        DiscoveryNode newNodeCurMajor = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode newNodeNextMajorMissing = DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+            .version(nextMajor(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        // even though a next major could join, this doesnt allow the current major to join with missing features
+        // nor a next major missing non-assumed features
+        AtomicReference<Exception> thisMajorEx = new AtomicReference<>();
+        AtomicReference<Exception> nextMajorEx = new AtomicReference<>();
+        List<JoinTask> tasks = List.of(
+            JoinTask.singleNode(
+                newNodeNextMajor,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of("f1"),
+                TEST_REASON,
+                NO_FAILURE_LISTENER,
+                0L
+            ),
+            JoinTask.singleNode(
+                newNodeCurMajor,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of("f1"),
+                TEST_REASON,
+                ActionTestUtils.assertNoSuccessListener(thisMajorEx::set),
+                0L
+            ),
+            JoinTask.singleNode(
+                newNodeNextMajorMissing,
+                CompatibilityVersionsUtils.staticCurrent(),
+                Set.of(),
+                TEST_REASON,
+                ActionTestUtils.assertNoSuccessListener(nextMajorEx::set),
+                0L
+            )
+        );
+        if (randomBoolean()) {
+            // sometimes combine them together into a single task for completeness
+            tasks = List.of(new JoinTask(tasks.stream().flatMap(t -> t.nodeJoinTasks().stream()).toList(), false, 0L, null));
+        }
+
+        clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, tasks);
+        features.put(newNodeNextMajor.getId(), Set.of("f1"));
+
+        assertThat(thisMajorEx.get().getMessage(), containsString("missing required features [af1]"));
+        assertThat(nextMajorEx.get().getMessage(), containsString("missing required features [f1]"));
+
+        // extra check that the recorded cluster features are as they should be, and newNodeNextMajor hasn't gained af1
+        assertThat(getRecordedNodeFeatures(clusterState), equalTo(features));
+    }
+
     public void testSuccess() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId));
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        metaBuilder.getProject(projectId).put(indexMetadata, false);
         indexMetadata = IndexMetadata.builder("test1")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        metaBuilder.getProject(projectId).put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(
+            // randomCompatibleVersionSettings() can set a version as low as MINIMUM_READONLY_COMPATIBLE
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersion.current(),
+            metadata
+        );
     }
 
     public static Settings.Builder randomCompatibleVersionSettings() {
@@ -837,7 +1259,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         + node2.descriptionWithoutAttributes()
                         + "] with reason ["
                         + testReasonWithLink.message()
-                        + "]; for troubleshooting guidance, see https://www.elastic.co/guide/en/elasticsearch/reference/*"
+                        + "]; for troubleshooting guidance, see "
+                        + "https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster*"
                 )
             );
             assertNull(
@@ -921,8 +1344,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), rejoinNode.getId(), Set.of()))
             .build();
 
-        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(false));
-        assertThat(clusterState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(false));
+        assertThat(clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f1")), is(false));
+        assertThat(clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), new NodeFeature("f2")), is(false));
 
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
@@ -939,8 +1362,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
             )
         );
 
-        assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f1")), is(true));
-        assertThat(resultingState.clusterFeatures().clusterHasFeature(new NodeFeature("f2")), is(true));
+        assertThat(resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f1")), is(true));
+        assertThat(resultingState.clusterFeatures().clusterHasFeature(resultingState.nodes(), new NodeFeature("f2")), is(true));
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

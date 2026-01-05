@@ -12,8 +12,8 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -30,7 +30,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -113,8 +112,7 @@ public class InboundHandlerTests extends ESTestCase {
             (request, channel, task) -> channelCaptor.set(channel),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
-            true,
-            Tracer.NOOP
+            true
         );
         requestHandlers.registerHandler(registry);
 
@@ -128,7 +126,6 @@ public class InboundHandlerTests extends ESTestCase {
 
     public void testRequestAndResponse() throws Exception {
         String action = "test-request";
-        int headerSize = TcpHeader.headerSize(TransportVersion.current());
         boolean isError = randomBoolean();
         AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
         AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
@@ -166,24 +163,24 @@ public class InboundHandlerTests extends ESTestCase {
             },
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
-            true,
-            Tracer.NOOP
+            true
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
-            threadPool.getThreadContext(),
-            new TestRequest(requestValue),
-            TransportVersion.current(),
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = OutboundHandler.serialize(
+            OutboundHandler.MessageDirection.REQUEST,
             action,
             requestId,
             false,
-            null
+            TransportVersion.current(),
+            null,
+            new TestRequest(requestValue),
+            threadPool.getThreadContext(),
+            new RecyclerBytesStreamOutput(recycler)
         );
 
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
-        BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
+        BytesReference requestContent = fullRequestBytes.slice(TcpHeader.HEADER_SIZE, fullRequestBytes.length() - TcpHeader.HEADER_SIZE);
         Header requestHeader = new Header(
             fullRequestBytes.length() - 6,
             requestId,
@@ -208,7 +205,7 @@ public class InboundHandlerTests extends ESTestCase {
         }
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
-        BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
+        BytesReference responseContent = fullResponseBytes.slice(TcpHeader.HEADER_SIZE, fullResponseBytes.length() - TcpHeader.HEADER_SIZE);
         Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
         InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
@@ -238,10 +235,13 @@ public class InboundHandlerTests extends ESTestCase {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.running(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
+            PlainActionFuture<Void> closeListener = new PlainActionFuture<>();
+            channel.addCloseListener(closeListener);
+
             final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersionUtils.getFirstVersion(),
-                TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE)
+                TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible())
             );
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
@@ -255,6 +255,8 @@ public class InboundHandlerTests extends ESTestCase {
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
+            assertTrue(closeListener.isDone());
+            expectThrows(Exception.class, () -> closeListener.get());
             assertNull(channel.getMessageCaptor().get());
             mockLog.assertAllExpectationsMatched();
         }
@@ -277,7 +279,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow request",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling request*modules-network.html#modules-network-threading-model"
+                    "handling request*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 
@@ -290,7 +292,12 @@ public class InboundHandlerTests extends ESTestCase {
             );
             BytesStreamOutput byteData = new BytesStreamOutput();
             TaskId.EMPTY_TASK_ID.writeTo(byteData);
-            TransportVersion.writeVersion(remoteVersion, byteData);
+            // simulate bytes of a transport handshake: vInt transport version then release version string
+            try (var payloadByteData = new BytesStreamOutput()) {
+                TransportVersion.writeVersion(remoteVersion, payloadByteData);
+                payloadByteData.writeString(randomIdentifier());
+                byteData.writeBytesReference(payloadByteData.bytes());
+            }
             final InboundMessage requestMessage = new InboundMessage(
                 requestHeader,
                 ReleasableBytesReference.wrap(byteData.bytes()),
@@ -307,7 +314,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow response",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling response*modules-network.html#modules-network-threading-model"
+                    "handling response*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 

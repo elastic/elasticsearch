@@ -10,17 +10,15 @@
 package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -33,10 +31,6 @@ public class ProfileScorerTests extends ESTestCase {
     private static class FakeScorer extends Scorer {
 
         public float maxScore, minCompetitiveScore;
-
-        protected FakeScorer(Weight weight) {
-            super(weight);
-        }
 
         @Override
         public DocIdSetIterator iterator() {
@@ -76,21 +70,13 @@ public class ProfileScorerTests extends ESTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            FakeScorer fakeScorer = new FakeScorer(this);
-            fakeScorer.maxScore = 42f;
-            return fakeScorer;
-        }
-
-        @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) {
-            Weight weight = this;
             return new ScorerSupplier() {
                 private long cost = 0;
 
                 @Override
                 public Scorer get(long leadCost) {
-                    return new Scorer(weight) {
+                    return new Scorer() {
                         @Override
                         public DocIdSetIterator iterator() {
                             return null;
@@ -187,23 +173,17 @@ public class ProfileScorerTests extends ESTestCase {
     }
 
     public void testPropagateMinCompetitiveScore() throws IOException {
-        Query query = new MatchAllDocsQuery();
-        Weight weight = query.createWeight(newSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
-        FakeScorer fakeScorer = new FakeScorer(weight);
+        FakeScorer fakeScorer = new FakeScorer();
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
-        ProfileWeight profileWeight = new ProfileWeight(query, weight, profile);
-        ProfileScorer profileScorer = new ProfileScorer(profileWeight, fakeScorer, profile);
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
         profileScorer.setMinCompetitiveScore(0.42f);
         assertEquals(0.42f, fakeScorer.minCompetitiveScore, 0f);
     }
 
     public void testPropagateMaxScore() throws IOException {
-        Query query = new MatchAllDocsQuery();
-        Weight weight = query.createWeight(newSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
-        FakeScorer fakeScorer = new FakeScorer(weight);
+        FakeScorer fakeScorer = new FakeScorer();
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
-        ProfileWeight profileWeight = new ProfileWeight(query, weight, profile);
-        ProfileScorer profileScorer = new ProfileScorer(profileWeight, fakeScorer, profile);
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
         profileScorer.setMinCompetitiveScore(0.42f);
         fakeScorer.maxScore = 42f;
         assertEquals(42f, profileScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS), 0f);
@@ -211,7 +191,7 @@ public class ProfileScorerTests extends ESTestCase {
 
     // tests that ProfileWeight correctly propagates the wrapped inner weight
     public void testPropagateSubWeight() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         Weight fakeWeight = new FakeWeight(query);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
         ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile);
@@ -221,7 +201,7 @@ public class ProfileScorerTests extends ESTestCase {
     }
 
     public void testPropagateTopLevelScoringClause() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         Weight fakeWeight = new FakeWeight(query);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
         ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile);

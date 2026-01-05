@@ -1,0 +1,54 @@
+{
+  "inference.put_azureopenai": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-azureopenai",
+      "description": "Create an Azure OpenAI inference endpoint"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/{task_type}/{azureopenai_inference_id}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "task_type": {
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "completion",
+                "chat_completion",
+                "text_embedding"
+              ]
+            },
+            "azureopenai_inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference endpoint's task and service settings",
+      "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specifies the amount of time to wait for the inference endpoint to be created.",
+        "default": "30s"
+      }
+    }
+  }
+}

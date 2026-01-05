@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -26,8 +27,8 @@ public class MinDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MinDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinDoubleAggregatorFunctionSupplier();
     }
 
     @Override
@@ -36,8 +37,8 @@ public class MinDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        double min = input.stream().flatMapToDouble(b -> allDoubles(b)).min().getAsDouble();
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        double min = input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))).min().getAsDouble();
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(min));
     }
 }

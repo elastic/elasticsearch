@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -52,8 +51,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ClusterService clusterService,
         NodeClient nodeClient,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             GetStatusAction.NAME,
@@ -62,7 +60,6 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             threadPool,
             actionFilters,
             GetStatusAction.Request::new,
-            indexNameExpressionResolver,
             GetStatusAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -180,7 +177,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 countRequest.source(searchSourceBuilder);
 
                 nodeClient.search(countRequest, ActionListener.wrap(searchResponse -> {
-                    boolean hasData = searchResponse.getHits().getTotalHits().value > 0;
+                    boolean hasData = searchResponse.getHits().getTotalHits().value() > 0;
                     listener.onResponse(
                         new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData)
                     );

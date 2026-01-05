@@ -59,9 +59,8 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        var requests = prepare((List<PutAutoscalingPolicyAction.Request>) source);
+    public TransformState transform(List<PutAutoscalingPolicyAction.Request> source, TransformState prevState) throws Exception {
+        var requests = prepare(source);
         ClusterState state = prevState.state();
 
         for (var request : requests) {
@@ -79,6 +78,11 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
 
         return new TransformState(state, entities);
 
+    }
+
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
     }
 
     @Override

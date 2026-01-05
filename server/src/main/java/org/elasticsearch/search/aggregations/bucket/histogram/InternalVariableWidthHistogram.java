@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -144,8 +143,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             return centroid;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             String keyAsString = format.format((double) getKey()).toString();
             builder.startObject();
 
@@ -167,7 +165,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -246,11 +243,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, format));
         targetNumBuckets = in.readVInt();
-        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
-            // list is mutable by #readCollectionAsList contract
-            buckets.sort(Comparator.comparingDouble(b -> b.centroid));
-        }
     }
 
     @Override
@@ -541,21 +533,18 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalVariableWidthHistogram(
-            getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            emptyBucketInfo,
-            targetNumBuckets,
-            format,
-            getMetadata()
-        );
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalVariableWidthHistogram(getName(), buckets, emptyBucketInfo, targetNumBuckets, format, getMetadata());
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

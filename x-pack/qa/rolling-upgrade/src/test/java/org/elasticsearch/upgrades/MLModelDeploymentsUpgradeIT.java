@@ -8,13 +8,11 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -75,10 +73,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         request.setJsonEntity("""
             {
               "persistent": {
-                "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.inference": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
-                "logger.org.elasticsearch.xpack.ml.action": "TRACE"
+                "logger.org.elasticsearch.xpack.ml.action": "DEBUG"
               }
             }
             """);
@@ -101,11 +99,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeployment() throws Exception {
-        @UpdateForV9 // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
-        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
-        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
-
         final String modelId = "upgrade-deployment-test";
 
         switch (CLUSTER_TYPE) {
@@ -132,7 +125,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
                 waitForDeploymentStarted(modelId);
                 assertInfer(modelId);
-                assertNewInfer(modelId);
                 stopDeployment(modelId);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -140,11 +132,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
-        @UpdateForV9 // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
-        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
-        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
-
         final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
 
         switch (CLUSTER_TYPE) {
@@ -191,11 +178,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void assertInfer(String modelId) throws IOException {
         Response inference = infer("my words", modelId);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
-    }
-
-    private void assertNewInfer(String modelId) throws IOException {
-        Response inference = newInfer("my words", modelId);
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
@@ -308,17 +290,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(Strings.format("""
-            {  "docs": [{"input":"%s"}] }
-            """, input));
-        request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
-        assertOK(response);
-        return response;
-    }
-
-    private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }

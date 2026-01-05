@@ -1,0 +1,5 @@
+pr: 137331
+summary: Add ES93BloomFilterStoredFieldsFormat for efficient field existence checks
+area: TSDB
+type: enhancement
+issues: []

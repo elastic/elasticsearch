@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -40,7 +41,6 @@ import static org.hamcrest.Matchers.lessThan;
 public class TransformUpdateIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";
-    private static final String BASIC_AUTH_VALUE_TRANSFORM_USER = basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
     private static final String TEST_ADMIN_USER_NAME_1 = "transform_admin_1";
     private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1 = basicAuthHeaderValue(
         TEST_ADMIN_USER_NAME_1,
@@ -101,69 +101,6 @@ public class TransformUpdateIT extends TransformRestTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public void testUpdateDeprecatedSettings() throws Exception {
-        String transformId = "old_transform";
-        String transformDest = transformId + "_idx";
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
-
-        final Request createTransformRequest = createRequestWithAuth(
-            "PUT",
-            getTransformEndpoint() + transformId,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
-        String config = Strings.format("""
-            {
-              "dest": {
-                "index": "%s"
-              },
-              "source": {
-                "index": "%s"
-              },
-              "pivot": {
-                "group_by": {
-                  "reviewer": {
-                    "terms": {
-                      "field": "user_id"
-                    }
-                  }
-                },
-                "aggregations": {
-                  "avg_rating": {
-                    "avg": {
-                      "field": "stars"
-                    }
-                  }
-                },
-                "max_page_search_size": 555
-              }
-            }""", transformDest, REVIEWS_INDEX_NAME);
-
-        createTransformRequest.setJsonEntity(config);
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
-        Map<String, Object> transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_USER);
-        assertThat(XContentMapValues.extractValue("pivot.max_page_search_size", transform), equalTo(555));
-
-        final Request updateRequest = createRequestWithAuth(
-            "POST",
-            getTransformEndpoint() + transformId + "/_update",
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
-        updateRequest.setJsonEntity("{}");
-
-        Map<String, Object> updateResponse = entityAsMap(client().performRequest(updateRequest));
-
-        assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", updateResponse));
-        assertThat(XContentMapValues.extractValue("settings.max_page_search_size", updateResponse), equalTo(555));
-
-        transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_USER);
-
-        assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", transform));
-        assertThat(XContentMapValues.extractValue("settings.max_page_search_size", transform), equalTo(555));
-    }
-
     public void testUpdateTransferRights() throws Exception {
         updateTransferRightsTester(false);
     }
@@ -173,21 +110,54 @@ public class TransformUpdateIT extends TransformRestTestCase {
     }
 
     public void testUpdateThatChangesSettingsButNotHeaders() throws Exception {
-        String transformId = "test_update_that_changes_settings";
-        String destIndex = transformId + "-dest";
+        var transformId = "test_update_that_changes_settings";
+        var destIndex = transformId + "-dest";
 
         // Create the transform
         createPivotReviewsTransform(transformId, destIndex, null, null, null);
 
-        Request updateTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_update", null);
-        updateTransformRequest.setJsonEntity("""
-            { "settings": { "max_page_search_size": 123 } }""");
-
         // Update the transform's settings
-        Map<String, Object> updatedConfig = entityAsMap(client().performRequest(updateTransformRequest));
+        var updatedConfig = updateTransform(transformId, """
+            { "settings": { "max_page_search_size": 123 } }""");
 
         // Verify that the settings got updated
         assertThat(updatedConfig.get("settings"), is(equalTo(Map.of("max_page_search_size", 123))));
+    }
+
+    private Map<String, Object> updateTransform(String transformId, String jsonPayload) throws Exception {
+        var updateTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_update", null);
+        updateTransformRequest.setJsonEntity(jsonPayload);
+        return entityAsMap(client().performRequest(updateTransformRequest));
+    }
+
+    public void testUpdateFrequency() throws Exception {
+        var transformId = "test_update_frequency";
+        var destIndex = transformId + "-dest";
+
+        // Create the transform
+        createContinuousPivotReviewsTransform(transformId, destIndex, null, "1h");
+        startTransform(transformId);
+
+        // wait until it finishes the first checkpoint and check that it hasn't triggered again
+        assertBusy(() -> {
+            var statsAndState = getTransformStateAndStats(transformId);
+            assertThat(XContentMapValues.extractValue("checkpointing.last.checkpoint", statsAndState), equalTo(1));
+            assertThat(XContentMapValues.extractValue("stats.trigger_count", statsAndState), equalTo(1));
+        }, 10, TimeUnit.SECONDS);
+
+        // Update the transform's settings
+        var updatedConfig = updateTransform(transformId, """
+            { "frequency": "1s" }""");
+
+        // Verify that the settings got updated
+        assertThat(updatedConfig.get("frequency"), is(equalTo("1s")));
+        assertBusy(() -> {
+            var triggerCount = (Integer) XContentMapValues.extractValue("stats.trigger_count", getTransformStateAndStats(transformId));
+            assertThat(triggerCount, is(greaterThan(1)));
+        }, 10, TimeUnit.SECONDS);
+
+        stopTransform(transformId, true);
+        deleteTransform(transformId);
     }
 
     public void testConcurrentUpdates() throws Exception {

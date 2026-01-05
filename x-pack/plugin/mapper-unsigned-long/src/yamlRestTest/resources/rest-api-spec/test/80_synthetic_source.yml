@@ -1,15 +1,18 @@
-synthetic source:
+setup:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires synthetic source support
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
+---
+synthetic source:
   - do:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -44,17 +47,14 @@ synthetic source:
 
 ---
 synthetic source with copy_to:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -103,17 +103,14 @@ synthetic source with copy_to:
 
 ---
 synthetic source with disabled doc_values:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires disabled doc_values support in synthetic source
-
   - do:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword

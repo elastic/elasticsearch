@@ -7,22 +7,24 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationSerializationHelper;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -30,6 +32,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationSerializationTests extends ESTestCase {
+
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
+    private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
+        "security_cloud_api_key_realm_and_type"
+    );
 
     public void testWriteToAndReadFrom() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
@@ -76,38 +83,56 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFrom, equalTo(authentication));
     }
 
-    public void testWriteToWithCrossClusterAccessThrowsOnUnsupportedVersion() throws Exception {
-        final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
-            : AuthenticationTestHelper.builder().build();
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,
-            TransportVersionUtils.getPreviousVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+    public void testWriteToAndReadFromWithCloudApiKeyAuthentication() throws Exception {
+        final Authentication authentication = Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.API_KEY,
+            Subject.Type.CLOUD_API_KEY,
+            AuthenticationResult.success(new User(randomAlphanumericOfLength(5), "superuser"), Map.of()),
+            randomAlphanumericOfLength(10),
+            null
         );
-        out.setTransportVersion(version);
 
-        if (authentication.isCrossClusterAccess()) {
+        assertThat(authentication.isCloudApiKey(), is(true));
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        authentication.writeTo(output);
+        final Authentication readFrom = new Authentication(output.bytes().streamInput());
+        assertThat(readFrom.isCloudApiKey(), is(true));
+
+        assertThat(readFrom, not(sameInstance(authentication)));
+        assertThat(readFrom, equalTo(authentication));
+    }
+
+    public void testWriteToWithCloudApiKeyThrowsOnUnsupportedVersion() {
+        final Authentication authentication = Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.API_KEY,
+            Subject.Type.CLOUD_API_KEY,
+            AuthenticationResult.success(new User(randomAlphanumericOfLength(5), "superuser"), Map.of()),
+            randomAlphanumericOfLength(10),
+            null
+        );
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.minimumCompatible(),
+                TransportVersionUtils.getPreviousVersion(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)
+            );
+            out.setTransportVersion(version);
+
             final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
             assertThat(
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                        + "] can't handle cross cluster access authentication and attempted to send to ["
+                        + SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                        + "] can't handle cloud API key authentication and attempted to send to ["
                         + out.getTransportVersion().toReleaseVersion()
                         + "]"
                 )
             );
-        } else {
-            authentication.writeTo(out);
-            final StreamInput in = out.bytes().streamInput();
-            in.setTransportVersion(out.getTransportVersion());
-            final Authentication readFrom = new Authentication(in);
-            assertThat(readFrom, equalTo(authentication.maybeRewriteForOlderVersion(out.getTransportVersion())));
         }
+
     }
 
     public void testSystemUserReadAndWrite() throws Exception {
@@ -170,5 +195,43 @@ public class AuthenticationSerializationTests extends ESTestCase {
         readFrom = AuthenticationSerializationHelper.readUserFrom(output.bytes().streamInput());
 
         assertEquals(kibanaSystemUser, readFrom);
+    }
+
+    public void testRolesRemovedFromUserForLegacyApiKeys() throws IOException {
+        Subject authenticatingSubject = new Subject(
+            new User("foo", "role"),
+            new Authentication.RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "node"),
+            VERSION_7_0_0,
+            Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
+        );
+        Subject effectiveSubject = new Subject(
+            new User("bar", "role"),
+            new Authentication.RealmRef("native", "native", "node"),
+            VERSION_7_0_0,
+            Map.of()
+        );
+
+        {
+            Authentication actual = AuthenticationContextSerializer.decode(
+                Authentication.doEncode(authenticatingSubject, authenticatingSubject, Authentication.AuthenticationType.API_KEY)
+            );
+            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(emptyArray()));
+        }
+
+        {
+            Authentication actual = AuthenticationContextSerializer.decode(
+                Authentication.doEncode(effectiveSubject, authenticatingSubject, Authentication.AuthenticationType.API_KEY)
+            );
+            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(emptyArray()));
+            assertThat(actual.getEffectiveSubject().getUser().roles(), is(arrayContaining("role")));
+        }
+
+        {
+            // do not strip roles for authentication methods other than API key
+            Authentication actual = AuthenticationContextSerializer.decode(
+                Authentication.doEncode(effectiveSubject, effectiveSubject, Authentication.AuthenticationType.REALM)
+            );
+            assertThat(actual.getAuthenticatingSubject().getUser().roles(), is(arrayContaining("role")));
+        }
     }
 }

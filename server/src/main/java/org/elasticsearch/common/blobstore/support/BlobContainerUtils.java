@@ -22,7 +22,7 @@ public class BlobContainerUtils {
         // no instances
     }
 
-    public static final int MAX_REGISTER_CONTENT_LENGTH = 2 * Long.BYTES;
+    public static final int MAX_REGISTER_CONTENT_LENGTH = 4 * Long.BYTES;
 
     public static void ensureValidRegisterContent(BytesReference bytesReference) {
         if (bytesReference.length() > MAX_REGISTER_CONTENT_LENGTH) {
@@ -33,9 +33,9 @@ public class BlobContainerUtils {
     }
 
     /**
-     * Many blob stores have consistent (linearizable/atomic) read semantics and in these casees it is safe to implement {@link
-     * BlobContainer#getRegister} by simply reading the blob using this utility.
-     *
+     * Many blob stores have consistent read-after-write semantics and in these cases it is safe to implement
+     * {@link BlobContainer#getRegister} by simply reading the blob using this utility.
+     * <p>
      * NB it is not safe for the supplied stream to resume a partial downloads, because the resumed stream may see a different state from
      * the original.
      */

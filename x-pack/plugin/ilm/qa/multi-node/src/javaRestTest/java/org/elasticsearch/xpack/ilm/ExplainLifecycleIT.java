@@ -10,16 +10,15 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -30,9 +29,11 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.junit.Before;
 
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
@@ -42,6 +43,8 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -49,8 +52,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ExplainLifecycleIT extends ESRestTestCase {
-    private static final Logger logger = LogManager.getLogger(ExplainLifecycleIT.class);
+public class ExplainLifecycleIT extends IlmESRestTestCase {
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
     private static final String IS_AUTO_RETRYABLE_ERROR_FIELD = "is_auto_retryable_error";
 
@@ -204,6 +206,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
             assertThat(explainIndexWithMissingPolicy.get("action"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("step"), is(ErrorStep.NAME));
             assertThat(explainIndexWithMissingPolicy.get("age"), is(nullValue()));
+            assertThat(explainIndexWithMissingPolicy.get("age_in_millis"), is(nullValue()));
             assertThat(explainIndexWithMissingPolicy.get("failed_step"), is(nullValue()));
             Map<String, Object> stepInfo = (Map<String, Object>) explainIndexWithMissingPolicy.get("step_info");
             assertThat(stepInfo, is(notNullValue()));
@@ -257,6 +260,138 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         );
     }
 
+    public void testStepInfoPreservedOnAutoRetry() throws Exception {
+        String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        Request createPolice = new Request("PUT", "_ilm/policy/" + policyName);
+        createPolice.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_docs": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createPolice));
+
+        String aliasName = "step-info-test";
+        String indexName = aliasName + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
+
+        String templateBodyTemplate = """
+            {
+              "index_patterns": ["%s-*"],
+              "template": {
+                "settings": {
+                  "index.lifecycle.name": "%s",
+                  "index.lifecycle.rollover_alias": "%s"
+                }
+              }
+            }
+            """;
+        Formatter formatter = new Formatter(Locale.ROOT);
+        templateRequest.setJsonEntity(formatter.format(templateBodyTemplate, aliasName, policyName, aliasName).toString());
+
+        assertOK(client().performRequest(templateRequest));
+
+        Request indexRequest = new Request("POST", "/" + indexName + "/_doc/1");
+        indexRequest.setJsonEntity("{\"test\":\"value\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        assertBusy(() -> {
+            Map<String, Object> explainIndex = explainIndex(client(), indexName);
+            var assertionMessage = "Assertion failed for the following response: " + explainIndex;
+            assertThat(assertionMessage, explainIndex.get("failed_step_retry_count"), notNullValue());
+            assertThat(assertionMessage, explainIndex.get("previous_step_info"), notNullValue());
+            assertThat(assertionMessage, (int) explainIndex.get("failed_step_retry_count"), greaterThan(0));
+            assertThat(
+                assertionMessage,
+                explainIndex.get("previous_step_info").toString(),
+                containsString("rollover_alias [" + aliasName + "] does not point to index [" + indexName + "]")
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Test that, when there is an ILM <code>previous_step_info</code> that has had truncation applied to it (due to it being too long),
+     * the truncation:
+     * <ul>
+     * <li>doesn't break the JSON returned in <code>/{index}/_ilm/explain</code></li>
+     * <li>truncates as expected</li>
+     * </ul>
+     * We test this by creating an ILM policy that rolls-over at 1 document, and an index pattern that has a non-existing rollover alias
+     * that has a very long name (to trip the truncation due to the rollover alias name being in the <code>previous_step_info</code>).
+     * <p>
+     * We then index a document, wait for attempted rollover, and assert that we get valid JSON and expected truncated message
+     * in <code>/{index}/_ilm/explain</code>.
+     */
+    public void testTruncatedPreviousStepInfoDoesNotBreakExplainJson() throws Exception {
+        final String policyName = "policy-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+
+        final Request createPolicy = new Request("PUT", "_ilm/policy/" + policyName);
+        createPolicy.setJsonEntity("""
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_docs": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createPolicy));
+
+        final String indexBase = "my-logs";
+        final String indexName = indexBase + "-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final String longMissingAliasName = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH);
+
+        final Request templateRequest = new Request("PUT", "_index_template/template_" + policyName);
+        final String templateBody = Strings.format("""
+            {
+              "index_patterns": ["%s-*"],
+              "template": {
+                "settings": {
+                  "index.lifecycle.name": "%s",
+                  "index.lifecycle.rollover_alias": "%s"
+                }
+              }
+            }
+            """, indexBase, policyName, longMissingAliasName);
+        templateRequest.setJsonEntity(templateBody);
+
+        assertOK(client().performRequest(templateRequest));
+
+        final Request indexRequest = new Request("POST", "/" + indexName + "/_doc/1");
+        indexRequest.setJsonEntity("{\"test\":\"value\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        final String expectedReason = Strings.format(
+            "index.lifecycle.rollover_alias [%s... (~122 chars truncated)",
+            longMissingAliasName.substring(0, longMissingAliasName.length() - 107)
+        );
+        final Map<String, Object> expectedStepInfo = Map.of("type", "illegal_argument_exception", "reason", expectedReason);
+        assertBusy(() -> {
+            final Map<String, Object> explainIndex = explainIndex(client(), indexName);
+
+            final String assertionMessage = "Assertion failed for the following response: " + explainIndex;
+            final Object previousStepInfo = explainIndex.get("previous_step_info");
+            assertThat(assertionMessage, previousStepInfo, equalTo(expectedStepInfo));
+        }, 30, TimeUnit.SECONDS);
+    }
+
     private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {
         assertThat(explainIndexMap.get("managed"), is(false));
         assertThat(explainIndexMap.get("time_since_index_creation"), is(nullValue()));
@@ -280,6 +415,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         assertThat(explainIndexMap.get("step"), is("complete"));
         assertThat(explainIndexMap.get("phase_time_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("age"), is(notNullValue()));
+        assertThat(explainIndexMap.get("age_in_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("phase_execution"), is(notNullValue()));
         assertThat(explainIndexMap.get("failed_step"), is(nullValue()));
         assertThat(explainIndexMap.get("step_info"), is(nullValue()));

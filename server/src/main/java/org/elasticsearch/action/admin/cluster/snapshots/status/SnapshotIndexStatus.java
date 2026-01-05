@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -132,5 +133,10 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         result = 31 * result + (shardsStats != null ? shardsStats.hashCode() : 0);
         result = 31 * result + (stats != null ? stats.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

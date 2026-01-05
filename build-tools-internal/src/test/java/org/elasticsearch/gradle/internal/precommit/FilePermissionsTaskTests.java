@@ -18,7 +18,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -61,7 +61,7 @@ public class FilePermissionsTaskTests {
         filePermissionsTask.checkInvalidPermissions();
 
         File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
-        List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
+        List<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8);
         assertEquals("done", result.get(0));
     }
 
@@ -80,7 +80,7 @@ public class FilePermissionsTaskTests {
         filePermissionsTask.checkInvalidPermissions();
 
         File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
-        List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
+        List<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8);
         assertEquals("done", result.get(0));
 
         file.delete();

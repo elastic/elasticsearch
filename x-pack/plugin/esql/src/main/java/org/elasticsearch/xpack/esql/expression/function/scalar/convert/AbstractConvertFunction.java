@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import joptsimple.internal.Strings;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -18,12 +16,13 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -34,7 +33,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTypeOrUnionType;
 
@@ -45,11 +43,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
  * </p>
  */
-public abstract class AbstractConvertFunction extends UnaryScalarFunction {
+public abstract class AbstractConvertFunction extends UnaryScalarFunction implements ConvertFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
-    public static final List<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
@@ -68,7 +65,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
         }
-        return factory.build(fieldEval, source());
+        return factory.build(source(), fieldEval);
     }
 
     @Override
@@ -79,11 +76,12 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         return isTypeOrUnionType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(supportedTypes()));
     }
 
+    @Override
     public Set<DataType> supportedTypes() {
         return factories().keySet();
     }
 
-    private static String supportedTypesNames(Set<DataType> types) {
+    static String supportedTypesNames(Set<DataType> types) {
         List<String> supportedTypesNames = new ArrayList<>(types.size());
         HashSet<DataType> supportTypes = new HashSet<>(types);
         if (supportTypes.containsAll(NUMERIC_TYPES)) {
@@ -91,9 +89,9 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
             NUMERIC_TYPES.forEach(supportTypes::remove);
         }
 
-        if (types.containsAll(STRING_TYPES)) {
+        if (types.containsAll(DataType.stringTypes())) {
             supportedTypesNames.add("string");
-            STRING_TYPES.forEach(supportTypes::remove);
+            DataType.stringTypes().forEach(supportTypes::remove);
         }
 
         supportTypes.forEach(t -> supportedTypesNames.add(t.nameUpper().toLowerCase(Locale.ROOT)));
@@ -102,8 +100,8 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     }
 
     @FunctionalInterface
-    interface BuildFactory {
-        ExpressionEvaluator.Factory build(ExpressionEvaluator.Factory field, Source source);
+    public interface BuildFactory {
+        ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field);
     }
 
     /**
@@ -124,25 +122,28 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     protected abstract Map<DataType, BuildFactory> factories();
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 
     public abstract static class AbstractEvaluator implements EvalOperator.ExpressionEvaluator {
 
-        private static final Log logger = LogFactory.getLog(AbstractEvaluator.class);
+        private static final Logger logger = LogManager.getLogger(AbstractEvaluator.class);
 
         protected final DriverContext driverContext;
-        private final EvalOperator.ExpressionEvaluator fieldEvaluator;
         private final Warnings warnings;
 
-        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field, Source source) {
+        protected AbstractEvaluator(DriverContext driverContext, Source source) {
             this.driverContext = driverContext;
-            this.fieldEvaluator = field;
-            this.warnings = new Warnings(source);
+            this.warnings = Warnings.createWarnings(
+                driverContext.warningsMode(),
+                source.source().getLineNumber(),
+                source.source().getColumnNumber(),
+                source.text()
+            );
         }
 
-        protected abstract String name();
+        protected abstract ExpressionEvaluator next();
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
@@ -158,7 +159,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
         @Override
         public final Block eval(Page page) {
-            try (Block block = fieldEvaluator.eval(page)) {
+            try (Block block = next().eval(page)) {
                 Vector vector = block.asVector();
                 return vector == null ? evalBlock(block) : evalVector(vector);
             }
@@ -167,17 +168,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         protected final void registerException(Exception exception) {
             logger.trace("conversion failure", exception);
             warnings.registerException(exception);
-        }
-
-        @Override
-        public final String toString() {
-            return name() + "Evaluator[field=" + fieldEvaluator + "]";
-        }
-
-        @Override
-        public void close() {
-            // TODO toString allocates - we should probably check breakers there too
-            Releasables.closeExpectNoException(fieldEvaluator);
         }
     }
 }

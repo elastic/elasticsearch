@@ -11,11 +11,11 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -24,7 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest, GetStoredScriptResponse> {
+public class TransportGetStoredScriptAction extends TransportMasterNodeReadProjectAction<GetStoredScriptRequest, GetStoredScriptResponse> {
 
     @Inject
     public TransportGetStoredScriptAction(
@@ -32,7 +32,7 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             GetStoredScriptAction.NAME,
@@ -41,7 +41,7 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetStoredScriptRequest::new,
-            indexNameExpressionResolver,
+            projectResolver,
             GetStoredScriptResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -51,15 +51,15 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
     protected void masterOperation(
         Task task,
         GetStoredScriptRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetStoredScriptResponse> listener
     ) throws Exception {
-        listener.onResponse(new GetStoredScriptResponse(request.id(), ScriptService.getStoredScript(state, request)));
+        listener.onResponse(new GetStoredScriptResponse(request.id(), ScriptService.getStoredScript(state.metadata(), request)));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetStoredScriptRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected ClusterBlockException checkBlock(GetStoredScriptRequest request, ProjectState state) {
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
 }

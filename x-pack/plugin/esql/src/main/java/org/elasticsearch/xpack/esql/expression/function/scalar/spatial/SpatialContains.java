@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -26,7 +27,7 @@ import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -163,7 +163,8 @@ public class SpatialContains extends SpatialRelatesFunction {
         description = """
             Returns whether the first geometry contains the second geometry.
             This is the inverse of the <<esql-st_within,ST_WITHIN>> function.""",
-        examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries")
+        examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )
     public SpatialContains(
         Source source,
@@ -198,10 +199,10 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
-    public SpatialContains withDocValues(Set<FieldAttribute> attributes) {
+    public SpatialContains withDocValues(boolean foundLeft, boolean foundRight) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean leftDV = leftDocValues || foundField(left(), attributes);
-        boolean rightDV = rightDocValues || foundField(right(), attributes);
+        boolean leftDV = leftDocValues || foundLeft;
+        boolean rightDV = rightDocValues || foundRight;
         return new SpatialContains(source(), left(), right(), leftDV, rightDV);
     }
 
@@ -216,10 +217,10 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold() {
+    public Object fold(FoldContext ctx) {
         try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType(), left());
-            Geometry rightGeom = makeGeometryFromLiteral(right());
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
+            Geometry rightGeom = makeGeometryFromLiteral(ctx, right());
             Component2D[] components = asLuceneComponent2Ds(crsType(), rightGeom);
             return (crsType() == SpatialCrsType.GEO)
                 ? GEO.geometryRelatesGeometries(docValueReader, components)
@@ -313,48 +314,61 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoSourceAndConstant(BooleanBlock.Builder results, int p, BytesRefBlock left, @Fixed Component2D[] right)
+    static void processGeoSourceAndConstant(BooleanBlock.Builder results, @Position int p, BytesRefBlock left, @Fixed Component2D[] right)
         throws IOException {
         GEO.processSourceAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoSourceAndSource(BooleanBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right) throws IOException {
+    static void processGeoSourceAndSource(BooleanBlock.Builder builder, @Position int p, BytesRefBlock left, BytesRefBlock right)
+        throws IOException {
         GEO.processSourceAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D[] right)
-        throws IOException {
+    static void processGeoPointDocValuesAndConstant(
+        BooleanBlock.Builder builder,
+        @Position int p,
+        LongBlock left,
+        @Fixed Component2D[] right
+    ) throws IOException {
         GEO.processPointDocValuesAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, int p, LongBlock left, BytesRefBlock right)
+    static void processGeoPointDocValuesAndSource(BooleanBlock.Builder builder, @Position int p, LongBlock left, BytesRefBlock right)
         throws IOException {
         GEO.processPointDocValuesAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianSourceAndConstant(BooleanBlock.Builder builder, int p, BytesRefBlock left, @Fixed Component2D[] right)
-        throws IOException {
+    static void processCartesianSourceAndConstant(
+        BooleanBlock.Builder builder,
+        @Position int p,
+        BytesRefBlock left,
+        @Fixed Component2D[] right
+    ) throws IOException {
         CARTESIAN.processSourceAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianSourceAndSource(BooleanBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right)
+    static void processCartesianSourceAndSource(BooleanBlock.Builder builder, @Position int p, BytesRefBlock left, BytesRefBlock right)
         throws IOException {
         CARTESIAN.processSourceAndSource(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianPointDocValuesAndConstant(BooleanBlock.Builder builder, int p, LongBlock left, @Fixed Component2D[] right)
-        throws IOException {
+    static void processCartesianPointDocValuesAndConstant(
+        BooleanBlock.Builder builder,
+        @Position int p,
+        LongBlock left,
+        @Fixed Component2D[] right
+    ) throws IOException {
         CARTESIAN.processPointDocValuesAndConstant(builder, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static void processCartesianPointDocValuesAndSource(BooleanBlock.Builder builder, int p, LongBlock left, BytesRefBlock right)
+    static void processCartesianPointDocValuesAndSource(BooleanBlock.Builder builder, @Position int p, LongBlock left, BytesRefBlock right)
         throws IOException {
         CARTESIAN.processPointDocValuesAndSource(builder, p, left, right);
     }

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.breaker;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -87,7 +88,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             + memoryBytesLimit
             + "/"
             + ByteSizeValue.ofBytes(memoryBytesLimit)
-            + "]";
+            + "]; for more information, see "
+            + ReferenceDocs.CIRCUIT_BREAKER_ERRORS;
         logger.debug(() -> format("%s", message));
         throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
     }

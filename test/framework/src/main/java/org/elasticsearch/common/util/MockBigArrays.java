@@ -695,8 +695,13 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public T set(long index, T value) {
-            return in.set(index, value);
+        public void set(long index, T value) {
+            in.set(index, value);
+        }
+
+        @Override
+        public T getAndSet(long index, T value) {
+            return in.getAndSet(index, value);
         }
 
         @Override

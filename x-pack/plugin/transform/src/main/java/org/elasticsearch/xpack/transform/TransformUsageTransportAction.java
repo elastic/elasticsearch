@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
@@ -78,22 +77,14 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.TRANSFORM.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.TRANSFORM.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState clusterState,
@@ -123,7 +114,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
                     Arrays.toString(transformCountSuccess.getShardFailures())
                 );
             }
-            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
+            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value();
             if (totalTransforms == 0) {
                 var usage = new TransformFeatureSetUsage(transformsCountByState, Collections.emptyMap(), new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));

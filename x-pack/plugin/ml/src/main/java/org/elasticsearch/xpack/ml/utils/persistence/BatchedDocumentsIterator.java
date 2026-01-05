@@ -111,7 +111,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
         );
 
         SearchResponse searchResponse = client.search(searchRequest).actionGet();
-        totalHits = searchResponse.getHits().getTotalHits().value;
+        totalHits = searchResponse.getHits().getTotalHits().value();
         scrollId = searchResponse.getScrollId();
         return searchResponse;
     }

@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ADD_MISTRAL_EMBEDDINGS_INFERENCE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -104,7 +103,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ADD_MISTRAL_EMBEDDINGS_INFERENCE;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -178,12 +177,13 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
         return Objects.equals(model, that.model)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(similarity, that.similarity);
+            && Objects.equals(similarity, that.similarity)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(model, dimensions, maxInputTokens, similarity);
+        return Objects.hash(model, dimensions, maxInputTokens, similarity, rateLimitSettings);
     }
 
 }

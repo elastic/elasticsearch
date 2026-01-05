@@ -12,10 +12,19 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class SmokeTestIngestDisabledClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("ingest-common")
+        .setting("xpack.security.enabled", "false")
+        .setting("node.roles", "[data,master,remote_cluster_client]")
+        .build();
 
     public SmokeTestIngestDisabledClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -26,4 +35,8 @@ public class SmokeTestIngestDisabledClientYamlTestSuiteIT extends ESClientYamlSu
         return ESClientYamlSuiteTestCase.createParameters();
     }
 
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 }

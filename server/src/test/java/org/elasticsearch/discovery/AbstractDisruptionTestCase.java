@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
-    static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
+    public static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -131,7 +131,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     ClusterState getNodeClusterState(String node) {
-        return client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+        return client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
     }
 
     void assertNoMaster(final String node) throws Exception {
@@ -220,7 +220,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         return partition;
     }
 
-    TwoPartitions isolateNode(String isolatedNode) {
+    protected TwoPartitions isolateNode(String isolatedNode) {
         Set<String> side1 = new HashSet<>();
         Set<String> side2 = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         side1.add(isolatedNode);

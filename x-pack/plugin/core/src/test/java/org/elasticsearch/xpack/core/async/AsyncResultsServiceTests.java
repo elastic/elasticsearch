@@ -7,20 +7,24 @@
 package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncSearchIndexServiceTests.TestAsyncResponse;
 import org.junit.Before;
@@ -37,6 +41,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
     private ClusterService clusterService;
@@ -113,7 +119,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public class TestRequest extends TransportRequest {
+    public class TestRequest extends AbstractTransportRequest {
         private final String string;
 
         public TestRequest(String string) {
@@ -132,7 +138,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        clusterService = getInstanceFromNode(ClusterService.class);
+        clusterService = spy(getInstanceFromNode(ClusterService.class));
         TransportService transportService = getInstanceFromNode(TransportService.class);
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         taskManager = transportService.getTaskManager();
@@ -231,8 +237,11 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         try {
             long startTime = System.currentTimeMillis();
             task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
-
-            if (updateInitialResultsInStore) {
+            boolean taskCompleted = randomBoolean();
+            if (taskCompleted) {
+                taskManager.unregister(task);
+            }
+            if (taskCompleted || updateInitialResultsInStore) {
                 // we need to store initial result
                 PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
                 indexService.createResponse(
@@ -249,10 +258,11 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             // not waiting for completion, so should return immediately with timeout
             service.retrieveResult(new GetAsyncResultRequest(task.getExecutionId().getEncoded()).setKeepAlive(newKeepAlive), listener);
             listener.actionGet(TimeValue.timeValueSeconds(10));
-            assertThat(task.getExpirationTime(), greaterThanOrEqualTo(startTime + newKeepAlive.getMillis()));
-            assertThat(task.getExpirationTime(), lessThanOrEqualTo(System.currentTimeMillis() + newKeepAlive.getMillis()));
-
-            if (updateInitialResultsInStore) {
+            if (taskCompleted == false) {
+                assertThat(task.getExpirationTime(), greaterThanOrEqualTo(startTime + newKeepAlive.getMillis()));
+                assertThat(task.getExpirationTime(), lessThanOrEqualTo(System.currentTimeMillis() + newKeepAlive.getMillis()));
+            }
+            if (updateInitialResultsInStore || taskCompleted) {
                 PlainActionFuture<TestAsyncResponse> future = new PlainActionFuture<>();
                 indexService.getResponse(task.executionId, randomBoolean(), future);
                 TestAsyncResponse response = future.actionGet(TimeValue.timeValueMinutes(10));
@@ -321,5 +331,53 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         deleteListener = new PlainActionFuture<>();
         deleteService.deleteResponse(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
         assertFutureThrows(deleteListener, ResourceNotFoundException.class);
+    }
+
+    public void testFailWithIncompatibleResults() throws Exception {
+        // force the search results to be serialized with an incompatible transport version
+        when(clusterService.state()).thenAnswer(invocation -> {
+            ClusterState state = (ClusterState) invocation.callRealMethod();
+            return ClusterState.builder(state)
+                .putCompatibilityVersions(
+                    node().getNodeEnvironment().nodeId(),
+                    TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible()),
+                    Map.of()
+                )
+                .build();
+        });
+
+        AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(true);
+        TestRequest request = new TestRequest("test request");
+        TestTask task = (TestTask) taskManager.register("test", "test", request);
+        try {
+            long startTime = System.currentTimeMillis();
+            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+
+            // we need to store initial result
+            PlainActionFuture<DocWriteResponse> futureCreate = new PlainActionFuture<>();
+            indexService.createResponse(
+                task.getExecutionId().getDocId(),
+                task.getOriginHeaders(),
+                new TestAsyncResponse(null, task.getExpirationTime()),
+                futureCreate
+            );
+            futureCreate.actionGet(TimeValue.timeValueSeconds(10));
+
+            PlainActionFuture<UpdateResponse> futureUpdate = new PlainActionFuture<>();
+            indexService.updateResponse(
+                task.getExecutionId().getDocId(),
+                emptyMap(),
+                new TestAsyncResponse("final_response", task.getExpirationTime()),
+                futureUpdate
+            );
+            futureUpdate.actionGet(TimeValue.timeValueSeconds(10));
+        } finally {
+            taskManager.unregister(task);
+        }
+
+        PlainActionFuture<TestAsyncResponse> listener = new PlainActionFuture<>();
+        // not waiting for completion, so should return immediately with timeout
+        service.retrieveResult(new GetAsyncResultRequest(task.getExecutionId().getEncoded()), listener);
+        assertFutureThrows(listener, IllegalArgumentException.class, RestStatus.BAD_REQUEST);
     }
 }

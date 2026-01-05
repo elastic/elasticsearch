@@ -15,13 +15,16 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import static java.util.Comparator.comparing;
+import static java.util.Comparator.comparingInt;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
@@ -30,6 +33,17 @@ import static java.util.stream.Collectors.toList;
  * type of change, then by team area.
  */
 public class ReleaseNotesGenerator {
+
+    private record ChangelogsBundleWrapper(
+        QualifiedVersion version,
+        ChangelogBundle bundle,
+        Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea,
+        QualifiedVersion unqualifiedVersion,
+        String versionWithoutSeparator,
+        List<ChangelogEntry.Highlight> notableHighlights,
+        List<ChangelogEntry.Highlight> nonNotableHighlights
+    ) {}
+
     /**
      * These mappings translate change types into the headings as they should appear in the release notes.
      */
@@ -39,40 +53,95 @@ public class ReleaseNotesGenerator {
         TYPE_LABELS.put("breaking", "Breaking changes");
         TYPE_LABELS.put("breaking-java", "Breaking Java changes");
         TYPE_LABELS.put("bug", "Bug fixes");
+        TYPE_LABELS.put("fixes", "Fixes");
         TYPE_LABELS.put("deprecation", "Deprecations");
         TYPE_LABELS.put("enhancement", "Enhancements");
         TYPE_LABELS.put("feature", "New features");
+        TYPE_LABELS.put("features-enhancements", "Features and enhancements");
         TYPE_LABELS.put("new-aggregation", "New aggregation");
         TYPE_LABELS.put("regression", "Regressions");
         TYPE_LABELS.put("upgrade", "Upgrades");
     }
 
-    static void update(File templateFile, File outputFile, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
+    /**
+     * These are the types of changes that are considered "Features and Enhancements" in the release notes.
+     */
+    private static final List<String> FEATURE_ENHANCEMENT_TYPES = List.of("feature", "new-aggregation", "enhancement", "upgrade");
+
+    static void update(File templateFile, File outputFile, List<ChangelogBundle> bundles) throws IOException {
         final String templateString = Files.readString(templateFile.toPath());
 
         try (FileWriter output = new FileWriter(outputFile)) {
-            output.write(generateFile(templateString, version, changelogs));
+            output.write(generateFile(templateString, bundles));
         }
     }
 
     @VisibleForTesting
-    static String generateFile(String template, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
-        final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
+    static String generateFile(String template, List<ChangelogBundle> bundles) throws IOException {
+        var bundlesWrapped = new ArrayList<ChangelogsBundleWrapper>();
+
+        for (var bundle : bundles) {
+            var changelogs = bundle.changelogs();
+            final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
+
+            final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = changelogs.stream()
+                .map(ChangelogEntry::getHighlight)
+                .filter(Objects::nonNull)
+                .sorted(comparingInt(ChangelogEntry.Highlight::getPr))
+                .collect(groupingBy(ChangelogEntry.Highlight::isNotable, toList()));
+
+            final var notableHighlights = groupedHighlights.getOrDefault(true, List.of());
+            final var nonNotableHighlights = groupedHighlights.getOrDefault(false, List.of());
+
+            final var version = QualifiedVersion.of(bundle.version());
+            final var versionWithoutSeparator = version.withoutQualifier().toString().replaceAll("\\.", "");
+
+            final var wrapped = new ChangelogsBundleWrapper(
+                version,
+                bundle,
+                changelogsByTypeByArea,
+                version.withoutQualifier(),
+                versionWithoutSeparator,
+                notableHighlights,
+                nonNotableHighlights
+            );
+
+            bundlesWrapped.add(wrapped);
+        }
 
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("version", version);
-        bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
+        bindings.put("changelogBundles", bundlesWrapped);
 
         return TemplateUtils.render(template, bindings);
     }
 
-    private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(Set<ChangelogEntry> changelogs) {
+    /**
+     * The new markdown release notes are grouping several of the old change types together.
+     * This method maps the change type that developers use in the changelogs to the new type that the release notes cares about.
+     */
+    private static String getTypeFromEntry(ChangelogEntry entry) {
+        if (entry.getBreaking() != null) {
+            return "breaking";
+        }
+
+        if (FEATURE_ENHANCEMENT_TYPES.contains(entry.getType())) {
+            return "features-enhancements";
+        }
+
+        if (entry.getType().equals("bug")) {
+            return "fixes";
+        }
+
+        return entry.getType();
+    }
+
+    private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(Collection<ChangelogEntry> changelogs) {
         Map<String, Map<String, List<ChangelogEntry>>> changelogsByTypeByArea = changelogs.stream()
             .collect(
                 groupingBy(
                     // Entries with breaking info are always put in the breaking section
-                    entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
+                    entry -> getTypeFromEntry(entry),
                     TreeMap::new,
                     // Group changelogs for each type by their team area
                     groupingBy(

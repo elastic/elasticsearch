@@ -22,7 +22,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 class RemoveDuplicatesTokenFilterFactory extends AbstractTokenFilterFactory {
 
     RemoveDuplicatesTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
     }
 
     @Override

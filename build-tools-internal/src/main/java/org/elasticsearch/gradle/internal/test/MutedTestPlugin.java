@@ -9,33 +9,40 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.testing.Test;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class MutedTestPlugin implements Plugin<Project> {
     private static final String ADDITIONAL_FILES_PROPERTY = "org.elasticsearch.additional.muted.tests";
 
     @Override
     public void apply(Project project) {
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
+
+        File settingsRoot = project.getLayout().getSettingsDirectory().getAsFile();
         String additionalFilePaths = project.hasProperty(ADDITIONAL_FILES_PROPERTY)
             ? project.property(ADDITIONAL_FILES_PROPERTY).toString()
             : "";
         List<RegularFile> additionalFiles = Arrays.stream(additionalFilePaths.split(","))
             .filter(p -> p.isEmpty() == false)
-            .map(p -> project.getRootProject().getLayout().getProjectDirectory().file(p))
+            .map(p -> project.getLayout().getSettingsDirectory().file(p))
             .toList();
 
         Provider<MutedTestsBuildService> mutedTestsProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent("mutedTests", MutedTestsBuildService.class, spec -> {
-                spec.getParameters().getInfoPath().set(project.getRootProject().getProjectDir());
+                spec.getParameters().getInfoPath().set(settingsRoot);
                 spec.getParameters().getAdditionalFiles().set(additionalFiles);
             });
 
@@ -46,7 +53,7 @@ public class MutedTestPlugin implements Plugin<Project> {
                 }
 
                 // Don't fail when all tests are ignored when running in CI
-                filter.setFailOnNoMatchingTests(BuildParams.isCi() == false);
+                filter.setFailOnNoMatchingTests(buildParams.getCi() == false);
             });
         });
     }

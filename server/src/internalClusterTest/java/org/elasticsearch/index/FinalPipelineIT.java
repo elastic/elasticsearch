@@ -115,7 +115,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertResponse(prepareSearch("target"), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
         });
     }
@@ -139,7 +139,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertResponse(prepareSearch("target"), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertEquals(true, response.getHits().getAt(0).getSourceAsMap().get("final"));
         });
     }
@@ -163,7 +163,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertResponse(prepareSearch("target"), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
         });
     }
@@ -187,7 +187,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         assertResponse(prepareSearch("target"), response -> {
-            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(1, response.getHits().getTotalHits().value());
             assertTrue(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
         });
     }
@@ -358,7 +358,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
                 "final",
                 getFinal(parameters, randomBoolean()),
                 "request",
-                (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                (processorFactories, tag, description, config, projectId) -> new AbstractProcessor(tag, description) {
                     @Override
                     public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
                         ingestDocument.setFieldValue("request", true);
@@ -371,7 +371,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
                     }
                 },
                 "changing_dest",
-                (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                (processorFactories, tag, description, config, projectId) -> new AbstractProcessor(tag, description) {
                     @Override
                     public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
                         ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "target");
@@ -385,7 +385,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
                 },
                 "reroute",
-                (processorFactories, tag, description, config) -> {
+                (processorFactories, tag, description, config, projectId) -> {
                     final String dest = Objects.requireNonNullElse(
                         ConfigurationUtils.readOptionalStringProperty(description, tag, config, "dest"),
                         "target"
@@ -408,7 +408,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         }
 
         private static Processor.Factory getDefault(Processor.Parameters parameters, boolean async) {
-            return (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
+            return (factories, tag, description, config, projectId) -> new AbstractProcessor(tag, description) {
 
                 @Override
                 public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
@@ -446,7 +446,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         }
 
         private static Processor.Factory getFinal(Processor.Parameters parameters, boolean async) {
-            return (processorFactories, tag, description, config) -> {
+            return (processorFactories, tag, description, config, projectId) -> {
                 final String exists = (String) config.remove("exists");
                 return new AbstractProcessor(tag, description) {
 

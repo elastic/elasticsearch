@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -23,16 +23,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
- * Unsupported attribute meaning an attribute that has been found yet cannot be used (hence why UnresolvedAttribute
- * cannot be used) expect in special conditions (currently only in projections to allow it to flow through
- * the engine).
+ * Unsupported attribute that has been found yet cannot be used except in special conditions (currently only in projections to allow it to
+ * flow through the engine).
  * As such the field is marked as unresolved (so the verifier can pick up its usage outside project).
  */
 public final class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
@@ -52,58 +52,63 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         UnsupportedAttribute::readFrom
     );
 
-    private final String message;
     private final boolean hasCustomMessage; // TODO remove me and just use message != null?
+    private final String message;
 
     private static String errorMessage(String name, UnsupportedEsField field) {
-        return "Cannot use field [" + name + "] with unsupported type [" + field.getOriginalType() + "]";
+        return "Cannot use field [" + name + "] with unsupported type [" + String.join(",", field.getOriginalTypes()) + "]";
     }
 
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field) {
         this(source, name, field, null);
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage) {
+    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage) {
         this(source, name, field, customMessage, null);
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
-        super(source, null, name, field, Nullability.TRUE, id, false);
+    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage, @Nullable NameId id) {
+        this(source, null, name, field, customMessage, id);
+    }
+
+    public UnsupportedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        UnsupportedEsField field,
+        @Nullable String customMessage,
+        @Nullable NameId id
+    ) {
+        super(source, null, qualifier, name, field, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
         this.message = customMessage == null ? errorMessage(name(), field) : customMessage;
     }
 
-    private UnsupportedAttribute(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readString(),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)
-                    ? EsField.readFrom(in)
-                    : new UnsupportedEsField(in),
-            in.readOptionalString(),
-            NameId.readFrom((PlanStreamInput) in)
-        );
+    private static UnsupportedAttribute innerReadFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
+        String name = ((PlanStreamInput) in).readCachedString();
+        UnsupportedEsField field = EsField.readFrom(in);
+        String message = in.readOptionalString();
+        NameId id = NameId.readFrom((PlanStreamInput) in);
+
+        return new UnsupportedAttribute(source, qualifier, name, field, message, id);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
-            out.writeString(name());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
-                field().writeTo(out);
-            } else {
-                field().writeContent(out);
-            }
+            checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
+            ((PlanStreamOutput) out).writeCachedString(name());
+            field().writeTo(out);
             out.writeOptionalString(hasCustomMessage ? message : null);
             id().writeTo(out);
         }
     }
 
     public static UnsupportedAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::innerReadFrom);
     }
 
     @Override
@@ -122,20 +127,31 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public String fieldName() {
-        // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
-        // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
-        return name();
+    public FieldName fieldName() {
+        if (lazyFieldName == null) {
+            // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
+            // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
+            lazyFieldName = new FieldName(name());
+        }
+        return lazyFieldName;
     }
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, UnsupportedAttribute::new, name(), field(), hasCustomMessage ? message : null, id());
+        return NodeInfo.create(this, UnsupportedAttribute::new, qualifier(), name(), field(), hasCustomMessage ? message : null, id());
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
-        return new UnsupportedAttribute(source, name, field(), hasCustomMessage ? message : null, id);
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        return new UnsupportedAttribute(source, qualifier, name, field(), hasCustomMessage ? message : null, id);
     }
 
     protected String label() {
@@ -144,7 +160,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public String toString() {
-        return "!" + name();
+        return "!" + qualifiedName();
     }
 
     @Override
@@ -162,16 +178,21 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), hasCustomMessage, message);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), hasCustomMessage, message);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            var ua = (UnsupportedAttribute) obj;
-            return Objects.equals(hasCustomMessage, ua.hasCustomMessage) && Objects.equals(message, ua.message);
-        }
-        return false;
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
+        var other = (UnsupportedAttribute) o;
+        return super.innerEquals(other, ignoreIds) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
+    }
+
+    /**
+     * This contains all the underlying ES types.
+     * On a type conflict this will have many elements, some or all of which may be actually supported types.
+     */
+    public List<String> originalTypes() {
+        return field().getOriginalTypes();
     }
 }

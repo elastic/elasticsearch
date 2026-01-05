@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -48,6 +50,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -155,10 +158,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         );
 
         hitSource.startNextScroll(timeValueSeconds(100));
-        client.validateRequest(
-            TransportSearchScrollAction.TYPE,
-            (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110)
-        );
+        client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
     }
 
     private SearchResponse createSearchResponse() {
@@ -169,28 +169,13 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        return new SearchResponse(
-            hits,
-            null,
-            null,
-            false,
-            false,
-            null,
-            1,
-            randomSimpleString(random(), 1, 10),
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        return SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
     }
 
     private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {
         assertEquals(actual.size(), expected.length);
         for (int i = 0; i < actual.size(); ++i) {
-            assertEquals(actual.get(i).getSource(), expected[i].getSourceRef());
+            assertThat(expected[i].getSourceRef(), equalBytes(actual.get(i).getSource()));
             assertEquals(actual.get(i).getIndex(), expected[i].getIndex());
             assertEquals(actual.get(i).getVersion(), expected[i].getVersion());
             assertEquals(actual.get(i).getPrimaryTerm(), expected[i].getPrimaryTerm());
@@ -231,7 +216,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         private ExecuteRequest<?, ?> executeRequest;
 
         MockClient(ThreadPool threadPool) {
-            super(Settings.EMPTY, threadPool);
+            super(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         }
 
         @Override

@@ -160,7 +160,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static FieldMapper createFieldMapper(String parent, String name) {
-        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.current()).build(
+        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, defaultIndexSettings()).build(
             new MapperBuilderContext(
                 parent,
                 false,
@@ -178,8 +178,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             name,
             name,
             Explicit.IMPLICIT_TRUE,
+            ObjectMapper.Defaults.SUBOBJECTS,
             Optional.empty(),
-            Explicit.IMPLICIT_FALSE,
             ObjectMapper.Dynamic.FALSE,
             emptyMap()
         );

@@ -21,7 +21,7 @@ public class StandardTokenizerFactory extends AbstractTokenizerFactory {
     private final int maxTokenLength;
 
     public StandardTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
         maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -20,10 +21,8 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NoSeedNodeLeftException;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -87,6 +86,15 @@ public class CCSUsage {
             return this;
         }
 
+        public Builder setClientFromTask(Task task) {
+            String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+            if (client != null) {
+                return setClient(client);
+            } else {
+                return this;
+            }
+        }
+
         public Builder skippedRemote(String remote) {
             this.skippedRemotes.add(remote);
             return this;
@@ -118,7 +126,7 @@ public class CCSUsage {
             if (unwrapped instanceof Exception) {
                 e = (Exception) unwrapped;
             }
-            if (isRemoteUnavailable(e)) {
+            if (ExceptionsHelper.isRemoteUnavailableException(e)) {
                 return Result.REMOTES_UNAVAILABLE;
             }
             if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
@@ -136,6 +144,10 @@ public class CCSUsage {
             if (ExceptionsHelper.unwrapCorruption(e) != null) {
                 return Result.CORRUPTION;
             }
+            ElasticsearchStatusException se = (ElasticsearchStatusException) ExceptionsHelper.unwrap(e, ElasticsearchStatusException.class);
+            if (se != null && se.getDetailedMessage().contains("license")) {
+                return Result.LICENSE;
+            }
             // This is kind of last resort check - if we still don't know the reason but all shard failures are remote,
             // we assume it's remote's fault somehow.
             if (e instanceof SearchPhaseExecutionException spe) {
@@ -147,27 +159,6 @@ public class CCSUsage {
             }
             // OK we don't know what happened
             return Result.UNKNOWN;
-        }
-
-        /**
-         * Is this failure exception because remote was unavailable?
-         * See also: TransportResolveClusterAction#notConnectedError
-         */
-        static boolean isRemoteUnavailable(Exception e) {
-            if (ExceptionsHelper.unwrap(
-                e,
-                ConnectTransportException.class,
-                NoSuchRemoteClusterException.class,
-                NoSeedNodeLeftException.class
-            ) != null) {
-                return true;
-            }
-            Throwable ill = ExceptionsHelper.unwrap(e, IllegalStateException.class, IllegalArgumentException.class);
-            if (ill != null && (ill.getMessage().contains("Unable to open any connections") || ill.getMessage().contains("unknown host"))) {
-                return true;
-            }
-            // Ok doesn't look like any of the known remote exceptions
-            return false;
         }
 
         /**

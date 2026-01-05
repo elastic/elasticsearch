@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,13 +37,13 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public static final ParseField ANALYSIS_CONFIG = Job.ANALYSIS_CONFIG;
         public static final ParseField OVERALL_CARDINALITY = new ParseField("overall_cardinality");
         public static final ParseField MAX_BUCKET_CARDINALITY = new ParseField("max_bucket_cardinality");
 
-        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, EstimateModelMemoryAction.Request::new);
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareObject(Request::setAnalysisConfig, (p, c) -> AnalysisConfig.STRICT_PARSER.apply(p, c).build(), ANALYSIS_CONFIG);

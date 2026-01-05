@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.stats.IndexingPressureStats;
+import org.elasticsearch.ingest.IngestStats.ProcessorStat;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -709,37 +711,38 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final SortedMap<String, long[]> stats;
 
         IngestStats(final List<NodeStats> nodeStats) {
-            Set<String> pipelineIds = new HashSet<>();
+            Map<ProjectId, Set<String>> pipelineIdsByProject = new HashMap<>();
             SortedMap<String, long[]> stats = new TreeMap<>();
             for (NodeStats nodeStat : nodeStats) {
                 if (nodeStat.getIngestStats() != null) {
-                    for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat
-                        .getIngestStats()
-                        .processorStats()
-                        .entrySet()) {
-                        pipelineIds.add(processorStats.getKey());
-                        for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
-                            stats.compute(stat.type(), (k, v) -> {
-                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
-                                if (v == null) {
-                                    return new long[] {
-                                        nodeIngestStats.ingestCount(),
-                                        nodeIngestStats.ingestFailedCount(),
-                                        nodeIngestStats.ingestCurrent(),
-                                        nodeIngestStats.ingestTimeInMillis() };
-                                } else {
-                                    v[0] += nodeIngestStats.ingestCount();
-                                    v[1] += nodeIngestStats.ingestFailedCount();
-                                    v[2] += nodeIngestStats.ingestCurrent();
-                                    v[3] += nodeIngestStats.ingestTimeInMillis();
-                                    return v;
-                                }
-                            });
+                    Map<ProjectId, Map<String, List<ProcessorStat>>> nodeProcessorStats = nodeStat.getIngestStats().processorStats();
+                    for (Map.Entry<ProjectId, Map<String, List<ProcessorStat>>> processorStatsForProject : nodeProcessorStats.entrySet()) {
+                        ProjectId projectId = processorStatsForProject.getKey();
+                        for (Map.Entry<String, List<ProcessorStat>> processorStats : processorStatsForProject.getValue().entrySet()) {
+                            pipelineIdsByProject.computeIfAbsent(projectId, k -> new HashSet<>()).add(processorStats.getKey());
+                            for (ProcessorStat stat : processorStats.getValue()) {
+                                stats.compute(stat.type(), (k, v) -> {
+                                    org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
+                                    if (v == null) {
+                                        return new long[] {
+                                            nodeIngestStats.ingestCount(),
+                                            nodeIngestStats.ingestFailedCount(),
+                                            nodeIngestStats.ingestCurrent(),
+                                            nodeIngestStats.ingestTimeInMillis() };
+                                    } else {
+                                        v[0] += nodeIngestStats.ingestCount();
+                                        v[1] += nodeIngestStats.ingestFailedCount();
+                                        v[2] += nodeIngestStats.ingestCurrent();
+                                        v[3] += nodeIngestStats.ingestTimeInMillis();
+                                        return v;
+                                    }
+                                });
+                            }
                         }
                     }
                 }
             }
-            this.pipelineCount = pipelineIds.size();
+            this.pipelineCount = pipelineIdsByProject.values().stream().mapToInt(Set::size).sum();
             this.stats = Collections.unmodifiableSortedMap(stats);
         }
 
@@ -793,6 +796,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long currentCoordinatingOps = 0;
             long currentPrimaryOps = 0;
             long currentReplicaOps = 0;
+            long lowWaterMarkSplits = 0;
+            long highWaterMarkSplits = 0;
+            long largeOpsRejections = 0;
+            long totalLargeRejectedOpsBytes = 0;
             for (NodeStats nodeStat : nodeStats) {
                 IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
                 if (nodeStatIndexingPressureStats != null) {
@@ -816,6 +823,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     currentReplicaOps += nodeStatIndexingPressureStats.getCurrentReplicaOps();
                     primaryDocumentRejections += nodeStatIndexingPressureStats.getPrimaryDocumentRejections();
                     totalCoordinatingRequests += nodeStatIndexingPressureStats.getTotalCoordinatingRequests();
+                    lowWaterMarkSplits += nodeStatIndexingPressureStats.getLowWaterMarkSplits();
+                    highWaterMarkSplits += nodeStatIndexingPressureStats.getHighWaterMarkSplits();
+                    largeOpsRejections += nodeStatIndexingPressureStats.getLargeOpsRejections();
+                    totalLargeRejectedOpsBytes += nodeStatIndexingPressureStats.getTotalLargeRejectedOpsBytes();
                 }
             }
             indexingPressureStats = new IndexingPressureStats(
@@ -838,7 +849,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 currentPrimaryOps,
                 currentReplicaOps,
                 primaryDocumentRejections,
-                totalCoordinatingRequests
+                totalCoordinatingRequests,
+                lowWaterMarkSplits,
+                highWaterMarkSplits,
+                largeOpsRejections,
+                totalLargeRejectedOpsBytes
             );
         }
 

@@ -109,9 +109,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ExecutionMode execution = null;
             if (executionHint != null) {
                 execution = ExecutionMode.fromString(executionHint);
+            } else {
+                if (matchNoDocs(context, parent) && bucketCountThresholds.getMinDocCount() > 0) {
+                    execution = ExecutionMode.MAP;
+                }
             }
             // In some cases, using ordinals is just not supported: override it
-            if (valuesSource.hasOrdinals() == false || matchNoDocs(context, parent)) {
+            if (valuesSource.hasOrdinals() == false) {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
@@ -195,12 +199,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (includeExclude != null) {
                     longFilter = includeExclude.convertToDoubleFilter();
                 }
-                resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+                resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError, agg);
             } else {
                 if (includeExclude != null) {
                     longFilter = includeExclude.convertToLongFilter(valuesSourceConfig.format());
                 }
-                resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+                resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError, agg);
             }
             return new NumericTermsAggregator(
                 name,
@@ -403,7 +407,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     name,
                     factories,
                     new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSourceConfig),
-                    a -> a.new StandardTermsResults(valuesSourceConfig.getValuesSource()),
+                    a -> a.new StandardTermsResults(valuesSourceConfig.getValuesSource(), a),
                     order,
                     valuesSourceConfig.format(),
                     bucketCountThresholds,
@@ -511,7 +515,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         bucketCountThresholds,
                         context,
                         parent,
-                        false,
                         subAggCollectMode,
                         showTermDocCountError,
                         metadata,

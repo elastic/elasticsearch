@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,7 +23,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -35,6 +38,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
 
     @FunctionInfo(
+        operator = "-",
         returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" },
         description = "Subtract one number from another. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
@@ -61,7 +65,8 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            SubDatetimesEvaluator.Factory::new
+            SubDatetimesEvaluator.Factory::new,
+            SubDateNanosEvaluator.Factory::new
         );
     }
 
@@ -73,7 +78,8 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            SubDatetimesEvaluator.Factory::new
+            SubDatetimesEvaluator.Factory::new,
+            SubDateNanosEvaluator.Factory::new
         );
     }
 
@@ -141,6 +147,25 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
         return asMillis(asDateTime(datetime).minus(temporalAmount));
+    }
+
+    @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
+    static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount) {
+        // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
+        try {
+            return DateUtils.toLong(
+                Instant.from(
+                    ZonedDateTime.ofInstant(DateUtils.toInstant(dateNanos), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
+                        .minus(temporalAmount)
+                )
+            );
+        } catch (IllegalArgumentException e) {
+            /*
+             toLong will throw IllegalArgumentException for out of range dates, but that includes the actual value which we want
+             to avoid returning here.
+            */
+            throw new DateTimeException("Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807");
+        }
     }
 
     @Override

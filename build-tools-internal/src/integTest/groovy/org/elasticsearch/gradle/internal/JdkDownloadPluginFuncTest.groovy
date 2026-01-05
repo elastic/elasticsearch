@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal
 
-
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 
@@ -24,8 +23,7 @@ import java.nio.file.Paths
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_ADOPTIUM
-import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.VENDOR_OPENJDK
+import static org.elasticsearch.gradle.internal.JdkDownloadPlugin.*
 
 class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
@@ -33,17 +31,20 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     private static final String ADOPT_JDK_VERSION = "12.0.2+10"
     private static final String ADOPT_JDK_VERSION_11 = "11.0.10+9"
     private static final String ADOPT_JDK_VERSION_15 = "15.0.2+7"
+    private static final String AZUL_JDK_VERSION_8 = "8u302+b08"
+    private static final String AZUL_8_DISTRO_VERSION = "8.56.0.23"
+    private static final String CATALOG_EA_VERSION = "25-ea+30"
     private static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)")
 
     def setup() {
-        configurationCacheCompatible = false
+        configurationCacheCompatible = false // JDK class references configurations which break configuration cache
     }
 
     @Unroll
-    def "jdk #jdkVendor for #platform#suffix are downloaded and extracted"() {
+    def "jdk #distributionVersion #jdkVendor for #platform#suffix are downloaded and extracted"() {
         given:
-        def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform, arch);
+        def mockRepoUrl = urlPath(jdkVendor, jdkVersion, platform, arch, distributionVersion);
         def mockedContent = filebytes(jdkVendor, platform)
         buildFile.text = """
             plugins {
@@ -56,14 +57,16 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 version = '$jdkVersion'
                 platform = "$platform"
                 architecture = '$arch'
+                distributionVersion = '$distributionVersion'
               }
             }
 
-            def theJdks = jdks
+//            def theJdks = jdks
             tasks.register("getJdk") {
                 dependsOn jdks.myJdk
+                def jdk = jdks.myJdk
                 doLast {
-                    println "JDK HOME: " + theJdks.myJdk
+                    println "JDK HOME: " + jdk
                 }
             }
         """
@@ -78,22 +81,28 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         assertExtraction(result.output, expectedJavaBin);
 
         where:
-        platform  | arch      | jdkVendor           | jdkVersion           | expectedJavaBin          | suffix
-        "linux"   | "x64"     | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION    | "bin/java"               | ""
-        "linux"   | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "bin/java"               | ""
-        "linux"   | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "bin/java"               | "(old version)"
-        "windows" | "x64"     | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION    | "bin/java"               | ""
-        "windows" | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "bin/java"               | ""
-        "windows" | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "bin/java"               | "(old version)"
-        "darwin"  | "x64"     | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION    | "Contents/Home/bin/java" | ""
-        "darwin"  | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "Contents/Home/bin/java" | ""
-        "darwin"  | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "Contents/Home/bin/java" | "(old version)"
-        "mac"     | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION     | "Contents/Home/bin/java" | ""
-        "mac"     | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD  | "Contents/Home/bin/java" | "(old version)"
-        "darwin"  | "aarch64" | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION    | "Contents/Home/bin/java" | ""
-        "linux"   | "aarch64" | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION    | "bin/java"               | ""
-        "linux"   | "aarch64" | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION_11 | "bin/java"               | "(jdk 11)"
-        "linux"   | "aarch64" | VENDOR_ADOPTIUM     | ADOPT_JDK_VERSION_15 | "bin/java"               | "(jdk 15)"
+        platform  | arch      | jdkVendor       | jdkVersion           | distributionVersion   | expectedJavaBin          | suffix
+        "linux"   | "aarch64" | VENDOR_OPENJDK  | CATALOG_EA_VERSION   | "ea"                  | "bin/java"               | ""
+        "linux"   | "x64"     | VENDOR_OPENJDK  | CATALOG_EA_VERSION   | "ea"                  | "bin/java"               | ""
+        "darwin"  | "aarch64" | VENDOR_OPENJDK  | CATALOG_EA_VERSION   | "ea"                  | "Contents/Home/bin/java" | ""
+        "darwin"  | "x64"     | VENDOR_OPENJDK  | CATALOG_EA_VERSION   | "ea"                  | "Contents/Home/bin/java" | ""
+        "windows" | "x64"     | VENDOR_OPENJDK  | CATALOG_EA_VERSION   | "ea"                  | "bin/java"               | ""
+        "linux"   | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | ""                    | "bin/java"               | ""
+        "linux"   | "x64"     | VENDOR_OPENJDK  | OPEN_JDK_VERSION     | ""                    | "bin/java"               | ""
+        "linux"   | "x64"     | VENDOR_OPENJDK  | OPENJDK_VERSION_OLD  | ""                    | "bin/java"               | "(old version)"
+        "windows" | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | ""                    | "bin/java"               | ""
+        "windows" | "x64"     | VENDOR_OPENJDK  | OPEN_JDK_VERSION     | ""                    | "bin/java"               | ""
+        "windows" | "x64"     | VENDOR_OPENJDK  | OPENJDK_VERSION_OLD  | ""                    | "bin/java"               | "(old version)"
+        "darwin"  | "x64"     | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | ""                    | "Contents/Home/bin/java" | ""
+        "darwin"  | "x64"     | VENDOR_OPENJDK  | OPEN_JDK_VERSION     | ""                    | "Contents/Home/bin/java" | ""
+        "darwin"  | "x64"     | VENDOR_OPENJDK  | OPENJDK_VERSION_OLD  | ""                    | "Contents/Home/bin/java" | "(old version)"
+        "mac"     | "x64"     | VENDOR_OPENJDK  | OPEN_JDK_VERSION     | ""                    | "Contents/Home/bin/java" | ""
+        "mac"     | "x64"     | VENDOR_OPENJDK  | OPENJDK_VERSION_OLD  | ""                    | "Contents/Home/bin/java" | "(old version)"
+        "darwin"  | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | ""                    | "Contents/Home/bin/java" | ""
+        "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION    | ""                    | "bin/java"               | ""
+        "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION_11 | ""                    | "bin/java"               | "(jdk 11)"
+        "linux"   | "aarch64" | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION_15 | ""                    | "bin/java"               | "(jdk 15)"
+        "darwin"  | "aarch64" | VENDOR_ZULU     | AZUL_JDK_VERSION_8   | AZUL_8_DISTRO_VERSION | "Contents/Home/bin/java" | "(jdk 8)"
     }
 
     def "transforms are reused across projects"() {
@@ -118,9 +127,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                   }
                 }
                 tasks.register("getJdk") {
-                    dependsOn jdks.myJdk
+                    def jdk = jdks.myJdk
+                    dependsOn jdk
                     doLast {
-                        println "JDK HOME: " + jdks.myJdk
+                        println "JDK HOME: " + jdk
                     }
                 }
             """
@@ -137,7 +147,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         result.output.count("Unpacking linux-12.0.2-x64.tar.gz using ${SymbolicLinkPreservingUntarTransform.simpleName}") == 1
 
         where:
-        platform | jdkVendor           | jdkVersion        | expectedJavaBin
+        platform | jdkVendor       | jdkVersion        | expectedJavaBin
         "linux"  | VENDOR_ADOPTIUM | ADOPT_JDK_VERSION | "bin/java"
     }
 
@@ -159,6 +169,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 vendor = '$VENDOR_ADOPTIUM'
                 version = '$ADOPT_JDK_VERSION'
                 platform = "$platform"
+                distributionVersion = '$ADOPT_JDK_VERSION'
                 architecture = "x64"
               }
             }
@@ -204,6 +215,8 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         assert matcher.find() == true;
         String jdkHome = matcher.group(1);
         Path javaPath = Paths.get(jdkHome, javaBin);
+        println "canonical " + javaPath.toFile().getCanonicalPath()
+        Paths.get(jdkHome).toFile().listFiles().each { println it }
         assert Files.exists(javaPath) == true;
         true
     }
@@ -211,25 +224,42 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     private static String urlPath(final String vendor,
                                   final String version,
                                   final String platform,
-                                  final String arch = 'x64') {
-        if (vendor.equals(VENDOR_ADOPTIUM)) {
+                                  final String arch = 'x64',
+                                  final String distributedVersion = '') {
+        final boolean isOld = version.equals(OPENJDK_VERSION_OLD);
+
+        if (distributedVersion.equals("ea")) {
+            def effectivePlatform = isMac(platform) ? "macos" : platform;
+            def fileExtension = platform.toLowerCase().equals("windows") ? "zip" : "tar.gz";
+            return "/jdks/openjdk/25/openjdk-${version}/openjdk-${version}_$effectivePlatform-${arch}_bin.$fileExtension";
+        } else if (vendor.equals(VENDOR_ADOPTIUM)) {
             final String module = isMac(platform) ? "mac" : platform;
             return "/jdk-" + version + "/" + module + "/${arch}/jdk/hotspot/normal/adoptium";
         } else if (vendor.equals(VENDOR_OPENJDK)) {
             final String effectivePlatform = isMac(platform) ? "macos" : platform;
-            final boolean isOld = version.equals(OPENJDK_VERSION_OLD);
             final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
             final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + effectivePlatform + "-x64_bin." + extension(platform);
             return "/java/GA/" + versionPath + "/GPL/" + filename;
+        } else if (vendor.equals(VENDOR_ZULU)) {
+            // we only have a single version of zulu currently in the tests
+            return "/zulu/bin/zulu8.56.0.23-ca-jdk8.0.302-macosx_aarch64.tar.gz"
         }
     }
 
     private static byte[] filebytes(final String vendor, final String platform) throws IOException {
         final String effectivePlatform = getPlatform(vendor, platform);
         if (vendor.equals(VENDOR_ADOPTIUM)) {
-            return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptium_" + effectivePlatform + "." + extension(platform)).getBytes()
+            return JdkDownloadPluginFuncTest.class.getResourceAsStream(
+                "fake_adoptium_" + effectivePlatform + "." + extension(platform)
+            ).getBytes()
         } else if (vendor.equals(VENDOR_OPENJDK)) {
-            JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_openjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
+            return JdkDownloadPluginFuncTest.class.getResourceAsStream(
+                "fake_openjdk_" + effectivePlatform + "." + extension(platform)
+            ).getBytes()
+        } else {
+            // zulu
+            String resourcePath = "fake_zulu_" + effectivePlatform + "." + extension(platform)
+            return JdkDownloadPluginFuncTest.class.getResourceAsStream(resourcePath).getBytes()
         }
     }
 

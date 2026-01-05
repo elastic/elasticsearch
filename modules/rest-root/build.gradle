@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -13,8 +11,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds HEAD and GET / endpoint to Elasticsearch'
-  classname 'org.elasticsearch.rest.root.MainRestPlugin'
+  description = 'Adds HEAD and GET / endpoint to Elasticsearch'
+  classname ='org.elasticsearch.rest.root.MainRestPlugin'
 }
 
 restResources {

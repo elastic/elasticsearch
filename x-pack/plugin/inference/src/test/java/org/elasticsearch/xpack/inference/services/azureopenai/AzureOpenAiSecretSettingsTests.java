@@ -30,7 +30,31 @@ import static org.hamcrest.Matchers.is;
 public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiSecretSettings> {
 
     public static AzureOpenAiSecretSettings createRandom() {
-        return new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), randomSecureStringOfLength(15));
+        boolean isApiKeyNotEntraId = randomBoolean();
+        return new AzureOpenAiSecretSettings(
+            isApiKeyNotEntraId ? randomSecureStringOfLength(15) : null,
+            isApiKeyNotEntraId == false ? randomSecureStringOfLength(15) : null
+        );
+    }
+
+    public void testNewSecretSettingsApiKey() {
+        AzureOpenAiSecretSettings initialSettings = createRandom();
+        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), null);
+        AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
+            Map.of(API_KEY, newSettings.apiKey().toString())
+        );
+
+        assertEquals(newSettings, finalSettings);
+    }
+
+    public void testNewSecretSettingsEntraId() {
+        AzureOpenAiSecretSettings initialSettings = createRandom();
+        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(null, randomSecureStringOfLength(15));
+        AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
+            Map.of(ENTRA_ID, newSettings.entraId().toString())
+        );
+
+        assertEquals(newSettings, finalSettings);
     }
 
     public void testFromMap_ApiKey_Only() {
@@ -141,7 +165,22 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
 
     @Override
     protected AzureOpenAiSecretSettings mutateInstance(AzureOpenAiSecretSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureOpenAiSecretSettingsTests::createRandom);
+        SecureString apiKey = instance.apiKey();
+        SecureString entraId = instance.entraId();
+        if (apiKey == null || entraId == null) {
+            if (randomBoolean()) {
+                apiKey = randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15));
+            } else {
+                entraId = randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15));
+            }
+        } else {
+            if (randomBoolean()) {
+                apiKey = randomBoolean() ? null : randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15));
+            } else {
+                entraId = randomBoolean() ? null : randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15));
+            }
+        }
+        return new AzureOpenAiSecretSettings(apiKey, entraId);
     }
 
     @Override

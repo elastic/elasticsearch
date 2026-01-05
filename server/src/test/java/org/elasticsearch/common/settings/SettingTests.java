@@ -70,8 +70,8 @@ public class SettingTests extends ESTestCase {
     public void testByteSizeSettingMinValue() {
         final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
             "a.byte.size",
-            new ByteSizeValue(100, ByteSizeUnit.MB),
-            new ByteSizeValue(20_000_000, ByteSizeUnit.BYTES),
+            ByteSizeValue.of(100, ByteSizeUnit.MB),
+            ByteSizeValue.of(20_000_000, ByteSizeUnit.BYTES),
             ByteSizeValue.ofBytes(Integer.MAX_VALUE)
         );
         final long value = 20_000_000 - randomIntBetween(1, 1024);
@@ -84,8 +84,8 @@ public class SettingTests extends ESTestCase {
     public void testByteSizeSettingMaxValue() {
         final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
             "a.byte.size",
-            new ByteSizeValue(100, ByteSizeUnit.MB),
-            new ByteSizeValue(16, ByteSizeUnit.MB),
+            ByteSizeValue.of(100, ByteSizeUnit.MB),
+            ByteSizeValue.of(16, ByteSizeUnit.MB),
             ByteSizeValue.ofBytes(Integer.MAX_VALUE)
         );
         final long value = (1L << 31) - 1 + randomIntBetween(1, 1024);
@@ -385,6 +385,34 @@ public class SettingTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
         assertThat(e, hasToString(containsString("Failed to parse value for setting [foo]")));
         assertNull(e.getCause());
+    }
+
+    public void testFloatSettingWithOtherSettingAsDefault() {
+        float defaultFallbackValue = randomFloat();
+        Setting<Float> fallbackSetting = Setting.floatSetting("fallback_setting", defaultFallbackValue);
+        Setting<Float> floatSetting = Setting.floatSetting("float_setting", fallbackSetting, Float.MIN_VALUE);
+
+        // Neither float_setting nor fallback_setting specified
+        assertThat(floatSetting.get(Settings.builder().build()), equalTo(defaultFallbackValue));
+
+        // Only fallback_setting specified
+        float explicitFallbackValue = randomValueOtherThan(defaultFallbackValue, ESTestCase::randomFloat);
+        assertThat(
+            floatSetting.get(Settings.builder().put("fallback_setting", explicitFallbackValue).build()),
+            equalTo(explicitFallbackValue)
+        );
+
+        // Both float_setting and fallback_setting specified
+        float explicitFloatValue = randomValueOtherThanMany(
+            v -> v != explicitFallbackValue && v != defaultFallbackValue,
+            ESTestCase::randomFloat
+        );
+        assertThat(
+            floatSetting.get(
+                Settings.builder().put("fallback_setting", explicitFallbackValue).put("float_setting", explicitFloatValue).build()
+            ),
+            equalTo(explicitFloatValue)
+        );
     }
 
     private enum TestEnum {
@@ -1520,6 +1548,61 @@ public class SettingTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> Setting.boolSetting("a.bool.setting", true, Property.DeprecatedWarning, Property.IndexSettingDeprecatedInV7AndRemovedInV8)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.IndexSettingDeprecatedInV8AndRemovedInV9)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.DeprecatedWarning, Property.IndexSettingDeprecatedInV8AndRemovedInV9)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.IndexSettingDeprecatedInV9AndRemovedInV10)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting(
+                "a.bool.setting",
+                true,
+                Property.DeprecatedWarning,
+                Property.IndexSettingDeprecatedInV9AndRemovedInV10
+            )
+        );
+    }
+
+    public void testIntSettingBounds() {
+        Setting<Integer> setting = Setting.intSetting("int.setting", 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("int.setting", "2147483648").build())
+        );
+        assertThat(e.getMessage(), equalTo("Failed to parse value [2147483648] for setting [int.setting] must be <= 2147483647"));
+        var e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("int.setting", "-2147483649").build())
+        );
+        assertThat(e2.getMessage(), equalTo("Failed to parse value [-2147483649] for setting [int.setting] must be >= -2147483648"));
+    }
+
+    public void testLongSettingBounds() {
+        Setting<Long> setting = Setting.longSetting("long.setting", 0, Long.MIN_VALUE);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("long.setting", "9223372036854775808").build())
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse value [9223372036854775808] for setting [long.setting] must be <= 9223372036854775807")
+        );
+        var e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("long.setting", "-9223372036854775809").build())
+        );
+        assertThat(
+            e2.getMessage(),
+            equalTo("Failed to parse value [-9223372036854775809] for setting [long.setting] must be >= -9223372036854775808")
         );
     }
 }

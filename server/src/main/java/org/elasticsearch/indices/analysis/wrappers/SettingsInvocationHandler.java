@@ -11,7 +11,9 @@ package org.elasticsearch.indices.analysis.wrappers;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.settings.BooleanSetting;
 import org.elasticsearch.plugin.settings.IntSetting;
@@ -56,7 +58,16 @@ public class SettingsInvocationHandler implements InvocationHandler {
         } else if (annotation instanceof LongSetting setting) {
             return getValue(Long::valueOf, setting.path(), setting.defaultValue());
         } else if (annotation instanceof BooleanSetting setting) {
-            return getValue(Boolean::valueOf, setting.path(), setting.defaultValue());
+            return getValue(
+                v -> LenientBooleans.parseAndCheckForDeprecatedUsage(
+                    v,
+                    LenientBooleans.UsageCategory.SETTING,
+                    setting.path(),
+                    DeprecationCategory.SETTINGS
+                ),
+                setting.path(),
+                setting.defaultValue()
+            );
         } else if (annotation instanceof StringSetting setting) {
             return getValue(String::valueOf, setting.path(), setting.defaultValue());
         } else if (annotation instanceof ListSetting setting) {

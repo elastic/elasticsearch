@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
@@ -28,6 +29,28 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDataStreamsAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
+        Sets.union(
+            RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
+            Set.of(
+                "name",
+                "include_defaults",
+                "master_timeout",
+                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+                "verbose"
+            )
+        )
+    );
+    public static final String FAILURES_LIFECYCLE_API_CAPABILITY = "failure_store.lifecycle";
+    private static final Set<String> CAPABILITIES = Set.of(
+        DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
+        FAILURES_LIFECYCLE_API_CAPABILITY,
+        "failure_store.lifecycle.default_retention"
+    );
 
     @Override
     public String getName() {
@@ -48,7 +71,11 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
         getDataStreamsRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getDataStreamsRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataStreamsRequest.indicesOptions()));
         getDataStreamsRequest.verbose(request.paramAsBoolean("verbose", false));
-        return channel -> client.execute(GetDataStreamAction.INSTANCE, getDataStreamsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetDataStreamAction.INSTANCE,
+            getDataStreamsRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     @Override
@@ -58,24 +85,11 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY);
+        return CAPABILITIES;
     }
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Sets.union(
-            RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
-            Set.of(
-                "name",
-                "include_defaults",
-                "timeout",
-                "master_timeout",
-                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
-                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
-                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
-                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
-                "verbose"
-            )
-        );
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 }

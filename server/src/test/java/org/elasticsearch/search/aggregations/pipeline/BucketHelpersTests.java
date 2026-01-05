@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -56,10 +55,6 @@ public class BucketHelpersTests extends ESTestCase {
         };
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-
-            }
 
             @Override
             public Object getKey() {
@@ -78,11 +73,6 @@ public class BucketHelpersTests extends ESTestCase {
 
             @Override
             public InternalAggregations getAggregations() {
-                return null;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return null;
             }
 
@@ -136,10 +126,6 @@ public class BucketHelpersTests extends ESTestCase {
         };
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-
-            }
 
             @Override
             public Object getKey() {
@@ -158,11 +144,6 @@ public class BucketHelpersTests extends ESTestCase {
 
             @Override
             public InternalAggregations getAggregations() {
-                return null;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return null;
             }
 

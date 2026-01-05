@@ -368,6 +368,13 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where serial_event_id == 0");
     }
 
+    public void testJoinCommand() {
+        final IndexResolution idxr = loadIndexResolution("mapping-ip.json");
+
+        assertEquals("1:1: JOIN command is not supported", error(idxr, "join [any where true] [any where true]"));
+        assertEquals("1:1: JOIN command is not supported", error(idxr, "join [any where true] [any where true] | tail 3"));
+    }
+
     public void testMultiField() {
         final IndexResolution idxr = loadIndexResolution("mapping-multi-field.json");
         accept(idxr, "foo where multi_field.raw == \"bar\"");

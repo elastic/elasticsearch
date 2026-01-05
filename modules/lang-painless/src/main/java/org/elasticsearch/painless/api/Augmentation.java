@@ -456,10 +456,10 @@ public class Augmentation {
     public static String replaceAll(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
         Matcher m = pattern.matcher(receiver);
         if (false == m.find()) {
-            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
-        StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
+        StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
         do {
             m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         } while (m.find());
@@ -477,7 +477,7 @@ public class Augmentation {
             // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
-        StringBuffer result = new StringBuffer(initialBufferForReplaceWith(receiver));
+        StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
         m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         m.appendTail(result);
         return result.toString();

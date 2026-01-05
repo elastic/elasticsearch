@@ -24,20 +24,22 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMessage;
-import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.flow.FlowControlHandler;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
+import io.netty.util.ResourceLeakDetector;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -45,6 +47,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.AbstractHttpServerTransport;
@@ -56,7 +59,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.rest.ChunkedZipResponse;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.NetUtils;
@@ -98,7 +101,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
     private final HttpValidator httpValidator;
-    private final IncrementalBulkService.Enabled enabled;
     private final ThreadWatchdog threadWatchdog;
     private final int readTimeoutMillis;
 
@@ -106,6 +108,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     private volatile ServerBootstrap serverBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
+
+    private final TlsHandshakeThrottleManager tlsHandshakeThrottleManager;
 
     public Netty4HttpServerTransport(
         Settings settings,
@@ -115,7 +119,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
         SharedGroupFactory sharedGroupFactory,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate,
         @Nullable HttpValidator httpValidator
@@ -128,7 +132,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             xContentRegistry,
             dispatcher,
             clusterSettings,
-            tracer
+            telemetryProvider
         );
         Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
@@ -137,13 +141,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.acceptChannelPredicate = acceptChannelPredicate;
         this.httpValidator = httpValidator;
         this.threadWatchdog = networkService.getThreadWatchdog();
-        this.enabled = new IncrementalBulkService.Enabled(clusterSettings);
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
         this.maxCompositeBufferComponents = Netty4Plugin.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
 
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
+
+        this.tlsHandshakeThrottleManager = new TlsHandshakeThrottleManager(clusterSettings, telemetryProvider.getMeterRegistry());
 
         ByteSizeValue receivePredictor = Netty4Plugin.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
@@ -166,9 +171,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected void doStart() {
+    protected void startInternal() {
         boolean success = false;
         try {
+            tlsHandshakeThrottleManager.start();
+
             sharedGroup = sharedGroupFactory.getHttpGroup();
             serverBootstrap = new ServerBootstrap();
 
@@ -232,6 +239,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (acceptChannelPredicate != null) {
                 acceptChannelPredicate.setBoundAddress(boundAddress());
             }
+
             success = true;
         } finally {
             if (success == false) {
@@ -251,6 +259,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     @Override
     protected void stopInternal() {
+        if (tlsHandshakeThrottleManager.lifecycleState() != Lifecycle.State.INITIALIZED) {
+            tlsHandshakeThrottleManager.stop();
+        }
         if (sharedGroup != null) {
             sharedGroup.shutdown();
             sharedGroup = null;
@@ -283,7 +294,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, httpValidator, enabled);
+        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, httpValidator);
     }
 
     static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
@@ -296,26 +307,26 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
         private final HttpValidator httpValidator;
-        private final IncrementalBulkService.Enabled enabled;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final HttpValidator httpValidator,
-            IncrementalBulkService.Enabled enabled
+            @Nullable final HttpValidator httpValidator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.tlsConfig = tlsConfig;
             this.acceptChannelPredicate = acceptChannelPredicate;
             this.httpValidator = httpValidator;
-            this.enabled = enabled;
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            // auto-read must be disabled all the time
+            ch.config().setAutoRead(false);
+
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
             if (acceptChannelPredicate != null) {
@@ -330,7 +341,29 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
             if (tlsConfig.isTLSEnabled()) {
-                ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
+                final var sslHandler = new SslHandler(tlsConfig.createServerSSLEngine());
+                final var tlsHandshakeThrottle = transport.tlsHandshakeThrottleManager.getThrottleForCurrentThread();
+
+                if (tlsHandshakeThrottle == null) {
+                    // throttling currently disabled
+                    ch.pipeline().addLast("ssl", sslHandler);
+                } else {
+                    final var handshakeCompletePromise = new SubscribableListener<Void>();
+                    ch.pipeline()
+                        // accumulate data until the initial handshake
+                        .addLast(
+                            "initial-tls-handshake-throttle",
+                            tlsHandshakeThrottle.newHandshakeThrottleHandler(handshakeCompletePromise)
+                        )
+                        // actually do the TLS processing
+                        .addLast("ssl", sslHandler)
+                        // watch for the completion of this channel's initial handshake at which point we can release one for another
+                        // channel
+                        .addLast(
+                            "initial-tls-handshake-completion-watcher",
+                            tlsHandshakeThrottle.newHandshakeCompletionWatcher(handshakeCompletePromise)
+                        );
+                }
             }
             final var threadWatchdogActivityTracker = transport.threadWatchdog.getActivityTrackerForCurrentThread();
             ch.pipeline()
@@ -363,6 +396,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             }
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
+
+            // from this point in pipeline every handler must call ctx or channel #read() when ready to process next HTTP part
+            if (Assertions.ENABLED) {
+                // missing reads are hard to catch, but we can detect absence of reads within interval
+                long missingReadIntervalMs = 10_000;
+                ch.pipeline().addLast(new MissingReadDetector(transport.threadPool, missingReadIntervalMs));
+            }
+
             if (httpValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
@@ -375,14 +416,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         )
                     );
             }
-            // combines the HTTP message pieces into a single full HTTP request (with headers and body)
-            final HttpObjectAggregator aggregator = new Netty4HttpAggregator(
-                handlingSettings.maxContentLength(),
-                httpPreRequest -> enabled.get() == false
-                    || ((httpPreRequest.rawPath().endsWith("/_bulk") == false)
-                        || httpPreRequest.rawPath().startsWith("/_xpack/monitoring/_bulk"))
-            );
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+
             ch.pipeline()
                 .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
                 .addLast("encoder", new HttpResponseEncoder() {
@@ -397,7 +431,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         return super.isContentAlwaysEmpty(msg);
                     }
                 })
-                .addLast("aggregator", aggregator);
+                .addLast(new Netty4HttpContentSizeHandler(decoder, handlingSettings.maxContentLength()));
+
             if (handlingSettings.compression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
                     @Override
@@ -410,12 +445,23 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     }
                 });
             }
+            if (ResourceLeakDetector.isEnabled()) {
+                ch.pipeline().addLast(new Netty4LeakDetectionHandler());
+            }
+            ch.pipeline().addLast(new Netty4EmptyChunkHandler());
+            // See https://github.com/netty/netty/issues/15053: the combination of FlowControlHandler and HttpContentDecompressor above
+            // can emit multiple chunks per read, but HttpBody.Stream requires chunks to arrive one-at-a-time so until that issue is
+            // resolved we must add another flow controller here:
+            ch.pipeline().addLast(new FlowControlHandler());
             ch.pipeline()
                 .addLast(
                     "pipelining",
                     new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
+
+            // make very first read call, since auto-read is disabled; following reads must come from the handlers
+            ch.read();
         }
 
         @Override

@@ -10,8 +10,10 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * A source operator whose output is the given boolean values. This operator produces pages
@@ -22,6 +24,10 @@ public class SequenceBooleanBlockSourceOperator extends AbstractBlockSourceOpera
     static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final boolean[] values;
+
+    public SequenceBooleanBlockSourceOperator(BlockFactory blockFactory, Stream<Boolean> values) {
+        this(blockFactory, values.toList());
+    }
 
     public SequenceBooleanBlockSourceOperator(BlockFactory blockFactory, List<Boolean> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);

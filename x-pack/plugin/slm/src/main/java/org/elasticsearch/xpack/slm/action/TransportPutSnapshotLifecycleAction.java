@@ -18,13 +18,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
@@ -50,16 +47,13 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
-    private final FeatureService featureService;
 
     @Inject
     public TransportPutSnapshotLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        FeatureService featureService
+        ActionFilters actionFilters
     ) {
         super(
             PutSnapshotLifecycleAction.NAME,
@@ -68,11 +62,9 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             PutSnapshotLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.featureService = featureService;
     }
 
     @Override
@@ -82,7 +74,6 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        SnapshotLifecycleService.validateIntervalScheduleSupport(request.getLifecycle().getSchedule(), featureService, state);
         SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
         SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
 
@@ -129,8 +120,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata()
-                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+            final var project = currentState.metadata().getProject();
+            SnapshotLifecycleMetadata snapMeta = project.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
             final SnapshotLifecyclePolicyMetadata existingPolicyMetadata = snapMeta.getSnapshotConfigurations()
                 .get(request.getLifecycleId());
@@ -156,15 +147,8 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
                 logger.info("updating existing snapshot lifecycle [{}]", newLifecycle.getId());
             }
 
-            return ClusterState.builder(currentState)
-                .metadata(
-                    Metadata.builder(currentState.metadata())
-                        .putCustom(
-                            SnapshotLifecycleMetadata.TYPE,
-                            new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats())
-                        )
-                )
-                .build();
+            final var updatedMetadata = new SnapshotLifecycleMetadata(snapLifecycles, currentMode, snapMeta.getStats());
+            return currentState.copyAndUpdateProject(project.id(), b -> b.putCustom(SnapshotLifecycleMetadata.TYPE, updatedMetadata));
         }
     }
 

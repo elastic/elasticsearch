@@ -33,7 +33,7 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
         super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         private final DiscoveryNode[] concreteNodes;
 

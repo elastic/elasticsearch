@@ -32,12 +32,19 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -45,15 +52,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -87,6 +94,7 @@ public class BulkOperationTests extends ESTestCase {
     private final String dataStreamName = "my_data_stream";
     private final String fsDataStreamName = "my_failure_store_data_stream";
     private final String fsRolloverDataStreamName = "my_failure_store_to_be_rolled_over_data_stream";
+    private final String fsBySettingsDataStreamName = "my_failure_store_enabled_by_setting_data_stream";
 
     private final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
         .settings(
@@ -118,6 +126,12 @@ public class BulkOperationTests extends ESTestCase {
     private final IndexMetadata ds3FailureStore2 = DataStreamTestHelper.createFailureStore(fsRolloverDataStreamName, 2, millis)
         .numberOfShards(1)
         .build();
+    private final IndexMetadata ds4BackingIndex1 = DataStreamTestHelper.createBackingIndex(fsBySettingsDataStreamName, 1, millis)
+        .numberOfShards(2)
+        .build();
+    private final IndexMetadata ds4FailureStore1 = DataStreamTestHelper.createFailureStore(fsBySettingsDataStreamName, 1, millis)
+        .numberOfShards(1)
+        .build();
 
     private final DataStream dataStream1 = DataStreamTestHelper.newInstance(
         dataStreamName,
@@ -130,26 +144,34 @@ public class BulkOperationTests extends ESTestCase {
     );
     private final DataStream dataStream3 = DataStream.builder(fsRolloverDataStreamName, List.of(ds3BackingIndex1.getIndex()))
         .setGeneration(1)
-        .setFailureStoreEnabled(true)
+        .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
         .setFailureIndices(
             DataStream.DataStreamIndices.failureIndicesBuilder(List.of(ds3FailureStore1.getIndex())).setRolloverOnWrite(true).build()
         )
         .build();
+    private final DataStream dataStream4 = DataStream.builder(fsBySettingsDataStreamName, List.of(ds4BackingIndex1.getIndex()))
+        .setGeneration(1)
+        .setDataStreamOptions(DataStreamOptions.EMPTY)
+        .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(ds4FailureStore1.getIndex())).build())
+        .build();
 
-    private final ClusterState DEFAULT_STATE = ClusterState.builder(ClusterName.DEFAULT)
-        .metadata(
-            Metadata.builder()
+    private final ProjectId projectId = randomProjectIdOrDefault();
+    private final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        .putProjectMetadata(
+            ProjectMetadata.builder(projectId)
                 .indexTemplates(
                     Map.of(
                         "ds-template",
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(dataStreamName))
-                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, false))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(false)))
                             .build(),
                         "ds-template-with-failure-store",
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(fsDataStreamName, fsRolloverDataStreamName))
-                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
                             .build()
                     )
                 )
@@ -168,11 +190,24 @@ public class BulkOperationTests extends ESTestCase {
                         ds3BackingIndex1.getIndex().getName(),
                         ds3BackingIndex1,
                         ds3FailureStore1.getIndex().getName(),
-                        ds3FailureStore1
+                        ds3FailureStore1,
+                        ds4BackingIndex1.getIndex().getName(),
+                        ds4BackingIndex1,
+                        ds4FailureStore1.getIndex().getName(),
+                        ds4FailureStore1
                     )
                 )
                 .dataStreams(
-                    Map.of(dataStreamName, dataStream1, fsDataStreamName, dataStream2, fsRolloverDataStreamName, dataStream3),
+                    Map.of(
+                        dataStreamName,
+                        dataStream1,
+                        fsDataStreamName,
+                        dataStream2,
+                        fsRolloverDataStreamName,
+                        dataStream3,
+                        fsBySettingsDataStreamName,
+                        dataStream4
+                    ),
                     Map.of()
                 )
                 .build()
@@ -184,6 +219,7 @@ public class BulkOperationTests extends ESTestCase {
     @Before
     public void setupThreadpool() {
         threadPool = new TestThreadPool(getClass().getName());
+        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
     }
 
     @After
@@ -198,7 +234,7 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(assertNoClientInteraction());
 
         // Not retryable
-        ClusterState state = ClusterState.builder(DEFAULT_STATE)
+        ClusterState state = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK).build())
             .build();
 
@@ -221,7 +257,7 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(assertNoClientInteraction());
 
         // Retryable
-        final ClusterState state = ClusterState.builder(DEFAULT_STATE)
+        final ClusterState state = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -255,7 +291,7 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(assertNoClientInteraction());
 
         // Retryable
-        final ClusterState state = ClusterState.builder(DEFAULT_STATE)
+        final ClusterState state = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -356,8 +392,6 @@ public class BulkOperationTests extends ESTestCase {
      * A bulk operation to a data stream with a failure store enabled should redirect any shard level failures to the failure store.
      */
     public void testFailingEntireShardRedirectsToFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -383,8 +417,6 @@ public class BulkOperationTests extends ESTestCase {
      * failure store.
      */
     public void testFailingDocumentRedirectsToFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -406,12 +438,98 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     /**
+     * A bulk operation to a data stream with a failure store enabled should NOT redirect any documents that fail at a shard level to the
+     * failure store if the failure store node feature is not on every node in the cluster
+     */
+    public void testFailingDocumentIgnoredByFailureStoreWhenFeatureIsDisabled() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("test")))
+        );
+
+        BulkResponse bulkItemResponses = safeAwait(
+            l -> newBulkOperation(
+                clusterState,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(clusterState),
+                l,
+                new FailureStoreDocumentConverter(),
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                false
+            ).run()
+        );
+        assertThat(bulkItemResponses.hasFailures(), is(true));
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("test")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+    }
+
+    public void testFailingDocumentRedirectsToFailureStoreWhenEnabledByClusterSetting() {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(fsBySettingsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE)
+        );
+
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(
+                Map.of(new IndexAndId(ds4BackingIndex1.getIndex().getName(), "1"), () -> new MapperException("mapping go boom"))
+            )
+        );
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings = DataStreamFailureStoreSettings.create(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), fsBySettingsDataStreamName)
+                    .build()
+            )
+        );
+
+        // Without the cluster setting, this bulk request should fail:
+        BulkResponse bulkItemResponsesWithoutClusterSetting = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
+        assertThat(bulkItemResponsesWithoutClusterSetting.hasFailures(), is(true));
+        BulkItemResponse failedItem = Arrays.stream(bulkItemResponsesWithoutClusterSetting.getItems())
+            .filter(BulkItemResponse::isFailed)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("mapping go boom")));
+
+        // With a cluster setting to enable the failure store for this data stream, the same request should be redirected:
+        BulkResponse bulkItemResponsesUsingClusterSetting = safeAwait(
+            l -> newBulkOperation(
+                clusterState,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(clusterState),
+                l,
+                new FailureStoreDocumentConverter(),
+                dataStreamFailureStoreSettings,
+                true
+            ).run()
+        );
+        assertThat(bulkItemResponsesUsingClusterSetting.hasFailures(), is(false));
+        BulkItemResponse redirectedItem = Arrays.stream(bulkItemResponsesUsingClusterSetting.getItems())
+            .filter(item -> item.getIndex().equals(ds4FailureStore1.getIndex().getName()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+    }
+
+    /**
      * A bulk operation to a data stream with a failure store enabled may still partially fail if the redirected documents experience
      * a shard-level failure while writing to the failure store indices.
      */
     public void testFailureStoreShardFailureRejectsDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -450,8 +568,6 @@ public class BulkOperationTests extends ESTestCase {
      * instead will simply report its original failure in the response, with the conversion failure present as a suppressed exception.
      */
     public void testFailedDocumentCanNotBeConvertedFails() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -460,24 +576,30 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(
             thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("root cause")))
         );
+        // Testing that we handle exceptions including IOExceptions and other exceptions:
+        List<Exception> transformFailures = List.of(
+            new IOException("Could not serialize json"),
+            new XContentParseException("[1:337] Duplicate field 'foo'")
+        );
+        for (Exception transformFailure : transformFailures) {
+            // Mock a failure store document converter that always fails
+            FailureStoreDocumentConverter mockConverter = mock(FailureStoreDocumentConverter.class);
+            when(mockConverter.transformFailedRequest(any(), any(), any(), any())).thenThrow(transformFailure);
 
-        // Mock a failure store document converter that always fails
-        FailureStoreDocumentConverter mockConverter = mock(FailureStoreDocumentConverter.class);
-        when(mockConverter.transformFailedRequest(any(), any(), any(), any())).thenThrow(new IOException("Could not serialize json"));
+            BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, mockConverter, l).run());
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, mockConverter, l).run());
-
-        assertThat(bulkItemResponses.hasFailures(), is(true));
-        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
-            .filter(BulkItemResponse::isFailed)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
-        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
-        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(IOException.class)));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("Could not serialize json")));
-        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+            assertThat(bulkItemResponses.hasFailures(), is(true));
+            BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+                .filter(BulkItemResponse::isFailed)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+            assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+            assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
+            assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
+            assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(transformFailure.getClass())));
+            assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo(transformFailure.getMessage())));
+            assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+        }
     }
 
     /**
@@ -486,8 +608,6 @@ public class BulkOperationTests extends ESTestCase {
      * returns an unblocked cluster, the redirection of failure documents should proceed and not return early.
      */
     public void testRetryableBlockAcceptsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -519,7 +639,7 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         // Create a new cluster state that has a retryable cluster block on it
-        ClusterState blockedState = ClusterState.builder(DEFAULT_STATE)
+        ClusterState blockedState = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -529,16 +649,16 @@ public class BulkOperationTests extends ESTestCase {
         // Then, when waiting for next state change, we will emulate the observer receiving an unblocked state to continue the processing
         // Finally, third time we will return the normal cluster state again since the cluster will be "unblocked" after waiting
         ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        when(observer.setAndGetObservedState()).thenReturn(DEFAULT_STATE).thenReturn(blockedState).thenReturn(DEFAULT_STATE);
+        when(observer.setAndGetObservedState()).thenReturn(clusterState).thenReturn(blockedState).thenReturn(clusterState);
         when(observer.isTimedOut()).thenReturn(false);
         doAnswer(invocation -> {
             ClusterStateObserver.Listener l = invocation.getArgument(0);
-            l.onNewClusterState(DEFAULT_STATE);
+            l.onNewClusterState(clusterState);
             return null;
         }).when(observer).waitForNextChange(any());
 
         final SubscribableListener<BulkResponse> responseListener = SubscribableListener.newForked(
-            l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run()
+            l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run()
         );
 
         // The operation will attempt to write the documents in the request, receive a failure, wait for a stable cluster state, and then
@@ -579,8 +699,6 @@ public class BulkOperationTests extends ESTestCase {
      * non-retryable block when the redirected documents would be sent to the shard-level action.
      */
     public void testBlockedClusterRejectsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -595,7 +713,7 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         // Create a new cluster state that has a non-retryable cluster block on it
-        ClusterState blockedState = ClusterState.builder(DEFAULT_STATE)
+        ClusterState blockedState = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(IndexMetadata.INDEX_READ_ONLY_BLOCK).build())
             .build();
 
@@ -603,11 +721,11 @@ public class BulkOperationTests extends ESTestCase {
         // Second time we will return a blocked cluster state (before the redirects) causing us to start observing the cluster
         // Finally, we will simulate the observer timing out causing the redirects to fail.
         ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        when(observer.setAndGetObservedState()).thenReturn(DEFAULT_STATE).thenReturn(blockedState);
+        when(observer.setAndGetObservedState()).thenReturn(clusterState).thenReturn(blockedState);
         when(observer.isTimedOut()).thenReturn(false);
         doThrow(new AssertionError("Should not wait on non retryable block")).when(observer).waitForNextChange(any());
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -632,8 +750,6 @@ public class BulkOperationTests extends ESTestCase {
      * retryable block to clear when the redirected documents would be sent to the shard-level action.
      */
     public void testOperationTimeoutRejectsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -648,7 +764,7 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         // Create a new cluster state that has a retryable cluster block on it
-        ClusterState blockedState = ClusterState.builder(DEFAULT_STATE)
+        ClusterState blockedState = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -656,7 +772,7 @@ public class BulkOperationTests extends ESTestCase {
         // Second time we will return a blocked cluster state (before the redirects) causing us to start observing the cluster
         // Finally, we will simulate the observer timing out causing the redirects to fail.
         ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        when(observer.setAndGetObservedState()).thenReturn(DEFAULT_STATE).thenReturn(blockedState);
+        when(observer.setAndGetObservedState()).thenReturn(clusterState).thenReturn(blockedState);
         when(observer.isTimedOut()).thenReturn(false, true);
         doAnswer((i) -> {
             // Returning same state or timing out will result in one more attempt.
@@ -668,7 +784,7 @@ public class BulkOperationTests extends ESTestCase {
             return null;
         }).doThrow(new AssertionError("Should not wait any longer")).when(observer).waitForNextChange(any());
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -693,8 +809,6 @@ public class BulkOperationTests extends ESTestCase {
      * for a retryable block to clear when the redirected documents would be sent to the shard-level action.
      */
     public void testNodeClosureRejectsFailureStoreDocument() {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
@@ -709,7 +823,7 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         // Create a new cluster state that has a retryable cluster block on it
-        ClusterState blockedState = ClusterState.builder(DEFAULT_STATE)
+        ClusterState blockedState = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -717,7 +831,7 @@ public class BulkOperationTests extends ESTestCase {
         // Second time we will return a blocked cluster state (before the redirects) causing us to start observing the cluster
         // Finally, we will simulate the node closing causing the redirects to fail.
         ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        when(observer.setAndGetObservedState()).thenReturn(DEFAULT_STATE).thenReturn(blockedState);
+        when(observer.setAndGetObservedState()).thenReturn(clusterState).thenReturn(blockedState);
         when(observer.isTimedOut()).thenReturn(false, true);
         doAnswer((i) -> {
             i.getArgument(0, ClusterStateObserver.Listener.class).onClusterServiceClose();
@@ -725,7 +839,7 @@ public class BulkOperationTests extends ESTestCase {
         }).doThrow(new AssertionError("Should not wait any longer")).when(observer).waitForNextChange(any());
 
         assertThat(
-            safeAwaitFailure(BulkResponse.class, l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run()),
+            safeAwaitFailure(BulkResponse.class, l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run()),
             instanceOf(NodeClosedException.class)
         );
 
@@ -738,8 +852,6 @@ public class BulkOperationTests extends ESTestCase {
      * rollover, it first needs to roll over the failure store and then redirect the failure to the <i>new</i> failure index.
      */
     public void testLazilyRollingOverFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(
@@ -769,17 +881,20 @@ public class BulkOperationTests extends ESTestCase {
 
         DataStream rolledOverDataStream = dataStream3.copy()
             .setFailureIndices(
-                dataStream3.getFailureIndices().copy().setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex())).build()
+                dataStream3.getFailureComponent()
+                    .copy()
+                    .setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex()))
+                    .build()
             )
             .build();
-        Metadata metadata = Metadata.builder(DEFAULT_STATE.metadata())
+        ProjectMetadata metadata = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .indices(Map.of(ds3FailureStore2.getIndex().getName(), ds3FailureStore2))
             .put(rolledOverDataStream)
             .build();
-        ClusterState rolledOverState = ClusterState.builder(DEFAULT_STATE).metadata(metadata).build();
-        ClusterStateObserver observer = mockObserver(DEFAULT_STATE, DEFAULT_STATE, rolledOverState);
+        ClusterState rolledOverState = ClusterState.builder(clusterState).putProjectMetadata(metadata).build();
+        ClusterStateObserver observer = mockObserver(clusterState, clusterState, rolledOverState);
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run());
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(item -> item.getIndex().equals(ds3FailureStore2.getIndex().getName()))
             .findFirst()
@@ -794,8 +909,6 @@ public class BulkOperationTests extends ESTestCase {
      * should be added to the list of suppressed causes in the <code>BulkItemResponse</code>.
      */
     public void testFailureWhileRollingOverFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(
@@ -814,17 +927,20 @@ public class BulkOperationTests extends ESTestCase {
 
         DataStream rolledOverDataStream = dataStream3.copy()
             .setFailureIndices(
-                dataStream3.getFailureIndices().copy().setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex())).build()
+                dataStream3.getFailureComponent()
+                    .copy()
+                    .setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex()))
+                    .build()
             )
             .build();
-        Metadata metadata = Metadata.builder(DEFAULT_STATE.metadata())
+        ProjectMetadata metadata = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .indices(Map.of(ds3FailureStore2.getIndex().getName(), ds3FailureStore2))
             .put(rolledOverDataStream)
             .build();
-        ClusterState rolledOverState = ClusterState.builder(DEFAULT_STATE).metadata(metadata).build();
-        ClusterStateObserver observer = mockObserver(DEFAULT_STATE, DEFAULT_STATE, rolledOverState);
+        ClusterState rolledOverState = ClusterState.builder(clusterState).putProjectMetadata(metadata).build();
+        ClusterStateObserver observer = mockObserver(clusterState, clusterState, rolledOverState);
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run());
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
             .findFirst()
@@ -953,6 +1069,7 @@ public class BulkOperationTests extends ESTestCase {
 
     /**
      * Create a client that redirects expected actions to the provided function and fails if an unexpected operation happens.
+     *
      * @param onShardAction Called when TransportShardBulkAction is executed.
      * @return A node client for the test.
      */
@@ -962,6 +1079,7 @@ public class BulkOperationTests extends ESTestCase {
 
     /**
      * Create a client that redirects expected actions to the provided function and fails if an unexpected operation happens.
+     *
      * @param onShardAction Called when TransportShardBulkAction is executed.
      * @return A node client for the test.
      */
@@ -1017,11 +1135,11 @@ public class BulkOperationTests extends ESTestCase {
 
     private BulkOperation newBulkOperation(NodeClient client, BulkRequest request, ActionListener<BulkResponse> listener) {
         return newBulkOperation(
-            DEFAULT_STATE,
+            clusterState,
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            mockObserver(DEFAULT_STATE),
+            mockObserver(clusterState),
             listener,
             new FailureStoreDocumentConverter()
         );
@@ -1034,11 +1152,11 @@ public class BulkOperationTests extends ESTestCase {
         ActionListener<BulkResponse> listener
     ) {
         return newBulkOperation(
-            DEFAULT_STATE,
+            clusterState,
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            mockObserver(DEFAULT_STATE),
+            mockObserver(clusterState),
             listener,
             failureStoreDocumentConverter
         );
@@ -1071,6 +1189,30 @@ public class BulkOperationTests extends ESTestCase {
         ActionListener<BulkResponse> listener,
         FailureStoreDocumentConverter failureStoreDocumentConverter
     ) {
+        return newBulkOperation(
+            state,
+            client,
+            request,
+            existingResponses,
+            observer,
+            listener,
+            failureStoreDocumentConverter,
+            DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            true
+        );
+    }
+
+    private BulkOperation newBulkOperation(
+        ClusterState state,
+        NodeClient client,
+        BulkRequest request,
+        AtomicArray<BulkItemResponse> existingResponses,
+        ClusterStateObserver observer,
+        ActionListener<BulkResponse> listener,
+        FailureStoreDocumentConverter failureStoreDocumentConverter,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        boolean failureStoreNodeFeatureEnabled
+    ) {
         // Time provision
         long timeZero = TimeUnit.MILLISECONDS.toNanos(randomMillisUpToYear9999() - TimeUnit.DAYS.toMillis(1));
         long duration = TimeUnit.SECONDS.toNanos(randomLongBetween(1, 60));
@@ -1078,7 +1220,7 @@ public class BulkOperationTests extends ESTestCase {
 
         // Expressions
         ThreadContext ctx = threadPool.getThreadContext();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(ctx, new SystemIndices(List.of()));
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(ctx);
 
         // Mocks
         final DiscoveryNode mockNode = mock(DiscoveryNode.class);
@@ -1096,12 +1238,15 @@ public class BulkOperationTests extends ESTestCase {
             client,
             existingResponses,
             indexNameExpressionResolver,
+            TestProjectResolvers.usingRequestHeader(ctx),
             () -> endTime,
             timeZero,
             listener,
             observer,
             failureStoreDocumentConverter,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            dataStreamFailureStoreSettings,
+            failureStoreNodeFeatureEnabled
         );
     }
 

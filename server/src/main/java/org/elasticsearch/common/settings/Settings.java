@@ -79,6 +79,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 public final class Settings implements ToXContentFragment, Writeable, Diffable<Settings> {
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
+    public static final Diff<Settings> EMPTY_DIFF = new SettingsDiff(DiffableUtils.emptyDiff());
 
     public static final String FLAT_SETTINGS_PARAM = "flat_settings";
 
@@ -242,7 +243,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         if (prefix.isEmpty()) {
             return this;
         }
-        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
+        // create the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
         // below
         char[] toPrefixCharArr = prefix.toCharArray();
         toPrefixCharArr[toPrefixCharArr.length - 1]++;
@@ -288,6 +289,28 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
         return retVal == null ? defaultValue : retVal;
+    }
+
+    /**
+     * Returns the values for the given settings pattern.
+     *
+     * Either a concrete setting name, or a pattern containing a single glob is supported.
+     *
+     * @param settingPattern name of a setting or a setting name pattern containing a glob
+     * @return zero or more values for any settings in this settings object that match the given pattern
+     */
+    public Stream<String> getValues(String settingPattern) {
+        int globIndex = settingPattern.indexOf(".*.");
+        Stream<String> settingNames;
+        if (globIndex == -1) {
+            settingNames = Stream.of(settingPattern);
+        } else {
+            String prefix = settingPattern.substring(0, globIndex + 1);
+            String suffix = settingPattern.substring(globIndex + 2);
+            Settings subSettings = getByPrefix(prefix);
+            settingNames = subSettings.names().stream().map(k -> prefix + k + suffix);
+        }
+        return settingNames.map(this::getAsList).flatMap(List::stream).filter(Objects::nonNull);
     }
 
     /**
@@ -854,6 +877,40 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         return newKeySet;
     }
 
+    /*
+     * This method merges the given newSettings into this Settings, returning either a new Settings object or this if the newSettings are
+     * empty. If any values are null in newSettings, those keys are removed from the returned object.
+     */
+    public Settings merge(Settings newSettings) {
+        Objects.requireNonNull(newSettings);
+        if (Settings.EMPTY.equals(newSettings)) {
+            return this;
+        }
+        Settings.Builder builder = Settings.builder().put(this);
+        for (String key : newSettings.keySet()) {
+            String rawValue = newSettings.get(key);
+            if (rawValue == null) {
+                builder.remove(key);
+            } else {
+                builder.put(key, rawValue);
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * Checks if all settings start with the specified prefix and renames any that do not. Returns the current instance if nothing needs
+     * to be done. See {@link Builder#normalizePrefix(String)} for more info.
+     */
+    public Settings maybeNormalizePrefix(String prefix) {
+        for (String key : settings.keySet()) {
+            if (key.startsWith(prefix) == false && key.endsWith("*") == false) {
+                return builder().put(this).normalizePrefix(prefix).build();
+            }
+        }
+        return this;
+    }
+
     /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
      * settings implementation. Use {@link Settings#builder()} in order to
@@ -1147,9 +1204,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
          * @param copySecureSettings if <code>true</code> all settings including secure settings are copied.
          */
         public Builder put(Settings settings, boolean copySecureSettings) {
-            Map<String, Object> settingsMap = new HashMap<>(settings.settings);
-            processLegacyLists(settingsMap);
-            map.putAll(settingsMap);
+            map.putAll(settings.settings);
+            processLegacyLists(map);
             if (copySecureSettings && settings.getSecureSettings() != null) {
                 setSecureSettings(settings.getSecureSettings());
             }

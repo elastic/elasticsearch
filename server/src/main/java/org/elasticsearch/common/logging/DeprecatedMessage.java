@@ -23,7 +23,6 @@ public class DeprecatedMessage {
     public static final String ELASTIC_ORIGIN_FIELD_NAME = "elasticsearch.elastic_product_origin";
     public static final String KEY_FIELD_NAME = "event.code";
     public static final String X_OPAQUE_ID_FIELD_NAME = "elasticsearch.http.request.x_opaque_id";
-    public static final String ECS_VERSION = "1.2.0";
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public static ESLogMessage of(
@@ -57,7 +56,7 @@ public class DeprecatedMessage {
         String messagePattern,
         Object[] args
     ) {
-        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args).field("data_stream.dataset", "deprecation.elasticsearch")
+        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args).field("data_stream.dataset", "elasticsearch.deprecation")
             .field("data_stream.type", "logs")
             .field("data_stream.namespace", "default")
             .field(KEY_FIELD_NAME, key)

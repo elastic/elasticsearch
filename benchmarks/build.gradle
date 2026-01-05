@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.TestUtil
+import org.elasticsearch.gradle.OS
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.test.TestUtil
 apply plugin: org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
 apply plugin: 'java-library'
 apply plugin: 'application'
+apply plugin: 'elasticsearch.mrjar'
 
 var os = org.gradle.internal.os.OperatingSystem.current()
 
@@ -25,7 +26,6 @@ base {
   archivesName = 'elasticsearch-benchmarks'
 }
 
-tasks.named("test").configure { enabled = false }
 tasks.named("javadoc").configure { enabled = false }
 
 configurations {
@@ -40,20 +40,28 @@ dependencies {
     // us to invoke the JMH uberjar as usual.
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
-  api(project(':libs:elasticsearch-h3'))
+  api(project(':libs:h3'))
   api(project(':modules:aggregations'))
+  implementation project(':modules:mapper-extras');
   api(project(':x-pack:plugin:esql-core'))
+  api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
-  implementation project(path: ':libs:elasticsearch-simdvec')
+  api(project(':x-pack:plugin:mapper-exponential-histogram'))
+  api(project(':x-pack:plugin:logsdb'))
+  implementation project(path: ':libs:native')
+  implementation project(path: ':libs:simdvec')
+  implementation project(path: ':libs:exponential-histogram')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
-  nativeLib(project(':libs:elasticsearch-native'))
+  nativeLib(project(':libs:native'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
-  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
+  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.2'
   runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
+
+  testImplementation(project(':test:framework'))
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
@@ -78,10 +86,16 @@ tasks.register("copyPainless", Copy) {
 }
 
 tasks.named("run").configure {
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
   args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+}
+
+tasks.named('test').configure {
+  if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
+    jvmArgs '--add-modules=jdk.incubator.vector'
+  }
 }
 
 spotless {

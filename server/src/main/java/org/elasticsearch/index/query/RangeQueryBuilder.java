@@ -9,16 +9,15 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -38,6 +37,7 @@ import java.util.Objects;
  * A Query that matches documents within an range of terms.
  */
 public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
+
     public static final String NAME = "range";
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
@@ -45,10 +45,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     public static final ParseField LTE_FIELD = new ParseField("lte");
     public static final ParseField GTE_FIELD = new ParseField("gte");
-    public static final ParseField FROM_FIELD = new ParseField("from").withAllDeprecated();
-    public static final ParseField TO_FIELD = new ParseField("to").withAllDeprecated();
-    private static final ParseField INCLUDE_LOWER_FIELD = new ParseField("include_lower").withAllDeprecated();
-    private static final ParseField INCLUDE_UPPER_FIELD = new ParseField("include_upper").withAllDeprecated();
     public static final ParseField GT_FIELD = new ParseField("gt");
     public static final ParseField LT_FIELD = new ParseField("lt");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
@@ -367,15 +363,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = maybeConvertToBytesRef(parser.objectBytes());
-                        } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = maybeConvertToBytesRef(parser.objectBytes());
-                        } else if (INCLUDE_LOWER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            includeLower = parser.booleanValue();
-                        } else if (INCLUDE_UPPER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            includeUpper = parser.booleanValue();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (GT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             from = maybeConvertToBytesRef(parser.objectBytes());
@@ -438,6 +426,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
         final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
         if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            assert fieldName.equals(fieldType.name());
             IndexLongFieldRange fieldRange = coordinatorRewriteContext.getFieldRange(fieldName);
             if (fieldRange.isComplete() == false || fieldRange == IndexLongFieldRange.EMPTY) {
                 // if not all shards for this (frozen) index have reported ranges to cluster state, OR if they
@@ -460,7 +449,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 includeUpper,
                 timeZone,
                 dateMathParser,
-                coordinatorRewriteContext
+                coordinatorRewriteContext,
+                dateFieldType.name()
             );
         }
         // If the field type is null or not of type DataFieldType then we have no idea whether this range query will match during
@@ -534,7 +524,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
             if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
-                return new MatchNoDocsQuery("No mappings yet");
+                return Queries.NO_MAPPINGS;
             }
             final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
                 .getFieldType(FieldNamesFieldMapper.NAME);
@@ -569,6 +559,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

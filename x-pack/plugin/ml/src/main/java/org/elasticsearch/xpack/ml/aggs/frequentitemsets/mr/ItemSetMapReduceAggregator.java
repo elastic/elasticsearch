@@ -17,6 +17,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
@@ -117,9 +118,9 @@ public abstract class ItemSetMapReduceAggregator<
     }
 
     @Override
-    public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+    public final InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
             results[ordIdx] = buildAggregation(ordIdx);
         }
 

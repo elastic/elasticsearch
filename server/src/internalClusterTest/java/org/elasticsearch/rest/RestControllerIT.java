@@ -10,6 +10,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -30,21 +32,27 @@ import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.test.rest.ESRestTestCase.responseAsParser;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numClientNodes = 1, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class RestControllerIT extends ESIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
@@ -56,6 +64,49 @@ public class RestControllerIT extends ESIntegTestCase {
         final var response = client.performRequest(new Request("GET", ChunkedResponseWithHeadersPlugin.ROUTE));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(ChunkedResponseWithHeadersPlugin.HEADER_VALUE, response.getHeader(ChunkedResponseWithHeadersPlugin.HEADER_NAME));
+    }
+
+    public void testHeadersAreCollapsed() throws IOException {
+        final var client = getRestClient();
+        final var request = new Request("GET", TestEchoHeadersPlugin.ROUTE);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-Foo", "1").addHeader("X-Foo", "2").build());
+        final var response = client.performRequest(request);
+        var responseMap = responseAsParser(response).map(HashMap::new, XContentParser::list);
+        assertThat(responseMap, hasEntry(equalTo("X-Foo"), containsInAnyOrder("1", "2")));
+    }
+
+    public void testHeadersTreatedCaseInsensitive() throws IOException {
+        final var client = getRestClient();
+        final var request = new Request("GET", TestEchoHeadersPlugin.ROUTE);
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-Foo", "1").addHeader("x-foo", "2").build());
+        final var response = client.performRequest(request);
+        var responseMap = responseAsParser(response).map(HashMap::new, XContentParser::list);
+        assertThat(responseMap, hasEntry(equalTo("x-foo"), containsInAnyOrder("1", "2")));
+        assertThat(responseMap, hasEntry(equalTo("X-Foo"), containsInAnyOrder("1", "2")));
+    }
+
+    public void testThreadContextPopulationFromMultipleHeadersFailsWithCorrectError() {
+        final var client = getRestClient();
+        final var sameCaseRequest = new Request("GET", TestEchoHeadersPlugin.ROUTE);
+        sameCaseRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("x-elastic-product-origin", "elastic")
+                .addHeader("x-elastic-product-origin", "other")
+        );
+        var exception1 = expectThrows(ResponseException.class, () -> client.performRequest(sameCaseRequest));
+        assertThat(exception1.getMessage(), containsString("multiple values for single-valued header [X-elastic-product-origin]"));
+    }
+
+    public void testMultipleProductOriginHeadersWithDifferentCaseFailsWithCorrectError() {
+        final var client = getRestClient();
+        final var differentCaseRequest = new Request("GET", TestEchoHeadersPlugin.ROUTE);
+        differentCaseRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("X-elastic-product-origin", "elastic")
+                .addHeader("x-elastic-product-origin", "other")
+        );
+        var exception2 = expectThrows(ResponseException.class, () -> client.performRequest(differentCaseRequest));
+        assertThat(exception2.getMessage(), containsString("multiple values for single-valued header [X-elastic-product-origin]"));
     }
 
     public void testMetricsEmittedOnSuccess() throws Exception {
@@ -125,7 +176,12 @@ public class RestControllerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ChunkedResponseWithHeadersPlugin.class, TestEchoStatusCodePlugin.class, TestTelemetryPlugin.class);
+        return List.of(
+            ChunkedResponseWithHeadersPlugin.class,
+            TestEchoStatusCodePlugin.class,
+            TestEchoHeadersPlugin.class,
+            TestTelemetryPlugin.class
+        );
     }
 
     public static class TestEchoStatusCodePlugin extends Plugin implements ActionPlugin {
@@ -168,6 +224,62 @@ public class RestControllerIT extends ESIntegTestCase {
                             restStatus,
                             ChunkedRestResponseBodyPart.fromXContent(
                                 params -> Iterators.single((b, p) -> b.startObject().endObject()),
+                                request,
+                                channel
+                            ),
+                            null
+                        );
+                        channel.sendResponse(response);
+                        logger.info("sent response");
+                    };
+                }
+            });
+        }
+    }
+
+    public static class TestEchoHeadersPlugin extends Plugin implements ActionPlugin {
+        static final String ROUTE = "/_test/echo_headers";
+        static final String NAME = "test_echo_headers";
+
+        private static final Logger logger = LogManager.getLogger(TestEchoStatusCodePlugin.class);
+
+        @Override
+        public Collection<RestHandler> getRestHandlers(
+            Settings settings,
+            NamedWriteableRegistry namedWriteableRegistry,
+            RestController restController,
+            ClusterSettings clusterSettings,
+            IndexScopedSettings indexScopedSettings,
+            SettingsFilter settingsFilter,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster,
+            Predicate<NodeFeature> clusterSupportsFeature
+        ) {
+            return List.of(new BaseRestHandler() {
+                @Override
+                public String getName() {
+                    return NAME;
+                }
+
+                @Override
+                public List<Route> routes() {
+                    return List.of(new Route(RestRequest.Method.GET, ROUTE), new Route(RestRequest.Method.POST, ROUTE));
+                }
+
+                @Override
+                protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                    var headers = request.getHeaders();
+                    logger.info("received header echo request for [{}]", String.join(",", headers.keySet()));
+
+                    return channel -> {
+                        final var response = RestResponse.chunked(
+                            RestStatus.OK,
+                            ChunkedRestResponseBodyPart.fromXContent(
+                                params -> Iterators.concat(
+                                    ChunkedToXContentHelper.startObject(),
+                                    Iterators.map(headers.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey(), e.getValue())),
+                                    ChunkedToXContentHelper.endObject()
+                                ),
                                 request,
                                 channel
                             ),

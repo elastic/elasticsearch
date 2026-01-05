@@ -6,21 +6,19 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.Version
-
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds "built in" analyzers to Elasticsearch.'
-  classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
+  description = 'Adds "built in" analyzers to Elasticsearch.'
+  classname = 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
   extendedPlugins = ['lang-painless']
 }
 
 restResources {
   restApi {
-    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count'
+    include '_common', 'indices', 'index', 'cluster', 'search', 'nodes', 'bulk', 'termvectors', 'explain', 'count', 'capabilities'
   }
 }
 
@@ -32,4 +30,9 @@ dependencies {
 
 artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.replaceValueInMatch("tokens.0.token", "absenț", "romanian")
+  task.skipTest("indices.analyze/15_analyze/Custom analyzer is not buildable", "error response changed with #123743")
 }

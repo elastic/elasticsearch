@@ -13,14 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * The request object to handoff the primary context to the relocation target.
  */
-class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
+class RecoveryHandoffPrimaryContextRequest extends AbstractTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;

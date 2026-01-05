@@ -118,7 +118,8 @@ public class LookAHeadTimeTests extends ESSingleNodeTestCase {
         updateIndexSettings(indexSettings);
     }
 
-    private void updateClusterSettings(Settings settings) {
+    @Override
+    protected void updateClusterSettings(Settings settings) {
         clusterAdmin().updateSettings(
             new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(settings)
         ).actionGet();

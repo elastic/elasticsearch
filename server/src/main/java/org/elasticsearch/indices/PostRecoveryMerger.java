@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,14 +47,15 @@ class PostRecoveryMerger {
     private static final boolean TRIGGER_MERGE_AFTER_RECOVERY;
 
     static {
-        final var propertyValue = System.getProperty("es.trigger_merge_after_recovery_8_515_00_0");
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_INDEXING) // remove this escape hatch
+        final var propertyValue = System.getProperty("es.trigger_merge_after_recovery");
         if (propertyValue == null) {
             TRIGGER_MERGE_AFTER_RECOVERY = true;
         } else if ("false".equals(propertyValue)) {
             TRIGGER_MERGE_AFTER_RECOVERY = false;
         } else {
             throw new IllegalStateException(
-                "system property [es.trigger_merge_after_recovery_8_515_00_0] may only be set to [false], but was [" + propertyValue + "]"
+                "system property [es.trigger_merge_after_recovery] may only be set to [false], but was [" + propertyValue + "]"
             );
         }
     }
@@ -95,7 +97,7 @@ class PostRecoveryMerger {
             return recoveryListener;
         }
 
-        if (indexMetadata.getCreationVersion().before(IndexVersions.MERGE_ON_RECOVERY_VERSION)) {
+        if (indexMetadata.getCreationVersion().before(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
             return recoveryListener;
         }
 

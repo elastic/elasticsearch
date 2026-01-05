@@ -16,7 +16,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -60,7 +61,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
      * Futures may be completed with {@code null} to indicate that there is
      * no usable timestamp field.
      */
-    private final Map<Index, PlainActionFuture<DateFieldRangeInfo>> fieldTypesByIndex = ConcurrentCollections.newConcurrentMap();
+    private final Map<ProjectId, Map<Index, PlainActionFuture<DateFieldRangeInfo>>> fieldTypesByIndex = ConcurrentCollections
+        .newConcurrentMap();
 
     public TimestampFieldMapperService(Settings settings, ThreadPool threadPool, IndicesService indicesService) {
         this.indicesService = indicesService;
@@ -92,14 +94,28 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        final Metadata metadata = event.state().metadata();
-        final Map<String, IndexMetadata> indices = metadata.indices();
-        if (indices == event.previousState().metadata().indices()) {
-            return;
+        for (ProjectMetadata project : event.state().metadata().projects().values()) {
+            ProjectMetadata previousProject = event.previousState().metadata().projects().get(project.id());
+            if (previousProject == null || previousProject.indices() != project.indices()) {
+                applyClusterStateForProject(
+                    project,
+                    fieldTypesByIndex.computeIfAbsent(project.id(), k -> ConcurrentCollections.newConcurrentMap())
+                );
+            }
         }
+        for (ProjectMetadata previousProject : event.previousState().metadata().projects().values()) {
+            if (event.state().metadata().projects().containsKey(previousProject.id())) {
+                continue;
+            }
+            fieldTypesByIndex.remove(previousProject.id());
+        }
+    }
+
+    private void applyClusterStateForProject(ProjectMetadata project, Map<Index, PlainActionFuture<DateFieldRangeInfo>> fieldTypesByIndex) {
+        final Map<String, IndexMetadata> indices = project.indices();
 
         // clear out mappers for indices that no longer exist or whose timestamp range is no longer known
-        fieldTypesByIndex.keySet().removeIf(index -> hasUsefulTimestampField(metadata.index(index)) == false);
+        fieldTypesByIndex.keySet().removeIf(index -> hasUsefulTimestampField(project.index(index)) == false);
 
         // capture mappers for indices that do exist
         for (IndexMetadata indexMetadata : indices.values()) {
@@ -166,11 +182,13 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         DateFieldMapper.DateFieldType eventIngestedFieldType = null;
 
         MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType
+            && dateFieldType.name().equals(DataStream.TIMESTAMP_FIELD_NAME)) {
             timestampFieldType = dateFieldType;
         }
         mappedFieldType = mapperService.fieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType
+            && dateFieldType.name().equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
             eventIngestedFieldType = dateFieldType;
         }
         if (timestampFieldType == null && eventIngestedFieldType == null) {
@@ -190,7 +208,13 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
      */
     @Nullable
     public DateFieldRangeInfo getTimestampFieldTypeInfo(Index index) {
-        final PlainActionFuture<DateFieldRangeInfo> future = fieldTypesByIndex.get(index);
+        // Look through all projects to find the index.
+        final PlainActionFuture<DateFieldRangeInfo> future = fieldTypesByIndex.values()
+            .stream()
+            .map(map -> map.get(index))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
         if (future == null || future.isDone() == false) {
             return null;
         }

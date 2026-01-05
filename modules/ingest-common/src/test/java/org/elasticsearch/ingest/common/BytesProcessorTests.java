@@ -77,9 +77,6 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "1.1kb");
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(1126L));
-        assertWarnings(
-            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [1.1kb] found for setting " + "[Ingest Field]"
-        );
+        assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(1127L));
     }
 }

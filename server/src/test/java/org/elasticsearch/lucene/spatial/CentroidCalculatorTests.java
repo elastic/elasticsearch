@@ -37,6 +37,7 @@ import static org.elasticsearch.lucene.spatial.DimensionalShapeType.POLYGON;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class CentroidCalculatorTests extends ESTestCase {
     private static final double DELTA = 0.000000001;
@@ -398,6 +399,36 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         }
     }
 
+    public void testDegeneratedPolygon() {
+        LinearRing outer = new LinearRing(
+            new double[] {
+                144.9738739160867,
+                144.97387390626216,
+                144.97387394861903,
+                144.97387410671985,
+                144.97387431344814,
+                144.97387422754971,
+                144.97387403679602,
+                144.9738739160867 },
+            new double[] {
+                -37.812764320048906,
+                -37.81276430546101,
+                -37.81276433502755,
+                -37.81276449365169,
+                -37.81276470177617,
+                -37.8127646444251,
+                -37.812764516780305,
+                -37.812764320048906 }
+        );
+        LinearRing inner = new LinearRing(
+            new double[] { 144.9738739160867, 144.97387396264085, 144.97387400134224, 144.97387405619358, 144.9738739160867 },
+            new double[] { -37.812764320048906, -37.81276437348886, -37.81276441404389, -37.81276447205519, -37.812764320048906 }
+        );
+        CentroidCalculator polygonCalculator = new CentroidCalculator();
+        polygonCalculator.add(new Polygon(outer, List.of(inner)));
+        assertThat(polygonCalculator.sumWeight(), greaterThanOrEqualTo(0d));
+    }
+
     private Matcher<CentroidCalculator> matchesCentroid(Point point, double weight) {
         return new CentroidMatcher(point.getX(), point.getY(), weight, 1.0);
     }
@@ -428,7 +459,8 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
             // Most data (notably geo data) has values within bounds, and an absolute delta makes more sense.
             double delta = (value > 1e28 || value < -1e28) ? Math.abs(value / 1e6)
                 : (value > 1e20 || value < -1e20) ? Math.abs(value / 1e10)
-                : (value > 1e9 || value < -1e9) ? Math.abs(value / 1e15)
+                : (value > 1e8 || value < -1e8) ? Math.abs(value / 1e15)
+                : (value > 1e5 || value < -1e5) ? DELTA * 10
                 : DELTA;
             return closeTo(value, delta);
         }

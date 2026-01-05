@@ -1,35 +1,38 @@
 {
-  "update_by_query_rethrottle":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html",
-      "description":"Changes the number of requests per second for a particular Update By Query operation."
+  "update_by_query_rethrottle": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query-rethrottle",
+      "description": "Throttle an update by query operation"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_update_by_query/{task_id}/_rethrottle",
-          "methods":[
+          "path": "/_update_by_query/{task_id}/_rethrottle",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "task_id":{
-              "type":"string",
-              "description":"The task id to rethrottle"
+          "parts": {
+            "task_id": {
+              "type": "string",
+              "description": "The task id to rethrottle"
             }
           }
         }
       ]
     },
-    "params":{
-      "requests_per_second":{
-        "type":"number",
-        "required":true,
-        "description":"The throttle to set on this request in floating sub-requests per second. -1 means set no throttle."
+    "params": {
+      "requests_per_second": {
+        "type": "number",
+        "required": true,
+        "default": -1,
+        "description": "The throttle to set on this request in floating sub-requests per second. -1 means set no throttle."
       }
     }
   }

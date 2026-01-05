@@ -10,12 +10,12 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public static final String BG_COUNT = "bg_count";
 
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
-    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             SignificantTerms.Bucket {
         /**
@@ -53,33 +54,16 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
          */
         @FunctionalInterface
         public interface Reader<B extends Bucket<B>> {
-            B read(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) throws IOException;
+            B read(StreamInput in, DocValueFormat format) throws IOException;
         }
 
         long subsetDf;
-        long subsetSize;
         long supersetDf;
-        long supersetSize;
-        /**
-         * Ordinal of the bucket while it is being built. Not used after it is
-         * returned from {@link Aggregator#buildAggregations(long[])} and not
-         * serialized.
-         */
-        transient long bucketOrd;
         double score;
         protected InternalAggregations aggregations;
         final transient DocValueFormat format;
 
-        protected Bucket(
-            long subsetDf,
-            long subsetSize,
-            long supersetDf,
-            long supersetSize,
-            InternalAggregations aggregations,
-            DocValueFormat format
-        ) {
-            this.subsetSize = subsetSize;
-            this.supersetSize = supersetSize;
+        protected Bucket(long subsetDf, long supersetDf, InternalAggregations aggregations, DocValueFormat format) {
             this.subsetDf = subsetDf;
             this.supersetDf = supersetDf;
             this.aggregations = aggregations;
@@ -89,9 +73,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         /**
          * Read from a stream.
          */
-        protected Bucket(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) {
-            this.subsetSize = subsetSize;
-            this.supersetSize = supersetSize;
+        protected Bucket(DocValueFormat format) {
             this.format = format;
         }
 
@@ -105,20 +87,10 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return supersetDf;
         }
 
-        @Override
-        public long getSupersetSize() {
-            return supersetSize;
-        }
-
-        @Override
-        public long getSubsetSize() {
-            return subsetSize;
-        }
-
         // TODO we should refactor to remove this, since buckets should be immutable after they are generated.
         // This can lead to confusing bugs if the bucket is re-created (via createBucket() or similar) without
         // the score
-        void updateScore(SignificanceHeuristic significanceHeuristic) {
+        void updateScore(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize) {
             score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
         }
 
@@ -157,8 +129,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return Objects.hash(getClass(), aggregations, score, format);
         }
 
-        @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
@@ -166,7 +137,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             builder.field(BG_COUNT, supersetDf);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
@@ -260,17 +230,20 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             public InternalAggregation get() {
                 final SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
                 final int size = (int) (reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
-                try (BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size, reduceContext.bigArrays())) {
+                try (ObjectArrayPriorityQueue<B> ordered = new ObjectArrayPriorityQueue<B>(size, reduceContext.bigArrays()) {
+                    @Override
+                    protected boolean lessThan(B a, B b) {
+                        return a.getSignificanceScore() < b.getSignificanceScore();
+                    }
+                }) {
                     buckets.forEach(entry -> {
                         final B b = createBucket(
                             entry.value.subsetDf[0],
-                            globalSubsetSize,
                             entry.value.supersetDf[0],
-                            globalSupersetSize,
                             entry.value.reducer.getAggregations(),
                             entry.value.reducer.getProto()
                         );
-                        b.updateScore(heuristic);
+                        b.updateScore(heuristic, globalSubsetSize, globalSupersetSize);
                         if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
                             final B removed = ordered.insertWithOverflow(b);
                             if (removed == null) {
@@ -312,32 +285,22 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         long supersetSize = samplingContext.scaleUp(getSupersetSize());
         long subsetSize = samplingContext.scaleUp(getSubsetSize());
-        return create(
-            subsetSize,
-            supersetSize,
-            getBuckets().stream()
-                .map(
-                    b -> createBucket(
-                        samplingContext.scaleUp(b.subsetDf),
-                        subsetSize,
-                        samplingContext.scaleUp(b.supersetDf),
-                        supersetSize,
-                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext),
-                        b
-                    )
+        final List<B> originalBuckets = getBuckets();
+        final List<B> buckets = new ArrayList<>(originalBuckets.size());
+        for (B bucket : originalBuckets) {
+            buckets.add(
+                createBucket(
+                    samplingContext.scaleUp(bucket.subsetDf),
+                    samplingContext.scaleUp(bucket.supersetDf),
+                    InternalAggregations.finalizeSampling(bucket.aggregations, samplingContext),
+                    bucket
                 )
-                .toList()
-        );
+            );
+        }
+        return create(subsetSize, supersetSize, buckets);
     }
 
-    abstract B createBucket(
-        long subsetDf,
-        long subsetSize,
-        long supersetDf,
-        long supersetSize,
-        InternalAggregations aggregations,
-        B prototype
-    );
+    abstract B createBucket(long subsetDf, long supersetDf, InternalAggregations aggregations, B prototype);
 
     protected abstract A create(long subsetSize, long supersetSize, List<B> buckets);
 
@@ -345,10 +308,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
      * Create an array to hold some buckets. Used in collecting the results.
      */
     protected abstract B[] createBucketsArray(int size);
-
-    protected abstract long getSubsetSize();
-
-    protected abstract long getSupersetSize();
 
     protected abstract SignificanceHeuristic getSignificanceHeuristic();
 

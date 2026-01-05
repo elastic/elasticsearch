@@ -1,40 +1,45 @@
 {
-  "ccr.resume_follow":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-resume-follow.html",
-      "description": "Resumes a follower index that has been paused"
+  "ccr.resume_follow": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-resume-follow",
+      "description": "Resume a follower"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/{index}/_ccr/resume_follow",
-          "methods":[
+          "path": "/{index}/_ccr/resume_follow",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"The name of the follow index to resume following."
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The name of the follow index to resume following."
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout for connection to master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
       }
     },
-    "body":{
-      "description":"The name of the leader index and other optional ccr related parameters",
-      "required":false
+    "body": {
+      "description": "The name of the leader index and other optional ccr related parameters",
+      "required": false
     }
   }
 }

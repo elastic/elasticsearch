@@ -65,17 +65,17 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     private static IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
-        return prepareIndex(idx).setSource(jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
+        return prepareIndex(idx).setSource(jsonBuilder().startObject().timestampField("date", date).field("value", value).endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
         return prepareIndex("idx").setSource(
             jsonBuilder().startObject()
                 .field("value", value)
-                .timeField("date", date(month, day))
+                .timestampField("date", date(month, day))
                 .startArray("dates")
-                .timeValue(date(month, day))
-                .timeValue(date(month + 1, day + 1))
+                .timestampValue(date(month, day))
+                .timestampValue(date(month + 1, day + 1))
                 .endArray()
                 .endObject()
         );

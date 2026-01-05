@@ -9,7 +9,6 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Nullable;
@@ -21,15 +20,22 @@ import org.elasticsearch.core.Releasable;
 public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpBody.Stream {
 
     static Full fromBytesReference(BytesReference bytesRef) {
-        return new ByteRefHttpBody(bytesRef);
+        return new ByteRefHttpBody(ReleasableBytesReference.wrap(bytesRef));
     }
 
     static Full empty() {
-        return new ByteRefHttpBody(BytesArray.EMPTY);
+        return new ByteRefHttpBody(ReleasableBytesReference.empty());
     }
 
     default boolean isFull() {
         return this instanceof Full;
+    }
+
+    default boolean isEmpty() {
+        if (isFull()) {
+            return asFull().bytes().length() == 0;
+        }
+        return false;
     }
 
     default boolean isStream() {
@@ -56,7 +62,7 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
      * Full content represents a complete http body content that can be accessed immediately.
      */
     non-sealed interface Full extends HttpBody {
-        BytesReference bytes();
+        ReleasableBytesReference bytes();
 
         @Override
         default void close() {}
@@ -114,5 +120,10 @@ public sealed interface HttpBody extends Releasable permits HttpBody.Full, HttpB
         default void close() {}
     }
 
-    record ByteRefHttpBody(BytesReference bytes) implements Full {}
+    record ByteRefHttpBody(ReleasableBytesReference bytes) implements Full {
+        @Override
+        public void close() {
+            bytes.close();
+        }
+    }
 }

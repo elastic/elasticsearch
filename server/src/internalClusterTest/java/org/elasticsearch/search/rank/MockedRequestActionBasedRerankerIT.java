@@ -14,12 +14,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -93,8 +92,8 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
     public static class RerankerServicePlugin extends Plugin implements ActionPlugin {
 
         @Override
-        public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TEST_RERANKING_ACTION_TYPE, TestRerankingTransportAction.class));
+        public Collection<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TEST_RERANKING_ACTION_TYPE, TestRerankingTransportAction.class));
         }
     }
 
@@ -142,7 +141,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
     }
 
-    public static class TestRerankingActionRequest extends ActionRequest {
+    public static class TestRerankingActionRequest extends LegacyActionRequest {
 
         private final List<String> docFeatures;
 
@@ -197,11 +196,6 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             this.scores = scores;
         }
 
-        public TestRerankingActionResponse(StreamInput in) throws IOException {
-            super(in);
-            this.scores = in.readCollectionAsList(StreamInput::readFloat);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(scores, StreamOutput::writeFloat);
@@ -249,7 +243,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             String inferenceText,
             float minScore
         ) {
-            super(size, from, windowSize);
+            super(size, from, windowSize, false);
             this.client = client;
             this.inferenceId = inferenceId;
             this.inferenceText = inferenceText;
@@ -280,7 +274,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                 l.onResponse(scores);
             });
 
-            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
+            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).flatMap(List::stream).toList();
             TestRerankingActionRequest request = generateRequest(featureData);
             try {
                 ActionType<TestRerankingActionResponse> action = actionType();
@@ -424,7 +418,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.RANK_FEATURE_PHASE_ADDED;
+            return TransportVersion.minimumCompatible();
         }
     }
 

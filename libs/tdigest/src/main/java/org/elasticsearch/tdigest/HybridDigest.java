@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
@@ -34,8 +35,10 @@ import java.util.Collection;
  * bounded memory allocation and acceptable speed and accuracy for larger ones.
  */
 public class HybridDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HybridDigest.class);
 
     private final TDigestArrays arrays;
+    private boolean closed = false;
 
     // See MergingDigest's compression param.
     private final double compression;
@@ -49,6 +52,16 @@ public class HybridDigest extends AbstractTDigest {
     // This gets initialized when the implementation switches to MergingDigest.
     private MergingDigest mergingDigest;
 
+    static HybridDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new HybridDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
     /**
      * Creates a hybrid digest that uses a {@link SortingDigest} for up to {@param maxSortingSize} samples,
      * then switches to a {@link MergingDigest}.
@@ -56,11 +69,11 @@ public class HybridDigest extends AbstractTDigest {
      * @param compression The compression factor for the MergingDigest
      * @param maxSortingSize The sample size limit for switching from a {@link SortingDigest} to a {@link MergingDigest} implementation
      */
-    HybridDigest(TDigestArrays arrays, double compression, long maxSortingSize) {
+    private HybridDigest(TDigestArrays arrays, double compression, long maxSortingSize) {
         this.arrays = arrays;
         this.compression = compression;
         this.maxSortingSize = maxSortingSize;
-        this.sortingDigest = new SortingDigest(arrays);
+        this.sortingDigest = TDigest.createSortingDigest(arrays);
     }
 
     /**
@@ -69,11 +82,18 @@ public class HybridDigest extends AbstractTDigest {
      *
      * @param compression The compression factor for the MergingDigest
      */
-    HybridDigest(TDigestArrays arrays, double compression) {
+    private HybridDigest(TDigestArrays arrays, double compression) {
         // The default maxSortingSize is calculated so that the SortingDigest will have comparable size with the MergingDigest
         // at the point where implementations switch, e.g. for default compression 100 SortingDigest allocates ~16kB and MergingDigest
         // allocates ~15kB.
         this(arrays, compression, Math.round(compression) * 20);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + (sortingDigest != null ? sortingDigest.ramBytesUsed() : 0) + (mergingDigest != null
+            ? mergingDigest.ramBytesUsed()
+            : 0);
     }
 
     @Override
@@ -105,7 +125,7 @@ public class HybridDigest extends AbstractTDigest {
         // Check if we need to switch implementations.
         assert sortingDigest != null;
         if (sortingDigest.size() + size >= maxSortingSize) {
-            mergingDigest = new MergingDigest(arrays, compression);
+            mergingDigest = TDigest.createMergingDigest(arrays, compression);
             for (int i = 0; i < sortingDigest.values.size(); i++) {
                 mergingDigest.add(sortingDigest.values.get(i));
             }
@@ -201,6 +221,10 @@ public class HybridDigest extends AbstractTDigest {
 
     @Override
     public void close() {
-        Releasables.close(sortingDigest, mergingDigest);
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(sortingDigest, mergingDigest);
+        }
     }
 }

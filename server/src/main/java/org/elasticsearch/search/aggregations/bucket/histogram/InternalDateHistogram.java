@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +33,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -53,19 +50,17 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     public static class Bucket extends AbstractHistogramBucket implements KeyComparable<Bucket> {
 
         final long key;
-        private final transient boolean keyed;
 
-        public Bucket(long key, long docCount, boolean keyed, DocValueFormat format, InternalAggregations aggregations) {
+        public Bucket(long key, long docCount, DocValueFormat format, InternalAggregations aggregations) {
             super(docCount, aggregations, format);
-            this.keyed = keyed;
             this.key = key;
         }
 
         /**
          * Read from a stream.
          */
-        public static Bucket readFrom(StreamInput in, boolean keyed, DocValueFormat format) throws IOException {
-            return new Bucket(in.readLong(), in.readVLong(), keyed, format, InternalAggregations.readFrom(in));
+        public static Bucket readFrom(StreamInput in, DocValueFormat format) throws IOException {
+            return new Bucket(in.readLong(), in.readVLong(), format, InternalAggregations.readFrom(in));
         }
 
         @Override
@@ -101,8 +96,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             return Instant.ofEpochMilli(key).atZone(ZoneOffset.UTC);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params, boolean keyed) throws IOException {
             String keyAsString = format.format(key).toString();
             if (keyed) {
                 builder.startObject(keyAsString);
@@ -116,7 +110,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -124,15 +117,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             return Long.compare(key, other.key);
         }
 
-        public boolean getKeyed() {
-            return keyed;
-        }
-
         Bucket finalizeSampling(SamplingContext samplingContext) {
             return new Bucket(
                 key,
                 samplingContext.scaleUp(docCount),
-                keyed,
                 format,
                 InternalAggregations.finalizeSampling(aggregations, samplingContext)
             );
@@ -213,10 +201,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         this.downsampledResultsOffset = downsampledResultsOffset;
     }
 
-    boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_13_0) || version.isPatchFrom(TransportVersions.V_8_12_1);
-    }
-
     /**
      * Stream from a stream.
      */
@@ -232,17 +216,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         offset = in.readLong();
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        if (versionSupportsDownsamplingTimezone(in.getTransportVersion())) {
-            downsampledResultsOffset = in.readBoolean();
-        } else {
-            downsampledResultsOffset = false;
-        }
-        buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, keyed, format));
-        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
-            // list is mutable by #readCollectionAsList contract
-            buckets.sort(Comparator.comparingLong(b -> b.key));
-        }
+        downsampledResultsOffset = in.readBoolean();
+        buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, format));
     }
 
     @Override
@@ -255,9 +230,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         out.writeLong(offset);
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        if (versionSupportsDownsamplingTimezone(out.getTransportVersion())) {
-            out.writeBoolean(downsampledResultsOffset);
-        }
+        out.writeBoolean(downsampledResultsOffset);
         out.writeCollection(buckets);
     }
 
@@ -301,7 +274,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
+        return new Bucket(prototype.key, prototype.docCount, prototype.format, aggregations);
     }
 
     private List<Bucket> reduceBuckets(final PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
@@ -386,7 +359,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         iterateEmptyBuckets(list, list.listIterator(), counter);
         reduceContext.consumeBucketsAndMaybeBreak(counter.size);
 
-        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(List.of(emptyBucketInfo.subAggregations), reduceContext);
+        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(emptyBucketInfo.subAggregations, reduceContext);
         ListIterator<Bucket> iter = list.listIterator();
         iterateEmptyBuckets(list, iter, new LongConsumer() {
             private int size = 0;
@@ -398,7 +371,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                     reduceContext.consumeBucketsAndMaybeBreak(size);
                     size = 0;
                 }
-                iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));
+                iter.add(new InternalDateHistogram.Bucket(key, 0, format, reducedEmptySubAggs));
             }
         });
     }
@@ -524,9 +497,13 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
         return new InternalDateHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
+            buckets,
             order,
             minDocCount,
             offset,
@@ -546,7 +523,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params, keyed);
         }
         if (keyed) {
             builder.endObject();
@@ -603,7 +580,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public Bucket createBucket(Number key, long docCount, InternalAggregations aggregations) {
-        return new Bucket(key.longValue(), docCount, keyed, format, aggregations);
+        return new Bucket(key.longValue(), docCount, format, aggregations);
     }
 
     @Override

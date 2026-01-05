@@ -15,7 +15,6 @@ import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -52,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
@@ -99,7 +99,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -127,7 +126,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                 MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearningField.MAX_LAZY_ML_NODES,
                 MachineLearning.MAX_ML_NODE_SIZE,
                 MachineLearning.ALLOCATED_PROCESSORS_SCALE
             )
@@ -208,14 +207,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
         doNothing().when(serviceSpy).logMlNodeHeterogeneity();
         doReturn(false).when(serviceSpy).eventStateHasGlobalBlockStateNotRecoveredBlock(any());
-        doReturn(false).when(serviceSpy).eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(any());
 
         ClusterChangedEvent mockNodesAddedEvent = mock(ClusterChangedEvent.class);
         ClusterState mockState = mock(ClusterState.class);
         doReturn(mockState).when(mockNodesAddedEvent).state();
         Metadata mockMetadata = mock(Metadata.class);
-        doReturn(mockMetadata).when(mockState).getMetadata();
-        doReturn(null).when(mockState).custom(anyString());
+        doReturn(mockMetadata).when(mockState).metadata();
 
         doReturn(true).when(mockNodesAddedEvent).localNodeMaster();
         doReturn(true).when(mockNodesAddedEvent).nodesAdded();
@@ -441,7 +438,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-without-room", true, 1000L, 2))
             .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
         nodeAvailabilityZoneMapper = randomFrom(
             new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
@@ -491,7 +487,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-without-room", true, 1000L, 2))
             .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
         nodeAvailabilityZoneMapper = randomFrom(
             new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
@@ -1555,6 +1550,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 nodeId1,
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(nodeId1)
+                                    .setNodeEphemeralId(nodeId1)
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setStartedAtMillis(System.currentTimeMillis())
                                     .setReason("test")
@@ -1598,6 +1594,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                                 nodeId1,
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(nodeId1)
+                                    .setNodeEphemeralId(nodeId1)
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setStartedAtMillis(System.currentTimeMillis())
                                     .setReason("test")
@@ -1644,6 +1641,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         nodeId3,
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId(nodeId3)
+                            .setNodeEphemeralId(nodeId3)
                             .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                             .setStartedAtMillis(System.currentTimeMillis())
                             .setReason("test")
@@ -1702,6 +1700,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         nodeId3,
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId(nodeId3)
+                            .setNodeEphemeralId(nodeId3)
                             .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                             .setStartedAtMillis(System.currentTimeMillis())
                             .setReason("test")
@@ -1762,6 +1761,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         nodeId3,
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId(nodeId3)
+                            .setNodeEphemeralId(nodeId3)
                             .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                             .setStartedAtMillis(System.currentTimeMillis())
                             .setReason("test")
@@ -1992,6 +1992,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                 nodeToShutdown.getId(),
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(nodeToShutdown.getId())
+                    .setNodeEphemeralId(nodeToShutdown.getEphemeralId())
                     .setStartedAtMillis(1L)
                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                     .setReason("because this cannot be null")
@@ -2048,6 +2049,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setReason("tests")
                     .setNodeId(nodeId)
+                    .setNodeEphemeralId(nodeId)
                     .build()
             )
         );
@@ -2077,9 +2079,23 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
     }
 
+    public void testHasUpdates() {
+        var assignment = TrainedModelAssignment.Builder.empty(newParams("foo", 10_000L, 1, 1), null).build();
+        assertFalse(TrainedModelAssignmentClusterService.hasUpdates(1, null, assignment));
+        assertTrue(TrainedModelAssignmentClusterService.hasUpdates(2, null, assignment));
+
+        var adaptiveAllocations = new AdaptiveAllocationsSettings(true, 1, 4);
+        assignment = TrainedModelAssignment.Builder.empty(newParams("foo", 10_000L, 1, 1), adaptiveAllocations).build();
+        assertFalse(TrainedModelAssignmentClusterService.hasUpdates(null, new AdaptiveAllocationsSettings(true, 1, 4), assignment));
+        assertTrue(TrainedModelAssignmentClusterService.hasUpdates(null, new AdaptiveAllocationsSettings(true, 0, 4), assignment));
+
+        assertFalse(TrainedModelAssignmentClusterService.hasUpdates(1, new AdaptiveAllocationsSettings(true, 1, 4), assignment));
+        assertTrue(TrainedModelAssignmentClusterService.hasUpdates(1, new AdaptiveAllocationsSettings(true, 0, 4), assignment));
+    }
+
     private TrainedModelAssignmentClusterService createClusterService(int maxLazyNodes) {
         return new TrainedModelAssignmentClusterService(
-            Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxLazyNodes).build(),
+            Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), maxLazyNodes).build(),
             clusterService,
             threadPool,
             nodeLoadDetector,
@@ -2118,17 +2134,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
     private static RoutingInfoUpdate started() {
         return RoutingInfoUpdate.updateStateAndReason(new RoutingStateAndReason(RoutingState.STARTED, ""));
-    }
-
-    private static DiscoveryNode buildOldNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(
-            name,
-            isML,
-            nativeMemory,
-            allocatedProcessors,
-            VersionInformation.inferVersions(Version.V_7_15_0),
-            MlConfigVersion.V_7_15_0
-        );
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams newParams(String modelId, long modelSize) {

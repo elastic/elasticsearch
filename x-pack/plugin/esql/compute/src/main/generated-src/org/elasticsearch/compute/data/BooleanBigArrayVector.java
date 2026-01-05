@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Vector implementation that defers to an enclosed {@link BitArray}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class BooleanBigArrayVector extends AbstractVector implements BooleanVector, Releasable {
 
@@ -60,6 +60,32 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     @Override
     public boolean getBoolean(int position) {
         return values.get(position);
+    }
+
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values.get(i) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values.get(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

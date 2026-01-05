@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,6 +32,74 @@ import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<
     AmazonBedrockChatCompletionTaskSettings> {
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void updatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
+        var initialSettings = createRandom();
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(Map.of());
+        assertEquals(initialSettings, updatedSettings);
+    }
+
+    public void updatedTaskSettings_WithNewTemperature_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(TEMPERATURE_FIELD, 0.7);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(0.7, (double) updatedSettings.temperature(), 0.001);
+        assertEquals(initialSettings.topP(), updatedSettings.topP());
+        assertEquals(initialSettings.topK(), updatedSettings.topK());
+        assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
+    }
+
+    public void updatedTaskSettings_WithNewTopP_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(TOP_P_FIELD, 0.8);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(0.8, (double) updatedSettings.topP(), 0.001);
+        assertEquals(initialSettings.temperature(), updatedSettings.temperature());
+        assertEquals(initialSettings.topK(), updatedSettings.topK());
+        assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
+    }
+
+    public void updatedTaskSettings_WithNewTopK_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(TOP_K_FIELD, 0.9);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(0.9, (double) updatedSettings.topK(), 0.001);
+        assertEquals(initialSettings.temperature(), updatedSettings.temperature());
+        assertEquals(initialSettings.topP(), updatedSettings.topP());
+        assertEquals(initialSettings.maxNewTokens(), updatedSettings.maxNewTokens());
+    }
+
+    public void updatedTaskSettings_WithNewMaxNewTokens_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(MAX_NEW_TOKENS_FIELD, 256);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(256, (double) updatedSettings.maxNewTokens(), 0.001);
+        assertEquals(initialSettings.temperature(), updatedSettings.temperature());
+        assertEquals(initialSettings.topP(), updatedSettings.topP());
+        assertEquals(initialSettings.topK(), updatedSettings.topK());
+    }
+
+    public void updatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
+        var initialSettings = createRandom();
+        Map<String, Object> newSettings = Map.of(TEMPERATURE_FIELD, 0.7, TOP_P_FIELD, 0.8, TOP_K_FIELD, 0.9, MAX_NEW_TOKENS_FIELD, 256);
+        AmazonBedrockChatCompletionTaskSettings updatedSettings = (AmazonBedrockChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(newSettings);
+        assertEquals(0.7, (double) updatedSettings.temperature(), 0.001);
+        assertEquals(0.8, (double) updatedSettings.topP(), 0.001);
+        assertEquals(0.9, (double) updatedSettings.topK(), 0.001);
+        assertEquals(256, (int) updatedSettings.maxNewTokens(), 0.001);
+    }
 
     public void testFromMap_AllValues() {
         var taskMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.6, 512);
@@ -212,15 +281,27 @@ public class AmazonBedrockChatCompletionTaskSettingsTests extends AbstractBWCWir
 
     @Override
     protected AmazonBedrockChatCompletionTaskSettings mutateInstance(AmazonBedrockChatCompletionTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AmazonBedrockChatCompletionTaskSettingsTests::createRandom);
+        var temperature = instance.temperature();
+        var topP = instance.topP();
+        var topK = instance.topK();
+        var maxNewTokens = instance.maxNewTokens();
+        switch (randomInt(3)) {
+            case 0 -> temperature = randomValueOtherThan(temperature, ESTestCase::randomOptionalDouble);
+            case 1 -> topP = randomValueOtherThan(topP, ESTestCase::randomOptionalDouble);
+            case 2 -> topK = randomValueOtherThan(topK, ESTestCase::randomOptionalDouble);
+            case 3 -> maxNewTokens = randomValueOtherThan(maxNewTokens, ESTestCase::randomNonNegativeIntOrNull);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens);
     }
 
     private static AmazonBedrockChatCompletionTaskSettings createRandom() {
         return new AmazonBedrockChatCompletionTaskSettings(
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Double[] { null, randomDouble() }),
-            randomFrom(new Integer[] { null, randomNonNegativeInt() })
+            randomOptionalDouble(),
+            randomOptionalDouble(),
+            randomOptionalDouble(),
+            randomNonNegativeIntOrNull()
         );
     }
+
 }

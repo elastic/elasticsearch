@@ -15,7 +15,6 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -24,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteInfoIT extends AbstractMultiClustersTestCase {
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         if (randomBoolean()) {
             return List.of();
         } else {

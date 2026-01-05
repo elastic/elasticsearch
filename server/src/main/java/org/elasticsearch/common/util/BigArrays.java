@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -452,7 +453,13 @@ public class BigArrays {
         }
 
         @Override
-        public T set(long index, T value) {
+        public void set(long index, T value) {
+            assert index >= 0 && index < size();
+            array[(int) index] = value;
+        }
+
+        @Override
+        public T getAndSet(long index, T value) {
             assert index >= 0 && index < size();
             @SuppressWarnings("unchecked")
             T ret = (T) array[(int) index];
@@ -464,6 +471,7 @@ public class BigArrays {
 
     @Nullable
     final PageCacheRecycler recycler;
+    final BytesRefRecycler bytesRefRecycler;
     @Nullable
     private final CircuitBreakerService breakerService;
     @Nullable
@@ -485,6 +493,7 @@ public class BigArrays {
     ) {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
+        this.bytesRefRecycler = recycler != null ? new BytesRefRecycler(recycler) : BytesRefRecycler.NON_RECYCLING_INSTANCE;
         this.breakerService = breakerService;
         if (breakerService != null) {
             breaker = breakerService.getBreaker(breakerName);
@@ -582,6 +591,10 @@ public class BigArrays {
         return array;
     }
 
+    public BytesRefRecycler bytesRefRecycler() {
+        return bytesRefRecycler;
+    }
+
     /**
      * Allocate a new {@link ByteArray}.
      * @param size          the initial length of the array
@@ -599,6 +612,10 @@ public class BigArrays {
         } else {
             return validate(new ByteArrayWrapper(this, new byte[(int) size], size, null, clearOnResize));
         }
+    }
+
+    public ByteArray newByteArrayWrapper(byte[] bytes) {
+        return validate(new ByteArrayWrapper(this, bytes, bytes.length, null, false));
     }
 
     /**

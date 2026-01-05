@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -129,7 +130,7 @@ public class MultiGetResponseTests extends ESTestCase {
                     if (MultiGetResponse.INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
                         && MultiGetResponse.ID.match(currentFieldName, parser.getDeprecationHandler()) == false
                         && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                        getResult = GetResult.fromXContentEmbedded(parser, index, id);
+                        getResult = GetResultTests.parseInstanceFromEmbedded(parser, index, id);
                     }
                     break;
                 case VALUE_STRING:

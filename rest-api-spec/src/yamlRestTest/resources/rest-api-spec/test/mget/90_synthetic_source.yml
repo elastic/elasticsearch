@@ -1,3 +1,9 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
 keyword:
   - requires:
       cluster_features: ["gte_v8.4.0"]
@@ -7,9 +13,10 @@ keyword:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -48,9 +55,6 @@ keyword:
 
 ---
 keyword with normalizer:
-  - requires:
-      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
-      reason: support for normalizer on keyword fields
   - do:
       indices.create:
         index: test-keyword-with-normalizer
@@ -62,9 +66,9 @@ keyword with normalizer:
                   type: custom
                   filter:
                     - lowercase
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword
@@ -135,6 +139,270 @@ keyword with normalizer:
         keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
 
 ---
+keyword with non-lowercase normalizer:
+  - do:
+      indices.create:
+        index: test-keyword-with-normalizer
+        body:
+          settings:
+            analysis:
+              normalizer:
+                test_normalizer:
+                  type: custom
+                  filter:
+                    - asciifolding
+                    - uppercase
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                normalizer: test_normalizer
+              keyword_with_skip_store:
+                type: keyword
+                normalizer: test_normalizer
+                normalizer_skip_store_original_value: true
+              keyword_with_ignore_above:
+                type: keyword
+                normalizer: test_normalizer
+                ignore_above: 10
+              keyword_without_doc_values:
+                type: keyword
+                normalizer: test_normalizer
+                doc_values: false
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 1
+        body:
+          keyword: "the Quìck Brøwn Fox jumps over the låzy Dog"
+          keyword_with_skip_store: "the Quìck Brøwn Fox jumps over the låzy Dog"
+          keyword_with_ignore_above: "the Quìck Brøwn Fox jumps over the låzy Dog"
+          keyword_without_doc_values: "the Quìck Brøwn Fox jumps over the låzy Dog"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 2
+        body:
+          keyword: "The five BØXING wìzårds jümp Quickly"
+          keyword_with_skip_store: "The five BØXING wìzårds jümp Quickly"
+          keyword_with_ignore_above: "The five BØXING wìzårds jümp Quickly"
+          keyword_without_doc_values: "The five BØXING wìzårds jümp Quickly"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 3
+        body:
+          keyword: [ "Mây the FORCE bè with Yoü!", "Do or Do Not, There is no Try" ]
+          keyword_with_skip_store: [ "Mây the FORCE bè with Yoü!", "Do or Do Not, There is no Try" ]
+          keyword_with_ignore_above: [ "Mây the FORCE bè with Yoü!", "Do or Do Not, There is no Try" ]
+          keyword_without_doc_values: [ "Mây the FORCE bè with Yoü!", "Do or Do Not, There is no Try" ]
+
+  - do:
+      mget:
+        index: test-keyword-with-normalizer
+        body:
+          ids:    [ 1, 2, 3 ]
+  - match: { docs.0._index: "test-keyword-with-normalizer" }
+  - match: { docs.0._id: "1" }
+  - match:
+      docs.0._source:
+        keyword: "the Quìck Brøwn Fox jumps over the låzy Dog"
+        keyword_with_skip_store: "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG"
+        keyword_with_ignore_above: "the Quìck Brøwn Fox jumps over the låzy Dog"
+        keyword_without_doc_values: "the Quìck Brøwn Fox jumps over the låzy Dog"
+
+  - match: { docs.1._index: "test-keyword-with-normalizer" }
+  - match: { docs.1._id: "2" }
+  - match:
+      docs.1._source:
+        keyword: "The five BØXING wìzårds jümp Quickly"
+        keyword_with_skip_store: "THE FIVE BOXING WIZARDS JUMP QUICKLY"
+        keyword_with_ignore_above: "The five BØXING wìzårds jümp Quickly"
+        keyword_without_doc_values: "The five BØXING wìzårds jümp Quickly"
+
+  - match: { docs.2._index: "test-keyword-with-normalizer" }
+  - match: { docs.2._id: "3" }
+  - match:
+      docs.2._source:
+        keyword: [ "Mây the FORCE bè with Yoü!", "Do or Do Not, There is no Try" ]
+        keyword_with_skip_store: [ "DO OR DO NOT, THERE IS NO TRY", "MAY THE FORCE BE WITH YOU!" ]
+        keyword_with_ignore_above: [ "Mây the FORCE bè with Yoü!", "Do or Do Not, There is no Try" ]
+        keyword_without_doc_values: [ "Mây the FORCE bè with Yoü!", "Do or Do Not, There is no Try" ]
+
+---
+keyword with normalizer and skip store original value:
+  - do:
+      indices.create:
+        index: test-keyword-with-normalizer
+        body:
+          settings:
+            analysis:
+              normalizer:
+                lowercase:
+                  type: custom
+                  filter:
+                    - lowercase
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                normalizer: lowercase
+                normalizer_skip_store_original_value: true
+              keyword_with_ignore_above:
+                type: keyword
+                normalizer: lowercase
+                normalizer_skip_store_original_value: true
+                ignore_above: 10
+              keyword_without_doc_values:
+                type: keyword
+                normalizer: lowercase
+                normalizer_skip_store_original_value: true
+                doc_values: false
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 1
+        body:
+          keyword: "the quick brown fox jumps over the lazy dog"
+          keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+          keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 2
+        body:
+          keyword: "the five boxing wizards jump quickly"
+          keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+          keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 3
+        body:
+          keyword: [ "may the force be with you!", "do or do not, there is no try" ]
+          keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+          keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+  - do:
+      mget:
+        index: test-keyword-with-normalizer
+        body:
+          ids:    [ 1, 2, 3 ]
+  - match: { docs.0._index: "test-keyword-with-normalizer" }
+  - match: { docs.0._id: "1" }
+  - match:
+      docs.0._source:
+        keyword: "the quick brown fox jumps over the lazy dog"
+        keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - match: { docs.1._index: "test-keyword-with-normalizer" }
+  - match: { docs.1._id: "2" }
+  - match:
+      docs.1._source:
+        keyword: "the five boxing wizards jump quickly"
+        keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+        keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - match: { docs.2._index: "test-keyword-with-normalizer" }
+  - match: { docs.2._id: "3" }
+  - match:
+      docs.2._source:
+        keyword: [ "do or do not, there is no try", "may the force be with you!" ]
+        keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+---
+
+keyword with built-in normalizer:
+  - do:
+      indices.create:
+        index: test-keyword-with-normalizer
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                normalizer: lowercase
+              keyword_with_ignore_above:
+                type: keyword
+                normalizer: lowercase
+                ignore_above: 10
+              keyword_without_doc_values:
+                type: keyword
+                normalizer: lowercase
+                doc_values: false
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 1
+        body:
+          keyword: "the quick brown fox jumps over the lazy dog"
+          keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+          keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 2
+        body:
+          keyword: "the five boxing wizards jump quickly"
+          keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+          keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - do:
+      index:
+        index: test-keyword-with-normalizer
+        id: 3
+        body:
+          keyword: [ "may the force be with you!", "do or do not, there is no try" ]
+          keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+          keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+  - do:
+      mget:
+        index: test-keyword-with-normalizer
+        body:
+          ids:    [ 1, 2, 3 ]
+  - match: { docs.0._index: "test-keyword-with-normalizer" }
+  - match: { docs.0._id: "1" }
+  - match:
+      docs.0._source:
+        keyword: "the quick brown fox jumps over the lazy dog"
+        keyword_with_ignore_above: "the Quick Brown Fox jumps over the lazy Dog"
+        keyword_without_doc_values: "the Quick Brown Fox jumps over the lazy Dog"
+
+  - match: { docs.1._index: "test-keyword-with-normalizer" }
+  - match: { docs.1._id: "2" }
+  - match:
+      docs.1._source:
+        keyword: "the five boxing wizards jump quickly"
+        keyword_with_ignore_above: "The five BOXING wizards jump Quickly"
+        keyword_without_doc_values: "The five BOXING wizards jump Quickly"
+
+  - match: { docs.2._index: "test-keyword-with-normalizer" }
+  - match: { docs.2._id: "3" }
+  - match:
+      docs.2._source:
+        keyword: [ "do or do not, there is no try", "may the force be with you!" ]
+        keyword_with_ignore_above: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+        keyword_without_doc_values: [ "May the FORCE be with You!", "Do or Do Not, There is no Try" ]
+
+---
 stored text:
   - requires:
       cluster_features: ["gte_v8.5.0"]
@@ -144,9 +412,10 @@ stored text:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               text:
                 type: text
@@ -193,9 +462,10 @@ force_synthetic_source_ok:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: stored
           mappings:
-            _source:
-              mode: stored
             properties:
               obj:
                 properties:

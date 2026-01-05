@@ -83,8 +83,8 @@ public class MappingLookupTests extends ESTestCase {
             "object",
             "object",
             Explicit.EXPLICIT_TRUE,
+            ObjectMapper.Defaults.SUBOBJECTS,
             Optional.empty(),
-            Explicit.IMPLICIT_FALSE,
             ObjectMapper.Dynamic.TRUE,
             Collections.singletonMap("object.subfield", fieldMapper)
         );
@@ -239,7 +239,7 @@ public class MappingLookupTests extends ESTestCase {
     static class FakeFieldType extends TermBasedFieldType {
 
         private FakeFieldType(String name) {
-            super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

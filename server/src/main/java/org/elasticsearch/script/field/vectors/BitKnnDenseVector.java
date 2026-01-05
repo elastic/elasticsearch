@@ -11,6 +11,10 @@ package org.elasticsearch.script.field.vectors;
 
 import java.util.List;
 
+import static org.elasticsearch.simdvec.ESVectorUtil.andBitCount;
+import static org.elasticsearch.simdvec.ESVectorUtil.ipByteBit;
+import static org.elasticsearch.simdvec.ESVectorUtil.ipFloatBit;
+
 public class BitKnnDenseVector extends ByteKnnDenseVector {
 
     public BitKnnDenseVector(byte[] vector) {
@@ -61,7 +65,11 @@ public class BitKnnDenseVector extends ByteKnnDenseVector {
 
     @Override
     public int dotProduct(byte[] queryVector) {
-        throw new UnsupportedOperationException("dotProduct is not supported for bit vectors.");
+        if (queryVector.length == docVector.length) {
+            // assume that the query vector is a bit vector and do a bitwise AND
+            return andBitCount(docVector, queryVector);
+        }
+        return ipByteBit(queryVector, docVector);
     }
 
     @Override
@@ -86,7 +94,7 @@ public class BitKnnDenseVector extends ByteKnnDenseVector {
 
     @Override
     public double dotProduct(float[] queryVector) {
-        throw new UnsupportedOperationException("dotProduct is not supported for bit vectors.");
+        return ipFloatBit(queryVector, docVector);
     }
 
     @Override

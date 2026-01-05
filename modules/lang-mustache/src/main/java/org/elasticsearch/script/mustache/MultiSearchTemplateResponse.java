@@ -11,7 +11,6 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -131,9 +130,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(items);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_0_0)) {
-            out.writeVLong(tookInMillis);
-        }
+        out.writeVLong(tookInMillis);
     }
 
     @Override

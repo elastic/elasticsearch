@@ -17,8 +17,12 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -63,6 +67,29 @@ public class StatsAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
         final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+        testCase(stats("_name").field(ft.name()), iw -> {}, stats -> {
+            assertEquals(0d, stats.getCount(), 0);
+            assertEquals(0d, stats.getSum(), 0);
+            assertEquals(Float.NaN, stats.getAvg(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(stats));
+        }, ft);
+    }
+
+    public void testEmptyDate() throws IOException {
+        DateFormatter.forPattern("epoch_millis");
+        final MappedFieldType ft = new DateFieldMapper.DateFieldType(
+            "field",
+            IndexType.points(true, true),
+            true,
+            true,
+            DateFormatter.forPattern("epoch_millis"),
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            null,
+            Map.of()
+        );
         testCase(stats("_name").field(ft.name()), iw -> {}, stats -> {
             assertEquals(0d, stats.getCount(), 0);
             assertEquals(0d, stats.getSum(), 0);
@@ -445,6 +472,12 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         );
         final MockScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, emptyMap());
         final Map<String, ScriptEngine> engines = singletonMap(engine.getType(), engine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 }

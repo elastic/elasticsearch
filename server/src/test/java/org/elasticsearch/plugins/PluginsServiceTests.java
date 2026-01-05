@@ -18,14 +18,12 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
 import org.elasticsearch.plugins.spi.BarTestService;
 import org.elasticsearch.plugins.spi.TestService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -38,7 +36,6 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,12 +63,16 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile()) {
-            @Override
-            protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
-                // tests don't run modular
-            }
-        };
+        return new PluginsService(
+            settings,
+            null,
+            PluginsLoader.createPluginsLoader(
+                Set.of(),
+                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+                Map.of(),
+                false
+            )
+        );
     }
 
     static PluginsService newMockPluginsService(List<Class<? extends Plugin>> classpathPlugins) {
@@ -466,7 +467,8 @@ public class PluginsServiceTests extends ESTestCase {
             List.of(
                 new PluginsService.LoadedPlugin(
                     new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
-                    extensiblePlugin
+                    extensiblePlugin,
+                    null
                 )
             )
         );
@@ -480,7 +482,8 @@ public class PluginsServiceTests extends ESTestCase {
             List.of(
                 new PluginsService.LoadedPlugin(
                     new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
-                    extensiblePlugin
+                    extensiblePlugin,
+                    null
                 ),
                 new PluginsService.LoadedPlugin(
                     new PluginDescriptor(
@@ -497,7 +500,8 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false
                     ),
-                    testPlugin
+                    testPlugin,
+                    null
                 )
             )
         );
@@ -666,9 +670,11 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testLoadServiceProviders() throws Exception {
-        URLClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
-        URLClassLoader fakeClassLoader1 = buildTestProviderPlugin("string");
-        try {
+
+        try (
+            URLClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
+            URLClassLoader fakeClassLoader1 = buildTestProviderPlugin("string")
+        ) {
             @SuppressWarnings("unchecked")
             Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.loadClass("r.FooPlugin");
             @SuppressWarnings("unchecked")
@@ -694,9 +700,6 @@ public class PluginsServiceTests extends ESTestCase {
             providers = service.loadServiceProviders(TestService.class);
 
             assertEquals(0, providers.size());
-        } finally {
-            PrivilegedOperations.closeURLClassLoader(fakeClassLoader);
-            PrivilegedOperations.closeURLClassLoader(fakeClassLoader1);
         }
     }
 
@@ -866,52 +869,26 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
-    public void testCanCreateAClassLoader() {
-        assertEquals(
-            "access denied (\"java.lang.RuntimePermission\" \"createClassLoader\")",
-            expectThrows(AccessControlException.class, () -> new Loader(this.getClass().getClassLoader())).getMessage()
-        );
-        var loader = PrivilegedOperations.supplierWithCreateClassLoader(() -> new Loader(this.getClass().getClassLoader()));
-        assertEquals(this.getClass().getClassLoader(), loader.getParent());
-    }
-
-    public void testToModuleName() {
-        assertThat(PluginsService.toModuleName("module.name"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module-name"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module-name1"), equalTo("module.name1"));
-        assertThat(PluginsService.toModuleName("1module-name"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module-name!"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module!@#name!"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("!module-name!"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module_name"), equalTo("module_name"));
-        assertThat(PluginsService.toModuleName("-module-name-"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("_module_name"), equalTo("_module_name"));
-        assertThat(PluginsService.toModuleName("_"), equalTo("_"));
-    }
-
-    static final class Loader extends ClassLoader {
-        Loader(ClassLoader parent) {
-            super(parent);
-        }
-    }
-
     // Closes the URLClassLoaders and UberModuleClassloaders of plugins loaded by the given plugin service.
+    // We can use the direct ClassLoader from the plugin because tests do not use any parent SPI ClassLoaders.
     static void closePluginLoaders(PluginsService pluginService) {
         for (var lp : pluginService.plugins()) {
-            if (lp.loader() instanceof URLClassLoader urlClassLoader) {
+            if (lp.classLoader() instanceof URLClassLoader urlClassLoader) {
                 try {
-                    PrivilegedOperations.closeURLClassLoader(urlClassLoader);
+                    urlClassLoader.close();
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
                 }
-            }
-            if (lp.loader() instanceof UberModuleClassLoader loader) {
+            } else if (lp.classLoader() instanceof UberModuleClassLoader loader) {
                 try {
-                    PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
+                    loader.getInternalLoader().close();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
+            } else {
+                throw new AssertionError("Cannot close unexpected classloader " + lp.classLoader());
             }
+
         }
     }
 

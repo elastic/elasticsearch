@@ -10,11 +10,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -24,6 +28,7 @@ import java.util.List;
  * The result of parsing a document.
  */
 public class ParsedDocument {
+
     private final Field version;
 
     private final String id;
@@ -33,7 +38,7 @@ public class ParsedDocument {
 
     private final List<LuceneDocument> documents;
 
-    private final DocumentSize normalizedSize;
+    private final long normalizedSize;
 
     private BytesReference source;
     private XContentType xContentType;
@@ -43,9 +48,9 @@ public class ParsedDocument {
      * Create a no-op tombstone document
      * @param reason    the reason for the no-op
      */
-    public static ParsedDocument noopTombstone(String reason) {
+    public static ParsedDocument noopTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String reason) {
         LuceneDocument document = new LuceneDocument();
-        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        var seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone(seqNoIndexOptions);
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
@@ -61,22 +66,63 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
 
     /**
      * Create a delete tombstone document, which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
-     * @param id    the id of the deleted document
+     * @param id                the id of the deleted document
      */
-    public static ParsedDocument deleteTombstone(String id) {
+    // used by tests
+    public static ParsedDocument deleteTombstone(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions, String id) {
+        return deleteTombstone(seqNoIndexOptions, false /* ignored */, false, id, null /* ignored */);
+    }
+
+    /**
+     * Create a delete tombstone document, which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     * @param useSyntheticId    whether the id is synthetic or not
+     * @param id                the id of the deleted document
+     */
+    public static ParsedDocument deleteTombstone(
+        SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,
+        boolean useDocValuesSkipper,
+        boolean useSyntheticId,
+        String id,
+        BytesRef uid
+    ) {
         LuceneDocument document = new LuceneDocument();
-        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone(seqNoIndexOptions);
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
-        document.add(IdFieldMapper.standardIdField(id));
+        if (useSyntheticId) {
+            // Use a synthetic _id field which is not indexed nor stored
+            document.add(IdFieldMapper.syntheticIdField(id));
+
+            // Add doc values fields that are used to synthesize the synthetic _id.
+            // Note: It is not strictly required for tombstones documents but we decided to add them so that iterating and seeking synthetic
+            // _id terms over tombstones also work as if a regular _id field was present.
+            var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
+            var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
+            var routingHash = TsidExtractingIdFieldMapper.extractRoutingHashBytesFromSyntheticId(uid);
+
+            if (useDocValuesSkipper) {
+                document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
+                document.add(SortedNumericDocValuesField.indexedField("@timestamp", timestamp));
+            } else {
+                document.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
+                document.add(new LongField("@timestamp", timestamp, Field.Store.NO));
+            }
+            var field = new SortedDocValuesField(TimeSeriesRoutingHashFieldMapper.NAME, routingHash);
+            document.add(field);
+
+        } else {
+            // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
+            document.add(IdFieldMapper.standardIdField(id));
+        }
         return new ParsedDocument(
             versionField,
             seqIdFields,
@@ -86,7 +132,7 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
 
@@ -99,7 +145,7 @@ public class ParsedDocument {
         BytesReference source,
         XContentType xContentType,
         Mapping dynamicMappingsUpdate,
-        DocumentSize normalizedSize
+        long normalizedSize
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -178,16 +224,7 @@ public class ParsedDocument {
         return "id";
     }
 
-    public DocumentSize getNormalizedSize() {
+    public long getNormalizedSize() {
         return normalizedSize;
-    }
-
-    /**
-     * Normalized ingested and stored size of a document.
-     * @param ingestedBytes ingest size of the document
-     * @param storedBytes stored retained size of the document
-     */
-    public record DocumentSize(long ingestedBytes, long storedBytes) {
-        public static final DocumentSize UNKNOWN = new DocumentSize(-1, -1);
     }
 }

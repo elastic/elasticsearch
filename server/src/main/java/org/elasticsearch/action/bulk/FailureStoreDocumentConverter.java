@@ -18,12 +18,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.xcontent.XContentElasticsearchExtension.DEFAULT_FORMATTER;
 import static org.elasticsearch.ingest.CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER;
 import static org.elasticsearch.ingest.CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER;
 import static org.elasticsearch.ingest.CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER;
@@ -84,7 +86,7 @@ public class FailureStoreDocumentConverter {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         {
-            builder.timeField("@timestamp", timeSupplier.get());
+            builder.field("@timestamp", DEFAULT_FORMATTER.format(Instant.ofEpochMilli(timeSupplier.get())));
             builder.startObject("document");
             {
                 if (source.id() != null) {
@@ -113,22 +115,23 @@ public class FailureStoreDocumentConverter {
                 // we can't instantiate it in tests, so we'll have to check for the headers directly.
                 var ingestException = ExceptionsHelper.<ElasticsearchException>unwrapCausesAndSuppressed(
                     exception,
-                    t -> t instanceof ElasticsearchException e && Sets.haveNonEmptyIntersection(e.getHeaderKeys(), INGEST_EXCEPTION_HEADERS)
+                    t -> t instanceof ElasticsearchException e
+                        && Sets.haveNonEmptyIntersection(e.getBodyHeaderKeys(), INGEST_EXCEPTION_HEADERS)
                 ).orElse(null);
                 if (ingestException != null) {
-                    if (ingestException.getHeaderKeys().contains(PIPELINE_ORIGIN_EXCEPTION_HEADER)) {
-                        List<String> pipelineOrigin = ingestException.getHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER);
+                    if (ingestException.getBodyHeaderKeys().contains(PIPELINE_ORIGIN_EXCEPTION_HEADER)) {
+                        List<String> pipelineOrigin = ingestException.getBodyHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER);
                         Collections.reverse(pipelineOrigin);
                         if (pipelineOrigin.isEmpty() == false) {
                             builder.field("pipeline_trace", pipelineOrigin);
                             builder.field("pipeline", pipelineOrigin.get(pipelineOrigin.size() - 1));
                         }
                     }
-                    if (ingestException.getHeaderKeys().contains(PROCESSOR_TAG_EXCEPTION_HEADER)) {
-                        builder.field("processor_tag", ingestException.getHeader(PROCESSOR_TAG_EXCEPTION_HEADER).get(0));
+                    if (ingestException.getBodyHeaderKeys().contains(PROCESSOR_TAG_EXCEPTION_HEADER)) {
+                        builder.field("processor_tag", ingestException.getBodyHeader(PROCESSOR_TAG_EXCEPTION_HEADER).get(0));
                     }
-                    if (ingestException.getHeaderKeys().contains(PROCESSOR_TYPE_EXCEPTION_HEADER)) {
-                        builder.field("processor_type", ingestException.getHeader(PROCESSOR_TYPE_EXCEPTION_HEADER).get(0));
+                    if (ingestException.getBodyHeaderKeys().contains(PROCESSOR_TYPE_EXCEPTION_HEADER)) {
+                        builder.field("processor_type", ingestException.getBodyHeader(PROCESSOR_TYPE_EXCEPTION_HEADER).get(0));
                     }
                 }
             }

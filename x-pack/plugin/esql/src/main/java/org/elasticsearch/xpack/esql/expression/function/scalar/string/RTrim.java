@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
@@ -35,7 +34,7 @@ public class RTrim extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RTrim", RTrim::new);
 
     @FunctionInfo(
-        returnType = { "keyword", "text" },
+        returnType = { "keyword" },
         description = "Removes trailing whitespaces from a string.",
         examples = @Example(file = "string", tag = "rtrim")
     )
@@ -69,7 +68,7 @@ public class RTrim extends UnaryScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new RTrimEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 

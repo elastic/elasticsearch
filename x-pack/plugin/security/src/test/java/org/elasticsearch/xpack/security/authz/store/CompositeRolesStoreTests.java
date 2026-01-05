@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -22,14 +21,23 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +48,9 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
@@ -49,7 +59,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -64,6 +73,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -81,12 +91,16 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
+import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -127,6 +141,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -139,6 +154,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -148,17 +164,22 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -185,6 +206,7 @@ import static org.mockito.Mockito.when;
 
 public class CompositeRolesStoreTests extends ESTestCase {
 
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
     private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
 
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -706,13 +728,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verify(nativeRolesStore).accept(anySet(), anyActionListener());
         verify(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
 
-        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName));
+        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName, Metadata.DEFAULT_PROJECT_ID));
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
     }
 
     public void testShouldForkRoleBuilding() {
+        final ClusterService clusterService = mock(ClusterService.class);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            clusterService,
             mock(RoleProviders.class),
             mock(NativePrivilegeStore.class),
             new ThreadContext(SECURITY_ENABLED_SETTINGS),
@@ -720,6 +744,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             mock(ApiKeyService.class),
             mock(ServiceAccountService.class),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -767,6 +792,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testNegativeLookupsAreNotCachedWithFailures() {
+        final var projectId = randomProjectIdOrDefault();
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -786,6 +812,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            mock(ClusterService.class),
             roleProviders,
             mock(NativePrivilegeStore.class),
             new ThreadContext(SECURITY_ENABLED_SETTINGS),
@@ -793,6 +820,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             mock(ApiKeyService.class),
             mock(ServiceAccountService.class),
+            TestProjectResolvers.singleProject(projectId),
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -823,7 +851,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             effectiveRoleDescriptors.set(null);
         }
 
-        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName));
+        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName, projectId));
+        assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName, Metadata.DEFAULT_PROJECT_ID));
         verify(reservedRolesStore, times(numberOfTimesToCall + 1)).accept(anySet(), anyActionListener());
         verify(fileRolesStore, times(numberOfTimesToCall + 1)).accept(anySet(), anyActionListener());
         verify(fileRolesStore, times(numberOfTimesToCall + 1)).roleDescriptors(eq(Collections.singleton(roleName)));
@@ -893,6 +922,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -903,6 +933,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             rds -> effectiveRoleDescriptors.set(rds),
+            null,
             null,
             null
         );
@@ -992,7 +1023,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
             .build();
         IndicesAccessControl iac = role.indices()
-            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getIndicesLookup(), cache);
+            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getProject(), cache);
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));
@@ -1158,7 +1189,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(forRemote, Set.of("*"), indexGroup("remote-idx-2-*"));
         assertValidRemoteClusterPermissions(role.remoteCluster(), new String[] { "remote-*" });
         assertThat(
-            role.remoteCluster().privilegeNames("remote-foobar", TransportVersion.current()),
+            role.remoteCluster().collapseAndRemoveUnsupportedPrivileges("remote-foobar", TransportVersion.current()),
             equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
         );
     }
@@ -1492,8 +1523,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(
             role.remoteIndices(),
             Set.of("remote-1"),
-            indexGroup(IndexPrivilege.get(Set.of("read")), false, "index-1"),
-            indexGroup(IndexPrivilege.get(Set.of("none")), false, "index-1")
+            indexGroup(IndexPrivilege.get("read"), false, "index-1"),
+            indexGroup(IndexPrivilege.get("none"), false, "index-1")
         );
     }
 
@@ -1528,6 +1559,508 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 fail("unexpected remote cluster group: " + Arrays.toString(group.remoteClusterAliases()));
             }
         }
+    }
+
+    public void testBuildRoleWithReadFailureStorePrivilegeOnly() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder()
+                        .indices(indexPattern)
+                        .privileges("read_failure_store")
+                        .allowRestrictedIndices(allowRestrictedIndices)
+                        .build() }
+            )
+        );
+        assertHasIndexGroups(role.indices(), indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, indexPattern));
+    }
+
+    public void testBuildRoleWithReadFailureStorePrivilegeDuplicatesMerged() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            assertHasIndexGroups(role.indices(), indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, indexPattern));
+        }
+    }
+
+    public void testBuildRoleWithReadFailureStoreAndReadPrivilegeSplit() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder()
+                        .indices(indexPattern)
+                        .privileges("read", "read_failure_store")
+                        .allowRestrictedIndices(allowRestrictedIndices)
+                        .build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, indexPattern),
+            indexGroup(IndexPrivilege.READ, allowRestrictedIndices, indexPattern)
+        );
+    }
+
+    public void testBuildRoleWithReadFailureStoreAndReadPrivilegeAndMultipleIndexPatternsSplit() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        String otherIndexPattern = randomValueOtherThan(indexPattern, () -> randomAlphanumericOfLength(10));
+        boolean allowRestrictedIndices = randomBoolean();
+        List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "write")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(otherIndexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "write")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(otherIndexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            assertHasIndexGroups(
+                role.indices(),
+                indexGroup(
+                    IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Set.of("read", "write")),
+                    allowRestrictedIndices,
+                    indexPattern
+                ),
+                indexGroup(IndexPrivilege.READ, allowRestrictedIndices, otherIndexPattern),
+                indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, otherIndexPattern)
+            );
+        }
+    }
+
+    public void testBuildRoleWithReadOnRestrictedAndNonRestrictedIndices() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(true)
+                            .build(),
+                        IndicesPrivileges.builder().indices(indexPattern).privileges("read").allowRestrictedIndices(false).build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(true)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder().indices(indexPattern).privileges("read").allowRestrictedIndices(false).build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            IndicesPermission indices = role.indices();
+            assertHasIndexGroups(
+                indices,
+                indexGroup(IndexPrivilege.get("read"), false, indexPattern),
+                indexGroup(IndexPrivilege.get("read"), true, indexPattern),
+                indexGroup(IndexPrivilege.get("read_failure_store"), true, indexPattern)
+            );
+        }
+    }
+
+    public void testBuildRoleWithReadFailureStoreOnRestrictedAndNonRestrictedIndices() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(true)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(false)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(true)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(false)
+                            .build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            IndicesPermission indices = role.indices();
+            assertHasIndexGroups(
+                indices,
+                indexGroup(IndexPrivilege.get("read_failure_store"), false, indexPattern),
+                indexGroup(IndexPrivilege.get("read"), true, indexPattern),
+                indexGroup(IndexPrivilege.get("read_failure_store"), true, indexPattern)
+            );
+        }
+    }
+
+    public void testBuildRoleWithMultipleReadFailureStoreAndReadPrivilegeSplit() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            assertHasIndexGroups(
+                role.indices(),
+                indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, indexPattern),
+                indexGroup(IndexPrivilege.READ, allowRestrictedIndices, indexPattern)
+            );
+        }
+    }
+
+    public void testBuildRoleWithAllPrivilegeIsNeverSplit() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store", "all")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store", "all")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            assertHasIndexGroups(
+                role.indices(),
+                indexGroup(
+                    IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Set.of("read", "read_failure_store", "all")),
+                    allowRestrictedIndices,
+                    indexPattern
+                )
+            );
+        }
+    }
+
+    public void testBuildRoleWithFailureStorePrivilegeCollatesToRemoveDlsFlsFromAnotherGroup() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "view_index_metadata")
+                            .query("{\"match\":{\"field\":\"a\"}}")
+                            .grantedFields("field")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "view_index_metadata")
+                            .query("{\"match\":{\"field\":\"a\"}}")
+                            .grantedFields("field")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            )
+        );
+        for (var role : roles) {
+            assertHasIndexGroups(
+                role.indices(),
+                indexGroup(
+                    IndexPrivilege.get("read_failure_store"),
+                    allowRestrictedIndices,
+                    null,
+                    new FieldPermissionsDefinition(
+                        Set.of(
+                            new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+                            new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null)
+                        )
+                    ),
+                    indexPattern
+                ),
+                indexGroup(
+                    IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Set.of("read", "view_index_metadata")),
+                    allowRestrictedIndices,
+                    null,
+                    new FieldPermissionsDefinition(
+                        Set.of(
+                            new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+                            new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null)
+                        )
+                    ),
+                    indexPattern
+                )
+            );
+
+        }
+    }
+
+    public void testBuildRoleWithFailureStorePrivilegeCollatesToKeepDlsFlsFromAnotherGroup() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder()
+                        .indices(indexPattern)
+                        .privileges("read_failure_store")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .allowRestrictedIndices(allowRestrictedIndices)
+                        .build(),
+                    IndicesPrivileges.builder()
+                        .indices(indexPattern)
+                        .privileges("read", "view_index_metadata")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .allowRestrictedIndices(allowRestrictedIndices)
+                        .build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(
+                IndexPrivilege.get("read_failure_store"),
+                allowRestrictedIndices,
+                "{\"match\":{\"field\":\"a\"}}",
+                new FieldPermissionsDefinition(
+                    Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null))
+                ),
+                indexPattern
+            ),
+            indexGroup(
+                IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Set.of("read", "view_index_metadata")),
+                allowRestrictedIndices,
+                "{\"match\":{\"field\":\"a\"}}",
+                new FieldPermissionsDefinition(
+                    Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null))
+                ),
+                indexPattern
+            )
+        );
+    }
+
+    public void testBuildRoleDoesNotSplitIfAllPrivilegesHaveTheSameSelector() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        IndexComponentSelectorPredicate predicate = randomFrom(
+            IndexComponentSelectorPredicate.ALL,
+            IndexComponentSelectorPredicate.DATA,
+            IndexComponentSelectorPredicate.FAILURES,
+            IndexComponentSelectorPredicate.DATA_AND_FAILURES
+        );
+
+        List<String> privilegesWithSelector = IndexPrivilege.names()
+            .stream()
+            .filter(p -> IndexPrivilege.getNamedOrNull(p).getSelectorPredicate() == predicate)
+            .toList();
+        Set<String> usedPrivileges = new HashSet<>();
+
+        int n = randomIntBetween(1, 5);
+        IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[n];
+        for (int i = 0; i < n; i++) {
+            IndicesPrivileges.Builder builder = IndicesPrivileges.builder();
+            // TODO this is due to an unrelated bug in index collation logic
+            List<String> privileges = randomValueOtherThanMany(
+                p -> p.get(0).equals("none"),
+                () -> randomNonEmptySubsetOf(privilegesWithSelector)
+            );
+            usedPrivileges.addAll(privileges);
+            indicesPrivileges[i] = builder.indices(indexPattern).privileges(privileges).build();
+        }
+
+        final Role role = buildRole(roleDescriptorWithIndicesPrivileges("r1", indicesPrivileges));
+        final IndicesPermission actual = role.indices();
+        assertHasIndexGroups(
+            actual,
+            indexGroup(IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(usedPrivileges), false, indexPattern)
+        );
     }
 
     public void testCustomRolesProviderFailures() throws Exception {
@@ -1570,6 +2103,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             : Map.of("custom", List.of(inMemoryProvider1), "failing", List.of(failingProvider));
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -1580,6 +2114,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             rds -> effectiveRoleDescriptors.set(rds),
+            null,
             null,
             null
         );
@@ -1636,6 +2171,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             Settings.EMPTY,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -1646,6 +2182,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             rds -> effectiveRoleDescriptors.set(rds),
+            null,
             null,
             null
         );
@@ -1687,26 +2224,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verify(xPackLicenseState, times(2)).disableUsageTracking(Security.CUSTOM_ROLE_PROVIDERS_FEATURE, "custom");
     }
 
-    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+    private SecurityIndexManager.IndexState dummyState(ClusterHealthStatus indexStatus) {
         return dummyIndexState(true, indexStatus);
     }
 
-    public SecurityIndexManager.State dummyIndexState(boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
-        return new SecurityIndexManager.State(
-            Instant.now(),
-            isIndexUpToDate,
-            true,
-            true,
-            true,
-            true,
-            null,
-            null,
-            null,
-            concreteSecurityIndexName,
-            healthStatus,
-            IndexMetadata.State.OPEN,
-            "my_uuid",
-            Set.of()
+    public SecurityIndexManager.IndexState dummyIndexState(boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
+        var mgr = mock(SecurityIndexManager.class);
+        return mgr.new IndexState(
+            Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), isIndexUpToDate, true, true,
+            true, true, null, false, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set
+                .of()
         );
     }
 
@@ -1722,6 +2249,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             Settings.EMPTY,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -1732,33 +2260,34 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            store -> numInvalidation.incrementAndGet(),
+            (store, project) -> numInvalidation.incrementAndGet(),
+            null,
             null
         );
 
         int expectedInvalidation = 0;
         // existing to no longer present
-        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        SecurityIndexManager.State currentState = dummyState(null);
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        SecurityIndexManager.IndexState previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.IndexState currentState = dummyState(null);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // doesn't exist to exists
         previousState = dummyState(null);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green or yellow to red
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         currentState = dummyState(ClusterHealthStatus.RED);
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
 
         // red to non red
         previousState = dummyState(ClusterHealthStatus.RED);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green to yellow or yellow to green
@@ -1766,8 +2295,92 @@ public class CompositeRolesStoreTests extends ESTestCase {
         currentState = dummyState(
             previousState.indexHealth == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN
         );
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
+    }
+
+    public void testCacheCleanupOnProjectDeletion() throws Exception {
+        final ClusterService clusterService = mock(ClusterService.class);
+
+        final AtomicReference<ClusterStateListener> listener = new AtomicReference<>();
+        doAnswer(inv -> {
+            assertThat(inv.getArguments(), Matchers.arrayWithSize(1));
+            assertThat(listener.get(), nullValue());
+            listener.set(inv.getArgument(0));
+            return null;
+        }).when(clusterService).addListener(any(ClusterStateListener.class));
+
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(randomAlphaOfLengthBetween(4, 12), new String[] { "all" }, null, null);
+
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Set.of(roleDescriptor));
+
+        final AtomicReference<ProjectId> projectId = new AtomicReference<>(ProjectId.DEFAULT);
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId::get);
+
+        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            Settings.EMPTY,
+            clusterService,
+            fileRolesStore,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            projectResolver
+        );
+
+        assertThat(listener.get(), notNullValue());
+
+        final ProjectId project1 = randomUniqueProjectId();
+        projectId.set(project1);
+
+        final var user = new User(randomIdentifier(), roleDescriptor.getName());
+        final var subject = new Subject(user, new RealmRef("name", "type", "node"));
+        final var future = new PlainActionFuture<Role>();
+        compositeRolesStore.getRole(subject, future);
+
+        final Role role = future.get();
+        assertThat(role, instanceOf(SimpleRole.class));
+        assertThat(role.names(), arrayContaining(roleDescriptor.getName()));
+
+        var cached1 = Iterators.toList(compositeRolesStore.cachedRoles().iterator());
+        assertThat(cached1, hasSize(1));
+        assertThat(cached1.getFirst().projectId(), equalTo(project1));
+        assertThat(cached1.getFirst().value().getNames(), contains(roleDescriptor.getName()));
+
+        final ProjectId project2 = randomUniqueProjectId();
+        projectId.set(project2);
+        compositeRolesStore.getRole(subject, future);
+
+        var cached2 = new ArrayList<>(Iterators.toList(compositeRolesStore.cachedRoles().iterator()));
+        assertThat(cached2, hasSize(2));
+        assertThat(cached2.removeAll(cached1), is(true));
+        assertThat(cached2, hasSize(1));
+        assertThat(cached2.getFirst().projectId(), equalTo(project2));
+        assertThat(cached2.getFirst().value().getNames(), contains(roleDescriptor.getName()));
+
+        final ClusterState csBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(project1).build())
+            .putProjectMetadata(ProjectMetadata.builder(project2).build())
+            .build();
+
+        final ClusterState csAfter = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(project2).build())
+            .build();
+
+        listener.get().clusterChanged(new ClusterChangedEvent(getTestName(), csAfter, csBefore));
+
+        var cached3 = Iterators.toList(compositeRolesStore.cachedRoles().iterator());
+        assertThat(cached3, hasSize(1));
+        assertThat(cached3.getFirst(), is(cached2.getFirst()));
     }
 
     public void testCacheClearOnIndexOutOfDateChange() {
@@ -1781,6 +2394,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
         final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -1791,14 +2405,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            store -> numInvalidation.incrementAndGet(),
+            (store, project) -> numInvalidation.incrementAndGet(),
+            null,
             null
         );
 
-        compositeRolesStore.onSecurityIndexStateChange(dummyIndexState(false, null), dummyIndexState(true, null));
+        compositeRolesStore.onSecurityIndexStateChange(
+            Metadata.DEFAULT_PROJECT_ID,
+            dummyIndexState(false, null),
+            dummyIndexState(true, null)
+        );
         assertEquals(1, numInvalidation.get());
 
-        compositeRolesStore.onSecurityIndexStateChange(dummyIndexState(true, null), dummyIndexState(false, null));
+        compositeRolesStore.onSecurityIndexStateChange(
+            Metadata.DEFAULT_PROJECT_ID,
+            dummyIndexState(true, null),
+            dummyIndexState(false, null)
+        );
         assertEquals(2, numInvalidation.get());
     }
 
@@ -2032,7 +2655,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2058,10 +2682,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = randomFrom(
-            TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
-        );
+        final TransportVersion version = AuthenticationTests.randomTransportVersionBefore(Authentication.VERSION_API_KEY_ROLES_AS_BYTES);
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -2116,7 +2737,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2142,10 +2764,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = randomFrom(
-            TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
-        );
+        final TransportVersion version = AuthenticationTests.randomTransportVersionBefore(Authentication.VERSION_API_KEY_ROLES_AS_BYTES);
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -2217,7 +2836,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2305,17 +2925,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache)
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getProject(), emptyCache)
                 .isGranted(),
             is(false == emptyRemoteRole)
         );
         assertThat(
-            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache)
+            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getProject(), emptyCache)
                 .isGranted(),
             is(false)
         );
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata.getIndicesLookup(), emptyCache)
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata.getProject(), emptyCache)
                 .isGranted(),
             is(false)
         );
@@ -2376,7 +2996,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -2390,6 +3011,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             settings,
+            mock(ClusterService.class),
             buildRolesProvider(null, null, null, null, licenseState),
             privilegeStore,
             threadContext,
@@ -2397,6 +3019,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             apiKeyService,
             mock(ServiceAccountService.class),
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault()),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -2490,7 +3113,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -2504,6 +3128,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
             settings,
+            mock(ClusterService.class),
             buildRolesProvider(null, null, null, null, licenseState),
             privilegeStore,
             threadContext,
@@ -2511,6 +3136,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             apiKeyService,
             mock(ServiceAccountService.class),
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault()),
             buildBitsetCache(),
             TestRestrictedIndices.RESTRICTED_INDICES,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -2686,6 +3312,126 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 + "] is deprecated and will be removed in a future version of Elasticsearch."
                 + " Please check the documentation"
         );
+    }
+
+    public void testRoleResolutionIsProjectAware() {
+        final AtomicReference<ProjectId> activeProject = new AtomicReference<>();
+        final ProjectResolver projectResolver = new ProjectResolver() {
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ProjectId getProjectId() {
+                return activeProject.get();
+            }
+        };
+
+        final String roleName = randomAlphaOfLengthBetween(4, 12);
+        final Supplier<RoleDescriptor> descriptor = () -> new RoleDescriptor(
+            roleName,
+            randomSubsetOf(
+                Set.of(
+                    ClusterPrivilegeResolver.ALL,
+                    ClusterPrivilegeResolver.MANAGE_SECURITY,
+                    ClusterPrivilegeResolver.MANAGE,
+                    ClusterPrivilegeResolver.MONITOR
+                )
+            ).stream().map(NamedClusterPrivilege::name).toArray(String[]::new),
+            null,
+            null,
+            null,
+            new String[] { activeProject.get().id() },
+            Map.of("project.id", activeProject.get().id()),
+            Map.of()
+        );
+
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+
+        final Map<ProjectId, Integer> roleRetrievalCount = new HashMap<>();
+        doAnswer((invocationOnMock) -> {
+            Set<String> names = invocationOnMock.getArgument(0);
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> listener = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            if (names.contains(roleName)) {
+                listener.onResponse(RoleRetrievalResult.success(Set.of(descriptor.get())));
+            } else {
+                listener.onResponse(RoleRetrievalResult.success(Set.of()));
+            }
+            roleRetrievalCount.compute(activeProject.get(), (k, v) -> v == null ? 1 : v + 1);
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(anySet(), anyActionListener());
+
+        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            Settings.EMPTY,
+            null,
+            null,
+            nativeRolesStore,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            projectResolver
+        );
+
+        final var project1 = randomUniqueProjectId();
+        final var project2 = randomUniqueProjectId();
+        final var project3 = randomUniqueProjectId();
+
+        activeProject.set(project1);
+        final Role role1a = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role1a.checkRunAs(project1.id()), is(true));
+        assertThat(role1a.checkRunAs(project2.id()), is(false));
+        assertThat(role1a.checkRunAs(project3.id()), is(false));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, aMapWithSize(1));
+
+        activeProject.set(project2);
+        final Role role2a = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role2a.checkRunAs(project1.id()), is(false));
+        assertThat(role2a.checkRunAs(project2.id()), is(true));
+        assertThat(role2a.checkRunAs(project3.id()), is(false));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, aMapWithSize(2));
+
+        activeProject.set(project1);
+        final Role role1b = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role1b, sameInstance(role1a));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, aMapWithSize(2));
+
+        activeProject.set(project3);
+        final Role role3a = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role3a.checkRunAs(project1.id()), is(false));
+        assertThat(role3a.checkRunAs(project2.id()), is(false));
+        assertThat(role3a.checkRunAs(project3.id()), is(true));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, hasEntry(project3, 1));
+        assertThat(roleRetrievalCount, aMapWithSize(3));
+
+        final Role role3b = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role3b, sameInstance(role3a));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, hasEntry(project3, 1));
+
+        activeProject.set(project2);
+        final Role role2b = getRoleForRoleNames(compositeRolesStore, roleName);
+        assertThat(role2b, sameInstance(role2a));
+        assertThat(roleRetrievalCount, hasEntry(project1, 1));
+        assertThat(roleRetrievalCount, hasEntry(project2, 1));
+        assertThat(roleRetrievalCount, hasEntry(project3, 1));
     }
 
     public void testCacheEntryIsReusedForIdenticalApiKeyRoles() {
@@ -3004,21 +3750,50 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
 
-        final Subject subject = mock(Subject.class);
-        when(subject.getRoleReferenceIntersection(any())).thenReturn(
-            new RoleReferenceIntersection(new RoleReference.NamedRoleReference(new String[] { roleName }))
-        );
+        final Subject subject = buildSubjectWithRoles(new String[] { roleName });
         final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
         compositeRolesStore.getRoleDescriptors(subject, future);
         assertThat(future.actionGet(), equalTo(Set.of(expectedRoleDescriptor)));
     }
 
+    public void testOrderedUsageStatsWithJustDls() {
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThat(
+            "needs LinkedHashMap to be ordered in transport",
+            compositeRolesStore.usageStatsWithJustDls(),
+            instanceOf(LinkedHashMap.class)
+        );
+    }
+
+    private Role getRoleForRoleNames(CompositeRolesStore store, String... roleNames) {
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(store, Set.of(roleNames), future);
+        return future.actionGet();
+    }
+
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {
+        final Subject subject = buildSubjectWithRoles(roleNames.toArray(String[]::new));
+        rolesStore.getRole(subject, listener);
+    }
+
+    private Subject buildSubjectWithRoles(String[] roleNames) {
         final Subject subject = mock(Subject.class);
         when(subject.getRoleReferenceIntersection(any())).thenReturn(
-            new RoleReferenceIntersection(new RoleReference.NamedRoleReference(roleNames.toArray(String[]::new)))
+            new RoleReferenceIntersection(new RoleReference.NamedRoleReference(roleNames))
         );
-        rolesStore.getRole(subject, listener);
+        return subject;
     }
 
     private Role getXPackSecurityRole() {
@@ -3070,6 +3845,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     ) {
         return buildCompositeRolesStore(
             settings,
+            null,
             fileRolesStore,
             nativeRolesStore,
             reservedRolesStore,
@@ -3081,12 +3857,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
             documentSubsetBitsetCache,
             roleConsumer,
             null,
+            null,
             null
         );
     }
 
     private CompositeRolesStore buildCompositeRolesStore(
         Settings settings,
+        @Nullable ClusterService clusterService,
         @Nullable FileRolesStore fileRolesStore,
         @Nullable NativeRolesStore nativeRolesStore,
         @Nullable ReservedRolesStore reservedRolesStore,
@@ -3097,9 +3875,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         @Nullable ServiceAccountService serviceAccountService,
         @Nullable DocumentSubsetBitsetCache documentSubsetBitsetCache,
         @Nullable Consumer<Collection<RoleDescriptor>> roleConsumer,
-        @Nullable Consumer<CompositeRolesStore> onInvalidation,
-        @Nullable WorkflowService workflowService
+        @Nullable BiConsumer<CompositeRolesStore, ProjectId> onInvalidation,
+        @Nullable WorkflowService workflowService,
+        @Nullable ProjectResolver projectResolver
     ) {
+        if (clusterService == null) {
+            clusterService = mock(ClusterService.class);
+        }
+
         if (licenseState == null) {
             licenseState = new XPackLicenseState(() -> 0);
         }
@@ -3137,9 +3920,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         if (workflowService == null) {
             workflowService = mock(WorkflowService.class);
         }
+        if (projectResolver == null) {
+            projectResolver = TestProjectResolvers.singleProject(randomProjectIdOrDefault());
+        }
 
         return new CompositeRolesStore(
             settings,
+            clusterService,
             roleProviders,
             privilegeStore,
             new ThreadContext(settings),
@@ -3147,6 +3934,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             cache,
             apiKeyService,
             serviceAccountService,
+            projectResolver,
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
             mockRoleBuildingExecutor,
@@ -3157,7 +3945,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 if (onInvalidation == null) {
                     super.invalidateAll();
                 } else {
-                    onInvalidation.accept(this);
+                    onInvalidation.accept(this, null);
+                }
+            }
+
+            @Override
+            public void invalidateProject(ProjectId projectId) {
+                if (onInvalidation == null) {
+                    super.invalidateProject(projectId);
+                } else {
+                    onInvalidation.accept(this, projectId);
                 }
             }
         };
@@ -3198,7 +3995,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private DocumentSubsetBitsetCache buildBitsetCache() {
-        return new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class));
+        return new DocumentSubsetBitsetCache(Settings.EMPTY);
     }
 
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
@@ -3258,6 +4055,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final RoleDescriptor.RemoteIndicesPrivileges[] rips
     ) {
         return roleDescriptorWithIndicesPrivileges(name, rips, null);
+    }
+
+    private RoleDescriptor roleDescriptorWithIndicesPrivileges(final String name, final IndicesPrivileges[] ips) {
+        return roleDescriptorWithIndicesPrivileges(name, null, ips);
     }
 
     private RoleDescriptor roleDescriptorWithIndicesPrivileges(
@@ -3321,12 +4122,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private void assertValidRemoteClusterPermissionsParent(RemoteClusterPermissions permissions, String[] aliases) {
-        assertTrue(permissions.hasPrivileges());
+        assertTrue(permissions.hasAnyPrivileges());
         for (String alias : aliases) {
-            assertTrue(permissions.hasPrivileges(alias));
-            assertFalse(permissions.hasPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
+            assertTrue(permissions.hasAnyPrivileges(alias));
+            assertFalse(permissions.hasAnyPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
             assertThat(
-                permissions.privilegeNames(alias, TransportVersion.current()),
+                permissions.collapseAndRemoveUnsupportedPrivileges(alias, TransportVersion.current()),
                 arrayContaining(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
             );
         }
@@ -3360,6 +4161,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private void assertHasIndexGroups(final IndicesPermission permission, final Matcher<IndicesPermission.Group>... matchers) {
+        assertThat(permission.groups(), arrayContainingInAnyOrder(matchers));
+    }
+
     private static Matcher<IndicesPermission.Group> indexGroup(final String... indices) {
         return indexGroup(IndexPrivilege.READ, false, indices);
     }
@@ -3385,6 +4192,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final FieldPermissionsDefinition.FieldGrantExcludeGroup flsGroup,
         final String... indices
     ) {
+        return indexGroup(privilege, allowRestrictedIndices, query, new FieldPermissionsDefinition(Set.of(flsGroup)), indices);
+    }
+
+    private static Matcher<IndicesPermission.Group> indexGroup(
+        final IndexPrivilege privilege,
+        final boolean allowRestrictedIndices,
+        @Nullable final String query,
+        final FieldPermissionsDefinition fieldPermissionsDefinition,
+        final String... indices
+    ) {
         return new BaseMatcher<>() {
             @Override
             public boolean matches(Object o) {
@@ -3395,7 +4212,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 return equalTo(query == null ? null : Set.of(new BytesArray(query))).matches(group.getQuery())
                     && equalTo(privilege).matches(group.privilege())
                     && equalTo(allowRestrictedIndices).matches(group.allowRestrictedIndices())
-                    && equalTo(new FieldPermissions(new FieldPermissionsDefinition(Set.of(flsGroup)))).matches(group.getFieldPermissions())
+                    && equalTo(new FieldPermissions(fieldPermissionsDefinition)).matches(group.getFieldPermissions())
                     && arrayContaining(indices).matches(group.indices());
             }
 
@@ -3411,8 +4228,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         + Strings.arrayToCommaDelimitedString(indices)
                         + ", query="
                         + query
-                        + ", fieldGrantExcludeGroup="
-                        + flsGroup
+                        + ", fieldPermissionsDefinition="
+                        + fieldPermissionsDefinition
                         + '}'
                 );
             }

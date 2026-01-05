@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -19,11 +17,13 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -57,7 +58,6 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -212,8 +212,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return value;
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
+            return value != null ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -228,17 +233,17 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             if (this.value == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
             final BytesRef valueAsBytesRef = new BytesRef(value);
             if (lowerTerm != null && BytesRefs.toBytesRef(lowerTerm).compareTo(valueAsBytesRef) >= (includeLower ? 1 : 0)) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             if (upperTerm != null && valueAsBytesRef.compareTo(BytesRefs.toBytesRef(upperTerm)) >= (includeUpper ? 1 : 0)) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override
@@ -252,7 +257,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             if (this.value == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
             final String termAsString = BytesRefs.toString(term);
@@ -272,9 +277,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             } else {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
         }
 
@@ -288,15 +293,18 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             if (this.value == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
-            final Automaton automaton = new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
+            final Automaton automaton = Operations.determinize(
+                new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(),
+                maxDeterminizedStates
+            );
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             } else {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
         }
 
@@ -337,6 +345,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     + "]"
             );
         }
+
+        if (context.mappingLookup().isSourceSynthetic()) {
+            // Remember which documents had value in source so that it can be correctly
+            // reconstructed in synthetic source
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), 1));
+        }
     }
 
     @Override
@@ -346,46 +360,17 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        String value = fieldType().value();
+        String const_value = fieldType().value();
 
-        if (value == null) {
-            return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
+        if (const_value == null) {
+            return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
         }
 
-        var loader = new SourceLoader.SyntheticFieldLoader() {
+        return new SyntheticSourceSupport.Native(() -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), false) {
             @Override
-            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-                return Stream.of();
+            protected void writeValue(XContentBuilder b, long ignored) throws IOException {
+                b.value(const_value);
             }
-
-            @Override
-            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
-                return docId -> true;
-            }
-
-            @Override
-            public boolean hasValue() {
-                return true;
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (fieldType().value != null) {
-                    b.field(leafName(), fieldType().value);
-                }
-            }
-
-            @Override
-            public void reset() {
-                // NOOP
-            }
-
-            @Override
-            public String fieldName() {
-                return fullPath();
-            }
-        };
-
-        return new SyntheticSourceSupport.Native(loader);
+        });
     }
 }

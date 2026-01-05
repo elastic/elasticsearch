@@ -15,12 +15,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information
  * required for RRF.
  */
-public class RRFRankDoc extends RankDoc {
+public final class RRFRankDoc extends RankDoc {
 
     static final String NAME = "rrf_rank_doc";
 
@@ -42,33 +43,66 @@ public class RRFRankDoc extends RankDoc {
      */
     public final float[] scores;
 
-    public RRFRankDoc(int doc, int shardIndex, int queryCount) {
+    public final Integer rankConstant;
+
+    public RRFRankDoc(int doc, int shardIndex, int queryCount, int rankConstant) {
         super(doc, 0f, shardIndex);
         positions = new int[queryCount];
         Arrays.fill(positions, NO_RANK);
         scores = new float[queryCount];
+        this.rankConstant = rankConstant;
+    }
+
+    public RRFRankDoc(int doc, int shardIndex) {
+        super(doc, 0f, shardIndex);
+        positions = null;
+        scores = null;
+        rankConstant = null;
     }
 
     public RRFRankDoc(StreamInput in) throws IOException {
         super(in);
         rank = in.readVInt();
-        positions = in.readIntArray();
-        scores = in.readFloatArray();
+        if (in.readBoolean()) {
+            positions = in.readIntArray();
+        } else {
+            positions = null;
+        }
+        scores = in.readOptionalFloatArray();
+        rankConstant = in.readOptionalVInt();
     }
 
     @Override
-    public Explanation explain() {
-        // ideally we'd need access to the rank constant to provide score info for this one
+    public Explanation explain(Explanation[] sources, String[] queryNames) {
+        assert positions != null && scores != null && rankConstant != null;
+        assert sources.length == scores.length;
         int queries = positions.length;
         Explanation[] details = new Explanation[queries];
         for (int i = 0; i < queries; i++) {
-            final String queryIndex = "at index [" + i + "]";
+            final String queryAlias = queryNames[i] == null ? "" : " [" + queryNames[i] + "]";
+            final String queryIdentifier = "at index [" + i + "]" + queryAlias;
             if (positions[i] == RRFRankDoc.NO_RANK) {
-                final String description = "rrf score: [0], result not found in query " + queryIndex;
+                final String description = "rrf score: [0], result not found in query " + queryIdentifier;
                 details[i] = Explanation.noMatch(description);
             } else {
                 final int rank = positions[i] + 1;
-                details[i] = Explanation.match(rank, "rank [" + (rank) + "] in query " + queryIndex);
+                final float rrfScore = (1f / (rank + rankConstant));
+                details[i] = Explanation.match(
+                    rank,
+                    "rrf score: ["
+                        + rrfScore
+                        + "], "
+                        + "for rank ["
+                        + (rank)
+                        + "] in query "
+                        + queryIdentifier
+                        + " computed as [1 / ("
+                        + (rank)
+                        + " + "
+                        + rankConstant
+                        + ")], for matching query with score",
+                    sources[i]
+                );
             }
         }
         return Explanation.match(
@@ -77,6 +111,8 @@ public class RRFRankDoc extends RankDoc {
                 + score
                 + "] computed for initial ranks "
                 + Arrays.toString(Arrays.stream(positions).map(x -> x + 1).toArray())
+                + " with rankConstant: ["
+                + rankConstant
                 + "] as sum of [1 / (rank + rankConstant)] for each query",
             details
         );
@@ -85,19 +121,27 @@ public class RRFRankDoc extends RankDoc {
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(rank);
-        out.writeIntArray(positions);
-        out.writeFloatArray(scores);
+        if (positions != null) {
+            out.writeBoolean(true);
+            out.writeIntArray(positions);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalFloatArray(scores);
+        out.writeOptionalVInt(rankConstant);
     }
 
     @Override
     public boolean doEquals(RankDoc rd) {
         RRFRankDoc rrfrd = (RRFRankDoc) rd;
-        return Arrays.equals(positions, rrfrd.positions) && Arrays.equals(scores, rrfrd.scores);
+        return Arrays.equals(positions, rrfrd.positions)
+            && Arrays.equals(scores, rrfrd.scores)
+            && Objects.equals(rankConstant, rrfrd.rankConstant);
     }
 
     @Override
     public int doHashCode() {
-        int result = Arrays.hashCode(positions);
+        int result = Arrays.hashCode(positions) + Objects.hash(rankConstant);
         result = 31 * result + Arrays.hashCode(scores);
         return result;
     }
@@ -117,6 +161,8 @@ public class RRFRankDoc extends RankDoc {
             + doc
             + ", shardIndex="
             + shardIndex
+            + ", rankConstant="
+            + rankConstant
             + '}';
     }
 
@@ -127,7 +173,14 @@ public class RRFRankDoc extends RankDoc {
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("positions", positions);
-        builder.field("scores", scores);
+        if (positions != null) {
+            builder.array("positions", positions);
+        }
+        if (scores != null) {
+            builder.array("scores", scores);
+        }
+        if (rankConstant != null) {
+            builder.field("rankConstant", rankConstant);
+        }
     }
 }

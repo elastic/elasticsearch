@@ -23,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,17 +43,14 @@ import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.waitUntil;
@@ -61,8 +60,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
 
 /**
  * This class provides the operational REST functions needed to control an ILM time series lifecycle.
@@ -82,7 +79,7 @@ public final class TimeSeriesRestDriver {
         return getStepKey(indexResponse);
     }
 
-    private static Step.StepKey getStepKey(Map<String, Object> explainIndexResponse) {
+    public static Step.StepKey getStepKey(Map<String, Object> explainIndexResponse) {
         String phase = (String) explainIndexResponse.get("phase");
         String action = (String) explainIndexResponse.get("action");
         String step = (String) explainIndexResponse.get("step");
@@ -98,7 +95,8 @@ public final class TimeSeriesRestDriver {
         RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
             .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
                 [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
-                and will be removed in a future release.""").equals(warnings) == false)
+                and will be removed in a future release. \
+                See the deprecation documentation for the next major version.""").equals(warnings) == false)
             .build();
 
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
@@ -106,14 +104,26 @@ public final class TimeSeriesRestDriver {
         explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
         explainRequest.setOptions(consumeWarningsOptions);
         Response response = client.performRequest(explainRequest);
-        Map<String, Object> responseMap;
-        try (InputStream is = response.getEntity().getContent()) {
-            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-        }
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        return objectPath.evaluate("indices");
+    }
 
-        @SuppressWarnings("unchecked")
-        Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
-        return indexResponse;
+    /**
+     * Waits until the specified index is at the specified ILM step. If any of phase, action, or step is null, that part is ignored.
+     */
+    public static void awaitStepKey(RestClient client, String indexName, String phase, String action, String step) throws Exception {
+        ESRestTestCase.assertBusy(() -> {
+            final Step.StepKey stepKey = getStepKeyForIndex(client, indexName);
+            if (phase != null) {
+                assertThat(stepKey.phase(), equalTo(phase));
+            }
+            if (action != null) {
+                assertThat(stepKey.action(), equalTo(action));
+            }
+            if (step != null) {
+                assertThat(stepKey.name(), equalTo(step));
+            }
+        });
     }
 
     public static void indexDocument(RestClient client, String indexAbstractionName) throws IOException {
@@ -154,8 +164,8 @@ public final class TimeSeriesRestDriver {
         LifecycleAction action,
         TimeValue after
     ) throws IOException {
-        Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
+        Phase phase = new Phase(phaseName, after, Map.of(action.getWriteableName(), action));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, Map.of(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
@@ -199,32 +209,20 @@ public final class TimeSeriesRestDriver {
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(
             AllocateAction.NAME,
-            new AllocateAction(
-                1,
-                null,
-                singletonMap("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
-                null,
-                null
-            )
+            new AllocateAction(1, null, Map.of("_name", "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3"), null, null)
         );
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(
             AllocateAction.NAME,
-            new AllocateAction(
-                0,
-                null,
-                singletonMap("_name", "javaRestTest-0,javaRestTest-1," + "javaRestTest-2," + "javaRestTest-3"),
-                null,
-                null
-            )
+            new AllocateAction(0, null, Map.of("_name", "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3"), null, null)
         );
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE)));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -300,7 +298,7 @@ public final class TimeSeriesRestDriver {
             Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             Map<String, Object> indexSettings = (Map<String, Object>) responseMap.get(index);
             if (indexSettings == null) {
-                return Collections.emptyMap();
+                return Map.of();
             }
             return (Map<String, Object>) indexSettings.get("settings");
         }
@@ -373,35 +371,19 @@ public final class TimeSeriesRestDriver {
     @SuppressWarnings("unchecked")
     public static Integer getNumberOfPrimarySegments(RestClient client, String index) throws IOException {
         Response response = client.performRequest(new Request("GET", index + "/_segments"));
-        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
-        final Map<String, Object> originalResponseEntity = XContentHelper.convertToMap(
-            entityContentType.xContent(),
-            response.getEntity().getContent(),
-            false
-        );
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "segments response for {}: {}",
-                index,
-                originalResponseEntity.keySet()
-                    .stream()
-                    .map(key -> key + "=" + originalResponseEntity.get(key))
-                    .collect(Collectors.joining(", ", "{", "}"))
-            );
-        }
-        Map<String, Object> responseEntity = (Map<String, Object>) originalResponseEntity.get("indices");
-        responseEntity = (Map<String, Object>) responseEntity.get(index);
-        responseEntity = (Map<String, Object>) responseEntity.get("shards");
-        List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
-        // We want to mamke sure to get the primary shard because there is a chance the replica doesn't have data yet:
-        Optional<Map<String, Object>> shardOptional = shards.stream()
-            .filter(shard -> ((Map<String, Object>) shard.get("routing")).get("primary").equals(true))
-            .findAny();
-        if (shardOptional.isPresent()) {
-            return (Integer) shardOptional.get().get("num_search_segments");
-        } else {
-            throw new RuntimeException("No primary shard found for index " + index);
-        }
+        final Map<String, Object> originalResponseEntity = ESRestTestCase.entityAsMap(response);
+        logger.trace("segments response for {}: {}", index, originalResponseEntity);
+        Map<String, Object> responseEntity = new ObjectPath(originalResponseEntity).evaluateExact("indices", index, "shards");
+        return responseEntity.values()
+            .stream()
+            .mapToInt(
+                shardList -> ((List<Map<String, Object>>) shardList).stream()
+                    .filter(shard -> ((Map<String, Object>) shard.get("routing")).get("primary").equals(true))
+                    .findFirst()
+                    .map(shard -> (Integer) shard.get("num_search_segments"))
+                    .orElseThrow(() -> new IllegalStateException("no primary shard found in " + shardList))
+            )
+            .sum();
     }
 
     public static void updatePolicy(RestClient client, String indexName, String policy) throws IOException {
@@ -412,6 +394,28 @@ public final class TimeSeriesRestDriver {
         );
         changePolicyRequest.setEntity(changePolicyEntity);
         assertOK(client.performRequest(changePolicyRequest));
+    }
+
+    /**
+     * Moves the specified index from the current ILM step to the next step.
+     */
+    public static void moveIndexToStep(RestClient client, String indexName, Step.StepKey currentStep, Step.StepKey nextStep)
+        throws IOException {
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + indexName);
+        moveToStepRequest.setJsonEntity(Strings.format("""
+            {
+              "current_step": {
+                "phase": "%s",
+                "action": "%s",
+                "name": "%s"
+              },
+              "next_step": {
+                "phase": "%s",
+                "action": "%s",
+                "name": "%s"
+              }
+            }""", currentStep.phase(), currentStep.action(), currentStep.name(), nextStep.phase(), nextStep.action(), nextStep.name()));
+        ESRestTestCase.assertAcknowledged(client.performRequest(moveToStepRequest));
     }
 
     @SuppressWarnings("unchecked")
@@ -457,6 +461,9 @@ public final class TimeSeriesRestDriver {
                     "GET",
                     SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex + "/_ilm/explain"
                 );
+                // Sometimes, the original index might already have been deleted, so we need to ignore unavailable (concrete) indices.
+                explainRequest.addParameter("ignore_unavailable", Boolean.toString(true));
+                explainRequest.addParameter("expand_wildcards", "open,hidden");
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
                 Response response = client.performRequest(explainRequest);
@@ -491,24 +498,6 @@ public final class TimeSeriesRestDriver {
         }, 30, TimeUnit.SECONDS);
         logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
-    }
-
-    @SuppressWarnings("unchecked")
-    public static List<String> getBackingIndices(RestClient client, String dataStreamName) throws IOException {
-        Response getDataStream = client.performRequest(new Request("GET", "_data_stream/" + dataStreamName));
-        Map<String, Object> responseMap;
-        try (InputStream is = getDataStream.getEntity().getContent()) {
-            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-        }
-
-        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
-        assertThat(dataStreams.size(), is(1));
-        Map<String, Object> dataStream = dataStreams.get(0);
-        assertThat(dataStream.get("name"), is(dataStreamName));
-        List<String> indices = ((List<Map<String, Object>>) dataStream.get("indices")).stream()
-            .map(indexMap -> (String) indexMap.get("index_name"))
-            .toList();
-        return indices;
     }
 
     private static void executeDummyClusterStateUpdate(RestClient client) throws IOException {

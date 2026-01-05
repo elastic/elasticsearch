@@ -1,0 +1,32 @@
+pr: 138492
+summary: Enable bfloat16 and on-disk rescoring for dense vectors
+area: Vector Search
+type: feature
+issues: []
+highlight:
+  title: New dense_vector options for storing bfloat16 vectors and utilising on-disk
+    rescoring
+  body: |-
+    New options have been added to the `dense_vector` field type.
+
+    The first is support for storing vectors in bfloat16 format.
+    This is a floating-point format that utilises two bytes per value rather than four, halving the storage space
+    required compared to `element_type: float`. This can be specified with `element_type: bfloat16`
+    when creating the index, for all `dense_vector` indexing types.
+
+    Float values are automatically rounded to two bytes when writing to disk, so this format can be used
+    with original source vectors at two- or four-byte precision. BFloat16 values are zero-expanded back to four-byte floats
+    when read into memory. Using `bfloat16` will cause a loss of precision compared to
+    the original vector values, as well as a small performance hit due to converting between `bfloat16` and `float`
+    when reading and writing vectors; however this may be counterbalanced by a corresponding decrease in I/O,
+    depending on your workload.
+
+    The second option is to enable on-disk rescoring. When rescoring vectors during kNN searches, the raw vectors
+    are read into memory. When the vector data is larger than the amount of available RAM, this might cause the OS
+    to evict some in-memory pages that then need to be paged back in immediately afterwards. This can cause
+    a significant slowdown in search speed. Enabling on-disk rescoring causes rescoring to use raw vector data
+    on-disk during rescoring, and to not read it into memory first. This can significantly increase search performance
+    in such low-memory situations.
+
+    Enable on-disk rescoring using the `on_disk_rescore: true` index option.
+  notable: true

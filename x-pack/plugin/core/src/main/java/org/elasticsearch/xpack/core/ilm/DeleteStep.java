@@ -13,36 +13,65 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 
-import java.util.Locale;
+import java.util.function.BiFunction;
 
 /**
  * Deletes a single index.
  */
 public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
+
     public static final String NAME = "delete";
     private static final Logger logger = LogManager.getLogger(DeleteStep.class);
+    private static final BiFunction<String, LifecycleExecutionState, String> DEFAULT_TARGET_INDEX_NAME_SUPPLIER = (
+        indexName,
+        lifecycleState) -> indexName;
 
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
+    private final boolean indexSurvives;
+
+    /**
+     * Use this constructor to delete the index that ILM is currently operating on.
+     */
     public DeleteStep(StepKey key, StepKey nextStepKey, Client client) {
+        this(key, nextStepKey, client, DEFAULT_TARGET_INDEX_NAME_SUPPLIER, false);
+    }
+
+    /**
+     * Use this constructor to delete a specific index, potentially different from the one that ILM is currently operating on. The parameter
+     * {@code indexSurvives} indicates whether the index that ILM runs on will survive (i.e. not get deleted) this step.
+     * Look at the callers of {@link AsyncActionStep#indexSurvives()} for more details.
+     */
+    public DeleteStep(
+        StepKey key,
+        StepKey nextStepKey,
+        Client client,
+        BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier,
+        boolean indexSurvives
+    ) {
         super(key, nextStepKey, client);
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
+        this.indexSurvives = indexSurvives;
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Void> listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         String policyName = indexMetadata.getLifecyclePolicyName();
-        String indexName = indexMetadata.getIndex().getName();
-        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
+        String indexName = targetIndexNameSupplier.apply(indexMetadata.getIndex().getName(), indexMetadata.getLifecycleExecutionState());
+        IndexAbstraction indexAbstraction = currentProject.getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
 
         if (dataStream != null) {
-            Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
+            Index failureStoreWriteIndex = dataStream.getWriteFailureIndex();
             boolean isFailureStoreWriteIndex = failureStoreWriteIndex != null && indexName.equals(failureStoreWriteIndex.getName());
 
             // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream
@@ -57,15 +86,14 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                     MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                     dataStream.getName()
                 );
-                getClient().execute(
+                getClient(currentProject.id()).execute(
                     DeleteDataStreamAction.INSTANCE,
                     deleteReq,
                     listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
                 );
                 return;
             } else if (isFailureStoreWriteIndex || dataStream.getWriteIndex().getName().equals(indexName)) {
-                String errorMessage = String.format(
-                    Locale.ROOT,
+                String errorMessage = Strings.format(
                     "index [%s] is the%s write index for data stream [%s]. "
                         + "stopping execution of lifecycle [%s] as a data stream's write index cannot be deleted. manually rolling over the"
                         + " index will resume the execution of the policy as the index will not be the data stream's write index anymore",
@@ -80,7 +108,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
             }
         }
 
-        getClient().admin()
+        getClient(currentProject.id()).admin()
             .indices()
             .delete(
                 new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),
@@ -90,7 +118,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
 
     @Override
     public boolean indexSurvives() {
-        return false;
+        return indexSurvives;
     }
 
     @Override

@@ -11,16 +11,13 @@ package org.elasticsearch.script;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,6 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.newPutStoredScriptTestRequest;
 import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -73,14 +71,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
             safeAwaitAndUnwrapFailure(
                 IllegalArgumentException.class,
                 AcknowledgedResponse.class,
-                l -> client().execute(
-                    TransportPutStoredScriptAction.TYPE,
-                    new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("id#")
-                        .content(new BytesArray(Strings.format("""
-                            {"script": {"lang": "%s", "source": "1"} }
-                            """, LANG)), XContentType.JSON),
-                    l
-                )
+                l -> client().execute(TransportPutStoredScriptAction.TYPE, newPutStoredScriptTestRequest("id#", Strings.format("""
+                    {"script": {"lang": "%s", "source": "1"} }
+                    """, LANG)), l)
             ).getMessage()
         );
     }
@@ -91,14 +84,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
             safeAwaitAndUnwrapFailure(
                 IllegalArgumentException.class,
                 AcknowledgedResponse.class,
-                l -> client().execute(
-                    TransportPutStoredScriptAction.TYPE,
-                    new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).id("foobar")
-                        .content(new BytesArray(Strings.format("""
-                            {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                            """, LANG)), XContentType.JSON),
-                    l
-                )
+                l -> client().execute(TransportPutStoredScriptAction.TYPE, newPutStoredScriptTestRequest("foobar", Strings.format("""
+                    {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
+                    """, LANG)), l)
             ).getMessage()
         );
     }

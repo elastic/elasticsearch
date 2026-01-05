@@ -8,22 +8,25 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvPercentile}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvPercentileLongEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvPercentileLongEvaluator.class);
+
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator values;
 
@@ -33,14 +36,16 @@ public final class MvPercentileLongEvaluator implements EvalOperator.ExpressionE
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public MvPercentileLongEvaluator(Source source, EvalOperator.ExpressionEvaluator values,
       EvalOperator.ExpressionEvaluator percentile, MvPercentile.LongSortingScratch scratch,
       DriverContext driverContext) {
+    this.source = source;
     this.values = values;
     this.percentile = percentile;
     this.scratch = scratch;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -52,6 +57,14 @@ public final class MvPercentileLongEvaluator implements EvalOperator.ExpressionE
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += values.baseRamBytesUsed();
+    baseRamBytesUsed += percentile.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, LongBlock valuesBlock, DoubleBlock percentileBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -59,25 +72,26 @@ public final class MvPercentileLongEvaluator implements EvalOperator.ExpressionE
         if (!valuesBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (percentileBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (percentileBlock.getValueCount(p) != 1) {
-          if (percentileBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (percentileBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
+        double percentile = percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p));
         try {
-          MvPercentile.process(result, p, valuesBlock, percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p)), this.scratch);
+          MvPercentile.process(result, p, valuesBlock, percentile, this.scratch);
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -93,6 +107,18 @@ public final class MvPercentileLongEvaluator implements EvalOperator.ExpressionE
   @Override
   public void close() {
     Releasables.closeExpectNoException(values, percentile);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

@@ -11,7 +11,6 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,14 +18,13 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetadataUpgrader;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.mockito.Mockito.mock;
@@ -70,11 +68,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         final MetaStateService metaStateService = mock(MetaStateService.class);
-        try {
-            when(metaStateService.loadFullState()).thenReturn(new Tuple<>(Manifest.empty(), Metadata.builder().build()));
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
         start(
             settings,
             transportService,
@@ -86,7 +79,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 nodeEnvironment,
                 xContentRegistry,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                ESTestCase::randomBoolean
             ),
             List.of(),
             CompatibilityVersionsUtils.staticCurrent()

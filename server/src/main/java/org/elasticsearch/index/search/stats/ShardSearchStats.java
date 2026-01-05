@@ -10,6 +10,7 @@
 package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -26,9 +27,15 @@ import static java.util.Collections.emptyMap;
 
 public final class ShardSearchStats implements SearchOperationListener {
 
-    private final StatsHolder totalStats = new StatsHolder();
+    private final StatsHolder totalStats;
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
+    private final SearchStatsSettings searchStatsSettings;
+
+    public ShardSearchStats(SearchStatsSettings searchStatsSettings) {
+        this.searchStatsSettings = searchStatsSettings;
+        this.totalStats = new StatsHolder(searchStatsSettings);
+    }
 
     /**
      * Returns the stats, including group specific stats. If the groups are null/0 length, then nothing
@@ -65,18 +72,24 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFailedQueryPhase(SearchContext searchContext) {
-        computeStats(
-            searchContext,
-            searchContext.hasOnlySuggest() ? statsHolder -> statsHolder.suggestCurrent.dec() : statsHolder -> statsHolder.queryCurrent.dec()
-        );
+        computeStats(searchContext, statsHolder -> {
+            if (searchContext.hasOnlySuggest()) {
+                statsHolder.suggestCurrent.dec();
+            } else {
+                statsHolder.queryCurrent.dec();
+                statsHolder.queryFailure.inc();
+            }
+        });
     }
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, searchContext.hasOnlySuggest() ? statsHolder -> {
+            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.suggestMetric.inc(tookInNanos);
             statsHolder.suggestCurrent.dec();
         } : statsHolder -> {
+            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.queryMetric.inc(tookInNanos);
             statsHolder.queryCurrent.dec();
         });
@@ -89,15 +102,24 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFailedFetchPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.dec());
+        computeStats(searchContext, statsHolder -> {
+            statsHolder.fetchCurrent.dec();
+            statsHolder.fetchFailure.inc();
+        });
     }
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, statsHolder -> {
+            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.fetchMetric.inc(tookInNanos);
             statsHolder.fetchCurrent.dec();
         });
+    }
+
+    @Override
+    public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
+        computeStats(searchContext, statsHolder -> { statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime()); });
     }
 
     private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
@@ -116,7 +138,7 @@ public final class ShardSearchStats implements SearchOperationListener {
             synchronized (this) {
                 stats = groupsStats.get(group);
                 if (stats == null) {
-                    stats = new StatsHolder();
+                    stats = new StatsHolder(searchStatsSettings);
                     groupsStats = Maps.copyMapWithAddedEntry(groupsStats, group, stats);
                 }
             }
@@ -163,20 +185,33 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric scrollCurrent = new CounterMetric();
         final CounterMetric suggestCurrent = new CounterMetric();
 
+        final CounterMetric queryFailure = new CounterMetric();
+        final CounterMetric fetchFailure = new CounterMetric();
+
+        final ExponentiallyWeightedMovingRate recentSearchLoad;
+
+        StatsHolder(SearchStatsSettings searchStatsSettings) {
+            double lambdaInInverseNanos = Math.log(2.0) / searchStatsSettings.getRecentReadLoadHalfLifeForNewShards().nanos();
+            this.recentSearchLoad = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, System.nanoTime());
+        }
+
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
                 queryMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
                 queryCurrent.count(),
+                queryFailure.count(),
                 fetchMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
                 fetchCurrent.count(),
+                fetchFailure.count(),
                 scrollMetric.count(),
                 TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
                 scrollCurrent.count(),
                 suggestMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
-                suggestCurrent.count()
+                suggestCurrent.count(),
+                recentSearchLoad.getRate(System.nanoTime())
             );
         }
     }

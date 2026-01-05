@@ -28,7 +28,7 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
     private CustomAnalyzer customAnalyzer;
 
     public CustomNormalizerProvider(IndexSettings indexSettings, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.analyzerSettings = settings;
     }
 

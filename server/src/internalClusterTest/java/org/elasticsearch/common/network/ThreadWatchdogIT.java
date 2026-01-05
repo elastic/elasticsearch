@@ -11,6 +11,7 @@ package org.elasticsearch.common.network;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -88,7 +89,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
             return List.of(new RestHandler() {
                 @Override
                 public List<Route> routes() {
-                    return List.of(Route.builder(RestRequest.Method.POST, "_slow").build());
+                    return List.of(new Route(RestRequest.Method.POST, "_slow"));
                 }
 
                 @Override
@@ -137,7 +138,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
             EmptyRequest::new,
             (request, channel, task) -> {
                 blockAndWaitForWatchdogLogs();
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
 
@@ -149,7 +150,7 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
                     new EmptyRequest(),
                     new ActionListenerResponseHandler<TransportResponse>(
                         l,
-                        in -> TransportResponse.Empty.INSTANCE,
+                        in -> ActionResponse.Empty.INSTANCE,
                         EsExecutors.DIRECT_EXECUTOR_SERVICE
                     )
                 )

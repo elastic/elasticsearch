@@ -18,14 +18,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,7 +35,7 @@ import java.util.Set;
 public class TransportPutComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
-    private final IndexScopedSettings indexScopedSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutComponentTemplateAction(
@@ -46,8 +44,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        ProjectResolver projectResolver
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -56,38 +53,15 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutComponentTemplateAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
-        this.indexScopedSettings = indexScopedSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutComponentTemplateAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    public static ComponentTemplate normalizeComponentTemplate(
-        ComponentTemplate componentTemplate,
-        IndexScopedSettings indexScopedSettings
-    ) {
-        Template template = componentTemplate.template();
-        // Normalize the index settings if necessary
-        if (template.settings() != null) {
-            Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-            Settings settings = builder.build();
-            indexScopedSettings.validate(settings, true);
-            template = Template.builder(template).settings(settings).build();
-            componentTemplate = new ComponentTemplate(
-                template,
-                componentTemplate.version(),
-                componentTemplate.metadata(),
-                componentTemplate.deprecated()
-            );
-        }
-
-        return componentTemplate;
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -96,14 +70,30 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final PutComponentTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
-    ) {
-        ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
+    ) throws Exception {
+        final var project = projectResolver.getProjectMetadata(state);
+        final ComponentTemplate componentTemplate = indexTemplateService.normalizeComponentTemplate(request.componentTemplate());
+        final ComponentTemplate existingTemplate = project.componentTemplates().get(request.name());
+        if (existingTemplate != null) {
+            if (request.create()) {
+                listener.onFailure(new IllegalArgumentException("component template [" + request.name() + "] already exists"));
+                return;
+            }
+            // We have an early return here in case the component template already exists and is identical in content. We still need to do
+            // this check in the cluster state update task in case the cluster state changed since this check.
+            if (componentTemplate.contentEquals(existingTemplate)) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+        }
+
         indexTemplateService.putComponentTemplate(
             request.cause(),
             request.create(),
             request.name(),
             request.masterNodeTimeout(),
             componentTemplate,
+            project.id(),
             listener
         );
     }
@@ -116,5 +106,18 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
     @Override
     public Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
         return Set.of(ReservedComposableIndexTemplateAction.reservedComponentName(request.name()));
+    }
+
+    @Override
+    @FixForMultiProject // does this need to be a more general concept?
+    protected void validateForReservedState(PutComponentTemplateAction.Request request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request::toString
+        );
     }
 }

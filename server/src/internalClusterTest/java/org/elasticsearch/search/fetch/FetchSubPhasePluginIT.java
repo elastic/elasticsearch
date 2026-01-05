@@ -137,9 +137,9 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             DocumentField hitField = hitContext.hit().getFields().get(NAME);
             if (hitField == null) {
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
-                hitContext.hit().setDocumentField(NAME, hitField);
+                hitContext.hit().setDocumentField(hitField);
             }
-            Terms terms = hitContext.reader().getTermVector(hitContext.docId(), field);
+            Terms terms = hitContext.reader().termVectors().get(hitContext.docId(), field);
             if (terms != null) {
                 TermsEnum te = terms.iterator();
                 Map<String, Integer> tv = new HashMap<>();

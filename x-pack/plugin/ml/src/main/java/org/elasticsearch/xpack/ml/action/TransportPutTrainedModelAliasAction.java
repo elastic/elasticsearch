@@ -18,8 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -65,6 +64,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
     private final InferenceAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutTrainedModelAliasAction(
@@ -75,7 +75,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         XPackLicenseState licenseState,
         ActionFilters actionFilters,
         InferenceAuditor auditor,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             PutTrainedModelAliasAction.NAME,
@@ -84,12 +84,12 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutTrainedModelAliasAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.auditor = auditor;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -260,7 +260,6 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
     }
 
     static ClusterState updateModelAlias(final ClusterState currentState, final PutTrainedModelAliasAction.Request request) {
-        final ClusterState.Builder builder = ClusterState.builder(currentState);
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
         String currentModelId = currentMetadata.getModelId(request.getModelAlias());
         final Map<String, ModelAliasMetadata.ModelAliasEntry> newMetadata = new HashMap<>(currentMetadata.modelAliases());
@@ -276,12 +275,12 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
         }
         newMetadata.put(request.getModelAlias(), new ModelAliasMetadata.ModelAliasEntry(request.getModelId()));
         final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
-        builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build());
-        return builder.build();
+        final var project = currentState.metadata().getProject();
+        return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(ModelAliasMetadata.NAME, modelAliasMetadata));
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutTrainedModelAliasAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

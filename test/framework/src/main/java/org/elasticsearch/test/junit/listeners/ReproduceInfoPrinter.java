@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -52,7 +53,7 @@ public class ReproduceInfoPrinter extends RunListener {
      * Are we in the integ test phase?
      */
     static boolean inVerifyPhase() {
-        return Boolean.parseBoolean(System.getProperty("tests.verify.phase"));
+        return Booleans.parseBoolean(System.getProperty("tests.verify.phase", "false"));
     }
 
     @Override
@@ -65,7 +66,9 @@ public class ReproduceInfoPrinter extends RunListener {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
-        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
+        boolean isBwcTest = Booleans.parseBoolean(System.getProperty("tests.bwc", "false"))
+            || System.getProperty("tests.bwc.main.version") != null
+            || System.getProperty("tests.bwc.refspec.main") != null;
 
         // append Gradle test runner test filter string
         b.append("\"" + task + "\"");
@@ -97,14 +100,14 @@ public class ReproduceInfoPrinter extends RunListener {
             b.append(
                 "This is a Rest Api Compatibility Test. "
                     + "See the developers guide for details how to troubleshoot - "
-                    + "https://github.com/elastic/elasticsearch/blob/master/REST_API_COMPATIBILITY.md"
+                    + "https://github.com/elastic/elasticsearch/blob/main/REST_API_COMPATIBILITY.md"
             );
         }
         printToErr(b.toString());
     }
 
     private static boolean isRestApiCompatibilityTest() {
-        return Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
+        return Booleans.parseBoolean(System.getProperty("tests.restCompat", "false"));
     }
 
     @SuppressForbidden(reason = "printing repro info")
@@ -174,18 +177,28 @@ public class ReproduceInfoPrinter extends RunListener {
                 "tests.bwc",
                 "tests.bwc.version",
                 "build.snapshot",
-                "tests.configure_test_clusters_with_one_processor"
+                "tests.configure_test_clusters_with_one_processor",
+                "tests.bwc.main.version",
+                "tests.bwc.refspec.main",
+                "tests.vectorsize"
             );
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
-            if (Boolean.parseBoolean(System.getProperty("build.snapshot", "true")) == false) {
+            if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true")) == false) {
                 appendOpt("license.key", "x-pack/license-tools/src/test/resources/public.key");
             }
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
-            appendOpt("runtime.java", Integer.toString(Runtime.version().feature()));
+            if (Runtime.version().build().isPresent()
+                && ("ea".equalsIgnoreCase(Runtime.version().pre().orElse(""))
+                    || ("rc".equalsIgnoreCase(Runtime.version().pre().orElse(""))))) {
+                appendOpt("runtime.java", Runtime.version().feature() + "-pre");
+                appendOpt("runtime.java.build", Integer.toString(Runtime.version().build().get()));
+            } else {
+                appendOpt("runtime.java", Integer.toString(Runtime.version().feature()));
+            }
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;
         }

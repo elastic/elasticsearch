@@ -88,11 +88,11 @@ public class DateHistogramIT extends ESIntegTestCase {
     private IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
         return prepareIndex(idx).setSource(
             jsonBuilder().startObject()
-                .timeField("date", date)
+                .timestampField("date", date)
                 .field("value", value)
                 .startArray("dates")
-                .timeValue(date)
-                .timeValue(date.plusMonths(1).plusDays(1))
+                .timestampValue(date)
+                .timestampValue(date.plusMonths(1).plusDays(1))
                 .endArray()
                 .endObject()
         );
@@ -103,10 +103,10 @@ public class DateHistogramIT extends ESIntegTestCase {
             jsonBuilder().startObject()
                 .field("value", value)
                 .field("constant", 1)
-                .timeField("date", date(month, day))
+                .timestampField("date", date(month, day))
                 .startArray("dates")
-                .timeValue(date(month, day))
-                .timeValue(date(month + 1, day + 1))
+                .timestampValue(date(month, day))
+                .timestampValue(date(month + 1, day + 1))
                 .endArray()
                 .endObject()
         );
@@ -162,53 +162,53 @@ public class DateHistogramIT extends ESIntegTestCase {
         for (int i = 1; i <= 3; i++) {
             builders.add(
                 prepareIndex("sort_idx").setSource(
-                    jsonBuilder().startObject().timeField("date", date(1, 1)).field("l", 1).field("d", i).endObject()
+                    jsonBuilder().startObject().timestampField("date", date(1, 1)).field("l", 1).field("d", i).endObject()
                 )
             );
             builders.add(
                 prepareIndex("sort_idx").setSource(
-                    jsonBuilder().startObject().timeField("date", date(1, 2)).field("l", 2).field("d", i).endObject()
+                    jsonBuilder().startObject().timestampField("date", date(1, 2)).field("l", 2).field("d", i).endObject()
                 )
             );
         }
         builders.add(
             prepareIndex("sort_idx").setSource(
-                jsonBuilder().startObject().timeField("date", date(1, 3)).field("l", 3).field("d", 1).endObject()
+                jsonBuilder().startObject().timestampField("date", date(1, 3)).field("l", 3).field("d", 1).endObject()
             )
         );
         builders.add(
             prepareIndex("sort_idx").setSource(
-                jsonBuilder().startObject().timeField("date", date(1, 3).plusHours(1)).field("l", 3).field("d", 2).endObject()
+                jsonBuilder().startObject().timestampField("date", date(1, 3).plusHours(1)).field("l", 3).field("d", 2).endObject()
             )
         );
         builders.add(
             prepareIndex("sort_idx").setSource(
-                jsonBuilder().startObject().timeField("date", date(1, 4)).field("l", 3).field("d", 1).endObject()
+                jsonBuilder().startObject().timestampField("date", date(1, 4)).field("l", 3).field("d", 1).endObject()
             )
         );
         builders.add(
             prepareIndex("sort_idx").setSource(
-                jsonBuilder().startObject().timeField("date", date(1, 4).plusHours(2)).field("l", 3).field("d", 3).endObject()
+                jsonBuilder().startObject().timestampField("date", date(1, 4).plusHours(2)).field("l", 3).field("d", 3).endObject()
             )
         );
         builders.add(
             prepareIndex("sort_idx").setSource(
-                jsonBuilder().startObject().timeField("date", date(1, 5)).field("l", 5).field("d", 1).endObject()
+                jsonBuilder().startObject().timestampField("date", date(1, 5)).field("l", 5).field("d", 1).endObject()
             )
         );
         builders.add(
             prepareIndex("sort_idx").setSource(
-                jsonBuilder().startObject().timeField("date", date(1, 5).plusHours(12)).field("l", 5).field("d", 2).endObject()
+                jsonBuilder().startObject().timestampField("date", date(1, 5).plusHours(12)).field("l", 5).field("d", 2).endObject()
             )
         );
         builders.add(
             prepareIndex("sort_idx").setSource(
-                jsonBuilder().startObject().timeField("date", date(1, 6)).field("l", 5).field("d", 1).endObject()
+                jsonBuilder().startObject().timestampField("date", date(1, 6)).field("l", 5).field("d", 1).endObject()
             )
         );
         builders.add(
             prepareIndex("sort_idx").setSource(
-                jsonBuilder().startObject().timeField("date", date(1, 7)).field("l", 5).field("d", 1).endObject()
+                jsonBuilder().startObject().timestampField("date", date(1, 7)).field("l", 5).field("d", 1).endObject()
             )
         );
     }
@@ -974,7 +974,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                         .subAggregation(dateHistogram("date_histo").field("value").fixedInterval(DateHistogramInterval.HOUR))
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 List<? extends Bucket> buckets = histo.getBuckets();
@@ -997,7 +997,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         ZonedDateTime date = date("2014-03-11T00:00:00+00:00");
         for (int i = 0; i < reqs.length; i++) {
-            reqs[i] = prepareIndex("idx2").setId("" + i).setSource(jsonBuilder().startObject().timeField("date", date).endObject());
+            reqs[i] = prepareIndex("idx2").setId("" + i).setSource(jsonBuilder().startObject().timestampField("date", date).endObject());
             date = date.plusHours(1);
         }
         indexRandom(true, reqs);
@@ -1011,7 +1011,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                         .format("yyyy-MM-dd:HH-mm-ssZZZZZ")
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
 
                 Histogram histo = response.getAggregations().get("date_histo");
                 List<? extends Bucket> buckets = histo.getBuckets();
@@ -1175,7 +1175,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
                 assertThat(
                     "Expected 24 buckets for one day aggregation with hourly interval",
-                    response.getHits().getTotalHits().value,
+                    response.getHits().getTotalHits().value(),
                     equalTo(2L)
                 );
 

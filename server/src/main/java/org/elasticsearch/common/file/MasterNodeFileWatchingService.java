@@ -16,13 +16,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.stream.Stream;
 
 public abstract class MasterNodeFileWatchingService extends AbstractFileWatchingService implements ClusterStateListener {
 
@@ -31,8 +32,8 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
     private final ClusterService clusterService;
     private volatile boolean active = false;
 
-    protected MasterNodeFileWatchingService(ClusterService clusterService, Path watchedFile) {
-        super(watchedFile);
+    protected MasterNodeFileWatchingService(ClusterService clusterService, Path settingsDir) {
+        super(settingsDir);
         this.clusterService = clusterService;
     }
 
@@ -41,7 +42,7 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        this.active = Files.exists(watchedFileDir().getParent());
+        this.active = filesExists(watchedFileDir().getParent());
         if (active == false) {
             // we don't have a config directory, we can't possibly launch the file settings service
             return;
@@ -63,7 +64,10 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
         if (clusterState.nodes().isLocalNodeElectedMaster()
             && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
             synchronized (this) {
-                if (watching() || active == false) {
+                if (active == false) {
+                    return;
+                }
+                if (watching()) {
                     refreshExistingFileStateIfNeeded(clusterState);
                     return;
                 }
@@ -75,7 +79,7 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
     }
 
     /**
-     * 'Touches' the settings file so the file watcher will re-processes it.
+     * 'Touches' the settings files so the file watcher will re-processes them.
      * <p>
      * The file processing is asynchronous, the cluster state or the file must be already updated such that
      * the version information in the file is newer than what's already saved as processed in the
@@ -84,14 +88,16 @@ public abstract class MasterNodeFileWatchingService extends AbstractFileWatching
      * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
      * metadata version must be reset to 0 and saved in the cluster state.
      */
+    @FixForMultiProject // do we want to re-process everything all at once?
     private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
-        if (watching()) {
-            if (shouldRefreshFileState(clusterState) && Files.exists(watchedFile())) {
-                try {
-                    Files.setLastModifiedTime(watchedFile(), FileTime.from(Instant.now()));
-                } catch (IOException e) {
-                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
+        if (shouldRefreshFileState(clusterState)) {
+            try (Stream<Path> files = filesList(watchedFileDir())) {
+                FileTime time = FileTime.from(Instant.now());
+                for (var it = files.iterator(); it.hasNext();) {
+                    filesSetLastModifiedTime(it.next(), time);
                 }
+            } catch (IOException e) {
+                logger.warn("encountered I/O error trying to update file settings timestamp", e);
             }
         }
     }

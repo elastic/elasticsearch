@@ -212,8 +212,12 @@ setup:
 ---
 "Create data stream with failure store":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores default settings changed in 8.15+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       ingest.put_pipeline:
@@ -256,8 +260,7 @@ setup:
         name: my-template4
         body:
           index_patterns: [ failure-data-stream1, failure-data-stream2 ]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               index:
@@ -269,6 +272,9 @@ setup:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:
@@ -632,8 +638,12 @@ setup:
 ---
 "Delete data stream with failure store":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ allowed_warnings, capabilities ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       allowed_warnings:
@@ -642,8 +652,7 @@ setup:
         name: my-template4
         body:
           index_patterns: [ failure-data-stream1 ]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             mappings:
               properties:
@@ -651,6 +660,9 @@ setup:
                   type: date
                 count:
                   type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:
@@ -722,8 +734,12 @@ setup:
 ---
 "Delete data stream with failure store uninitialized":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       allowed_warnings:
@@ -732,8 +748,11 @@ setup:
         name: my-template4
         body:
           index_patterns: [ failure-data-stream1 ]
-          data_stream:
-            failure_store: true
+          data_stream: {}
+          template:
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:

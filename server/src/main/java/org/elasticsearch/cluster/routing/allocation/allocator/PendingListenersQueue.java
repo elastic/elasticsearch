@@ -24,6 +24,10 @@ import java.util.Queue;
 import static org.elasticsearch.cluster.service.ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME;
 import static org.elasticsearch.cluster.service.MasterService.MASTER_UPDATE_THREAD_NAME;
 
+/**
+ * Registers listeners with an `index` number ({@link #add(long, ActionListener)}) and then completes them whenever the latest index number
+ * is greater or equal to a listener's index value ({@link #complete(long)}).
+ */
 public class PendingListenersQueue {
 
     private static final Logger logger = LogManager.getLogger(PendingListenersQueue.class);

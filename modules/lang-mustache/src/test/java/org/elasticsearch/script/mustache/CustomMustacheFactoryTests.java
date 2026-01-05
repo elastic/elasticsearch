@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.TemplateScript;
@@ -65,7 +66,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testJsonEscapeEncoder() {
-        final ScriptEngine engine = new MustacheScriptEngine();
+        final ScriptEngine engine = new MustacheScriptEngine(Settings.EMPTY);
         final Map<String, String> params = randomBoolean() ? Map.of(Script.CONTENT_TYPE_OPTION, JSON_MEDIA_TYPE) : Map.of();
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
@@ -75,7 +76,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testDefaultEncoder() {
-        final ScriptEngine engine = new MustacheScriptEngine();
+        final ScriptEngine engine = new MustacheScriptEngine(Settings.EMPTY);
         final Map<String, String> params = Map.of(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_MEDIA_TYPE);
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
@@ -85,7 +86,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testUrlEncoder() {
-        final ScriptEngine engine = new MustacheScriptEngine();
+        final ScriptEngine engine = new MustacheScriptEngine(Settings.EMPTY);
         final Map<String, String> params = Map.of(Script.CONTENT_TYPE_OPTION, X_WWW_FORM_URLENCODED_MEDIA_TYPE);
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);

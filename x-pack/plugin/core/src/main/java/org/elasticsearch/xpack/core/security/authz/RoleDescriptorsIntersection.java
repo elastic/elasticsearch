@@ -24,7 +24,7 @@ import java.util.Set;
 
 public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDescriptorsList) implements ToXContentObject, Writeable {
 
-    public static RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Collections.emptyList());
+    public static final RoleDescriptorsIntersection EMPTY = new RoleDescriptorsIntersection(Collections.emptyList());
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
         .allowRestriction(true)

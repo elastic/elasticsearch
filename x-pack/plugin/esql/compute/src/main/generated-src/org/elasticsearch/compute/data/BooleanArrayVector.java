@@ -7,19 +7,24 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of boolean values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
@@ -126,6 +131,32 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
     public static long ramBytesEstimated(boolean[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values[i] == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

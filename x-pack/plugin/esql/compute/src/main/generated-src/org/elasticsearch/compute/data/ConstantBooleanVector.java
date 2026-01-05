@@ -7,13 +7,17 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant boolean value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
@@ -89,6 +93,22 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
         return new BooleanLookup(asBlock(), positions, targetBlockSize);
     }
 
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        return value;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        return value == false;
+    }
+
     @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;
@@ -97,6 +117,11 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public BooleanVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBooleanVector(value, getPositionCount());
     }
 
     @Override

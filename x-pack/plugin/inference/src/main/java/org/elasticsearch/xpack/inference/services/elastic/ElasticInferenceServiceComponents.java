@@ -7,4 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-public record ElasticInferenceServiceComponents(String eisGatewayUrl) {}
+import org.elasticsearch.core.Nullable;
+
+/**
+ * @param elasticInferenceServiceUrl the upstream Elastic Inference Server's URL
+ */
+public record ElasticInferenceServiceComponents(@Nullable String elasticInferenceServiceUrl) {
+    public static final ElasticInferenceServiceComponents EMPTY_INSTANCE = ElasticInferenceServiceComponents.of(null);
+
+    public static ElasticInferenceServiceComponents of(String elasticInferenceServiceUrl) {
+        return new ElasticInferenceServiceComponents(elasticInferenceServiceUrl);
+    }
+}

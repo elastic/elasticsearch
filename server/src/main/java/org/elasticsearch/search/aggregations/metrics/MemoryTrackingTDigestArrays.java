@@ -13,7 +13,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.elasticsearch.tdigest.arrays.TDigestByteArray;
@@ -22,27 +21,25 @@ import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 import org.elasticsearch.tdigest.arrays.TDigestLongArray;
 
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * TDigestArrays with raw arrays and circuit breaking.
  */
 public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
-    /**
-     * Default no-op CB instance of the wrapper.
-     *
-     * @deprecated This instance shouldn't be used, and will be removed after all usages are replaced.
-     */
-    @Deprecated
-    public static final MemoryTrackingTDigestArrays INSTANCE = new MemoryTrackingTDigestArrays(
-        new NoopCircuitBreaker("default-wrapper-tdigest-arrays")
-    );
-
     private final CircuitBreaker breaker;
 
     public MemoryTrackingTDigestArrays(CircuitBreaker breaker) {
         this.breaker = breaker;
+    }
+
+    @Override
+    public void adjustBreaker(long size) {
+        if (size > 0) {
+            breaker.addEstimateBytesAndMaybeBreak(size, "tdigest-adjust-breaker");
+        } else {
+            breaker.addWithoutBreaking(size);
+        }
     }
 
     @Override
@@ -91,7 +88,7 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
     private abstract static class AbstractMemoryTrackingArray implements Releasable, Accountable {
         protected final CircuitBreaker breaker;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private boolean closed = false;
 
         AbstractMemoryTrackingArray(CircuitBreaker breaker) {
             this.breaker = breaker;
@@ -99,7 +96,8 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
         @Override
         public final void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (closed == false) {
+                closed = true;
                 breaker.addWithoutBreaking(-ramBytesUsed());
             }
         }

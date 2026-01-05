@@ -35,6 +35,8 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         // The first node does not have the ingest role so we're sure ingest requests are forwarded:
         .node(0, n -> n.setting("node.roles", "[master,data,ml,remote_cluster_client,transform]"))
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.RANDOM_SAMPLING)
         .build();
 
     public SmokeTestMultiNodeClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

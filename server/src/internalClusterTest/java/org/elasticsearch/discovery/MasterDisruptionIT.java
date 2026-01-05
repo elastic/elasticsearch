@@ -21,65 +21,21 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
-import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Tests relating to the loss of the master.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
-
-    /**
-     * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
-     */
-    public void testMasterNodeGCs() throws Exception {
-        List<String> nodes = startCluster(3);
-        // NOTE: this assume must happen after starting the cluster, so that cleanup will have something to cleanup.
-        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
-
-        String oldMasterNode = internalCluster().getMasterName();
-        // a very long GC, but it's OK as we remove the disruption when it has had an effect
-        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(random(), oldMasterNode, 100, 200, 30000, 60000);
-        internalCluster().setDisruptionScheme(masterNodeDisruption);
-        masterNodeDisruption.startDisrupting();
-
-        Set<String> oldNonMasterNodesSet = new HashSet<>(nodes);
-        oldNonMasterNodesSet.remove(oldMasterNode);
-
-        List<String> oldNonMasterNodes = new ArrayList<>(oldNonMasterNodesSet);
-
-        logger.info("waiting for nodes to de-elect master [{}]", oldMasterNode);
-        for (String node : oldNonMasterNodesSet) {
-            assertDifferentMaster(node, oldMasterNode);
-        }
-
-        logger.info("waiting for nodes to elect a new master");
-        ensureStableCluster(2, oldNonMasterNodes.get(0));
-
-        // restore GC
-        masterNodeDisruption.stopDisrupting();
-        final TimeValue waitTime = new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + masterNodeDisruption.expectedTimeToHeal().millis());
-        ensureStableCluster(3, waitTime, false, oldNonMasterNodes.get(0));
-
-        // make sure all nodes agree on master
-        String newMaster = internalCluster().getMasterName();
-        assertThat(newMaster, not(equalTo(oldMasterNode)));
-        assertMaster(newMaster, nodes);
-    }
 
     /**
      * This test isolates the master from rest of the cluster, waits for a new master to be elected, restores the partition

@@ -27,7 +27,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorErrorAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/update_error";
+    public static final String NAME = "cluster:admin/xpack/connector/update_error";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorErrorAction() {/* no instances */}

@@ -40,12 +40,12 @@ public final class FragmentBuilderHelper {
              * than in this hack... aka. "we are are working on in!" */
             final List<SubInfo> subInfos = fragInfo.getSubInfos();
             CollectionUtil.introSort(subInfos, (o1, o2) -> {
-                int startOffset = o1.getTermsOffsets().get(0).getStartOffset();
-                int startOffset2 = o2.getTermsOffsets().get(0).getStartOffset();
+                int startOffset = o1.termsOffsets().get(0).getStartOffset();
+                int startOffset2 = o2.termsOffsets().get(0).getStartOffset();
                 return Integer.compare(startOffset, startOffset2);
             });
             return new WeightedFragInfo(
-                Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
+                Math.min(fragInfo.getSubInfos().get(0).termsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
                 fragInfo.getEndOffset(),
                 subInfos,
                 fragInfo.getTotalBoost()

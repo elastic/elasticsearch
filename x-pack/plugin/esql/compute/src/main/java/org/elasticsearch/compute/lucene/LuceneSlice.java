@@ -14,7 +14,14 @@ import java.util.List;
 /**
  * Holds a list of multiple partial Lucene segments
  */
-public record LuceneSlice(ShardContext shardContext, List<PartialLeafReaderContext> leaves, Weight weight) {
+public record LuceneSlice(
+    int slicePosition,
+    boolean queryHead,
+    ShardContext shardContext,
+    List<PartialLeafReaderContext> leaves,
+    Weight weight,
+    List<Object> tags
+) {
     int numLeaves() {
         return leaves.size();
     }

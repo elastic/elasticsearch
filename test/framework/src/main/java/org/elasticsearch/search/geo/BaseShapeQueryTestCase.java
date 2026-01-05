@@ -206,7 +206,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
         QueryBuilder intersects = queryBuilder().intersectionQuery(defaultFieldName, queryCollection);
         assertNoFailuresAndResponse(client().prepareSearch(defaultIndexName).setQuery(intersects), response -> {
-            assertTrue("query: " + intersects + " doc: " + Strings.toString(docSource), response.getHits().getTotalHits().value > 0);
+            assertTrue("query: " + intersects + " doc: " + Strings.toString(docSource), response.getHits().getTotalHits().value() > 0);
         });
     }
 
@@ -352,7 +352,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         assertNoFailuresAndResponse(
             client().prepareSearch(defaultIndexName).setQuery(queryBuilder().intersectionQuery(defaultFieldName, query)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("blakely"));
             }
@@ -457,7 +457,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         assertNoFailuresAndResponse(
             client().prepareSearch(defaultIndexName).setQuery(queryBuilder().intersectionQuery(defaultFieldName, "Big_Rectangle")),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             }
@@ -466,7 +466,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         assertNoFailuresAndResponse(
             client().prepareSearch(defaultIndexName).setQuery(queryBuilder().shapeQuery(defaultFieldName, "Big_Rectangle")),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             }

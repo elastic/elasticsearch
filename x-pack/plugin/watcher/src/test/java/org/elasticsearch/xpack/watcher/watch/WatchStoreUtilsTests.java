@@ -14,8 +14,11 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -27,11 +30,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class WatchStoreUtilsTests extends ESTestCase {
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+    private final ProjectId projectId = ProjectId.DEFAULT;
 
     public void testGetConcreteIndexForDataStream() {
         String dataStreamName = randomAlphaOfLength(20);
-        Metadata.Builder metadataBuilder = Metadata.builder();
-        Map<String, Metadata.Custom> customsBuilder = new HashMap<>();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
+        Map<String, Metadata.ProjectCustom> customsBuilder = new HashMap<>();
         Map<String, DataStream> dataStreams = new HashMap<>();
         Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         List<String> indexNames = new ArrayList<>();
@@ -55,14 +60,17 @@ public class WatchStoreUtilsTests extends ESTestCase {
         );
         customsBuilder.put(DataStreamMetadata.TYPE, dataStreamMetadata);
         metadataBuilder.customs(customsBuilder);
-        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(dataStreamName, metadataBuilder.build());
+        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(
+            dataStreamName,
+            Metadata.builder().put(metadataBuilder.build()).build()
+        );
         assertNotNull(concreteIndex);
         assertEquals(indexNames.get(indexNames.size() - 1), concreteIndex.getIndex().getName());
     }
 
     public void testGetConcreteIndexForAliasWithMultipleNonWritableIndices() {
         String aliasName = randomAlphaOfLength(20);
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         AliasMetadata.Builder aliasMetadataBuilder = new AliasMetadata.Builder(aliasName);
         aliasMetadataBuilder.writeIndex(false);
         AliasMetadata aliasMetadata = aliasMetadataBuilder.build();
@@ -72,12 +80,15 @@ public class WatchStoreUtilsTests extends ESTestCase {
             indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
         }
         metadataBuilder.indices(indexMetadataMapBuilder);
-        expectThrows(IllegalStateException.class, () -> WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build()));
+        expectThrows(
+            IllegalStateException.class,
+            () -> WatchStoreUtils.getConcreteIndex(aliasName, Metadata.builder().put(metadataBuilder.build()).build())
+        );
     }
 
     public void testGetConcreteIndexForAliasWithMultipleIndicesWithWritable() {
         String aliasName = randomAlphaOfLength(20);
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         AliasMetadata.Builder aliasMetadataBuilder = new AliasMetadata.Builder(aliasName);
         aliasMetadataBuilder.writeIndex(false);
         AliasMetadata nonWritableAliasMetadata = aliasMetadataBuilder.build();
@@ -100,14 +111,14 @@ public class WatchStoreUtilsTests extends ESTestCase {
             indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
         }
         metadataBuilder.indices(indexMetadataMapBuilder);
-        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build());
+        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(aliasName, Metadata.builder().put(metadataBuilder.build()).build());
         assertNotNull(concreteIndex);
         assertEquals(indexNames.get(writableIndexIndex), concreteIndex.getIndex().getName());
     }
 
     public void testGetConcreteIndexForAliasWithOneNonWritableIndex() {
         String aliasName = randomAlphaOfLength(20);
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         AliasMetadata.Builder aliasMetadataBuilder = new AliasMetadata.Builder(aliasName);
         aliasMetadataBuilder.writeIndex(false);
         AliasMetadata aliasMetadata = aliasMetadataBuilder.build();
@@ -115,18 +126,18 @@ public class WatchStoreUtilsTests extends ESTestCase {
         String indexName = aliasName + "_" + 0;
         indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, aliasMetadata));
         metadataBuilder.indices(indexMetadataMapBuilder);
-        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(aliasName, metadataBuilder.build());
+        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(aliasName, Metadata.builder().put(metadataBuilder.build()).build());
         assertNotNull(concreteIndex);
         assertEquals(indexName, concreteIndex.getIndex().getName());
     }
 
     public void testGetConcreteIndexForConcreteIndex() {
         String indexName = randomAlphaOfLength(20);
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         Map<String, IndexMetadata> indexMetadataMapBuilder = new HashMap<>();
         indexMetadataMapBuilder.put(indexName, createIndexMetaData(indexName, null));
         metadataBuilder.indices(indexMetadataMapBuilder);
-        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(indexName, metadataBuilder.build());
+        IndexMetadata concreteIndex = WatchStoreUtils.getConcreteIndex(indexName, Metadata.builder().put(metadataBuilder.build()).build());
         assertNotNull(concreteIndex);
         assertEquals(indexName, concreteIndex.getIndex().getName());
     }

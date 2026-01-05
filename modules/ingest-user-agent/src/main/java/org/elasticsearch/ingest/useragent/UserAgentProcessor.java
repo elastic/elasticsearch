@@ -9,9 +9,10 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -31,8 +32,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(UserAgentProcessor.class);
 
     public static final String TYPE = "user_agent";
 
@@ -98,19 +97,8 @@ public class UserAgentProcessor extends AbstractProcessor {
                     }
                     break;
                 case VERSION:
-                    StringBuilder version = new StringBuilder();
                     if (uaClient.userAgent() != null && uaClient.userAgent().major() != null) {
-                        version.append(uaClient.userAgent().major());
-                        if (uaClient.userAgent().minor() != null) {
-                            version.append(".").append(uaClient.userAgent().minor());
-                            if (uaClient.userAgent().patch() != null) {
-                                version.append(".").append(uaClient.userAgent().patch());
-                                if (uaClient.userAgent().build() != null) {
-                                    version.append(".").append(uaClient.userAgent().build());
-                                }
-                            }
-                        }
-                        uaDetails.put("version", version.toString());
+                        uaDetails.put("version", versionToString(uaClient.userAgent()));
                     }
                     break;
                 case OS:
@@ -118,20 +106,10 @@ public class UserAgentProcessor extends AbstractProcessor {
                         Map<String, String> osDetails = Maps.newMapWithExpectedSize(3);
                         if (uaClient.operatingSystem().name() != null) {
                             osDetails.put("name", uaClient.operatingSystem().name());
-                            StringBuilder sb = new StringBuilder();
                             if (uaClient.operatingSystem().major() != null) {
-                                sb.append(uaClient.operatingSystem().major());
-                                if (uaClient.operatingSystem().minor() != null) {
-                                    sb.append(".").append(uaClient.operatingSystem().minor());
-                                    if (uaClient.operatingSystem().patch() != null) {
-                                        sb.append(".").append(uaClient.operatingSystem().patch());
-                                        if (uaClient.operatingSystem().build() != null) {
-                                            sb.append(".").append(uaClient.operatingSystem().build());
-                                        }
-                                    }
-                                }
-                                osDetails.put("version", sb.toString());
-                                osDetails.put("full", uaClient.operatingSystem().name() + " " + sb.toString());
+                                String version = versionToString(uaClient.operatingSystem());
+                                osDetails.put("version", version);
+                                osDetails.put("full", uaClient.operatingSystem().name() + " " + version);
                             }
                             uaDetails.put("os", osDetails);
                         }
@@ -161,6 +139,23 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         ingestDocument.setFieldValue(targetField, uaDetails);
         return ingestDocument;
+    }
+
+    private static String versionToString(final UserAgentParser.VersionedName version) {
+        final StringBuilder versionString = new StringBuilder();
+        if (Strings.hasLength(version.major())) {
+            versionString.append(version.major());
+            if (Strings.hasLength(version.minor())) {
+                versionString.append(".").append(version.minor());
+                if (Strings.hasLength(version.patch())) {
+                    versionString.append(".").append(version.patch());
+                    if (Strings.hasLength(version.build())) {
+                        versionString.append(".").append(version.build());
+                    }
+                }
+            }
+        }
+        return versionString.toString();
     }
 
     @Override
@@ -197,22 +192,15 @@ public class UserAgentProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> factories,
             String processorTag,
             String description,
-            Map<String, Object> config
-        ) throws Exception {
+            Map<String, Object> config,
+            ProjectId projectId
+        ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean extractDeviceType = readBooleanProperty(TYPE, processorTag, config, "extract_device_type", false);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            Object ecsValue = config.remove("ecs");
-            if (ecsValue != null) {
-                deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
-                    "ingest_useragent_ecs_settings",
-                    "setting [ecs] is deprecated as ECS format is the default and only option"
-                );
-            }
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
@@ -271,5 +259,15 @@ public class UserAgentProcessor extends AbstractProcessor {
                 );
             }
         }
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    // This can be removed in V10. It's not possible to create an instance with the ecs property in V9, and all instances created by V8 or
+    // earlier will have been fixed when upgraded to V9.
+    static boolean maybeUpgradeConfig(Map<String, Object> config) {
+        // Instances created using ES 8.x (or earlier) may have the 'ecs' config entry.
+        // This was ignored in 8.x and is unsupported in 9.0.
+        // In 9.x, we should remove it from any existing processors on startup.
+        return config.remove("ecs") != null;
     }
 }

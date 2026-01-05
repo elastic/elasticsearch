@@ -8,9 +8,10 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +21,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -65,7 +65,7 @@ public class DriverTaskRunner {
         runner.runToCompletion(drivers, listener);
     }
 
-    private static class DriverRequest extends ActionRequest implements CompositeIndicesRequest {
+    private static class DriverRequest extends LegacyActionRequest implements CompositeIndicesRequest {
         private final Driver driver;
         private final Executor executor;
 
@@ -117,13 +117,13 @@ public class DriverTaskRunner {
     private record DriverRequestHandler(TransportService transportService) implements TransportRequestHandler<DriverRequest> {
         @Override
         public void messageReceived(DriverRequest request, TransportChannel channel, Task task) {
-            var listener = new ChannelActionListener<TransportResponse.Empty>(channel);
+            var listener = new ChannelActionListener<ActionResponse.Empty>(channel);
             Driver.start(
                 transportService.getThreadPool().getThreadContext(),
                 request.executor,
                 request.driver,
                 Driver.DEFAULT_MAX_ITERATIONS,
-                listener.map(unused -> TransportResponse.Empty.INSTANCE)
+                listener.map(unused -> ActionResponse.Empty.INSTANCE)
             );
         }
     }

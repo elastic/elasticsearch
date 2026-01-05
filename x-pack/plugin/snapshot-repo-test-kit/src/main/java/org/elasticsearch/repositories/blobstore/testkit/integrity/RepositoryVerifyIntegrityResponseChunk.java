@@ -158,7 +158,7 @@ public record RepositoryVerifyIntegrityResponseChunk(
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.timeField("timestamp_in_millis", "timestamp", timestampMillis);
+        builder.timestampFieldsFromUnixEpochMillis("timestamp_in_millis", "timestamp", timestampMillis);
 
         if (anomaly() != null) {
             builder.field("anomaly", anomaly());

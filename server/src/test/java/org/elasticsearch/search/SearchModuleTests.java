@@ -9,7 +9,6 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -444,6 +443,7 @@ public class SearchModuleTests extends ESTestCase {
         "range",
         "regexp",
         "knn_score_doc",
+        "random_sampling",
         "script",
         "script_score",
         "simple_query_string",
@@ -462,7 +462,8 @@ public class SearchModuleTests extends ESTestCase {
         "terms_set",
         "wildcard",
         "wrapper",
-        "distance_feature" };
+        "distance_feature",
+        "to_child_block_join" };
 
     // add here deprecated queries to make sure we log a deprecation warnings when they are used
     private static final String[] DEPRECATED_QUERIES = new String[] { "field_masking_span", "geo_polygon" };
@@ -526,7 +527,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 
@@ -579,7 +580,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 
@@ -615,7 +616,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 
@@ -661,7 +662,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 

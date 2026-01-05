@@ -25,7 +25,7 @@ public class FrenchStemTokenFilterFactory extends AbstractTokenFilterFactory {
     private final CharArraySet exclusions;
 
     FrenchStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 

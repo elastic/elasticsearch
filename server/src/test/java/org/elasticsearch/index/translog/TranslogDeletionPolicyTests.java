@@ -12,11 +12,11 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.CRC32;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -95,16 +96,18 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 BigArrays.NON_RECYCLING_INSTANCE,
                 TranslogTests.RANDOMIZING_IO_BUFFERS,
                 TranslogConfig.NOOP_OPERATION_LISTENER,
+                TranslogOperationAsserter.DEFAULT,
                 true
             );
             writer = Mockito.spy(writer);
             byte[] bytes = new byte[4];
             ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
 
+            BytesArray header = new BytesArray(new byte[] { 'h', 'e', 'a', 'd', 'e', 'r' });
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
                 out.writeInt(ops);
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), ops);
+                writer.add(Translog.Serialized.create(header, new BytesArray(bytes), new CRC32()), ops);
             }
         }
         return new Tuple<>(readers, writer);

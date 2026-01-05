@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 
 import java.net.InetSocketAddress;
@@ -50,6 +51,14 @@ public class AuditTrailService {
             }
         } else {
             return NOOP_AUDIT_TRAIL;
+        }
+    }
+
+    public boolean includeRequestBody() {
+        if (get() instanceof LoggingAuditTrail trail) {
+            return trail.includeRequestBody();
+        } else {
+            return false;
         }
     }
 

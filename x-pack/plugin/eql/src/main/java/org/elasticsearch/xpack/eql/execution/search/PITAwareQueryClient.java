@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -56,38 +58,38 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     @Override
-    protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
+    protected void search(SearchRequest search, boolean allowPartialSearchResults, ActionListener<SearchResponse> listener) {
         // no pitId, ask for one
         if (pitId == null) {
-            openPIT(listener, () -> searchWithPIT(search, listener));
+            openPIT(listener, () -> searchWithPIT(search, listener, allowPartialSearchResults), allowPartialSearchResults);
         } else {
-            searchWithPIT(search, listener);
+            searchWithPIT(search, listener, allowPartialSearchResults);
         }
     }
 
-    private void searchWithPIT(SearchRequest request, ActionListener<SearchResponse> listener) {
+    private void searchWithPIT(SearchRequest request, ActionListener<SearchResponse> listener, boolean allowPartialSearchResults) {
         makeRequestPITCompatible(request);
         // get the pid on each response
-        super.search(request, pitListener(SearchResponse::pointInTimeId, listener));
+        super.search(request, allowPartialSearchResults, pitListener(SearchResponse::pointInTimeId, listener));
     }
 
     @Override
-    protected void search(MultiSearchRequest search, ActionListener<MultiSearchResponse> listener) {
+    protected void search(MultiSearchRequest search, boolean allowPartialSearchResults, ActionListener<MultiSearchResponse> listener) {
         // no pitId, ask for one
         if (pitId == null) {
-            openPIT(listener, () -> searchWithPIT(search, listener));
+            openPIT(listener, () -> searchWithPIT(search, allowPartialSearchResults, listener), allowPartialSearchResults);
         } else {
-            searchWithPIT(search, listener);
+            searchWithPIT(search, allowPartialSearchResults, listener);
         }
     }
 
-    private void searchWithPIT(MultiSearchRequest search, ActionListener<MultiSearchResponse> listener) {
+    private void searchWithPIT(MultiSearchRequest search, boolean allowPartialSearchResults, ActionListener<MultiSearchResponse> listener) {
         for (SearchRequest request : search.requests()) {
             makeRequestPITCompatible(request);
         }
 
         // get the pid on each request
-        super.search(search, pitListener(r -> {
+        super.search(search, allowPartialSearchResults, pitListener(r -> {
             // get pid
             for (MultiSearchResponse.Item item : r.getResponses()) {
                 // pick the first non-failing response
@@ -135,10 +137,16 @@ public class PITAwareQueryClient extends BasicQueryClient {
         );
     }
 
-    private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-            .keepAlive(keepAlive);
+    private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable, boolean allowPartialSearchResults) {
+        IndicesOptions indicesOptions = IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
+        if (cfg.crossProjectEnabled()) {
+            indicesOptions = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
+        }
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(indicesOptions)
+            .keepAlive(keepAlive)
+            .allowPartialSearchResults(allowPartialSearchResults);
         request.indexFilter(filter);
+
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
             runnable.run();
@@ -156,5 +164,10 @@ public class PITAwareQueryClient extends BasicQueryClient {
             );
             pitId = null;
         }
+    }
+
+    @Override
+    protected boolean usingPit() {
+        return true;
     }
 }

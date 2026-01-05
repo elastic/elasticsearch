@@ -9,9 +9,9 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'x-pack-apm-data'
-  description 'The APM plugin defines APM data streams and ingest pipelines.'
-  classname 'org.elasticsearch.xpack.apmdata.APMPlugin'
+  name = 'x-pack-apm-data'
+  description = 'The APM plugin defines APM data streams and ingest pipelines.'
+  classname = 'org.elasticsearch.xpack.apmdata.APMPlugin'
   extendedPlugins = ['x-pack-core']
 }
 

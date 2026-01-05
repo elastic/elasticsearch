@@ -11,11 +11,11 @@ package org.elasticsearch.common.settings;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.service.ReservedStateVersion;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -130,7 +130,7 @@ public final class LocallyMountedSecrets implements SecureSettings {
                 throw new IllegalStateException("Error processing secrets file", e);
             }
         } else {
-            secrets.set(new LocalFileSecrets(Map.of(), new ReservedStateVersion(-1L, Version.CURRENT)));
+            secrets.set(new LocalFileSecrets(Map.of(), new ReservedStateVersion(-1L, BuildVersion.current())));
         }
         this.secretsDir = secretsDirPath.toString();
         this.secretsFile = secretsFilePath.toString();
@@ -142,7 +142,7 @@ public final class LocallyMountedSecrets implements SecureSettings {
      * @return Secrets directory within an Elasticsearch environment
      */
     public static Path resolveSecretsDir(Environment environment) {
-        return environment.configFile().toAbsolutePath().resolve(SECRETS_DIRECTORY);
+        return environment.configDir().toAbsolutePath().resolve(SECRETS_DIRECTORY);
     }
 
     /**

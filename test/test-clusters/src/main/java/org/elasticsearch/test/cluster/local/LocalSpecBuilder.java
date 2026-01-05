@@ -18,6 +18,8 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.nio.file.Path;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -69,9 +71,20 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T module(String moduleName);
 
     /**
+     * Ensure module is installed into the distribution when using the {@link DistributionType#INTEG_TEST} distribution. This is ignored
+     * when the {@link DistributionType#DEFAULT} is being used.
+     */
+    T module(String moduleName, Consumer<? super PluginInstallSpec> config);
+
+    /**
      * Ensure plugin is installed into the distribution.
      */
     T plugin(String pluginName);
+
+    /**
+     * Ensure plugin is installed into the distribution.
+     */
+    T plugin(String pluginName, Consumer<? super PluginInstallSpec> config);
 
     /**
      * Require feature to be enabled in the cluster.
@@ -119,6 +132,21 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T version(Version version);
 
     /**
+     * Sets the version of Elasticsearch. Defaults to {@link Version#CURRENT}.
+     */
+    T version(String version);
+
+    /**
+     * Sets the version of Elasticsearch and whether it is a detached version.
+     * If not set, then defaults to {@link Version#CURRENT} and {@code false}.
+     *
+     * @param version the ES cluster version string
+     * @param detachedVersion true if using unreleased version of Elasticsearch that is also different from the local current HEAD.
+     *                        Defaults to false.
+     */
+    T version(String version, boolean detachedVersion);
+
+    /**
      * Adds a system property to node JVM arguments.
      */
     T systemProperty(String property, String value);
@@ -137,10 +165,16 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     /**
      * Register a {@link SystemPropertyProvider}.
      */
-    T systemProperty(SystemPropertyProvider systemPropertyProvider);
+    T systemProperties(SystemPropertyProvider systemPropertyProvider);
 
     /**
      * Adds an additional command line argument to node JVM arguments.
      */
     T jvmArg(String arg);
+
+    /**
+     * Register a supplier to provide the config directory. The default config directory
+     * is used when the supplier is null or the return value of the supplier is null.
+     */
+    T withConfigDir(Supplier<Path> configDirSupplier);
 }

@@ -10,31 +10,48 @@
 package org.elasticsearch.test.fixtures.minio;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
 
+    /*
+     * Known issues broken down by MinIO release date:
+     * [< 2025-05-24                ] known issue https://github.com/minio/minio/issues/21189; workaround in #127166
+     * [= 2025-05-24                ] known issue https://github.com/minio/minio/issues/21377; no workaround
+     * [> 2025-05-24 && < 2025-09-07] known issue https://github.com/minio/minio/issues/21456; workaround in #131815
+     * [>= 2025-09-07               ] no known issues (yet)
+     */
+    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2025-09-07T16-13-09Z";
+
     private static final int servicePort = 9000;
-    public static final String DOCKER_BASE_IMAGE = "minio/minio:RELEASE.2021-03-01T04-20-55Z";
     private final boolean enabled;
 
-    public MinioTestContainer() {
-        this(true);
+    /**
+     * for packer caching only
+     * see CacheCacheableTestFixtures.
+     * */
+    protected MinioTestContainer() {
+        this(true, "minio", "minio123", "test-bucket");
     }
 
-    public MinioTestContainer(boolean enabled) {
+    public MinioTestContainer(boolean enabled, String accessKey, String secretKey, String bucketName) {
         super(
             new ImageFromDockerfile("es-minio-testfixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
-                    .env("MINIO_ACCESS_KEY", "s3_test_access_key")
-                    .env("MINIO_SECRET_KEY", "s3_test_secret_key")
-                    .run("mkdir -p /minio/data/bucket")
+                    .env("MINIO_ACCESS_KEY", accessKey)
+                    .env("MINIO_SECRET_KEY", secretKey)
+                    .run("mkdir -p /minio/data/" + bucketName)
                     .cmd("server", "/minio/data")
                     .build()
             )
         );
         if (enabled) {
             addExposedPort(servicePort);
+            // The following waits for a specific log message as the readiness signal. When the minio docker image
+            // gets upgraded in future, we must ensure the log message still exists or update it here accordingly.
+            // Otherwise the tests using the minio fixture will fail with timeout on waiting the container to be ready.
+            setWaitStrategy(Wait.forLogMessage("API: .*:9000.*", 1));
         }
         this.enabled = enabled;
     }

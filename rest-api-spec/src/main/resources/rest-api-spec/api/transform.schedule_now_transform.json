@@ -1,37 +1,40 @@
 {
-  "transform.schedule_now_transform":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/schedule-now-transform.html",
-      "description":"Schedules now a transform."
+  "transform.schedule_now_transform": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-transform-schedule-now-transform",
+      "description": "Schedule a transform to start now"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept":[ "application/json"],
-      "content_type":["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_transform/{transform_id}/_schedule_now",
-          "methods":[
+          "path": "/_transform/{transform_id}/_schedule_now",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "transform_id":{
-              "type":"string",
-              "required":true,
-              "description":"The id of the transform."
+          "parts": {
+            "transform_id": {
+              "type": "string",
+              "description": "The id of the transform."
             }
           }
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "required":false,
-        "description":"Controls the time to wait for the scheduling to take place"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Controls the time to wait for the scheduling to take place"
       }
     }
   }

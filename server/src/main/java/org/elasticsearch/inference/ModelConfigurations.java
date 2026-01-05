@@ -10,7 +10,6 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -79,6 +78,16 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         TaskType taskType,
         String service,
         ServiceSettings serviceSettings,
+        ChunkingSettings chunkingSettings
+    ) {
+        this(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings);
+    }
+
+    public ModelConfigurations(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ServiceSettings serviceSettings,
         TaskSettings taskSettings
     ) {
         this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
@@ -111,9 +120,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
         this.taskSettings = in.readNamedWriteable(TaskSettings.class);
-        this.chunkingSettings = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)
-            ? in.readOptionalNamedWriteable(ChunkingSettings.class)
-            : null;
+        this.chunkingSettings = in.readOptionalNamedWriteable(ChunkingSettings.class);
     }
 
     @Override
@@ -123,9 +130,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
         out.writeNamedWriteable(taskSettings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CHUNKING_SETTINGS)) {
-            out.writeOptionalNamedWriteable(chunkingSettings);
-        }
+        out.writeOptionalNamedWriteable(chunkingSettings);
     }
 
     public String getInferenceEntityId() {
@@ -163,7 +168,11 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
-        builder.field(TASK_SETTINGS, taskSettings);
+        // Always write task settings to the index even if empty.
+        // But do not show empty settings in the response
+        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false) || (taskSettings != null && taskSettings.isEmpty() == false)) {
+            builder.field(TASK_SETTINGS, taskSettings);
+        }
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
@@ -182,7 +191,11 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
-        builder.field(TASK_SETTINGS, taskSettings);
+        // Always write task settings to the index even if empty.
+        // But do not show empty settings in the response
+        if (params.paramAsBoolean(USE_ID_FOR_INDEX, false) || (taskSettings != null && taskSettings.isEmpty() == false)) {
+            builder.field(TASK_SETTINGS, taskSettings);
+        }
         if (chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS, chunkingSettings);
         }
@@ -197,7 +210,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

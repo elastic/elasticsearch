@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -41,6 +42,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,18 +66,15 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
             ActionModule.setupActions(emptyList()),
-            hasEntry(
-                TransportNodesInfoAction.TYPE.name(),
-                new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class)
-            )
+            hasEntry(TransportNodesInfoAction.TYPE.name(), new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class))
         );
     }
 
     public void testPluginCantOverwriteBuiltinAction() {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
-            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
+            public List<ActionHandler> getActions() {
+                return singletonList(new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
@@ -83,7 +82,7 @@ public class ActionModuleTests extends ESTestCase {
     }
 
     public void testPluginCanRegisterAction() {
-        class FakeRequest extends ActionRequest {
+        class FakeRequest extends LegacyActionRequest {
             @Override
             public ActionRequestValidationException validate() {
                 return null;
@@ -100,13 +99,13 @@ public class ActionModuleTests extends ESTestCase {
         final var action = new ActionType<>("fake");
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
-            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
+            public List<ActionHandler> getActions() {
+                return singletonList(new ActionHandler(action, FakeTransportAction.class));
             }
         };
         assertThat(
             ActionModule.setupActions(singletonList(registersFakeAction)),
-            hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class))
+            hasEntry("fake", new ActionHandler(action, FakeTransportAction.class))
         );
     }
 
@@ -130,8 +129,10 @@ public class ActionModuleTests extends ESTestCase {
             mock(ClusterService.class),
             null,
             List.of(),
+            List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
+            new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+            TestProjectResolvers.alwaysThrow()
         );
         actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -195,8 +196,10 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
+                List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                TestProjectResolvers.alwaysThrow()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
@@ -253,8 +256,10 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
+                List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -304,8 +309,10 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
+                    List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
+                    new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    TestProjectResolvers.alwaysThrow()
                 )
             );
             assertThat(
@@ -346,8 +353,10 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
+                    List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
+                    new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    TestProjectResolvers.alwaysThrow()
                 )
             );
             assertThat(

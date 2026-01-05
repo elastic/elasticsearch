@@ -1,8 +1,0 @@
-[[release-notes-8.16.0]]
-== {es} version 8.16.0
-
-coming[8.16.0]
-
-Also see <<breaking-changes-8.16,Breaking changes in 8.16>>.
-
-

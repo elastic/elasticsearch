@@ -11,18 +11,14 @@ package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
 import java.util.Optional;
 
 public final class Int7SQVectorScorer {
 
     // Unconditionally returns an empty optional on <= JDK 21, since the scorer is only supported on JDK 22+
-    public static Optional<RandomVectorScorer> create(
-        VectorSimilarityFunction sim,
-        RandomAccessQuantizedByteVectorValues values,
-        float[] queryVector
-    ) {
+    public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector) {
         return Optional.empty();
     }
 

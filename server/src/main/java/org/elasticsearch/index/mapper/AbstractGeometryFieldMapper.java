@@ -9,11 +9,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -65,12 +67,16 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         public abstract void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, MalformedValueHandler malformedHandler)
             throws IOException;
 
-        private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
+        void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
+                parseFromSource(parser, consumer);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        }
+
+        void parseFromSource(XContentParser parser, Consumer<T> consumer) throws IOException {
+            parse(parser, v -> consumer.accept(normalizeFromSource(v)), NoopMalformedValueHandler.INSTANCE);
         }
 
         /**
@@ -131,14 +137,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         protected AbstractGeometryFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             Parser<T> geometryParser,
             T nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
+            super(name, indexType, stored, meta);
             this.nullValue = nullValue;
             this.geometryParser = geometryParser;
         }
@@ -168,9 +173,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        public ValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format) {
+        public ValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format, IndexSettings indexSettings) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue)) {
+            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue), indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     final List<T> values = new ArrayList<>();
@@ -180,19 +185,91 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // Currently we can only load from source in ESQL
-            return blockLoaderFromSource(blContext);
-        }
-
         protected BlockLoader blockLoaderFromSource(BlockLoaderContext blContext) {
-            ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
+            var fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB, blContext.indexSettings());
             // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
             return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
 
         protected abstract Object nullValueAsSource(T nullValue);
+
+        protected BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
+            return new FallbackSyntheticSourceBlockLoader(
+                new GeometriesFallbackSyntheticSourceReader(),
+                name(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+            ) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+            };
+        }
+
+        private class GeometriesFallbackSyntheticSourceReader implements FallbackSyntheticSourceBlockLoader.Reader<BytesRef> {
+            private final Function<List<T>, List<Object>> formatter;
+
+            private GeometriesFallbackSyntheticSourceReader() {
+                this.formatter = getFormatter(GeometryFormatterFactory.WKB);
+            }
+
+            @Override
+            public void convertValue(Object value, List<BytesRef> accumulator) {
+                final List<T> values = new ArrayList<>();
+
+                geometryParser.fetchFromSource(value, v -> {
+                    if (v != null) {
+                        values.add(v);
+                    } else if (nullValue != null) {
+                        values.add(nullValue);
+                    }
+                });
+                var formatted = formatter.apply(values);
+
+                for (var formattedValue : formatted) {
+                    if (formattedValue instanceof byte[] wkb) {
+                        accumulator.add(new BytesRef(wkb));
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unsupported source type for spatial geometry: " + formattedValue.getClass().getSimpleName()
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public void parse(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                final List<T> values = new ArrayList<>();
+
+                geometryParser.parseFromSource(parser, v -> {
+                    if (v != null) {
+                        values.add(v);
+                    } else if (nullValue != null) {
+                        values.add(nullValue);
+                    }
+                });
+                var formatted = formatter.apply(values);
+
+                for (var formattedValue : formatted) {
+                    if (formattedValue instanceof byte[] wkb) {
+                        accumulator.add(new BytesRef(wkb));
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unsupported source type for spatial geometry: " + formattedValue.getClass().getSimpleName()
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                for (var value : values) {
+                    bytesRefBuilder.appendBytesRef(value);
+                }
+            }
+        }
     }
 
     private final Explicit<Boolean> ignoreMalformed;

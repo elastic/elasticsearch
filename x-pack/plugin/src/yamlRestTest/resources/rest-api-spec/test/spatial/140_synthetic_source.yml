@@ -1,16 +1,18 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
 ---
 "geo_shape":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               shape:
                 type: geo_shape
@@ -66,17 +68,14 @@
 
 ---
 "geo_shape with ignore_malformed":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               shape:
                 type: geo_shape
@@ -149,17 +148,14 @@
 
 ---
 "shape":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               shape:
                 type: shape
@@ -215,17 +211,14 @@
 
 ---
 "shape with ignore_malformed":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               shape:
                 type: shape
@@ -306,9 +299,10 @@
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               point:
                 type: geo_point
@@ -414,17 +408,16 @@
 ---
 "geo_point with ignore_malformed":
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: introduced in 8.15.0
       test_runner_features: close_to
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               geo_point:
                 type: geo_point
@@ -493,17 +486,14 @@
 
 ---
 "point":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               point:
                 type: point
@@ -589,17 +579,14 @@
 
 ---
 "point with ignore_malformed":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               point:
                 type: point

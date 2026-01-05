@@ -1,0 +1,50 @@
+retrieveBitVectorData
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
+
+FROM dense_vector
+| KEEP id, bit_vector
+| SORT id
+;
+
+id:l | bit_vector:dense_vector
+0    | [13, 112]
+1    | [45, 9]
+2    | [127, 0]
+3    | [88, 53]
+;
+
+denseBitVectorWithEval
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
+
+FROM dense_vector
+| EVAL v = bit_vector
+| KEEP id, v
+| SORT id
+;
+
+id:l | v:dense_vector
+0    | [13, 112]
+1    | [45, 9]
+2    | [127, 0]
+3    | [88, 53]
+;
+
+denseBitVectorWithRenameAndDrop
+required_capability: dense_vector_agg_metric_double_if_version
+required_capability: l2_norm_vector_similarity_function
+
+FROM dense_vector
+| EVAL v = bit_vector
+| RENAME v AS new_vector
+| DROP float_vector, byte_vector, bit_vector
+| SORT id
+;
+
+id:l | new_vector:dense_vector
+0    | [13, 112]
+1    | [45, 9]
+2    | [127, 0]
+3    | [88, 53]
+;

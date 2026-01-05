@@ -10,6 +10,7 @@
 package org.elasticsearch.routing;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -23,6 +24,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -117,9 +119,12 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             index = "index_" + currentShards;
 
             logger.info("--> shrinking index [" + previousIndex + "] to [" + index + "]");
-            indicesAdmin().prepareResizeIndex(previousIndex, index)
-                .setSettings(indexSettings(currentShards, numberOfReplicas()).putNull("index.routing.allocation.require._name").build())
-                .get();
+            executeResize(
+                ResizeType.SHRINK,
+                previousIndex,
+                index,
+                indexSettings(currentShards, numberOfReplicas()).putNull("index.routing.allocation.require._name")
+            ).actionGet();
             ensureGreen();
         }
     }
@@ -160,7 +165,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                             + "] shards for routing ["
                             + routing
                             + "] and got hits ["
-                            + response.getHits().getTotalHits().value
+                            + response.getHits().getTotalHits().value()
                             + "]"
                     );
 
@@ -168,7 +173,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                         response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                         expectedShards.contains(response.getTotalShards())
                     );
-                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
                     Set<String> found = new HashSet<>();
                     response.getHits().forEach(h -> found.add(h.getId()));
@@ -188,7 +193,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing)).setIndices(index).setSize(100),
                 response -> {
                     assertEquals(expectedShards, response.getTotalShards());
-                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
                     Set<String> found = new HashSet<>();
                     response.getHits().forEach(h -> found.add(h.getId()));

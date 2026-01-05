@@ -90,6 +90,7 @@ services:
       - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
+      - xpack.ml.use_auto_machine_memory_percent=true
     mem_limit: ${MEM_LIMIT}
     ulimits:
       memlock:
@@ -130,6 +131,7 @@ services:
       - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
+      - xpack.ml.use_auto_machine_memory_percent=true
     mem_limit: ${MEM_LIMIT}
     ulimits:
       memlock:
@@ -170,6 +172,7 @@ services:
       - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
+      - xpack.ml.use_auto_machine_memory_percent=true
     mem_limit: ${MEM_LIMIT}
     ulimits:
       memlock:

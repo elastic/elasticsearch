@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -17,7 +18,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
@@ -34,8 +35,11 @@ import java.util.Collections;
  */
 public class TransportResetFeatureStateAction extends TransportMasterNodeAction<ResetFeatureStateRequest, ResetFeatureStateResponse> {
 
+    public static final ActionType<ResetFeatureStateResponse> TYPE = new ActionType<>("cluster:admin/features/reset");
+
     private final SystemIndices systemIndices;
     private final NodeClient client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportResetFeatureStateAction(
@@ -45,21 +49,21 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
         SystemIndices systemIndices,
         NodeClient client,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
-            ResetFeatureStateAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             ResetFeatureStateRequest::fromStream,
-            indexNameExpressionResolver,
             ResetFeatureStateResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -77,12 +81,13 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
             )
         ) {
             for (final var feature : features) {
-                feature.getCleanUpFunction().apply(clusterService, client, listeners.acquire(e -> {
-                    assert e != null : feature.getName();
-                    synchronized (responses) {
-                        responses.add(e);
-                    }
-                }));
+                feature.getCleanUpFunction()
+                    .apply(clusterService, projectResolver, client, request.masterNodeTimeout(), listeners.acquire(e -> {
+                        assert e != null : feature.getName();
+                        synchronized (responses) {
+                            responses.add(e);
+                        }
+                    }));
             }
         }
     }

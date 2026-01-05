@@ -10,15 +10,15 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.EnumSet;
 import java.util.Map;
 
 import static java.util.EnumSet.copyOf;
@@ -58,64 +58,113 @@ public class ClusterBlockTests extends ESTestCase {
     public void testGlobalBlocksCheckedIfNoIndicesSpecified() {
         ClusterBlock globalBlock = randomClusterBlock();
         ClusterBlocks clusterBlocks = new ClusterBlocks(Collections.singleton(globalBlock), Map.of());
-        ClusterBlockException exception = clusterBlocks.indicesBlockedException(randomFrom(globalBlock.levels()), new String[0]);
+        ClusterBlockException exception = clusterBlocks.indicesBlockedException(
+            randomProjectIdOrDefault(),
+            randomFrom(globalBlock.levels()),
+            new String[0]
+        );
         assertNotNull(exception);
         assertEquals(exception.blocks(), Collections.singleton(globalBlock));
     }
 
     public void testRemoveIndexBlockWithId() {
+        final ProjectId projectId = randomProjectIdOrDefault();
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        builder.addIndexBlock("index-1", new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1", new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1", new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
         builder.addIndexBlock(
+            projectId,
+            "index-1",
+            new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL))
+        );
+        builder.addIndexBlock(
+            projectId,
+            "index-1",
+            new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL))
+        );
+        builder.addIndexBlock(
+            projectId,
+            "index-1",
+            new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL))
+        );
+        builder.addIndexBlock(
+            projectId,
             "index-1",
             new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL))
         );
 
-        builder.addIndexBlock("index-2", new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock(
+            projectId,
+            "index-2",
+            new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL))
+        );
 
         ClusterBlocks clusterBlocks = builder.build();
-        assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(4));
-        assertThat(clusterBlocks.indices().get("index-2").size(), equalTo(1));
+        assertThat(clusterBlocks.indices(projectId).get("index-1").size(), equalTo(4));
+        assertThat(clusterBlocks.indices(projectId).get("index-2").size(), equalTo(1));
 
-        builder.removeIndexBlockWithId("index-1", 3);
+        builder.removeIndexBlockWithId(projectId, "index-1", 3);
         clusterBlocks = builder.build();
 
-        assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(2));
-        assertThat(clusterBlocks.hasIndexBlockWithId("index-1", 1), is(true));
-        assertThat(clusterBlocks.hasIndexBlockWithId("index-1", 2), is(true));
-        assertThat(clusterBlocks.indices().get("index-2").size(), equalTo(1));
-        assertThat(clusterBlocks.hasIndexBlockWithId("index-2", 3), is(true));
+        assertThat(clusterBlocks.indices(projectId).get("index-1").size(), equalTo(2));
+        assertThat(clusterBlocks.hasIndexBlockWithId(projectId, "index-1", 1), is(true));
+        assertThat(clusterBlocks.hasIndexBlockWithId(projectId, "index-1", 2), is(true));
+        assertThat(clusterBlocks.indices(projectId).get("index-2").size(), equalTo(1));
+        assertThat(clusterBlocks.hasIndexBlockWithId(projectId, "index-2", 3), is(true));
 
-        builder.removeIndexBlockWithId("index-2", 3);
+        builder.removeIndexBlockWithId(projectId, "index-2", 3);
         clusterBlocks = builder.build();
 
-        assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(2));
-        assertThat(clusterBlocks.hasIndexBlockWithId("index-1", 1), is(true));
-        assertThat(clusterBlocks.hasIndexBlockWithId("index-1", 2), is(true));
-        assertThat(clusterBlocks.indices().get("index-2"), nullValue());
-        assertThat(clusterBlocks.hasIndexBlockWithId("index-2", 3), is(false));
+        assertThat(clusterBlocks.indices(projectId).get("index-1").size(), equalTo(2));
+        assertThat(clusterBlocks.hasIndexBlockWithId(projectId, "index-1", 1), is(true));
+        assertThat(clusterBlocks.hasIndexBlockWithId(projectId, "index-1", 2), is(true));
+        assertThat(clusterBlocks.indices(projectId).get("index-2"), nullValue());
+        assertThat(clusterBlocks.hasIndexBlockWithId(projectId, "index-2", 3), is(false));
     }
 
     public void testGetIndexBlockWithId() {
+        final ProjectId projectId = randomProjectIdOrDefault();
         final int blockId = randomInt();
         final ClusterBlock[] clusterBlocks = new ClusterBlock[randomIntBetween(1, 5)];
 
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
         for (int i = 0; i < clusterBlocks.length; i++) {
             clusterBlocks[i] = new ClusterBlock(blockId, "uuid" + i, "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL));
-            builder.addIndexBlock("index", clusterBlocks[i]);
+            builder.addIndexBlock(projectId, "index", clusterBlocks[i]);
         }
 
-        assertThat(builder.build().indices().get("index").size(), equalTo(clusterBlocks.length));
-        assertThat(builder.build().getIndexBlockWithId("index", blockId), is(oneOf(clusterBlocks)));
-        assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, ESTestCase::randomInt)), nullValue());
+        assertThat(builder.build().indices(projectId).get("index").size(), equalTo(clusterBlocks.length));
+        assertThat(builder.build().getIndexBlockWithId(projectId, "index", blockId), is(oneOf(clusterBlocks)));
+        assertThat(
+            builder.build().getIndexBlockWithId(projectId, "index", randomValueOtherThan(blockId, ESTestCase::randomInt)),
+            nullValue()
+        );
+    }
+
+    public void testProjectGlobal() {
+        final ProjectId project1 = randomUniqueProjectId();
+        final ProjectId project2 = randomUniqueProjectId();
+        final ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        final var project1Index = randomIdentifier();
+        final var indexBlock = randomClusterBlock();
+        final var globalBlock = randomClusterBlock();
+        final var projectGlobalBlock = randomClusterBlock();
+        if (randomBoolean()) {
+            builder.addIndexBlock(project1, project1Index, indexBlock);
+        }
+        builder.addGlobalBlock(globalBlock);
+        builder.addProjectGlobalBlock(project1, projectGlobalBlock);
+        var clusterBlocks = builder.build();
+        assertThat(clusterBlocks.global().size(), equalTo(1));
+        assertThat(clusterBlocks.projectGlobal(project1).size(), equalTo(1));
+        assertThat(clusterBlocks.projectGlobal(project2).size(), equalTo(0));
+        assertThat(clusterBlocks.global(project1).size(), equalTo(2));
+        assertThat(clusterBlocks.global(project2).size(), equalTo(1));
+        assertTrue(clusterBlocks.indexBlocked(project1, randomFrom(projectGlobalBlock.levels()), project1Index));
+        assertTrue(clusterBlocks.hasGlobalBlock(project1, projectGlobalBlock));
     }
 
     private static ClusterBlock randomClusterBlock() {
         final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
-        final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
+        final EnumSet<ClusterBlockLevel> levels = EnumSet.allOf(ClusterBlockLevel.class);
         return new ClusterBlock(
             randomInt(),
             uuid,

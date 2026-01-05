@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.security.action.realm;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
-public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequest> {
+public class ClearRealmCacheRequest extends BaseNodesRequest {
 
     String[] realms;
     String[] usernames;
@@ -23,14 +23,14 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
     }
 
     /**
-     * @return  {@code true} if this request targets realms, {@code false} otherwise.
+     * @return {@code true} if this request targets realms, {@code false} otherwise.
      */
     public boolean allRealms() {
         return realms == null || realms.length == 0;
     }
 
     /**
-     * @return  The realms that should be evicted. Empty array indicates all realms.
+     * @return The realms that should be evicted. Empty array indicates all realms.
      */
     public String[] realms() {
         return realms;
@@ -40,7 +40,7 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
      * Sets the realms for which caches will be evicted. When not set all the caches of all realms will be
      * evicted.
      *
-     * @param realms    The realm names
+     * @param realms The realm names
      */
     public ClearRealmCacheRequest realms(String... realms) {
         this.realms = realms;
@@ -48,14 +48,14 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
     }
 
     /**
-     * @return  {@code true} if this request targets users, {@code false} otherwise.
+     * @return {@code true} if this request targets users, {@code false} otherwise.
      */
     public boolean allUsernames() {
         return usernames == null || usernames.length == 0;
     }
 
     /**
-     * @return  The usernames of the users that should be evicted. Empty array indicates all users.
+     * @return The usernames of the users that should be evicted. Empty array indicates all users.
      */
     public String[] usernames() {
         return usernames;
@@ -72,7 +72,7 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
         return this;
     }
 
-    public static class Node extends TransportRequest {
+    public static class Node extends AbstractTransportRequest {
 
         private String[] realms;
         private String[] usernames;

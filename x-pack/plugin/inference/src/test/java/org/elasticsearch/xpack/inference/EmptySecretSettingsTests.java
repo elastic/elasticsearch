@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -31,5 +32,14 @@ public class EmptySecretSettingsTests extends AbstractWireSerializingTestCase<Em
     protected EmptySecretSettings mutateInstance(EmptySecretSettings instance) {
         // All instances are the same and have no fields, nothing to mutate
         return null;
+    }
+
+    public void testNewSecretSettings() {
+
+        EmptySecretSettings newSecretSettings = (EmptySecretSettings) EmptySecretSettings.INSTANCE.newSecretSettings(
+            randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))
+        );
+
+        assertSame(EmptySecretSettings.INSTANCE, newSecretSettings);
     }
 }

@@ -6,12 +6,14 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin'
+  description = 'The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.'
+  classname ='org.elasticsearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin'
 }
 
 dependencies {
@@ -27,7 +29,7 @@ restResources {
   }
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /morfologik-.*/, to: 'lucene'
 }

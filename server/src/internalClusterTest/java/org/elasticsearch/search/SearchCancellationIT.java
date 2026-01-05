@@ -23,12 +23,13 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
-import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
@@ -238,70 +240,104 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
-        // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
-        // are limited to 1
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        int numberOfShards = between(2, 5);
-        createIndex("test", numberOfShards, 0);
-        indexTestData();
-
-        // Define (but don't run) the search request, expecting a partial shard failure. We will run it later.
-        Thread searchThread = new Thread(() -> {
-            SearchPhaseExecutionException e = expectThrows(
-                SearchPhaseExecutionException.class,
-                prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
-                    .setAllowPartialSearchResults(false)
-                    .setSize(1000)
-            );
-            assertThat(e.getMessage(), containsString("Partial shards failure"));
-        });
-
-        // When the search request executes, block all shards except 1.
-        final List<SearchShardBlockingPlugin> searchShardBlockingPlugins = initSearchShardBlockingPlugin();
-        AtomicBoolean letOneShardProceed = new AtomicBoolean();
-        CountDownLatch shardTaskLatch = new CountDownLatch(1);
-        for (SearchShardBlockingPlugin plugin : searchShardBlockingPlugins) {
-            plugin.setRunOnNewReaderContext((ReaderContext c) -> {
-                if (letOneShardProceed.compareAndSet(false, true)) {
-                    // Let one shard continue.
-                } else {
-                    safeAwait(shardTaskLatch); // Block the other shards.
-                }
-            });
-        }
-
-        // For the shard that was allowed to proceed, have a single query-execution thread throw an exception.
-        final List<ScriptedBlockPlugin> plugins = initBlockFactory();
-        AtomicBoolean oneThreadWillError = new AtomicBoolean();
-        for (ScriptedBlockPlugin plugin : plugins) {
-            plugin.disableBlock();
-            plugin.setBeforeExecution(() -> {
-                if (oneThreadWillError.compareAndSet(false, true)) {
-                    throw new IllegalStateException("This will cancel the ContextIndexSearcher.search task");
-                }
-            });
-        }
-
-        // Now run the search request.
-        searchThread.start();
-
+        boolean useBatched = randomBoolean();
         try {
-            assertBusy(() -> {
-                final List<SearchTask> coordinatorSearchTask = getCoordinatorSearchTasks();
-                assertThat("The Coordinator should have one SearchTask.", coordinatorSearchTask, hasSize(1));
-                assertTrue("The SearchTask should be cancelled.", coordinatorSearchTask.get(0).isCancelled());
-                for (var shardQueryTask : getShardQueryTasks()) {
-                    assertTrue("All SearchShardTasks should then be cancelled", shardQueryTask.isCancelled());
-                }
-            }, 30, TimeUnit.SECONDS);
+            if (useBatched == false) { // It's true by default
+                updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+            }
+            // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
+            // are limited to 1
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            int numberOfShards = between(2, 5);
+            createIndex("test", numberOfShards, 0);
+            indexTestData();
+
+            // Define (but don't run) the search request, expecting a partial shard failure. We will run it later.
+            Thread searchThread = new Thread(() -> {
+                logger.info("Executing search");
+                SearchPhaseExecutionException e = expectThrows(
+                    SearchPhaseExecutionException.class,
+                    prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                        .setQuery(
+                            scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
+                        )
+                        .setAllowPartialSearchResults(false)
+                        .setSize(1000)
+                );
+                assertThat(e.getMessage(), containsString("Partial shards failure"));
+            });
+
+            // When the search request executes, allow some shards to proceed and block others
+            final List<SearchShardBlockingPlugin> searchShardBlockingPlugins = initSearchShardBlockingPlugin();
+            CountDownLatch waitingTaskLatch = new CountDownLatch(1);
+            CountDownLatch shardTaskLatch = new CountDownLatch(1);
+            final AtomicReference<String> selectedNodeId = new AtomicReference<>();
+            final AtomicBoolean letOneShardProceed = new AtomicBoolean();
+            for (SearchShardBlockingPlugin plugin : searchShardBlockingPlugins) {
+                plugin.setRunOnPreQueryPhase((SearchContext c) -> {
+                    if (useBatched) { // Allow all the shards on one node to continue. Block all others.
+                        String nodeId = c.shardTarget().getNodeId();
+                        if (selectedNodeId.compareAndSet(null, nodeId) || nodeId.equals(selectedNodeId.get())) {
+                            logger.info("Allowing shard [{}] on node [{}] to proceed", c.shardTarget().getShardId(), nodeId);
+                        } else {
+                            logger.info("Blocking shard [{}] on node [{}]", c.shardTarget().getShardId(), nodeId);
+                            // Signal that we have a task waiting on the latch
+                            waitingTaskLatch.countDown();
+                            safeAwait(shardTaskLatch); // Block shards on other nodes
+                        }
+                    } else { // Allow one shard to continue. Block all others.
+                        if (letOneShardProceed.compareAndSet(false, true)) {
+                            logger.info("Allowing shard [{}] to proceed", c.shardTarget().getShardId());
+                        } else {
+                            logger.info("Blocking shard [{}]", c.shardTarget().getShardId());
+                            // Signal that we have a task waiting on the latch
+                            waitingTaskLatch.countDown();
+                            safeAwait(shardTaskLatch); // Block all other shards
+                        }
+                    }
+                });
+            }
+
+            // For the shards that were allowed to proceed, have a single query-execution thread throw an exception.
+            final List<ScriptedBlockPlugin> plugins = initBlockFactory();
+            AtomicBoolean oneThreadWillError = new AtomicBoolean();
+            for (ScriptedBlockPlugin plugin : plugins) {
+                plugin.disableBlock();
+                plugin.setBeforeExecution(() -> {
+                    if (oneThreadWillError.compareAndSet(false, true)) {
+                        // wait for some task to get to the latch
+                        safeAwait(waitingTaskLatch);
+                        // then throw the exception
+                        throw new IllegalStateException("This will cancel the ContextIndexSearcher.search task");
+                    }
+                });
+            }
+
+            // Now run the search request.
+            logger.info("Starting search thread");
+            searchThread.start();
+
+            try {
+                assertBusy(() -> {
+                    final List<SearchTask> coordinatorSearchTask = getCoordinatorSearchTasks();
+                    logger.info("Checking tasks: {}", coordinatorSearchTask);
+                    assertThat("The Coordinator should have one SearchTask.", coordinatorSearchTask, hasSize(1));
+                    assertTrue("The SearchTask should be cancelled.", coordinatorSearchTask.get(0).isCancelled());
+                    for (var shardQueryTask : getShardQueryTasks()) {
+                        assertTrue("All SearchShardTasks should then be cancelled", shardQueryTask.isCancelled());
+                    }
+                }, 30, TimeUnit.SECONDS);
+            } finally {
+                shardTaskLatch.countDown(); // unblock the shardTasks, allowing the test to conclude.
+                searchThread.join();
+                plugins.forEach(plugin -> plugin.setBeforeExecution(() -> {}));
+                searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnPreQueryPhase((SearchContext c) -> {}));
+            }
         } finally {
-            shardTaskLatch.countDown(); // unblock the shardTasks, allowing the test to conclude.
-            searchThread.join();
-            plugins.forEach(plugin -> plugin.setBeforeExecution(() -> {}));
-            searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnNewReaderContext((ReaderContext c) -> {}));
+            if (useBatched == false) {
+                updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
+            }
         }
     }
 

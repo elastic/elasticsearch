@@ -20,7 +20,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -70,6 +69,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,8 +81,8 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(EsqlPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(EsqlActionBreakerIT.EsqlTestPluginWithMockBlockFactory.class);
         plugins.add(InternalExchangePlugin.class);
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
@@ -127,7 +127,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         final Client client;
         if (randomBoolean()) {
             client = client(randomFrom(clusterService().state().nodes().getCoordinatingOnlyNodes().values()).getName());
@@ -143,6 +143,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
             } catch (Exception e) {
                 logger.info("request failed", e);
+                EsqlTestUtils.assertEsqlFailure(e);
                 ensureBlocksReleased();
             } finally {
                 setRequestCircuitBreakerLimit(null);
@@ -337,10 +338,9 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProfile() {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.pragmas(randomPragmas());
-        request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
-        request.profile(true);
+        EsqlQueryRequest request = syncEsqlQueryRequest(
+            "from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist"
+        ).pragmas(randomPragmas()).profile(true);
         try (var resp = run(request)) {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo(7L));
@@ -349,7 +349,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             assertNotNull(profile);
             List<DriverProfile> drivers = profile.drivers();
             assertThat(drivers.size(), greaterThanOrEqualTo(2));
-            List<DriverStatus.OperatorStatus> enrichOperators = drivers.stream()
+            List<OperatorStatus> enrichOperators = drivers.stream()
                 .flatMap(d -> d.operators().stream())
                 .filter(status -> status.operator().startsWith("EnrichOperator"))
                 .toList();

@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -13,22 +14,28 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToInteger}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToIntegerFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToIntegerFromDoubleEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator dbl;
+
+  public ToIntegerFromDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator dbl,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.dbl = dbl;
   }
 
   @Override
-  public String name() {
-    return "ToIntegerFromDouble";
+  public EvalOperator.ExpressionEvaluator next() {
+    return dbl;
   }
 
   @Override
@@ -56,7 +63,7 @@ public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static int evalValue(DoubleVector container, int index) {
+  private int evalValue(DoubleVector container, int index) {
     double value = container.getDouble(index);
     return ToInteger.fromDouble(value);
   }
@@ -95,29 +102,46 @@ public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static int evalValue(DoubleBlock container, int index) {
+  private int evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToInteger.fromDouble(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToIntegerFromDoubleEvaluator[" + "dbl=" + dbl + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(dbl);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += dbl.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory dbl;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory dbl) {
       this.source = source;
+      this.dbl = dbl;
     }
 
     @Override
     public ToIntegerFromDoubleEvaluator get(DriverContext context) {
-      return new ToIntegerFromDoubleEvaluator(field.get(context), source, context);
+      return new ToIntegerFromDoubleEvaluator(source, dbl.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToIntegerFromDoubleEvaluator[field=" + field + "]";
+      return "ToIntegerFromDoubleEvaluator[" + "dbl=" + dbl + "]";
     }
   }
 }

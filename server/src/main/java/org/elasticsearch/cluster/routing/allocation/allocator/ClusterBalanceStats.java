@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.ToDoubleFunction;
 
 public record ClusterBalanceStats(
@@ -39,7 +40,7 @@ public record ClusterBalanceStats(
     Map<String, NodeBalanceStats> nodes
 ) implements Writeable, ToXContentObject {
 
-    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
+    public static final ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
 
     public static ClusterBalanceStats createFrom(
         ClusterState clusterState,
@@ -76,8 +77,8 @@ public record ClusterBalanceStats(
 
     public static ClusterBalanceStats readFrom(StreamInput in) throws IOException {
         return new ClusterBalanceStats(
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
+            in.readVInt(),
+            in.readVInt(),
             in.readImmutableMap(TierBalanceStats::readFrom),
             in.readImmutableMap(NodeBalanceStats::readFrom)
         );
@@ -85,10 +86,8 @@ public record ClusterBalanceStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeVInt(shards);
-            out.writeVInt(undesiredShardAllocations);
-        }
+        out.writeVInt(shards);
+        out.writeVInt(undesiredShardAllocations);
         out.writeMap(tiers, StreamOutput::writeWriteable);
         out.writeMap(nodes, StreamOutput::writeWriteable);
     }
@@ -124,9 +123,7 @@ public record ClusterBalanceStats(
         public static TierBalanceStats readFrom(StreamInput in) throws IOException {
             return new TierBalanceStats(
                 MetricStats.readFrom(in),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
-                    ? MetricStats.readFrom(in)
-                    : new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                MetricStats.readFrom(in),
                 MetricStats.readFrom(in),
                 MetricStats.readFrom(in),
                 MetricStats.readFrom(in)
@@ -136,9 +133,7 @@ public record ClusterBalanceStats(
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardCount.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                undesiredShardAllocations.writeTo(out);
-            }
+            undesiredShardAllocations.writeTo(out);
             forecastWriteLoad.writeTo(out);
             forecastShardSize.writeTo(out);
             actualShardSize.writeTo(out);
@@ -213,10 +208,15 @@ public record ClusterBalanceStats(
         int undesiredShardAllocations,
         double forecastWriteLoad,
         long forecastShardSize,
-        long actualShardSize
+        long actualShardSize,
+        Double nodeWeight
     ) implements Writeable, ToXContentObject {
 
         private static final String UNKNOWN_NODE_ID = "UNKNOWN";
+
+        private static final TransportVersion NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS = TransportVersion.fromName(
+            "node_weights_added_to_node_balance_stats"
+        );
 
         private static NodeBalanceStats createFrom(
             RoutingNode routingNode,
@@ -231,9 +231,8 @@ public record ClusterBalanceStats(
             long actualShardSize = 0L;
 
             for (ShardRouting shardRouting : routingNode) {
-                var indexMetadata = metadata.index(shardRouting.index());
+                var indexMetadata = metadata.indexMetadata(shardRouting.index());
                 var shardSize = clusterInfo.getShardSize(shardRouting, 0L);
-                assert indexMetadata != null;
                 forecastWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
                 forecastShardSize += indexMetadata.getForecastedShardSizeInBytes().orElse(shardSize);
                 actualShardSize += shardSize;
@@ -242,6 +241,11 @@ public record ClusterBalanceStats(
                 }
             }
 
+            assert desiredBalance != null;
+            Double nodeWeight = Optional.ofNullable(desiredBalance.weightsPerNode().get(routingNode.node()))
+                .map(DesiredBalanceMetrics.NodeWeightStats::nodeWeight)
+                .orElse(null);
+
             return new NodeBalanceStats(
                 routingNode.nodeId(),
                 routingNode.node().getRoles().stream().map(DiscoveryNodeRole::roleName).toList(),
@@ -249,7 +253,8 @@ public record ClusterBalanceStats(
                 undesired,
                 forecastWriteLoad,
                 forecastShardSize,
-                actualShardSize
+                actualShardSize,
+                nodeWeight
             );
         }
 
@@ -264,29 +269,29 @@ public record ClusterBalanceStats(
 
         public static NodeBalanceStats readFrom(StreamInput in) throws IOException {
             return new NodeBalanceStats(
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readString() : UNKNOWN_NODE_ID,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readStringCollectionAsList() : List.of(),
+                in.readString(),
+                in.readStringCollectionAsList(),
                 in.readInt(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
+                in.readVInt(),
                 in.readDouble(),
                 in.readLong(),
-                in.readLong()
+                in.readLong(),
+                in.getTransportVersion().supports(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS) ? in.readOptionalDouble() : null
             );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(nodeId);
-                out.writeStringCollection(roles);
-            }
+            out.writeString(nodeId);
+            out.writeStringCollection(roles);
             out.writeInt(shards);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeVInt(undesiredShardAllocations);
-            }
+            out.writeVInt(undesiredShardAllocations);
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
             out.writeLong(actualShardSize);
+            if (out.getTransportVersion().supports(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)) {
+                out.writeOptionalDouble(nodeWeight);
+            }
         }
 
         @Override
@@ -295,13 +300,16 @@ public record ClusterBalanceStats(
             if (UNKNOWN_NODE_ID.equals(nodeId) == false) {
                 builder.field("node_id", nodeId);
             }
-            return builder.field("roles", roles)
+            builder.field("roles", roles)
                 .field("shard_count", shards)
                 .field("undesired_shard_allocation_count", undesiredShardAllocations)
                 .field("forecast_write_load", forecastWriteLoad)
                 .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
-                .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize))
-                .endObject();
+                .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize));
+            if (nodeWeight != null) {
+                builder.field("node_weight", nodeWeight);
+            }
+            return builder.endObject();
         }
     }
 }

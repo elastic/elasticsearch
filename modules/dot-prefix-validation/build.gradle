@@ -10,8 +10,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Validation for dot-prefixed indices for non-operator users'
-  classname 'org.elasticsearch.validation.DotPrefixValidationPlugin'
+  description = 'Validation for dot-prefixed indices for non-operator users'
+  classname = 'org.elasticsearch.validation.DotPrefixValidationPlugin'
 }
 
 restResources {
@@ -21,9 +21,10 @@ restResources {
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 tasks.named('yamlRestCompatTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }

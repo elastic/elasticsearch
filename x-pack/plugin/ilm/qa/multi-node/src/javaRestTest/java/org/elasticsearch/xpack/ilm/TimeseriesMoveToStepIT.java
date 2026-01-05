@@ -10,27 +10,32 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
+import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -39,7 +44,7 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimeseriesMoveToStepIT extends ESRestTestCase {
+public class TimeseriesMoveToStepIT extends IlmESRestTestCase {
     private static final Logger logger = LogManager.getLogger(TimeseriesMoveToStepIT.class);
 
     private String policy;
@@ -51,6 +56,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
+        logger.info("--> running [{}] with index [{}], alias [{}] and policy [{}]", getTestName(), index, alias, policy);
     }
 
     public void testMoveToAllocateStep() throws Exception {
@@ -64,7 +70,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "javaRestTest-0")
+                .put("index.routing.allocation.include._name", "test-cluster-0")
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
         );
@@ -102,7 +108,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "javaRestTest-0")
+                .put("index.routing.allocation.include._name", "test-cluster-0")
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
@@ -243,6 +249,66 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         // Make sure we actually rolled over
         assertBusy(() -> { indexExists("test-000002"); });
+    }
+
+    /**
+     * Test that an async action does not execute when the Move To Step API is used while ILM is stopped.
+     * Unfortunately, this test doesn't prove that the async action never executes, as it's hard to prove that an asynchronous process
+     * never happens - waiting for a certain period would only increase our confidence but not actually prove it, and it would increase the
+     * runtime of the test significantly. We also assert that the remainder of the policy executes after ILM is started again to ensure that
+     * the index is not stuck in the async action step.
+     */
+    public void testAsyncActionDoesNotExecuteAfterILMStop() throws Exception {
+        String originalIndex = index + "-000001";
+        // Create a simply policy with the most important aspect being the readonly action, which contains the ReadOnlyStep AsyncActionStep.
+        var actions = Map.of(
+            "rollover",
+            new RolloverAction(RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueHours(1)).build()),
+            "readonly",
+            new ReadOnlyAction()
+        );
+        Phase phase = new Phase("hot", TimeValue.ZERO, actions);
+        createPolicy(client(), policy, phase, null, null, null, null);
+
+        createIndexWithSettings(
+            client(),
+            originalIndex,
+            alias,
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+        );
+
+        // Wait for ILM to do everything it can for this index
+        assertBusy(() -> assertEquals(new StepKey("hot", "rollover", "check-rollover-ready"), getStepKeyForIndex(client(), originalIndex)));
+
+        // Stop ILM
+        client().performRequest(new Request("POST", "/_ilm/stop"));
+
+        // Move ILM to the readonly step, which is an async action step.
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "check-rollover-ready"
+              },
+              "next_step": {
+                "phase": "hot",
+                "action": "readonly",
+                "name": "readonly"
+              }
+            }""");
+        client().performRequest(moveToStepRequest);
+
+        // Since ILM is stopped, the async action should not execute and the index should remain in the readonly step.
+        // This is the tricky part of the test, as we can't really verify that the async action will never happen.
+        assertEquals(new StepKey("hot", "readonly", "readonly"), getStepKeyForIndex(client(), originalIndex));
+
+        // Restart ILM
+        client().performRequest(new Request("POST", "/_ilm/start"));
+
+        // Make sure we actually complete the remainder of the policy after ILM is started again.
+        assertBusy(() -> assertEquals(new StepKey("hot", "complete", "complete"), getStepKeyForIndex(client(), originalIndex)));
     }
 
     public void testMoveToStepWithInvalidNextStep() throws Exception {

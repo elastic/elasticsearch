@@ -16,14 +16,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SimulatePipelineRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(new BytesArray(""), XContentType.JSON);
+        SimulatePipelineRequest request = jsonSimulatePipelineRequest(new BytesArray(""));
         // Sometimes we set an id
         if (randomBoolean()) {
             request.setId(randomAlphaOfLengthBetween(1, 10));
@@ -44,10 +44,7 @@ public class SimulatePipelineRequestTests extends ESTestCase {
     }
 
     public void testSerializationWithXContent() throws IOException {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
-            XContentType.JSON
-        );
+        SimulatePipelineRequest request = jsonSimulatePipelineRequest("{}");
         assertEquals(XContentType.JSON, request.getXContentType());
 
         BytesStreamOutput output = new BytesStreamOutput();

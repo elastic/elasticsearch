@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -28,16 +29,25 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> implements IndicesRequest.Replaceable {
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(
-        false,
-        true,
-        true,
-        true,
-        false,
-        false,
-        true,
-        false
-    );
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .allowEmptyExpressions(true)
+                .resolveAliases(false)
+                .build()
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(false)
+                .allowClosedIndices(true)
+                .ignoreThrottled(false)
+                .allowSelectors(false)
+                .build()
+        )
+        .build();
 
     private String[] indices;
     // Delete index should work by default on both open and closed indices.
@@ -130,5 +140,13 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
         int result = Objects.hash(indicesOptions);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
+    }
+
+    @Override
+    public String getDescription() {
+        final var stringBuilder = new StringBuilder("indices[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", 1024, stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 }

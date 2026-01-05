@@ -19,6 +19,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -41,9 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase {
     private TestSecurityClient securityClient;
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .nodes(2)
+    public static LocalClusterConfigProvider commonTrialSecurityClusterConfig = cluster -> cluster.nodes(2)
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
@@ -62,8 +61,10 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
         .user("admin_user", "admin-password", ROOT_USER_ROLE, true)
         .user("security_test_user", "security-test-password", "security_test_role", false)
         .user("x_pack_rest_user", "x-pack-test-password", ROOT_USER_ROLE, true)
-        .user("cat_test_user", "cat-test-password", "cat_test_role", false)
-        .build();
+        .user("cat_test_user", "cat-test-password", "cat_test_role", false);
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().apply(commonTrialSecurityClusterConfig).build();
 
     @Override
     protected String getTestRestCluster() {

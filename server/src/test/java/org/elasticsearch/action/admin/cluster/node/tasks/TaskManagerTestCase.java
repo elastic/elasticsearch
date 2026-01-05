@@ -62,7 +62,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.test.transport.MockTransportService.createTaskManager;
 
 /**
  * The test case for unit testing task manager and related transport actions
@@ -137,8 +136,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     /**
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
-    abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends TransportRequest>
-        extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse, Void> {
+    abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest, NodeRequest extends TransportRequest> extends
+        TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse, Void> {
 
         AbstractTestNodesAction(
             String actionName,
@@ -177,7 +176,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
-            TaskManager taskManager = createTaskManager(settings, threadPool, emptySet(), Tracer.NOOP);
+            TaskManager taskManager = MockTaskManager.create(settings, threadPool, emptySet(), Tracer.NOOP, name);
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(
@@ -194,8 +193,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 boundTransportAddressDiscoveryNodeFunction,
                 null,
-                taskManager,
-                Tracer.NOOP
+                taskManager
             );
             taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();

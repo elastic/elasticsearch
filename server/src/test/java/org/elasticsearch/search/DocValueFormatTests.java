@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -19,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,8 +43,8 @@ public class DocValueFormatTests extends ESTestCase {
     public void testSerialization() throws Exception {
         List<Entry> entries = new ArrayList<>();
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN));
-        entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new));
-        entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::readFrom));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::readFrom));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOTILE.getWriteableName(), in -> DocValueFormat.GEOTILE));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
@@ -173,8 +174,8 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("29/536869420/0", DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)));
         assertEquals("29/1491/536870911", DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)));
         assertEquals("2/2/1", DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)));
-        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13, 95, 1)));
-        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13, -95, 1)));
+        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13, GeoUtils.normalizeLat(95), 1)));
+        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13, GeoUtils.normalizeLat(-95), 1)));
     }
 
     public void testRawParse() {
@@ -378,11 +379,11 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testParseTsid() throws IOException {
-        TimeSeriesIdBuilder timeSeriesIdBuilder = new TimeSeriesIdBuilder(null);
-        timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
-        timeSeriesIdBuilder.addLong("long", randomLong());
-        timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());
-        BytesRef expected = timeSeriesIdBuilder.buildTsidHash().toBytesRef();
+        var routingFields = new RoutingPathFields(null);
+        routingFields.addString("string", randomAlphaOfLength(10));
+        routingFields.addLong("long", randomLong());
+        routingFields.addUnsignedLong("ulong", randomLong());
+        BytesRef expected = routingFields.buildHash().toBytesRef();
         byte[] expectedBytes = new byte[expected.length];
         System.arraycopy(expected.bytes, 0, expectedBytes, 0, expected.length);
         BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(expected);

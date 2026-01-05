@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-$if(BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,25 +18,16 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-
-$else$
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.ReleasableIterator;
-
-import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-$endif$
+// end generated imports
 
 /**
  * Vector implementation that stores an array of $type$ values.
 $if(BytesRef)$
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
 $endif$
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
@@ -239,6 +230,33 @@ $if(int)$
             max = v;
         }
         return max;
+    }
+
+$elseif(boolean)$
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values[i] == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 $endif$
 

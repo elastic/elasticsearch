@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
+package org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
@@ -33,10 +33,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
-public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
-    public static final String NAME = "voyageai_embeddings_service_settings";
+public class VoyageAIContextualEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
+    public static final String NAME = "voyageai_contextual_embeddings_service_settings";
     static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
-    public static final VoyageAIEmbeddingsServiceSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsServiceSettings(
+    public static final VoyageAIContextualEmbeddingsServiceSettings EMPTY_SETTINGS = new VoyageAIContextualEmbeddingsServiceSettings(
         null,
         null,
         null,
@@ -49,18 +49,18 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
 
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
-    public static VoyageAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+    public static VoyageAIContextualEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return switch (context) {
             case REQUEST -> fromRequestMap(map, context);
             case PERSISTENT -> fromPersistentMap(map, context);
         };
     }
 
-    private static VoyageAIEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map, ConfigurationParseContext context) {
+    private static VoyageAIContextualEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = VoyageAIServiceSettings.fromMap(map, context);
 
-        VoyageAIEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
+        VoyageAIContextualEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
 
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
@@ -70,14 +70,14 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             throw validationException;
         }
 
-        return new VoyageAIEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes, similarity, dims, maxInputTokens, dims != null);
+        return new VoyageAIContextualEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes, similarity, dims, maxInputTokens, dims != null);
     }
 
-    private static VoyageAIEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map, ConfigurationParseContext context) {
+    private static VoyageAIContextualEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = VoyageAIServiceSettings.fromMap(map, context);
 
-        VoyageAIEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
+        VoyageAIContextualEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
 
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
@@ -92,7 +92,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             throw validationException;
         }
 
-        return new VoyageAIEmbeddingsServiceSettings(
+        return new VoyageAIContextualEmbeddingsServiceSettings(
             commonServiceSettings,
             embeddingTypes,
             similarity,
@@ -102,7 +102,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         );
     }
 
-    static VoyageAIEmbeddingType parseEmbeddingType(
+    static VoyageAIContextualEmbeddingType parseEmbeddingType(
         Map<String, Object> map,
         ConfigurationParseContext context,
         ValidationException validationException
@@ -113,26 +113,26 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
                     map,
                     EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
-                    VoyageAIEmbeddingType::fromString,
-                    EnumSet.allOf(VoyageAIEmbeddingType.class),
+                    VoyageAIContextualEmbeddingType::fromString,
+                    EnumSet.allOf(VoyageAIContextualEmbeddingType.class),
                     validationException
                 ),
-                VoyageAIEmbeddingType.FLOAT
+                VoyageAIContextualEmbeddingType.FLOAT
             );
 
         };
     }
 
     private final VoyageAIServiceSettings commonSettings;
-    private final VoyageAIEmbeddingType embeddingType;
+    private final VoyageAIContextualEmbeddingType embeddingType;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
     private final boolean dimensionsSetByUser;
 
-    public VoyageAIEmbeddingsServiceSettings(
+    public VoyageAIContextualEmbeddingsServiceSettings(
         VoyageAIServiceSettings commonSettings,
-        @Nullable VoyageAIEmbeddingType embeddingType,
+        @Nullable VoyageAIContextualEmbeddingType embeddingType,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
@@ -146,12 +146,12 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         this.dimensionsSetByUser = dimensionsSetByUser;
     }
 
-    public VoyageAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
+    public VoyageAIContextualEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.commonSettings = new VoyageAIServiceSettings(in);
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
-        this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(VoyageAIEmbeddingType.class), VoyageAIEmbeddingType.FLOAT);
+        this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(VoyageAIContextualEmbeddingType.class), VoyageAIContextualEmbeddingType.FLOAT);
         this.dimensionsSetByUser = in.readBoolean();
     }
 
@@ -178,7 +178,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         return commonSettings.modelId();
     }
 
-    public VoyageAIEmbeddingType getEmbeddingType() {
+    public VoyageAIContextualEmbeddingType getEmbeddingType() {
         return embeddingType;
     }
 
@@ -250,7 +250,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        VoyageAIEmbeddingsServiceSettings that = (VoyageAIEmbeddingsServiceSettings) o;
+        VoyageAIContextualEmbeddingsServiceSettings that = (VoyageAIContextualEmbeddingsServiceSettings) o;
         return Objects.equals(commonSettings, that.commonSettings)
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)

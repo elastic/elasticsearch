@@ -5,10 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.voyageai.rerank;
+package org.elasticsearch.xpack.inference.services.voyageai.embeddings.text;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -26,59 +27,63 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils.HOST;
 
-public class VoyageAIRerankModel extends VoyageAIModel {
-    public static VoyageAIRerankModel of(VoyageAIRerankModel model, Map<String, Object> taskSettings) {
-        var requestTaskSettings = VoyageAIRerankTaskSettings.fromMap(taskSettings);
-        return new VoyageAIRerankModel(model, VoyageAIRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+public class VoyageAIEmbeddingsModel extends VoyageAIModel {
+    public static VoyageAIEmbeddingsModel of(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var requestTaskSettings = VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings);
+        return new VoyageAIEmbeddingsModel(model, VoyageAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
-    public VoyageAIRerankModel(
+    public VoyageAIEmbeddingsModel(
         String inferenceId,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
         this(
             inferenceId,
             service,
-            VoyageAIRerankServiceSettings.fromMap(serviceSettings, context),
-            VoyageAIRerankTaskSettings.fromMap(taskSettings),
+            VoyageAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings),
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets),
-            buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri)
+            buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri)
         );
     }
 
     public static URI buildRequestUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(HOST)
-            .setPathSegments(VoyageAIUtils.VERSION_1, VoyageAIUtils.RERANK_PATH)
+            .setPathSegments(VoyageAIUtils.VERSION_1, VoyageAIUtils.EMBEDDINGS_PATH)
             .build();
     }
 
     // should only be used for testing
-    VoyageAIRerankModel(
+    VoyageAIEmbeddingsModel(
         String inferenceId,
         String service,
         String url,
-        VoyageAIRerankServiceSettings serviceSettings,
-        VoyageAIRerankTaskSettings taskSettings,
+        VoyageAIEmbeddingsServiceSettings serviceSettings,
+        VoyageAIEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        this(inferenceId, service, serviceSettings, taskSettings, secretSettings, ServiceUtils.createUri(url));
+        this(inferenceId, service, serviceSettings, taskSettings, chunkingSettings, secretSettings, ServiceUtils.createUri(url));
     }
 
-    private VoyageAIRerankModel(
+    private VoyageAIEmbeddingsModel(
         String inferenceId,
         String service,
-        VoyageAIRerankServiceSettings serviceSettings,
-        VoyageAIRerankTaskSettings taskSettings,
+        VoyageAIEmbeddingsServiceSettings serviceSettings,
+        VoyageAIEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings,
         URI uri
     ) {
         super(
-            new ModelConfigurations(inferenceId, TaskType.RERANK, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings(),
@@ -86,24 +91,27 @@ public class VoyageAIRerankModel extends VoyageAIModel {
         );
     }
 
-    private VoyageAIRerankModel(VoyageAIRerankModel model, VoyageAIRerankTaskSettings taskSettings) {
+    private VoyageAIEmbeddingsModel(VoyageAIEmbeddingsModel model, VoyageAIEmbeddingsTaskSettings taskSettings) {
         super(model, taskSettings);
     }
 
-    @Override
-    public VoyageAIRerankServiceSettings getServiceSettings() {
-        return (VoyageAIRerankServiceSettings) super.getServiceSettings();
+    public VoyageAIEmbeddingsModel(VoyageAIEmbeddingsModel model, VoyageAIEmbeddingsServiceSettings serviceSettings) {
+        super(model, serviceSettings);
     }
 
     @Override
-    public VoyageAIRerankTaskSettings getTaskSettings() {
-        return (VoyageAIRerankTaskSettings) super.getTaskSettings();
+    public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
+        return (VoyageAIEmbeddingsServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public VoyageAIEmbeddingsTaskSettings getTaskSettings() {
+        return (VoyageAIEmbeddingsTaskSettings) super.getTaskSettings();
     }
 
     @Override
     public DefaultSecretSettings getSecretSettings() {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
-
 
 }

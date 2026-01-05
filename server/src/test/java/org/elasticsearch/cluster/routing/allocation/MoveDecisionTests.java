@@ -123,7 +123,6 @@ public class MoveDecisionTests extends ESTestCase {
         assertEquals(moveDecision.getTargetNode(), readDecision.getTargetNode());
         assertEquals(moveDecision.getAllocationDecision(), readDecision.getAllocationDecision());
         // node2 should have the highest sort order
-        assertEquals("node2", moveDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertEquals("node2", readDecision.getNodeDecisions().iterator().next().getNode().getId());
     }
 

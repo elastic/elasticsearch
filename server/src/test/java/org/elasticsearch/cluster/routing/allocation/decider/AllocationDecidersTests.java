@@ -56,11 +56,11 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     public void testCheckAllDecidersBeforeReturningThrottle() {
-        var allDecisions = generateDecisions(Decision.THROTTLE, () -> Decision.YES);
+        var allDecisions = generateDecisions(Decision.THROTTLE, () -> randomFrom(Decision.YES, Decision.NOT_PREFERRED));
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF -> Decision.THROTTLE;
-            case EXCLUDE_YES_DECISIONS -> new Decision.Multi().add(Decision.THROTTLE);
+            case EXCLUDE_YES_DECISIONS -> filterAndCollectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
             case ON -> collectToMultiDecision(allDecisions);
         };
 
@@ -68,7 +68,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     public void testCheckAllDecidersBeforeReturningNotPreferred() {
-        var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> randomFrom(Decision.YES, Decision.THROTTLE));
+        var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> Decision.YES);
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
             case OFF -> Decision.NOT_PREFERRED;

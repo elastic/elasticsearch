@@ -531,15 +531,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // with the shard remaining on the current node, and we are allowed to allocate to the
                     // node in question, then allow the rebalance
                     if (rebalanceConditionsMet && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
-                        // Overwrite the best decision since it is better than the last. This means that YES/THROTTLE decisions will replace
-                        // NOT_PREFERRED/NO decisions, and a YES decision will replace a THROTTLE decision. NOT_PREFERRED will also replace
-                        // NO, even if neither are acted upon for rebalancing, for allocation explain purposes.
+                        // rebalance to the node, only will get overwritten if the decision here is to
+                        // THROTTLE and we get a decision with YES on another node
                         bestRebalanceCanAllocateDecisionType = canAllocate.type();
-                        if (canAllocate.type().higherThan(Type.NOT_PREFERRED)) {
-                            // Movement is only allowed to THROTTLE/YES nodes. NOT_PREFERRED is the same as no for rebalancing, since
-                            // rebalancing aims to distribute resource usage and NOT_PREFERRED means the move could cause hot-spots.
-                            targetNode = node;
-                        }
+                        targetNode = node;
                     }
                 }
                 Tuple<ModelNode, Decision> nodeResult = Tuple.tuple(node, canAllocate);
@@ -1047,12 +1042,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
                     if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
-                        // Whether or not a relocation target node can be found, it's important to explain the canAllocate response as
-                        // NOT_PREFERRED, as opposed to NO.
-                        bestDecision = Type.NOT_PREFERRED;
-                        // Relocating a shard from one NOT_PREFERRED node to another NOT_PREFERRED node would not improve the situation.
+                        // Relocating a shard from one NOT_PREFERRED node to another would not improve the situation.
                         continue;
                     }
+
                     if (allocationDecision.type().higherThan(bestDecision)) {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
@@ -1064,12 +1057,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                         } else if (bestDecision == Type.NOT_PREFERRED) {
                             assert remainDecision.type() != Type.NOT_PREFERRED;
-                            // If we don't ever find a YES/THROTTLE decision, we'll settle for NOT_PREFERRED as preferable to NO.
+                            // If we don't ever find a YES decision, we'll settle for NOT_PREFERRED as preferable to NO.
                             targetNode = target;
-                        } else if (bestDecision == Type.THROTTLE) {
-                            assert allocation.isSimulating() == false;
-                            // THROTTLE is better than NOT_PREFERRED, we just need to wait for a YES.
-                            targetNode = null;
                         }
                     }
                 }

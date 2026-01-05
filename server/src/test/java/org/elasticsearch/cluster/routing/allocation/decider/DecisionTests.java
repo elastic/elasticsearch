@@ -25,11 +25,11 @@ import static org.elasticsearch.cluster.routing.allocation.decider.Decision.Type
 public class DecisionTests extends ESTestCase {
 
     public void testTypeEnumOrder() {
-        EnumSerializationTestUtils.assertEnumSerialization(Decision.Type.class, NO, NOT_PREFERRED, THROTTLE, YES);
+        EnumSerializationTestUtils.assertEnumSerialization(Decision.Type.class, NO, THROTTLE, NOT_PREFERRED, YES);
     }
 
     public void testTypeHigherThan() {
-        assertTrue(YES.higherThan(THROTTLE) && THROTTLE.higherThan(NOT_PREFERRED) && NOT_PREFERRED.higherThan(NO));
+        assertTrue(YES.higherThan(NOT_PREFERRED) && NOT_PREFERRED.higherThan(THROTTLE) && THROTTLE.higherThan(NO));
     }
 
     public void testTypeAllowed() {

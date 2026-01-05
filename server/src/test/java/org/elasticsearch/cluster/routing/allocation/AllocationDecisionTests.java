@@ -15,9 +15,15 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecision.ADD_NOT_PREFERRED_ALLOCATION_DECISION;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecision.NOT_PREFERRED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecision.REVERT_ADD_NOT_PREFERRED_ALLOCATION_DECISION;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecision.YES;
 
 /**
  * Tests for the {@link AllocationDecision} enum.
@@ -31,31 +37,90 @@ public class AllocationDecisionTests extends ESTestCase {
         AllocationDecision allocationDecision = randomFrom(AllocationDecision.values());
         BytesStreamOutput output = new BytesStreamOutput();
         allocationDecision.writeTo(output);
-        assertEquals(allocationDecision, AllocationDecision.readFrom(output.bytes().streamInput()));
+        AllocationDecision expectedAllocationDecision = allocationDecision == NOT_PREFERRED ? YES : allocationDecision;
+        assertEquals(expectedAllocationDecision, AllocationDecision.readFrom(output.bytes().streamInput()));
     }
 
-    // Testing for ADD_NOT_PREFERRED_ALLOCATION_DECISION TransportVersion.
-    public void testSerializationBackwardsCompatibility() throws IOException {
+    // A NOT_PREFERRED allocation decision was introduced under the transport version ADD_NOT_PREFERRED_ALLOCATION_DECISION, and then
+    // reverted under REVERT_ADD_NOT_PREFERRED_ALLOCATION_DECISION
+    // Therefore, for all transport versions before and not including ADD_NOT_PREFERRED_ALLOCATION_DECISION, and for all transport versions
+    // including REVERT_ADD_NOT_PREFERRED_ALLOCATION_DECISION onwards, NOT_PREFERRED should not be returned.
+    public void testSerializationWithoutNotPreferredAllocationDecision() throws IOException {
+        TransportVersion transportVersion = randomFrom(
+            // All transport versions up to and not including ADD_NOT_PREFERRED_ALLOCATION_DECISION
+            TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.minimumCompatible(),
+                TransportVersionUtils.getPreviousVersion(ADD_NOT_PREFERRED_ALLOCATION_DECISION)
+            ),
+            // All subsequent transport versions after the reversion
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.current(), REVERT_ADD_NOT_PREFERRED_ALLOCATION_DECISION)
+        );
         {
             // NOT_PREFERRED should be converted to YES on writeTo.
             AllocationDecision allocationDecision = AllocationDecision.NOT_PREFERRED;
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setTransportVersion(TransportVersion.minimumCompatible());
+            output.setTransportVersion(transportVersion);
             allocationDecision.writeTo(output);
             assertEquals(AllocationDecision.YES, AllocationDecision.readFrom(output.bytes().streamInput()));
             StreamInput input = output.bytes().streamInput();
-            input.setTransportVersion(TransportVersion.minimumCompatible());
-            assertEquals(AllocationDecision.readFrom(input), AllocationDecision.YES);
+            input.setTransportVersion(transportVersion);
+            assertEquals(AllocationDecision.YES, AllocationDecision.readFrom(input));
         }
         {
             // YES and THROTTLE are unaffected by writeTo or readFrom. The enum ID values did not change.
             AllocationDecision allocationDecision = randomFrom(AllocationDecision.YES, AllocationDecision.THROTTLED);
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setTransportVersion(TransportVersion.minimumCompatible());
+            output.setTransportVersion(transportVersion);
             allocationDecision.writeTo(output);
             assertEquals(allocationDecision.id, AllocationDecision.readFrom(output.bytes().streamInput()).id);
             StreamInput input = output.bytes().streamInput();
-            input.setTransportVersion(TransportVersion.minimumCompatible());
+            input.setTransportVersion(transportVersion);
+            assertEquals(allocationDecision, AllocationDecision.readFrom(input));
+        }
+        {
+            // All other allocation decisions ate also unaffected
+            AllocationDecision allocationDecision = AllocationDecision.values()[randomByteBetween(
+                AllocationDecision.NO.id,
+                AllocationDecision.NO_ATTEMPT.id
+            )];
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setTransportVersion(transportVersion);
+            allocationDecision.writeTo(output);
+            assertEquals(allocationDecision.id, AllocationDecision.readFrom(output.bytes().streamInput()).id);
+            StreamInput input = output.bytes().streamInput();
+            input.setTransportVersion(transportVersion);
+            assertEquals(allocationDecision, AllocationDecision.readFrom(input));
+        }
+    }
+
+    // A NOT_PREFERRED allocation decision was introduced under the transport version ADD_NOT_PREFERRED_ALLOCATION_DECISION, and then
+    // reverted under REVERT_ADD_NOT_PREFERRED_ALLOCATION_DECISION
+    // Therefore, for all transport versions between these two, we expect NOT_PREFERRED to be a valid allocation decision
+    public void testSerializationWithNotPreferredAllocationDecision() throws IOException {
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            ADD_NOT_PREFERRED_ALLOCATION_DECISION,
+            TransportVersionUtils.getPreviousVersion(REVERT_ADD_NOT_PREFERRED_ALLOCATION_DECISION)
+        );
+        {
+            AllocationDecision allocationDecision = AllocationDecision.NOT_PREFERRED;
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setTransportVersion(transportVersion);
+            allocationDecision.writeTo(output);
+            StreamInput input = output.bytes().streamInput();
+            input.setTransportVersion(transportVersion);
+            assertEquals(AllocationDecision.NOT_PREFERRED, AllocationDecision.readFrom(input));
+        }
+        {
+            // YES and THROTTLE are unaffected by writeTo or readFrom. The enum ID values did not change.
+            AllocationDecision allocationDecision = randomFrom(AllocationDecision.YES, AllocationDecision.THROTTLED);
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setTransportVersion(transportVersion);
+            allocationDecision.writeTo(output);
+            assertEquals(allocationDecision.id, AllocationDecision.readFrom(output.bytes().streamInput()).id);
+            StreamInput input = output.bytes().streamInput();
+            input.setTransportVersion(transportVersion);
             assertEquals(allocationDecision, AllocationDecision.readFrom(input));
         }
         {
@@ -66,12 +131,10 @@ public class AllocationDecisionTests extends ESTestCase {
                 AllocationDecision.NO_ATTEMPT.id
             )];
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setTransportVersion(TransportVersion.minimumCompatible());
+            output.setTransportVersion(transportVersion);
             allocationDecision.writeTo(output);
-            // Without the minimumCompatible version set on the input stream, we'll see the old enum ID, which is -1 compared to the new.
-            assertEquals(allocationDecision.id, AllocationDecision.readFrom(output.bytes().streamInput()).id + 1);
             StreamInput input = output.bytes().streamInput();
-            input.setTransportVersion(TransportVersion.minimumCompatible());
+            input.setTransportVersion(transportVersion);
             assertEquals(allocationDecision, AllocationDecision.readFrom(input));
         }
     }

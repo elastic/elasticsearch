@@ -368,7 +368,9 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     public enum NodeStringFormat {
+        /** No list truncation, no line breaks due to string width. */
         FULL,
+        /** List truncation and line breaks due to string width applied. */
         LIMITED
     }
 

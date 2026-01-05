@@ -47,7 +47,8 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomNodeHeapUsage(),
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
-            randomMaxHeapSizes()
+            randomMaxHeapSizes(),
+            Map.of()
         );
     }
 

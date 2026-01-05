@@ -324,6 +324,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     .filter(ignored -> randomBoolean()) // some write-loads are missing altogether
                     .collect(Collectors.toMap(ShardRouting::shardId, ignored -> 0.0d))  // the rest are zero
             )
+            .setNodesWriteLoadHotspottingFromNodeUsageStats(highLatencyThreshold)
             .build();
 
         final var clusterSettings = createBuiltInClusterSettings(settings);
@@ -343,7 +344,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertEquals(1, routingAllocation.routingNodes().node(overloadedNode.getId()).numberOfOwningShards());
         assertEquals(3, routingAllocation.routingNodes().node(otherNode.getId()).numberOfOwningShards());
 
-        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation, clusterSettings);
+        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
         final var movedShards = new HashSet<ShardRouting>();
         for (RoutingNode routingNode : routingAllocation.routingNodes()) {
             movedShards.addAll(routingNode.shardsWithState(ShardRoutingState.INITIALIZING).collect(Collectors.toSet()));
@@ -401,13 +402,13 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             new ThreadPoolUsageStats(
                                 numThreads,
                                 randomFloatBetween(0.0f, highUtilizationThreshold, false),
-                                randomLongBetween(highLatencyThreshold, highLatencyThreshold * 2),
-                                true
+                                randomLongBetween(highLatencyThreshold, highLatencyThreshold * 2)
                             )
                         )
                     )
                 )
             )
+            .setNodesWriteLoadHotspottingFromNodeUsageStats(highLatencyThreshold)
             .build();
 
         final var clusterSettings = createBuiltInClusterSettings(settings);
@@ -555,6 +556,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(nodeIdToNodeUsageStatsForThreadPools)
             .shardWriteLoads(shardIdToWriteLoadEstimate)
+            .setNodesWriteLoadHotspottingFromNodeUsageStats(10_000)
             .build();
 
         /**

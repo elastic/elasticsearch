@@ -89,7 +89,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             } else {
                 return Decision.NOT_PREFERRED;
             }
-        } else if (nodeWriteThreadPoolStats.isHotspotting()) {
+        } else if (allocation.clusterInfo().nodeIsWriteLoadHotspotting(node.nodeId())) {
             return allocation.decision(
                 Decision.NOT_PREFERRED,
                 NAME,

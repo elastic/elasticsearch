@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -109,6 +110,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
     private final EstimatedHeapUsageCollector estimatedHeapUsageCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
+    private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
@@ -145,6 +147,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         );
 
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
+        this.writeLoadConstraintSettings = new WriteLoadConstraintSettings(clusterSettings);
     }
 
     private void setDiskThresholdEnabled(boolean diskThresholdEnabled) {
@@ -462,13 +465,17 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         private ClusterInfo updateAndGetCurrentClusterInfo() {
-            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
+            final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>(maxHeapPerNode.size());
             maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
                 final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
                 if (estimatedHeapUsage != null) {
                     estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
                 }
             });
+            final Map<String, Boolean> nodesWriteLoadHotspotting = ClusterInfo.buildNodesWriteLoadHotspottingTable(
+                nodeThreadPoolUsageStatsPerNode,
+                writeLoadConstraintSettings.getQueueLatencyThreshold().millis());
+
             final var newClusterInfo = new ClusterInfo(
                 leastAvailableSpaceUsages,
                 mostAvailableSpaceUsages,
@@ -479,7 +486,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 estimatedHeapUsages,
                 nodeThreadPoolUsageStatsPerNode,
                 indicesStatsSummary.shardWriteLoads(),
-                maxHeapPerNode
+                maxHeapPerNode,
+                nodesWriteLoadHotspotting
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;

@@ -1,0 +1,5 @@
+pr: 140175
+summary: Revert "Return NOT_PREFERRED decisions in allocation explain"
+area: Allocation
+type: bug
+issues: []

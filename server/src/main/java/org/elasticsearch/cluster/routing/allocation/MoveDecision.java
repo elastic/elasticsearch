@@ -317,6 +317,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.field("rebalance_explanation", getExplanation());
             } else {
                 builder.field("can_move_to_other_node", cannotRemainAndCanMove() ? "yes" : "no");
+                builder.field("move_explanation", getExplanation());
             }
             return builder;
         }), nodeDecisionsToXContentChunked(nodeDecisions));

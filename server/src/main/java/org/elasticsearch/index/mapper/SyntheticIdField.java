@@ -18,7 +18,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 
-import java.io.IOException;
 import java.util.Map;
 
 public final class SyntheticIdField extends Field {
@@ -28,9 +27,9 @@ public final class SyntheticIdField extends Field {
     private static final String ENABLED_ATTRIBUTE_KEY = SyntheticIdField.class.getSimpleName() + ".enabled";
     private static final String ENABLED_ATTRIBUTE_VALUE = Boolean.TRUE.toString();
 
-    private static final TokenStream EMPTY_TOKE_STREAM = new TokenStream() {
+    private static final TokenStream EMPTY_TOKEN_STREAM = new TokenStream() {
         @Override
-        public boolean incrementToken() throws IOException {
+        public boolean incrementToken() {
             return false;
         }
     };
@@ -63,7 +62,7 @@ public final class SyntheticIdField extends Field {
 
     @Override
     public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
-        return EMPTY_TOKE_STREAM;
+        return EMPTY_TOKEN_STREAM;
     }
 
     @Override

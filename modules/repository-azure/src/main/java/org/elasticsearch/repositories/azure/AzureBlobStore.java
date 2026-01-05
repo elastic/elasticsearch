@@ -1098,7 +1098,7 @@ public class AzureBlobStore implements BlobStore {
             long contentLength,
             ByteBufAllocator allocator,
             @Nullable String ifMatchETag
-        ) throws IOException {
+        ) {
             rangeLength = Math.min(rangeLength, contentLength - rangeOffset);
             final BlobRange range = new BlobRange(rangeOffset, rangeLength);
             final DownloadRetryOptions downloadRetryOptions = new DownloadRetryOptions().setMaxRetryRequests(0);
@@ -1200,21 +1200,17 @@ public class AzureBlobStore implements BlobStore {
         }
 
         @Nullable
-        private ByteBuf getNextByteBuf() throws IOException {
-            try {
-                if (byteBuf == null && cancellableRateLimitedFluxIterator.hasNext() == false) {
-                    return null;
-                }
-
-                if (byteBuf != null) {
-                    return byteBuf;
-                }
-
-                byteBuf = cancellableRateLimitedFluxIterator.next();
-                return byteBuf;
-            } catch (Exception e) {
-                throw new IOException("Unable to read blob", e.getCause());
+        private ByteBuf getNextByteBuf() {
+            if (byteBuf == null && cancellableRateLimitedFluxIterator.hasNext() == false) {
+                return null;
             }
+
+            if (byteBuf != null) {
+                return byteBuf;
+            }
+
+            byteBuf = cancellableRateLimitedFluxIterator.next();
+            return byteBuf;
         }
     }
 

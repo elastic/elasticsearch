@@ -74,7 +74,9 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         }
         builder.field("running_time_in_nanos", taskInfo.runningTimeNanos());
         builder.field("cancelled", taskInfo.cancelled());
-        builder.field("status", taskInfo.status(), params);
+        if (taskInfo.status() != null) {
+            builder.field("status", taskInfo.status(), params);
+        }
 
         return builder;
     }

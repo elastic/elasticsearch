@@ -22,6 +22,12 @@
         }
       ]
     },
-    "params": {}
+    "params": {
+      "detailed": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return detailed reindex information (default: false)"
+      }
+    }
   }
 }

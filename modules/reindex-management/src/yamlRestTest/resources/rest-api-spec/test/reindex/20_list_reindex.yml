@@ -75,6 +75,7 @@ setup:
   - do:
       reindex.list:
         human: true
+        detailed: true
   - is_true: reindex
   - length: { reindex: 1 }
   - match: { reindex.0.id: $taskId }
@@ -185,7 +186,7 @@ setup:
   - exists: reindex.0.start_time_in_millis
   - exists: reindex.0.running_time
   - exists: reindex.0.running_time_in_nanos
-  - exists: reindex.0.status
+  - is_false: reindex.0.status
 
   # Increase speed to finish test faster
   - do:

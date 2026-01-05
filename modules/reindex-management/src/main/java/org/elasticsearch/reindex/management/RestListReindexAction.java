@@ -54,7 +54,8 @@ public class RestListReindexAction extends BaseRestHandler {
             throw new IllegalArgumentException("endpoint not supported on all nodes in the cluster");
         }
 
-        ListReindexRequest listReindexRequest = new ListReindexRequest().setActions(ReindexAction.NAME);
+        boolean detailed = request.paramAsBoolean("detailed", false);
+        ListReindexRequest listReindexRequest = new ListReindexRequest().setActions(ReindexAction.NAME).setDetailed(detailed);
         return channel -> client.execute(TransportListReindexAction.TYPE, listReindexRequest, new RestChunkedToXContentListener<>(channel));
     }
 

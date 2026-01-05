@@ -67,6 +67,6 @@ public class TransportListReindexAction extends TransportTasksProjectAction<Task
 
     @Override
     protected void taskOperation(CancellableTask actionTask, ListReindexRequest request, Task task, ActionListener<TaskInfo> listener) {
-        listener.onResponse(task.taskInfo(clusterService.localNode().getId(), true));
+        listener.onResponse(task.taskInfo(clusterService.localNode().getId(), request.getDetailed()));
     }
 }

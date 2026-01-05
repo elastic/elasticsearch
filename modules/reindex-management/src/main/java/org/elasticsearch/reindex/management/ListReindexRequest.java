@@ -19,17 +19,30 @@ import java.io.IOException;
 
 public class ListReindexRequest extends BaseTasksRequest<ListReindexRequest> {
 
+    private boolean detailed = false;
+
     public ListReindexRequest() {
         super();
     }
 
     public ListReindexRequest(StreamInput in) throws IOException {
         super(in);
+        detailed = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeBoolean(detailed);
+    }
+
+    public boolean getDetailed() {
+        return this.detailed;
+    }
+
+    public ListReindexRequest setDetailed(boolean detailed) {
+        this.detailed = detailed;
+        return this;
     }
 
     @Override

@@ -28,7 +28,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -333,7 +332,7 @@ public class TopNOperator implements Operator, Accountable {
      */
     private long rowsEmitted;
 
-    private boolean sortedInput;
+    private final boolean sortedInput;
 
     public TopNOperator(
         BlockFactory blockFactory,
@@ -535,7 +534,9 @@ public class TopNOperator implements Operator, Accountable {
         boolean success = false;
         try {
             if (sortedInput) {
-                list.addAll(inputSortedVector);
+                for (int i = 0; i < inputSortedVector.size(); ++i) {
+                    list.add(inputSortedVector.get(i));
+                }
                 inputSortedVector.clear();
                 inputSortedVector.close();
                 inputSortedVector = null;
@@ -728,10 +729,12 @@ public class TopNOperator implements Operator, Accountable {
             + "]";
     }
 
-    private static class BoundedSortedVector extends ArrayList<Row> implements Accountable, Releasable {
+    private static class BoundedSortedVector implements Accountable, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BoundedSortedVector.class);
         private final CircuitBreaker breaker;
         private final int maxSize;
+        private Row[] elements;
+        private int size;
 
         /**
          * Track memory usage in the breaker then build the {@link BoundedSortedVector}.
@@ -742,44 +745,38 @@ public class TopNOperator implements Operator, Accountable {
         }
 
         private BoundedSortedVector(CircuitBreaker breaker, int maxSize) {
-            super(maxSize);
+            elements = new Row[maxSize];
             this.breaker = breaker;
             this.maxSize = maxSize;
+            this.size = 0;
         }
 
         private void checkSize() {
-            if (size() >= maxSize) {
+            if (size >= maxSize) {
                 throw new IllegalStateException("Cannot add more elements: maximum size of " + maxSize + " reached.");
             }
         }
 
-        @Override
-        public boolean add(Row row) {
+        public void add(Row row) {
             checkSize();
-            return super.add(row);
+            elements[size] = row;
+            ++size;
         }
 
-        @Override
-        public boolean addAll(Collection<? extends Row> c) {
-            checkSize();
-            return super.addAll(c);
+        public Row get(int i) {
+            return elements[i];
         }
 
-        @Override
-        public void add(int index, Row element) {
-            checkSize();
-            super.add(index, element);
+        public void set(int i, Row row) {
+            elements[i] = row;
         }
 
-        @Override
-        public boolean addAll(int index, Collection<? extends Row> c) {
-            checkSize();
-            return super.addAll(index, c);
+        public void clear() {
+            this.elements = null;
         }
-
         @Override
         public String toString() {
-            return size() + "/" + maxSize;
+            return size + "/" + maxSize;
         }
 
         @Override
@@ -788,7 +785,7 @@ public class TopNOperator implements Operator, Accountable {
             total += RamUsageEstimator.alignObjectSize(
                 RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) maxSize)
             );
-            for (Row r : this) {
+            for (Row r : elements) {
                 total += r == null ? 0 : r.ramBytesUsed();
             }
             return total;
@@ -798,7 +795,7 @@ public class TopNOperator implements Operator, Accountable {
         public void close() {
             Releasables.close(
                 // Release all entries in the topn
-                Releasables.wrap(this),
+                this.elements != null ? Releasables.wrap(this.elements) : () -> {},
                 // Release the array itself
                 () -> breaker.addWithoutBreaking(-BoundedSortedVector.sizeOf(maxSize))
             );
@@ -810,6 +807,10 @@ public class TopNOperator implements Operator, Accountable {
                 RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount)
             );
             return total;
+        }
+
+        int size() {
+            return size;
         }
     }
 

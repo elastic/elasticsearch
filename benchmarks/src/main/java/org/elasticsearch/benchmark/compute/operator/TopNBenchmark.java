@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 @Warmup(iterations = 5)
-@Measurement(iterations = 7)
+@Measurement(iterations = 20)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
@@ -91,10 +91,10 @@ public class TopNBenchmark {
     @Param({ LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS })
     public String data;
 
-    @Param({ "false", "true" })
+    @Param({ "true", "false" })
     public boolean sortedInput;
 
-    @Param({ "10", "10000" })
+    @Param({ "10", "1000", "10000" })
     public int topCount;
 
     private static Operator operator(String data, int topCount, boolean sortedInput) {
@@ -200,6 +200,9 @@ public class TopNBenchmark {
     }
 
     private static void run(String data, int topCount, boolean sortedInput) {
+        if (sortedInput && (data.equals(BOOLEANS) || data.equals(BYTES_REFS))) {
+            return;
+        }
         try (Operator operator = operator(data, topCount, sortedInput)) {
             Page page = page(data);
             for (int i = 0; i < 1024; i++) {

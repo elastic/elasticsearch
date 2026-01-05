@@ -16,9 +16,11 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -162,8 +164,24 @@ class FlattenedFieldParser {
         }
 
         if (fieldType.hasDocValues()) {
-            context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
-            context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
+            if (context.documentParserContext.indexSettings()
+                .getIndexVersionCreated()
+                .onOrAfter(IndexVersions.FLATTENED_FIELD_USE_BINARY_DOC_VALUES)) {
+
+                MultiValuedBinaryDocValuesField.SeparateCount.addToFieldInDoc(
+                    context.documentParserContext.doc(),
+                    rootFieldFullPath,
+                    bytesValue
+                );
+                MultiValuedBinaryDocValuesField.SeparateCount.addToFieldInDoc(
+                    context.documentParserContext.doc(),
+                    keyedFieldFullPath,
+                    bytesKeyedValue
+                );
+            } else {
+                context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
+                context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
+            }
 
             if (fieldType.isDimension() == false || context.documentParserContext().getRoutingFields().isNoop()) {
                 return;

@@ -89,7 +89,9 @@ public enum LuceneFilesExtensions {
     // ivf vectors format
     MIVF("mivf", "IVF Metadata", true, false),
     CENIVF("cenivf", "IVF Centroid Data", false, true),
-    CLIVF("clivf", "IVF Cluster Data", false, true);
+    CLIVF("clivf", "IVF Cluster Data", false, true),
+    SFBFM("sfbfm", "Stored field bloom filter metadata", true, false),
+    SFBF("sfbf", "Stored field bloom filter bitset", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

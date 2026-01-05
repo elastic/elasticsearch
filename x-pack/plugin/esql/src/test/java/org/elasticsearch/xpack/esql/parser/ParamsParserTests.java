@@ -88,7 +88,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                         new Equals(EMPTY, attribute("f.2"), attribute("f3"))
                     )
                 ),
-                statement(
+                query(
                     query,
                     new QueryParams(
                         List.of(
@@ -141,7 +141,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                         new Equals(EMPTY, attribute("f3.*.f.4."), attribute("f.5.*.f.*.6"))
                     )
                 ),
-                statement(
+                query(
                     query,
                     new QueryParams(
                         List.of(
@@ -189,7 +189,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                     attribute("f.6*"),
                     attribute("f.6*")
                 ),
-                statement(
+                query(
                     query,
                     new QueryParams(
                         List.of(
@@ -245,7 +245,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                     attribute("f.*.13.f.14*"),
                     attribute("f.*.13.f.14*")
                 ),
-                statement(
+                query(
                     query,
                     new QueryParams(
                         List.of(
@@ -294,7 +294,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 params.get(7),
                 params.get(8)
             );
-            LogicalPlan plan = statement(
+            LogicalPlan plan = query(
                 query,
                 new QueryParams(
                     List.of(
@@ -398,7 +398,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 params.get(12),
                 params.get(13)
             );
-            LogicalPlan plan = statement(
+            LogicalPlan plan = query(
                 query,
                 new QueryParams(
                     List.of(
@@ -470,7 +470,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                     Map.of(),
                     List.of(new Alias(EMPTY, "f.2", attribute("f.3*")))
                 ),
-                statement(
+                query(
                     query,
                     new QueryParams(List.of(paramAsConstant("f1", "f.1.*"), paramAsConstant("f2", "f.2"), paramAsConstant("f3", "f.3*")))
                 )
@@ -490,7 +490,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 from test
                 | lookup join idx on {}.{} == {}.{}
                 | limit 1""", params.get(0), params.get(1), params.get(2), params.get(3));
-            LogicalPlan plan = statement(
+            LogicalPlan plan = query(
                 query,
                 new QueryParams(
                     List.of(
@@ -541,7 +541,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                     Map.of(),
                     List.of(new Alias(EMPTY, "f.3*.f.4.*", attribute("f.5.f.6*")))
                 ),
-                statement(
+                query(
                     query,
                     new QueryParams(
                         List.of(
@@ -596,7 +596,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                         new Equals(EMPTY, attribute("f.2"), new Literal(EMPTY, 100, INTEGER))
                     )
                 ),
-                statement(
+                query(
                     query,
                     new QueryParams(
                         List.of(
@@ -641,7 +641,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                     attribute("f.6*"),
                     attribute("f.6*")
                 ),
-                statement(
+                query(
                     query,
                     new QueryParams(
                         List.of(
@@ -657,7 +657,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
         }
 
         // mixed field name and field name pattern
-        LogicalPlan plan = statement(
+        LogicalPlan plan = query(
             "from test | keep ??f1, ?f2 | drop ?f3, ??f4 | lookup join idx on ??f5",
             new QueryParams(
                 List.of(
@@ -708,7 +708,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
             String param1 = randomBoolean() ? "?" : "??";
             String param2 = randomBoolean() ? "?" : "??";
             String param3 = randomBoolean() ? "?" : "??";
-            plan = statement(
+            plan = query(
                 LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
                 new QueryParams(List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")))
             );
@@ -825,7 +825,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
 
     public void testLikeParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            LogicalPlan anonymous = statement(
+            LogicalPlan anonymous = query(
                 // comment keeps following arguments on separate lines like other tests
                 "row a = \"abc\" | where a like ?",
                 new QueryParams(List.of(paramAsConstant(null, "a*")))
@@ -849,7 +849,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
 
     public void testLikeListParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            LogicalPlan positional = statement(
+            LogicalPlan positional = query(
                 "row a = \"abc\" | where a like ( ?1, ?2 )",
                 new QueryParams(List.of(paramAsConstant(null, "a*"), paramAsConstant(null, "b*")))
             );
@@ -873,7 +873,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
 
     public void testRLikeParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            LogicalPlan named = statement(
+            LogicalPlan named = query(
                 "row a = \"abc\" | where a rlike ?pattern",
                 new QueryParams(List.of(paramAsConstant("pattern", "a*")))
             );
@@ -896,7 +896,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
 
     public void testRLikeListParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            LogicalPlan named = statement(
+            LogicalPlan named = query(
                 "row a = \"abc\" | where a rlike ( ?p1, ?p2 )",
                 new QueryParams(List.of(paramAsConstant("p1", "a*"), paramAsConstant("p2", "b*")))
             );

@@ -293,7 +293,7 @@ public class CreateInferenceEndpointIT extends ESIntegTestCase {
         settings.put(API_KEY, randomIdentifier());
         // Always use a dimension that's a multiple of 8 because the BIT element type requires that
         settings.put(DIMENSIONS, randomIntBetween(1, 32) * 8);
-        ElementType elementType = randomFrom(ElementType.values());
+        ElementType elementType = randomValueOtherThan(ElementType.BFLOAT16, () -> randomFrom(ElementType.values()));
         settings.put(ELEMENT_TYPE, elementType.toString());
         if (elementType == ElementType.BIT) {
             // The only supported similarity measure for BIT vectors is L2_NORM

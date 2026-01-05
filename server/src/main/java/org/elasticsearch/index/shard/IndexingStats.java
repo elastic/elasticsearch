@@ -10,18 +10,15 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -397,13 +394,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     public IndexingStats(StreamInput in) throws IOException {
         totalStats = new Stats(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if (in.readBoolean()) {
-                Map<String, Stats> typeStats = in.readMap(Stats::new);
-                assert typeStats.size() == 1;
-                assert typeStats.containsKey(MapperService.SINGLE_MAPPING_NAME);
-            }
-        }
     }
 
     public IndexingStats(Stats totalStats) {
@@ -473,8 +463,5 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(false);
-        }
     }
 }

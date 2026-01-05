@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
-import org.gradle.tooling.BuildException
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
@@ -244,7 +243,6 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
               }
             }
             '''
-
     }
 
     boolean featureFailed() {
@@ -329,5 +327,72 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
         File getBuildFile() {
             return new File(projectDir, 'build.gradle')
         };
+
+        File file(String path) {
+            def file = new File(projectDir, path)
+            file.parentFile.mkdirs()
+            file
+        }
+
+        File createTest(String clazzName, String content = testMethodContent(false, false, 1)) {
+            def file = new File(projectDir, "src/test/java/org/acme/${clazzName}.java")
+            file.parentFile.mkdirs()
+            file << """
+            package org.acme;
+
+            import org.junit.Test;
+            import org.junit.Before;
+            import org.junit.After;
+            import org.junit.Assert;
+            import java.nio.*;
+            import java.nio.file.*;
+            import java.io.IOException;
+
+            public class $clazzName {
+
+                @Before
+                public void beforeTest() {
+                }
+
+                @After
+                public void afterTest() {
+                }
+
+                @Test
+                public void someTest1() {
+                    ${content}
+                }
+
+                @Test
+                public void someTest2() {
+                    ${content}
+                }
+            }
+        """
+        }
+
+        String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
+            return """
+            System.out.println(getClass().getSimpleName() + " executing");
+
+            ${withSystemExit ? """
+                    if(count <= ${timesFailing}) {
+                        System.exit(1);
+                    }
+                    """ : ''
+            }
+
+            ${fail ? """
+                    if(count <= ${timesFailing}) {
+                        try {
+                            Thread.sleep(2000);
+                        } catch(Exception e) {}
+                        Assert.fail();
+                    }
+                    """ : ''
+            }
+        """
+        }
+
     }
 }

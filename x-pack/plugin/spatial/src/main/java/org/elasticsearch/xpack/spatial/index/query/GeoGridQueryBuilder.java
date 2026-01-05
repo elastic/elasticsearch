@@ -18,6 +18,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
@@ -289,7 +290,7 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }

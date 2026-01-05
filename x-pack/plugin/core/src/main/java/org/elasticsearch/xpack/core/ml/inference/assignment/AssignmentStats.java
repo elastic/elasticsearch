@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -455,16 +454,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         allocationStatus = in.readOptionalWriteable(AllocationStatus::new);
         cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
         priority = in.readEnum(Priority.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            deploymentId = in.readString();
-        } else {
-            deploymentId = modelId;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-        } else {
-            adaptiveAllocationsSettings = null;
-        }
+        deploymentId = in.readString();
+        adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
     }
 
     public String getDeploymentId() {
@@ -638,12 +629,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(allocationStatus);
         out.writeOptionalWriteable(cacheSize);
         out.writeEnum(priority);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeString(deploymentId);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(adaptiveAllocationsSettings);
-        }
+        out.writeString(deploymentId);
+        out.writeOptionalWriteable(adaptiveAllocationsSettings);
     }
 
     @Override

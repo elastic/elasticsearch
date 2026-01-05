@@ -9,9 +9,18 @@ lexer grammar Promql;
 //
 // PromQL command with optional parameters and query text
 //
-DEV_PROMQL : {this.isDevVersion()}? 'promql' -> pushMode(PROMQL_PARAMS_MODE);
+DEV_PROMQL : {this.isDevVersion()}? 'promql' -> pushMode(PROMQL_MODE);
 
-mode PROMQL_PARAMS_MODE;
+mode PROMQL_MODE;
+
+// Used for for parameter names
+// Note that this overlaps with UNQUOTED_SOURCE which is needed for index patterns.
+// For parameter names we restrict to letters, digits, and underscores only - to avoid mistaking PromQL queries for parameter names.
+// Example: PROMQL step=1m foo{bar="baz"} - foo{bar should not be treated as a parameter name.
+// As UNQUOTED_SOURCE supports a superset of UNQUOTED_IDENTIFIER characters, we need to define UNQUOTED_IDENTIFIER before UNQUOTED_SOURCE.
+// This way, the lexer will match UNQUOTED_IDENTIFIER first when possible.
+// This requires us to duplicate the parsing for promql index patterns as we may get an UNQUOTED_IDENTIFIER token instead of UNQUOTED_SOURCE.
+PROMQL_UNQUOTED_IDENTIFIER : UNQUOTED_IDENTIFIER  -> type(UNQUOTED_IDENTIFIER);
 
 // Also support quoted identifiers and named parameters
 PROMQL_QUOTED_IDENTIFIER: QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);
@@ -29,49 +38,31 @@ PROMQL_COMMA : COMMA -> type(COMMA);
 PROMQL_PARAMS_PIPE : PIPE -> type(PIPE), popMode;
 
 // Opening paren starts query text capture
-PROMQL_LP : LP {this.incPromqlDepth();} -> type(LP), pushMode(PROMQL_QUERY_MODE);
+PROMQL_LP : LP {this.incPromqlDepth();} -> type(LP);
+PROMQL_NESTED_RP
+    : ')' {this.isPromqlQuery()}? {this.decPromqlDepth();} -> type(RP)
+    ;
+
+PROMQL_QUERY_RP
+    : ')' {!this.isPromqlQuery()}? {this.resetPromqlDepth();} -> type(RP), popMode
+    ;
 
 // Comments and whitespace
 PROMQL_PARAMS_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
 PROMQL_PARAMS_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
 PROMQL_PARAMS_WS : WS -> channel(HIDDEN);
 
-mode PROMQL_QUERY_MODE;
-
-// Nested opening parens - increment depth and emit LP token
-PROMQL_NESTED_LP
-    : '(' {this.incPromqlDepth();} -> type(LP)
-    ;
-
-// Query text - everything except parens and special characters
-PROMQL_QUERY_TEXT
-    : ( PROMQL_STRING_LITERAL | PROMQL_QUERY_COMMENT | ~[|()"'`#\r\n ] )+    // Exclude both ( and ) from text
-    ;
-
-// String literals (preserved with quotes as part of text)
-fragment PROMQL_STRING_LITERAL
-    : '"'  ( '\\' . | ~[\\"] )* '"'
-    | '\'' ( '\\' . | ~[\\'] )* '\''
-    | '`'  ~'`'* '`'
-    ;
-
 // PromQL-style comments (#)
-fragment PROMQL_QUERY_COMMENT
+PROMQL_QUERY_COMMENT
     : '#' ~[\r\n]* '\r'? '\n'?
     ;
 
-PROMQL_NESTED_RP
-    : ')' {this.isPromqlQuery()}? {this.decPromqlDepth();} -> type(RP)
+PROMQL_SINGLE_QUOTED_STRING
+    : '\'' ( '\\' . | ~[\\'] )* '\'';
+
+// catch-all lexer rule to capture other query content
+// must be after more specific rules
+// and only match single characters to avoid matching more than a specific rule as it would prevent that rule from matching
+PROMQL_OTHER_QUERY_CONTENT
+    : ~[|()"'`#\r\n ]
     ;
-
-PROMQL_QUERY_RP
-    : ')' {!this.isPromqlQuery()}? {this.resetPromqlDepth();} -> type(RP), popMode, popMode
-    ;
-
-// Pipe exits both modes
-PROMQL_QUERY_PIPE : PIPE -> type(PIPE), popMode, popMode;
-
-// ESQL-style comments
-PROMQL_QUERY_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
-PROMQL_QUERY_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
-PROMQL_QUERY_WS : WS -> channel(HIDDEN);

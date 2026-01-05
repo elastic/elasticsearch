@@ -113,7 +113,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.indices = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.runNodeLevelReduction = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+        if (in.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             this.reductionLateMaterialization = in.readBoolean();
         } else {
             this.reductionLateMaterialization = false;
@@ -136,7 +136,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(runNodeLevelReduction);
-        if (out.getTransportVersion().onOrAfter(REDUCE_LATE_MATERIALIZATION)) {
+        if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
         }
     }

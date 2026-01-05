@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
@@ -28,10 +29,12 @@ import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.zone.ZoneRulesException;
 import java.util.ArrayList;
@@ -50,9 +53,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
-public class DateParse extends EsqlScalarFunction implements TwoOptionalArguments {
+public class DateParse extends EsqlConfigurationFunction implements TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateParse",
@@ -101,9 +103,10 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
             description = "(Optional) Additional options for date parsing, specifying time zone and locale "
                 + "as <<esql-function-named-params,function named parameters>>.",
             optional = true
-        ) Expression third
+        ) Expression third,
+        Configuration configuration
     ) {
-        super(source, fields(first, second, third));
+        super(source, fields(first, second, third), configuration);
         this.first = first;
         this.second = second;
         this.third = third;
@@ -155,7 +158,8 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.readOptionalNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
         );
     }
 
@@ -218,13 +222,22 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
-    public static long process(BytesRef val, @Fixed DateFormatter formatter) throws IllegalArgumentException {
-        return dateTimeToLong(val.utf8ToString(), formatter);
+    public static long process(BytesRef val, @Fixed DateFormatter formatter, @Fixed ZoneId zoneId, @Fixed Locale locale)
+        throws IllegalArgumentException {
+        return parse(val.utf8ToString(), formatter, zoneId, locale);
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
-    static long process(BytesRef val, BytesRef formatter) throws IllegalArgumentException {
-        return dateTimeToLong(val.utf8ToString(), toFormatter(formatter));
+    static long process(BytesRef val, BytesRef formatter, @Fixed ZoneId zoneId, @Fixed Locale locale) throws IllegalArgumentException {
+        return parse(val.utf8ToString(), toFormatter(formatter, locale), zoneId, locale);
+    }
+
+    private static long parse(String date, DateFormatter formatter, ZoneId zoneId, Locale locale) {
+        try {
+            return DateFormatters.from(formatter.parse(date), locale, zoneId).toInstant().toEpochMilli();
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
     }
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
@@ -248,18 +261,13 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
         Expression field = field();
         Expression format = format();
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
-        if (format == null) {
-            return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
-        }
-        if (DataType.isString(format.dataType()) == false) {
-            throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
-        }
+
         var parsedOptions = this.parseOptions();
         String localeAsString = (String) parsedOptions.get(LOCALE_PARAM_NAME);
-        Locale locale = localeAsString == null ? null : LocaleUtils.parse(localeAsString);
+        Locale locale = localeAsString == null ? Locale.ROOT : LocaleUtils.parse(localeAsString);
 
         String timezoneAsString = (String) parsedOptions.get(TIME_ZONE_PARAM_NAME);
-        ZoneId timezone = null;
+        ZoneId timezone = configuration().zoneId();
         try {
             if (timezoneAsString != null) {
                 timezone = ZoneId.of(timezoneAsString);
@@ -268,26 +276,33 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
             throw new IllegalArgumentException("unsupported timezone [" + timezoneAsString + "]");
         }
 
+        if (format == null) {
+            return new DateParseConstantEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                DEFAULT_DATE_TIME_FORMATTER.withLocale(locale),
+                timezone,
+                locale
+            );
+        }
+        if (DataType.isString(format.dataType()) == false) {
+            throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
+        }
+
         if (format.foldable()) {
             try {
-                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()));
-                if (locale != null) {
-                    formatter = formatter.withLocale(locale);
-                }
-                if (timezone != null) {
-                    formatter = formatter.withZone(timezone);
-                }
-                return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
+                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), locale);
+                return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter, timezone, locale);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
         ExpressionEvaluator.Factory formatEvaluator = toEvaluator.apply(format);
-        return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator);
+        return new DateParseEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, timezone, locale);
     }
 
-    private static DateFormatter toFormatter(Object format) {
-        return forPattern(((BytesRef) format).utf8ToString());
+    private static DateFormatter toFormatter(Object format, Locale locale) {
+        return forPattern(((BytesRef) format).utf8ToString()).withLocale(locale);
     }
 
     @Override
@@ -296,7 +311,8 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
             source(),
             newChildren.get(0),
             newChildren.size() > 1 ? newChildren.get(1) : null,
-            newChildren.size() > 2 ? newChildren.get(2) : null
+            newChildren.size() > 2 ? newChildren.get(2) : null,
+            configuration()
         );
     }
 
@@ -307,6 +323,6 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
         Expression options = options();
         Expression first = format != null ? format : field;
         Expression second = format != null ? field : null;
-        return NodeInfo.create(this, DateParse::new, first, second, options);
+        return NodeInfo.create(this, DateParse::new, first, second, options, configuration());
     }
 }

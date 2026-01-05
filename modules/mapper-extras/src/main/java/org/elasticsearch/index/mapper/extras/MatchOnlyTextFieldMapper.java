@@ -14,6 +14,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -22,7 +24,6 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -30,7 +31,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
@@ -39,6 +42,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -297,12 +301,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
                 && keywordParent.ignoreAbove().valuesPotentiallyIgnored()) {
-                final String parentFallbackFieldName = keywordParent.syntheticSourceFallbackFieldName();
                 if (parent.isStored()) {
-                    return storedFieldFetcher(parentFieldName, parentFallbackFieldName);
+                    return combineFieldFetchers(
+                        storedFieldFetcher(parentFieldName),
+                        ignoredValuesDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
+                    );
                 } else if (parent.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(parentFallbackFieldName));
+                    return combineFieldFetchers(
+                        docValuesFieldFetcher(ifd),
+                        ignoredValuesDocValuesFieldFetcher(keywordParent.syntheticSourceFallbackFieldName())
+                    );
                 }
             }
 
@@ -325,22 +334,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             final KeywordFieldMapper.KeywordFieldType keywordDelegate
         ) {
             if (keywordDelegate.ignoreAbove().valuesPotentiallyIgnored()) {
-                // because we don't know whether the delegate field will be ignored during parsing, we must also check the current field
-                String fieldName = name();
+                String delegateFieldName = keywordDelegate.name();
+                // bc we don't know whether the delegate will ignore a value, we must also check the fallback field created by this
+                // match_only_text field
                 String fallbackName = syntheticSourceFallbackFieldName();
 
-                // delegate field names
-                String delegateFieldName = keywordDelegate.name();
-                String delegateFieldFallbackName = keywordDelegate.syntheticSourceFallbackFieldName();
-
                 if (keywordDelegate.isStored()) {
-                    return storedFieldFetcher(delegateFieldName, delegateFieldFallbackName, fieldName, fallbackName);
+                    return storedFieldFetcher(delegateFieldName, fallbackName);
                 } else if (keywordDelegate.hasDocValues()) {
                     var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
-                    return combineFieldFetchers(
-                        docValuesFieldFetcher(ifd),
-                        storedFieldFetcher(delegateFieldFallbackName, fieldName, fallbackName)
-                    );
+                    return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(fallbackName));
                 }
             }
 
@@ -355,23 +358,32 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
         }
 
-        private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(
-            IndexFieldData<?> ifd
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(IndexFieldData<?> ifd) {
+            return context -> {
+                SortedBinaryDocValues indexedValuesDocValues = ifd.load(context).getBytesValues();
+                return docId -> getValuesFromDocValues(indexedValuesDocValues, docId);
+            };
+        }
+
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> ignoredValuesDocValuesFieldFetcher(
+            String fieldName
         ) {
             return context -> {
-                var sortedBinaryDocValues = ifd.load(context).getBytesValues();
-                return docId -> {
-                    if (sortedBinaryDocValues.advanceExact(docId)) {
-                        var values = new ArrayList<>(sortedBinaryDocValues.docValueCount());
-                        for (int i = 0; i < sortedBinaryDocValues.docValueCount(); i++) {
-                            values.add(sortedBinaryDocValues.nextValue().utf8ToString());
-                        }
-                        return values;
-                    } else {
-                        return List.of();
-                    }
-                };
+                CustomBinaryDocValues ignoredValuesDocValues = new CustomBinaryDocValues(DocValues.getBinary(context.reader(), fieldName));
+                return docId -> getValuesFromDocValues(ignoredValuesDocValues, docId);
             };
+        }
+
+        private List<Object> getValuesFromDocValues(SortedBinaryDocValues docValues, int docId) throws IOException {
+            if (docValues.advanceExact(docId)) {
+                var values = new ArrayList<>(docValues.docValueCount());
+                for (int i = 0; i < docValues.docValueCount(); i++) {
+                    values.add(docValues.nextValue().utf8ToString());
+                }
+                return values;
+            } else {
+                return List.of();
+            }
         }
 
         private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String... names) {
@@ -498,7 +510,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
             return toIntervalsSource(
                 Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // wildcard queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -507,7 +519,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
             return toIntervalsSource(
                 Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // regexp queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // regexp queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -522,7 +534,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         ) {
             return toIntervalsSource(
                 Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
-                new MatchAllDocsQuery(), // range queries can be expensive, what should the approximation be?
+                Queries.ALL_DOCS_INSTANCE, // range queries can be expensive, what should the approximation be?
                 context
             );
         }
@@ -778,5 +790,47 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         return fieldLoader;
+    }
+
+    /**
+     * A wrapper around {@link BinaryDocValues} that exposes some quality of life functions. Note, these values are not sorted.
+     */
+    private static class CustomBinaryDocValues extends SortedBinaryDocValues {
+
+        private final BinaryDocValues binaryDocValues;
+        private final ByteArrayStreamInput stream;
+
+        private int docValueCount = 0;
+
+        CustomBinaryDocValues(BinaryDocValues binaryDocValues) {
+            this.binaryDocValues = binaryDocValues;
+            this.stream = new ByteArrayStreamInput();
+        }
+
+        @Override
+        public BytesRef nextValue() throws IOException {
+            // this function already knows how to decode the underlying bytes array, so no need to explicitly call VInt()
+            return stream.readBytesRef();
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            // if document has a value, read underlying bytes
+            if (binaryDocValues.advanceExact(docId)) {
+                BytesRef docValuesBytes = binaryDocValues.binaryValue();
+                stream.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
+                docValueCount = stream.readVInt();
+                return true;
+            }
+
+            // otherwise there is nothing to do
+            docValueCount = 0;
+            return false;
+        }
+
+        @Override
+        public int docValueCount() {
+            return docValueCount;
+        }
     }
 }

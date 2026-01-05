@@ -66,7 +66,7 @@ class ValuesFromManyReader extends ValuesReader {
         private final Block.Builder[] finalBuilders;
 
         /**
-         * The builder for the current shard. These start {@code null} and are filled in when we move
+         * The builders for the current shard. These start {@code null} and are filled in when we move
          * to the shard for the first time. When we finish with the shard we build a {@link Block}
          * and convert it to the target type and add it to {@link #finalBuilders}. Then we fill these
          * in for the next shard.
@@ -199,6 +199,21 @@ class ValuesFromManyReader extends ValuesReader {
             for (int f = 0; f < current.length; f++) {
                 try (Block orig = (Block) current[f].loader.convert(current[f].builder.build())) {
                     finalBuilders[f].copyFrom(orig, 0, orig.getPositionCount());
+                } finally {
+                    current[f].close();
+                    /*
+                     * Calling current[f].close() here is redundant. Once you call
+                     * `BlockBuilder#build`, `BlockBuilder#close` becomes a noop. Safe to call
+                     * but not required. But calling it is more idiomatic, so we do it.
+                     *
+                     * In many cases this is the last consumer from of the doc vector, so we
+                     * *could* aggressively free the shard context right here - as soon as we're
+                     * done with it. But we don't because:
+                     * 1. We don't know if we're the last user.
+                     * 2. We don't have a code path to free just a single segment's worth of
+                     *    references from the doc vector. It'd be easy to build, but much harder
+                     *    to build the path that causes us to *NOT* double free.
+                     */
                 }
             }
         }

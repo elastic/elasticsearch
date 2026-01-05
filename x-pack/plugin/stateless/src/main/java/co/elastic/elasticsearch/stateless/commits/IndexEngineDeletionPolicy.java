@@ -108,15 +108,7 @@ public class IndexEngineDeletionPolicy extends ElasticsearchIndexDeletionPolicy 
                 assert previous == null || previous.getGeneration() <= lastCommit.getGeneration();
                 final Set<String> additionalFiles = Lucene.additionalFileNames(previous, lastCommit);
                 var newCommit = acquireIndexCommit(false, true);
-                var successfulNotification = false;
-                try {
-                    commitsListener.onNewCommit(new Engine.IndexCommitRef(newCommit, () -> releaseIndexCommit(newCommit)), additionalFiles);
-                    successfulNotification = true;
-                } finally {
-                    if (successfulNotification == false) {
-                        releaseIndexCommit(newCommit);
-                    }
-                }
+                commitsListener.onNewCommit(new Engine.IndexCommitRef(newCommit, () -> releaseIndexCommit(newCommit)), additionalFiles);
             }
         }
 

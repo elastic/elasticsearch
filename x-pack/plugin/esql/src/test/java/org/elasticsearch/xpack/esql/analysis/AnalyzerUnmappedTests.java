@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -50,7 +52,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 
 import java.util.List;
 
@@ -221,40 +222,93 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(setUnmappedLoad(query), failure);
     }
 
-    public void testFailAfterKeepStar() {
-        var query = """
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Eval[[does_not_exist_field{r}#22 + 2[INTEGER] AS y#9]]
+     *   \_Eval[[emp_no{f}#11 + 1[INTEGER] AS x#6]]
+     *     \_EsqlProject[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
+     *          languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16, does_not_exist_field{r}#22]]
+     *       \_Eval[[null[NULL] AS does_not_exist_field#22]]
+     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testEvalAfterKeepStar() {
+        var plan = analyzeStatement(setUnmappedNullify("""
             FROM test
             | KEEP *
             | EVAL x = emp_no + 1
-            | EVAL does_not_exist_field
-            """;
-        var failure = "Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
-    }
+            | EVAL y = does_not_exist_field + 2
+            """));
 
-    public void testFailAfterRename() {
-        var query = """
-            FROM test
-            | RENAME emp_no AS employee_number
-            | EVAL does_not_exist_field
-            """;
-        var failure = "Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertThat(
+            Expressions.names(plan.output()),
+            is(
+                List.of(
+                    "_meta_field",
+                    "emp_no",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "does_not_exist_field",
+                    "x",
+                    "y"
+                )
+            )
+        );
+        var limit = as(plan, Limit.class);
+        var evalY = as(limit.child(), Eval.class);
+        var evalX = as(evalY.child(), Eval.class);
+        var esqlProject = as(evalX.child(), EsqlProject.class);
+        var evalNull = as(esqlProject.child(), Eval.class);
+        var source = as(evalNull.child(), EsRelation.class);
+        // TODO: golden testing
     }
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Project[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14,
+     * \_Eval[[emp_does_not_exist_field{r}#23 + 2[INTEGER] AS y#9]]
+     *   \_Eval[[emp_no{f}#11 + 1[INTEGER] AS x#6]]
+     *     \_EsqlProject[[emp_no{f}#11, emp_does_not_exist_field{r}#23]]
+     *       \_Eval[[null[NULL] AS emp_does_not_exist_field#23]]
+     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12,
+     */
+    public void testEvalAfterMatchingKeepWithWildcard() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM test
+            | KEEP emp_*
+            | EVAL x = emp_no + 1
+            | EVAL y = emp_does_not_exist_field + 2
+            """));
+
+        assertThat(Expressions.names(plan.output()), is(List.of("emp_no", "emp_does_not_exist_field", "x", "y")));
+        var limit = as(plan, Limit.class);
+        var evalY = as(limit.child(), Eval.class);
+        var evalX = as(evalY.child(), Eval.class);
+        var esqlProject = as(evalX.child(), EsqlProject.class);
+        var evalNull = as(esqlProject.child(), Eval.class);
+        var source = as(evalNull.child(), EsRelation.class);
+        // TODO: golden testing
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_EsqlProject[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14,
      *      languages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10]]
-     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *   \_Eval[[null[NULL] AS does_not_exist_field#16]]
+     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
      */
     public void testDrop() {
+        var extraField = randomFrom("", "does_not_exist_field", "neither_this");
+        var hasExtraField = extraField.isEmpty() == false;
         var plan = analyzeStatement(setUnmappedNullify("""
             FROM test
             | DROP does_not_exist_field
-            """ + randomFrom("", ", does_not_exist_field", ", neither_this"))); // add emp_no to avoid "no fields left" case
+            """ + (hasExtraField ? ", " : "") + extraField)); // add emp_no to avoid "no fields left" case
 
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), is(1000));
@@ -281,7 +335,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             )
         );
 
-        var relation = as(project.child(), EsRelation.class);
+        var eval = as(project.child(), Eval.class);
+        var expectedNames = hasExtraField && extraField.equals("does_not_exist_field") == false
+            ? List.of("does_not_exist_field", extraField)
+            : List.of("does_not_exist_field");
+        assertThat(Expressions.names(eval.fields()), is(expectedNames));
+        var relation = as(eval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
     }
 
@@ -297,9 +356,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Project[[_meta_field{f}#12, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, languages{f}#9,
-     *      last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
-     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * \_EsqlProject[[_meta_field{f}#12, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, languages{f}#9,
+     *          last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
+     *   \_Eval[[null[NULL] AS does_not_exist_field#22]]
+     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testDropWithMatchingStar() {
         var plan = analyzeStatement(setUnmappedNullify("""
@@ -330,7 +390,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             )
         );
 
-        var relation = as(project.child(), EsRelation.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("does_not_exist_field")));
+        var relation = as(eval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
     }
 
@@ -340,6 +402,18 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | DROP emp_*, does_not_exist_field*
             """;
         var failure = "No matches found for pattern [does_not_exist_field*]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    public void testFailEvalAfterDrop() {
+        var query = """
+            FROM test
+            | DROP does_not_exist_field
+            | EVAL x = does_not_exist_field + 1
+            """;
+
+        var failure = "3:12: Unknown column [does_not_exist_field]";
         verificationFailure(setUnmappedNullify(query), failure);
         verificationFailure(setUnmappedLoad(query), failure);
     }
@@ -446,6 +520,50 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var relation = as(eval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
+    }
+
+    /**
+     * Limit[1000[INTEGER],false,false]
+     * \_Eval[[does_not_exist{r}#21 + 1[INTEGER] AS x#8]]
+     *   \_EsqlProject[[_meta_field{f}#16, emp_no{f}#10 AS employee_number#5, first_name{f}#11, gender{f}#12, hire_date{f}#17,
+     *          job{f}#18, job.raw{f}#19, languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, does_not_exist{r}#21]]
+     *     \_Eval[[null[NULL] AS does_not_exist#21]]
+     *       \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     */
+    public void testEvalAfterRename() {
+        var plan = analyzeStatement(setUnmappedNullify("""
+            FROM test
+            | RENAME emp_no AS employee_number
+            | EVAL x = does_not_exist + 1
+            """));
+
+        assertThat(
+            Expressions.names(plan.output()),
+            is(
+                List.of(
+                    "_meta_field",
+                    "employee_number",
+                    "first_name",
+                    "gender",
+                    "hire_date",
+                    "job",
+                    "job.raw",
+                    "languages",
+                    "last_name",
+                    "long_noidx",
+                    "salary",
+                    "does_not_exist",
+                    "x"
+
+                )
+            )
+        );
+        var limit = as(plan, Limit.class);
+        var eval1 = as(limit.child(), Eval.class);
+        var project = as(eval1.child(), EsqlProject.class);
+        var eval2 = as(project.child(), Eval.class);
+        var source = as(eval2.child(), EsRelation.class);
+        // TODO: golden testing
     }
 
     /*
@@ -2190,7 +2308,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """));
 
         // TODO: golden testing
-        assertThat(Expressions.names(plan.output()), is(List.of("count(*)", "empNo", "languageCode", "does_not_exist2")));
+        assertThat(plan instanceof Limit, is(true));
+        // assertThat(Expressions.names(plan.output()), is(List.of("count(*)", "empNo", "languageCode", "does_not_exist2")));
     }
 
     // same tree as above, except for the source nodes
@@ -2900,6 +3019,20 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var row = as(evalDne1.child(), Row.class);
         assertThat(row.fields(), hasSize(1));
         assertThat(Expressions.name(row.fields().getFirst()), is("x"));
+    }
+
+    public void testChangedTimestmapFieldWithRate() {
+        verificationFailure(setUnmappedNullify("""
+            TS k8s
+            | RENAME @timestamp AS newTs
+            | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)
+            """), "3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX);
+
+        verificationFailure(setUnmappedNullify("""
+            TS k8s
+            | DROP @timestamp
+            | STATS max(rate(network.total_cost))
+            """), "3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX);
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

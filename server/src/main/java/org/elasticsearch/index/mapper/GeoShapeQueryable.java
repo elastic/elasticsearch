@@ -10,11 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.geo.LatLonGeometry;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.query.QueryShardException;
@@ -46,7 +46,7 @@ public interface GeoShapeQueryable {
             throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
         }
         if (luceneGeometries.length == 0) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         return geoShapeQuery(context, fieldName, relation, luceneGeometries);
     }

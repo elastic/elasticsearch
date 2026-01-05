@@ -2,11 +2,12 @@
 
 **Supported types**
 
-| number | window | result |
+| field | window | result |
 | --- | --- | --- |
 | aggregate_metric_double | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | double | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | exponential_histogram | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | integer | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | long | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
 

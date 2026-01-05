@@ -21,10 +21,10 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.IndexType;
 
@@ -93,7 +93,7 @@ public class XYQueriesUtils {
     private static Query buildContainsQuery(String fieldName, boolean isIndexed, boolean hasDocValues, XYGeometry... luceneGeometries) {
         // for non-point data the result is always false
         if (allPoints(luceneGeometries) == false) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         // for a unique point, it behaves like intersect
         if (luceneGeometries.length == 1) {
@@ -293,7 +293,7 @@ public class XYQueriesUtils {
         boolean hasDocValues = indexType.hasDocValues();
         assert indexed || hasDocValues;
         if (geometry == null || geometry.isEmpty()) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
         Query query;

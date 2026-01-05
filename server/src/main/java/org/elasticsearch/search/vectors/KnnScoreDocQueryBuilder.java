@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -70,19 +69,11 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         this.scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
         this.fieldName = in.readOptionalString();
         if (in.readBoolean()) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                this.queryVector = in.readOptionalWriteable(VectorData::new);
-            } else {
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-            }
+            this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
             this.queryVector = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.vectorSimilarity = in.readOptionalFloat();
-        } else {
-            this.vectorSimilarity = null;
-        }
+        this.vectorSimilarity = in.readOptionalFloat();
         if (in.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             this.filterQueries = readQueries(in);
         } else {
@@ -117,17 +108,11 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         out.writeOptionalString(fieldName);
         if (queryVector != null) {
             out.writeBoolean(true);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(queryVector);
-            } else {
-                out.writeFloatArray(queryVector.asFloatVector());
-            }
+            out.writeOptionalWriteable(queryVector);
         } else {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalFloat(vectorSimilarity);
-        }
+        out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             writeQueries(out, filterQueries);
         }

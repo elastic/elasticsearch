@@ -515,7 +515,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         }
 
         private LongArray sortByGroupInto(ValuesList sortedOutput) {
-            assert groupForValue != null : "Sorting by group has already been performed";
+            assert values.size() == 0 || groupForValue != null : "Sorting by group has already been performed";
 
             boolean success = false;
             LongArray groupCounts = null;

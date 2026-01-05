@@ -13,11 +13,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -33,7 +31,6 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -154,7 +151,7 @@ public class BatchDriverTests extends ESTestCase {
             // Start driver first
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
-            Driver.start(threadContext, threadPool.executor("esql"), batchDriver, 1000, driverFuture);
+            Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), batchDriver, 1000, driverFuture);
 
             // Feed all batches immediately in a separate thread (not via executor to avoid deadlock)
             Thread batchFeedingThread = new Thread(() -> {
@@ -211,7 +208,7 @@ public class BatchDriverTests extends ESTestCase {
             // Start driver
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
-            Driver.start(threadContext, threadPool.executor("esql"), batchDriver, 1000, driverFuture);
+            Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), batchDriver, 1000, driverFuture);
 
             // Feed batches in a way that triggers out-of-order error:
             // 1. Send batch 0 completely
@@ -329,7 +326,7 @@ public class BatchDriverTests extends ESTestCase {
             // Start driver
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> driverFuture = new PlainActionFuture<>();
-            Driver.start(threadContext, threadPool.executor("esql"), batchDriver, 1000, driverFuture);
+            Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), batchDriver, 1000, driverFuture);
 
             // Feed batches in a way that triggers out-of-order error:
             // 1. Send batch 0 completely
@@ -403,11 +400,8 @@ public class BatchDriverTests extends ESTestCase {
     }
 
     private ThreadPool threadPool() {
-        int numThreads = randomIntBetween(1, 10);
-        return new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
-        );
+        // TestThreadPool already includes SEARCH executor by default, no need to add it
+        return new TestThreadPool(getTestClass().getSimpleName());
     }
 
     private DriverContext driverContext() {
@@ -443,7 +437,7 @@ public class BatchDriverTests extends ESTestCase {
      * Set up exchange handlers and operators.
      */
     private ExchangeSetup setupExchange(DriverContext driverContext, ThreadPool threadPool) {
-        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(10, threadPool.executor("esql"));
+        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(10, threadPool.executor(ThreadPool.Names.SEARCH));
         ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), 10, System::currentTimeMillis);
         sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
 
@@ -569,7 +563,7 @@ public class BatchDriverTests extends ESTestCase {
                 processedBatches.incrementAndGet();
 
                 // Feed the next batch asynchronously in the callback
-                threadPool.executor("esql").execute(() -> {
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                     logger.info("[TEST] Batch callback: Executing feedBatch for next batch after batch {}", batchId);
                     feedBatch.run();
                 });
@@ -593,14 +587,14 @@ public class BatchDriverTests extends ESTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
 
         // Start driver first (Driver.start() is asynchronous and returns immediately)
-        Driver.start(threadContext, threadPool.executor("esql"), batchDriver, 1000, future);
+        Driver.start(threadContext, threadPool.executor(ThreadPool.Names.SEARCH), batchDriver, 1000, future);
 
         // Start batch feeding in a separate thread to create concurrent execution
         // This helps catch timing-related issues that might be hidden when everything runs sequentially
         Thread batchFeedingThread = new Thread(() -> {
             try {
                 // Feed first batch - this will trigger the callback chain
-                threadPool.executor("esql").execute(feedBatch);
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(feedBatch);
             } catch (Exception e) {
                 logger.error("[TEST] Error in batch feeding thread", e);
                 throw new AssertionError("Error in batch feeding thread", e);
@@ -1386,8 +1380,7 @@ public class BatchDriverTests extends ESTestCase {
         return new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                // Extract the underlying page if it's a BatchPage
-                Page actualPage = page instanceof BatchPage ? ((BatchPage) page).asPage() : page;
+                Page actualPage = page;
 
                 if (actualPage.getBlockCount() <= columnIndex) {
                     return driverContext.blockFactory().newConstantBooleanBlockWith(false, actualPage.getPositionCount());
@@ -1433,7 +1426,7 @@ public class BatchDriverTests extends ESTestCase {
         return new EvalOperator(driverContext, new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                Page actualPage = page instanceof BatchPage ? ((BatchPage) page).asPage() : page;
+                Page actualPage = page;
 
                 if (actualPage.getBlockCount() == 0) {
                     return driverContext.blockFactory().newConstantNullBlock(actualPage.getPositionCount());

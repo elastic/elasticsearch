@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
@@ -37,6 +39,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
@@ -103,6 +106,7 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
 public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase {
+    private static final Logger logger = LogManager.getLogger(StreamingLookupFromIndexOperatorTests.class);
     private static final int LOOKUP_SIZE = 1000;
     private static final int LESS_THAN_VALUE = 40;
     private final ThreadPool threadPool = threadPool();
@@ -123,6 +127,12 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
                     operations.add(new Object[] { operation });
                 }
             }
+        }
+
+        // Add 100 instances of GTE (temporary to test failing scenario)
+        for (int i = 0; i < 100; i++) {
+
+            operations.add(new Object[] { EsqlBinaryComparison.BinaryComparisonOperation.GTE });
         }
         return operations;
     }
@@ -403,15 +413,20 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
         DriverContext ctx = beCranky ? crankyDriverContext() : driverContext();
         BigArrays bigArrays = ctx.bigArrays();
         BlockFactory blockFactory = ctx.blockFactory();
+        TransportService transportService = transportService(clusterService);
+        ExchangeService exchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
+        exchangeService.registerTransportHandler(transportService);
+        releasables.add(exchangeService);  // Ensure ExchangeService is properly closed to stop scheduled tasks
         return new LookupFromIndexService(
             clusterService,
             indicesService,
             lookupShardContextFactory(),
-            transportService(clusterService),
+            transportService,
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            TestProjectResolvers.singleProject(projectId)
+            TestProjectResolvers.singleProject(projectId),
+            exchangeService
         );
     }
 
@@ -462,24 +477,26 @@ public class StreamingLookupFromIndexOperatorTests extends AsyncOperatorTestCase
             DirectoryReader reader = DirectoryReader.open(lookupIndexDirectory);
             SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
             var ctx = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), executionCtx, AliasFilter.EMPTY);
-            return new AbstractLookupService.LookupShardContext(ctx, executionCtx, () -> {
+            Releasable releasable = () -> {
+                logger.info("[TEST] Closing DirectoryReader and MapperService in shardContext releasable");
                 try {
                     IOUtils.close(reader, mapperService);
+                    logger.info("[TEST] DirectoryReader and MapperService closed successfully");
                 } catch (IOException e) {
+                    logger.error("[TEST] Exception closing DirectoryReader/MapperService", e);
                     throw new UncheckedIOException(e);
                 }
-            });
+            };
+            logger.info("[TEST] Created shardContext releasable: {}", releasable);
+            return new AbstractLookupService.LookupShardContext(ctx, executionCtx, releasable);
         };
     }
 
     @After
-    public void closeIndex() throws IOException {
-        IOUtils.close(lookupIndexDirectory);
-    }
-
-    @After
-    public void release() {
+    public void release() throws IOException {
         Releasables.close(Releasables.wrap(releasables.reversed()), () -> terminate(threadPool));
+        // Close index directory after releasing all resources to ensure DirectoryReader is fully closed
+        IOUtils.close(lookupIndexDirectory);
     }
 
     @Override

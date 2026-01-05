@@ -65,14 +65,6 @@ public class BatchPage extends Page {
     }
 
     /**
-     * Extract the underlying Page (which is this, since BatchPage IS a Page)
-     * Provided for convenience/consistency with wrapper patterns
-     */
-    public Page asPage() {
-        return this;
-    }
-
-    /**
      * Constructor for deserialization from StreamInput.
      */
     public BatchPage(StreamInput in) throws IOException {

@@ -129,6 +129,8 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
     protected final List<MatchConfig> matchFields;
     protected final PhysicalPlan rightPreJoinPlan;
     protected final Expression joinOnConditions;
+    // MatchFieldsMapping is the same for all batches (based on operator configuration, not input pages)
+    protected final MatchFieldsMapping matchFieldsMapping;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
@@ -167,11 +169,16 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
         this.source = source;
         this.rightPreJoinPlan = rightPreJoinPlan;
         this.joinOnConditions = joinOnConditions;
+        this.matchFieldsMapping = buildMatchFieldsMapping(matchFields, joinOnConditions);
     }
 
-    protected MatchFieldsMapping buildMatchFieldsMapping() {
+    /**
+     * Build MatchFieldsMapping from matchFields and joinOnConditions.
+     * This is a static method that can be called from constructors without "this-escape" warnings.
+     */
+    protected static MatchFieldsMapping buildMatchFieldsMapping(List<MatchConfig> matchFields, Expression joinOnConditions) {
         List<MatchConfig> newMatchFields = new ArrayList<>();
-        List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields);
+        List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields, joinOnConditions);
         Map<Integer, Integer> channelMapping = new HashMap<>();
         for (int i = 0; i < uniqueMatchFields.size(); i++) {
             MatchConfig matchField = uniqueMatchFields.get(i);
@@ -200,14 +207,13 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        MatchFieldsMapping mapping = buildMatchFieldsMapping();
-        Block[] inputBlockArray = applyMatchFieldsMapping(inputPage, mapping.channelMapping());
+        Block[] inputBlockArray = applyMatchFieldsMapping(inputPage, matchFieldsMapping.channelMapping());
 
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,
             lookupIndexPattern,
-            mapping.reindexedMatchFields(),
+            matchFieldsMapping.reindexedMatchFields(),
             new Page(inputBlockArray),
             loadFields,
             source,
@@ -222,7 +228,11 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
         );
     }
 
-    protected List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields) {
+    /**
+     * Get unique match fields by name, filtering duplicates if joinOnConditions is present.
+     * This is a static method that can be called from constructors without "this-escape" warnings.
+     */
+    protected static List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields, Expression joinOnConditions) {
         if (joinOnConditions == null) {
             return matchFields;
         }

@@ -437,7 +437,8 @@ public final class BatchDriver extends Driver {
             // For now, we'll mark all pages as not last, and let the marker page handle batch completion
             boolean isLastPageInBatch = false;
             BatchPage batchPage = new BatchPage(page, batchId, isLastPageInBatch);
-
+            // Release page - BatchPage now owns the blocks (it incremented ref counts in super(page))
+            page.releaseBlocks();
             // Pass BatchPage to delegate sink
             delegate.addInput(batchPage);
         }

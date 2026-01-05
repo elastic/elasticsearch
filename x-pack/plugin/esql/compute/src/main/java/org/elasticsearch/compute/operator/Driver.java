@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.exchange.BatchDetectionSinkOperator;
 import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.core.Nullable;
@@ -284,8 +285,10 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 driverContext.checkForEarlyTermination();
-                assert nextOp.isFinished() == false || nextOp instanceof ExchangeSinkOperator || nextOp instanceof LimitOperator
-                    : "next operator should not be finished yet: " + nextOp;
+                assert nextOp.isFinished() == false
+                    || nextOp instanceof ExchangeSinkOperator
+                    || nextOp instanceof LimitOperator
+                    || nextOp instanceof BatchDetectionSinkOperator : "next operator should not be finished yet: " + nextOp;
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration

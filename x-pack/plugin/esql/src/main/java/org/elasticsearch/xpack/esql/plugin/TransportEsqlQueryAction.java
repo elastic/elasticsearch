@@ -144,7 +144,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory(),
-            projectResolver
+            projectResolver,
+            exchangeService
         );
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(

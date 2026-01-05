@@ -134,6 +134,12 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     }
 
     @Before
+    public void ensureNonStreamingOperator() {
+        // Ensure the factory uses the non-streaming LookupFromIndexOperator
+        LookupFromIndexOperator.Factory.USE_STREAMING_OPERATOR = false;
+    }
+
+    @Before
     public void buildLookupIndex() throws IOException {
         numberOfJoinColumns = 1 + randomInt(1); // 1 or 2 join columns
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), lookupIndexDirectory)) {
@@ -403,7 +409,8 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            TestProjectResolvers.singleProject(projectId)
+            TestProjectResolvers.singleProject(projectId),
+            null // ExchangeService only needed for streaming
         );
     }
 

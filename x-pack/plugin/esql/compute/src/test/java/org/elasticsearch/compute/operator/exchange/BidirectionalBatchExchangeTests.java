@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -33,7 +32,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -523,13 +521,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             sessionId,
             "test-cluster",
             infra.clientExchangeService(),
-            threadPool.executor("esql"),
+            threadPool.executor(ThreadPool.Names.SEARCH),
             10,
             infra.clientTransportService(),
             mockTask,
             infra.serverTransportService().getLocalNode(),
             batchExchangeStatusListener,
-            driverContext,
+            driverContext.bigArrays(),
+            driverContext.blockFactory(),
             threadPool.getThreadContext()
         );
         logger.info("[TEST-CLIENT] Client initialized successfully");
@@ -697,7 +696,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 client.finish();
             } else {
                 // Feed the next batch asynchronously in the callback
-                threadPool.executor("esql").execute(() -> {
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                     logger.debug("[TEST-CLIENT] Batch callback: Executing feedBatch for next batch after batch {}", batchId);
                     feedBatch.run();
                 });
@@ -720,9 +719,6 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             timeoutSeconds,
             TimeUnit.SECONDS
         );
-
-        // Wait for client driver to finish processing after source finishes
-        client.waitForClientDriverToFinish(timeoutSeconds, TimeUnit.SECONDS);
 
         // Wait for batch exchange status response (should indicate success)
         batchExchangeStatusFuture.actionGet(timeoutSeconds, TimeUnit.SECONDS);
@@ -843,9 +839,9 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         AbstractSimpleTransportTestCase.connectToNode(serverTransportService, clientTransportService.getLocalNode());
 
         // Create separate exchange services for client and server, registered with their transport services
-        ExchangeService clientExchangeService = new ExchangeService(Settings.EMPTY, threadPool, "esql", blockFactory);
+        ExchangeService clientExchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
         clientExchangeService.registerTransportHandler(clientTransportService);
-        ExchangeService serverExchangeService = new ExchangeService(Settings.EMPTY, threadPool, "esql", blockFactory);
+        ExchangeService serverExchangeService = new ExchangeService(Settings.EMPTY, threadPool, ThreadPool.Names.SEARCH, blockFactory);
         serverExchangeService.registerTransportHandler(serverTransportService);
 
         return new TestInfrastructure(clientTransportService, serverTransportService, clientExchangeService, serverExchangeService);
@@ -880,9 +876,6 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     ) throws Exception {
         // Wait for client to finish receiving all pages (including marker pages)
         assertBusy(() -> assertTrue("Client source should be finished", client.getServerToClientSourceHandler().isFinished()));
-
-        // Wait for client driver to finish processing after source finishes
-        client.waitForClientDriverToFinish(timeoutSeconds, TimeUnit.SECONDS);
 
         // Wait for batch exchange status response (should indicate success)
         batchExchangeStatusFuture.actionGet(timeoutSeconds, TimeUnit.SECONDS);
@@ -961,19 +954,19 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                 logger.info("[TEST-SERVER] Creating operators for server");
                 EvalOperator addOneOperator = createAddOneOperator(driverContext);
 
+                // Stage 1: Create BidirectionalBatchExchangeServer
                 BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
                     sessionId,
                     infra.serverExchangeService(),
-                    threadPool.executor("esql"),
+                    threadPool.executor(ThreadPool.Names.SEARCH),
                     10,
                     infra.serverTransportService(),
                     mockTask,
-                    infra.clientTransportService().getLocalNode(),
-                    driverContext,
-                    threadPool.getThreadContext(),
-                    List.of(addOneOperator),
-                    "test-cluster"
+                    infra.clientTransportService().getLocalNode()
                 );
+
+                // Stage 2: Start with operators
+                server.startWithOperators(driverContext, threadPool.getThreadContext(), List.of(addOneOperator), "test-cluster", () -> {});
                 logger.info("[TEST-SERVER] Server initialized successfully");
 
                 // Batch processing is already started in the constructor
@@ -1166,11 +1159,8 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     }
 
     private ThreadPool threadPool() {
-        int numThreads = randomIntBetween(1, 10);
-        return new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
-        );
+        // TestThreadPool already includes SEARCH executor by default, no need to add it
+        return new TestThreadPool(getTestClass().getSimpleName());
     }
 
     private BlockFactory blockFactory() {
@@ -1362,7 +1352,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         return new EvalOperator(driverContext, new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                Page actualPage = page instanceof BatchPage ? ((BatchPage) page).asPage() : page;
+                Page actualPage = page;
 
                 if (actualPage.getBlockCount() == 0) {
                     return driverContext.blockFactory().newConstantNullBlock(actualPage.getPositionCount());

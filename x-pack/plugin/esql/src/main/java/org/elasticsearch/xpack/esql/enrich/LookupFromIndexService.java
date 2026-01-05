@@ -12,13 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
@@ -26,9 +26,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OutputOperator;
-import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
@@ -82,7 +84,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     private static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = TransportVersion.fromName("esql_lookup_join_source_text");
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
 
-    private final LookupExecutionMapper executionMapper;
+    protected final LookupExecutionMapper executionMapper;
+    protected final ExchangeService exchangeService;
 
     public LookupFromIndexService(
         ClusterService clusterService,
@@ -92,7 +95,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        ExchangeService exchangeService
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -108,6 +112,23 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             projectResolver
         );
         this.executionMapper = new LookupExecutionMapper(blockFactory, bigArrays, localBreakerSettings);
+        this.exchangeService = exchangeService;
+    }
+
+    public ExchangeService getExchangeService() {
+        return exchangeService;
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService;
+    }
+
+    public TransportService getTransportService() {
+        return transportService;
+    }
+
+    public ProjectResolver getProjectResolver() {
+        return projectResolver;
     }
 
     @Override
@@ -456,19 +477,16 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         CancellableTask task,
         ActionListener<List<Page>> listener
     ) {
-        // Early exit for null input blocks
-        for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
-            Block inputBlock = request.inputPage.getBlock(j);
-            if (inputBlock.areAllValuesNull()) {
-                listener.onResponse(List.of());
-                return;
-            }
+        // Streaming lookup is always a setup request - check that input page is empty
+        if (request.inputPage.getPositionCount() != 0) {
+            listener.onFailure(
+                new IllegalStateException("Streaming lookup setup request must have 0 rows, got " + request.inputPage.getPositionCount())
+            );
+            return;
         }
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-            LocalExecutionPlanner.PhysicalOperation physicalOperation = buildOperatorFactories(request);
-
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release());
 
@@ -480,6 +498,27 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
             );
 
+            // Determine client node (from task origin or use local node as fallback)
+            DiscoveryNode clientNode = determineClientNode(request, task);
+
+            // Stage 1: Create BidirectionalBatchExchangeServer (creates source handler)
+            BidirectionalBatchExchangeServer server = new BidirectionalBatchExchangeServer(
+                request.streamingSessionId,
+                exchangeService,
+                executor,
+                1000, // maxBufferSize
+                transportService,
+                task,
+                clientNode
+            );
+            releasables.add(server);
+
+            // Get source factory from server for planning
+            ExchangeSourceOperator.ExchangeSourceOperatorFactory sourceFactory = server.getSourceOperatorFactory();
+
+            // Build operators using the planning system with the actual source factory
+            LocalExecutionPlanner.PhysicalOperation physicalOperation = buildOperatorFactories(request, sourceFactory);
+
             LookupQueryPlan lookupQueryPlan = executionMapper.buildOperators(
                 physicalOperation,
                 shardContext,
@@ -489,7 +528,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 (req, context, filter, warn) -> queryList((TransportRequest) req, context, filter, warn)
             );
 
-            startDriver(request, task, listener, lookupQueryPlan);
+            // Wrap releasables (shardContext and localBreaker) - they're already in releasables list
+            // If started == false, releasables will be closed in finally block
+            Releasable serverReleasables = Releasables.wrap(shardContext.release(), lookupQueryPlan.localBreaker());
+
+            List<Operator> intermediateOperators = lookupQueryPlan.operators();
+
+            // Stage 2: Start batch processing with the operators
+            startServerWithOperators(server, lookupQueryPlan, intermediateOperators, serverReleasables);
+
+            // Server is ready - send empty response to indicate setup complete
+            listener.onResponse(List.of());
             started = true;
         } catch (Exception e) {
             listener.onFailure(e);
@@ -500,25 +549,48 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         }
     }
 
+    protected DiscoveryNode determineClientNode(TransportRequest request, CancellableTask task) {
+        // Try to get client node from task origin node
+        // For now, return local node as fallback (in production, this should come from task)
+        return clusterService.localNode();
+    }
+
+    /**
+     * Starts the exchange server with the generated operators.
+     * This method can be overridden in tests to capture the plan without actually starting the server.
+     */
+    protected void startServerWithOperators(
+        BidirectionalBatchExchangeServer server,
+        LookupQueryPlan lookupQueryPlan,
+        List<Operator> intermediateOperators,
+        Releasable releasables
+    ) throws Exception {
+        server.startWithOperators(
+            lookupQueryPlan.driverContext(),
+            transportService.getThreadPool().getThreadContext(),
+            intermediateOperators,
+            clusterService.getClusterName().value(),
+            releasables
+        );
+    }
+
     /**
      * Builds operator factories for lookup.
      * The factories do not refer to any input data,
      * so they can be reused across multiple calls with different input pages.
      */
-    private LocalExecutionPlanner.PhysicalOperation buildOperatorFactories(TransportRequest request) throws IOException {
-        LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
-        try (Releasable ignored = shardContext.release()) {
-            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext);
+    protected LocalExecutionPlanner.PhysicalOperation buildOperatorFactories(TransportRequest request, SourceOperatorFactory sourceFactory)
+        throws IOException {
+        PhysicalPlan physicalPlan = createLookupPhysicalPlan(request);
 
-            return executionMapper.buildOperatorFactories(request, physicalPlan, BlockOptimization.NONE);
-        }
+        return executionMapper.buildOperatorFactories(request, physicalPlan, BlockOptimization.NONE, dc -> this, sourceFactory);
     }
 
     /**
      * Creates a PhysicalPlan tree representing the lookup operation structure.
      * This plan can be cached and reused across multiple calls with different input data.
      */
-    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request, LookupShardContext shardContext) throws IOException {
+    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request) throws IOException {
         // Create output attributes: doc block
         FieldAttribute docAttribute = new FieldAttribute(
             request.source,
@@ -569,10 +641,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         LookupShardContext shardContext,
         LocalCircuitBreaker localBreaker,
         DriverContext driverContext,
-        SourceOperator queryOperator,
         List<Operator> operators,
-        List<Page> collectedPages,
-        OutputOperator outputOperator
+        List<Page> collectedPages
     ) {}
 
     protected void startDriver(
@@ -590,9 +660,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             System.nanoTime(),
             lookupQueryPlan.driverContext(),
             request::toString,
-            lookupQueryPlan.queryOperator(),
+            null, // sourceOperator - not used in streaming mode
             lookupQueryPlan.operators(),
-            lookupQueryPlan.outputOperator(),
+            null, // outputOperator - not used in streaming mode
             Driver.DEFAULT_STATUS_INTERVAL,
             Releasables.wrap(lookupQueryPlan.shardContext().release(), lookupQueryPlan.localBreaker())
         );

@@ -83,6 +83,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
+    // Registry for bidirectional batch exchange servers, keyed by serverToClientId
+    private final Map<String, BidirectionalBatchExchangeServer> batchExchangeServers = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -119,6 +121,46 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );
+
+        // Register batch exchange status handler once (singleton pattern)
+        // This handler routes requests to the appropriate server based on exchangeId
+        transportService.registerRequestHandler(
+            BATCH_EXCHANGE_STATUS_ACTION_NAME,
+            this.executor,
+            BatchExchangeStatusRequest::new,
+            new TransportRequestHandler<BatchExchangeStatusRequest>() {
+                @Override
+                public void messageReceived(BatchExchangeStatusRequest request, TransportChannel channel, Task task) throws Exception {
+                    final String exchangeId = request.exchangeId();
+                    BidirectionalBatchExchangeServer server = batchExchangeServers.get(exchangeId);
+                    if (server != null) {
+                        server.handleBatchExchangeStatusRequest(request, channel, task);
+                    } else {
+                        logger.warn("Received BatchExchangeStatusRequest for unknown exchangeId={}", exchangeId);
+                        channel.sendResponse(
+                            new BatchExchangeStatusResponse(false, new ResourceNotFoundException("exchange [{}] not found", exchangeId))
+                        );
+                    }
+                }
+            }
+        );
+    }
+
+    /**
+     * Register a bidirectional batch exchange server.
+     * The server will receive BatchExchangeStatusRequest messages for its exchangeId.
+     */
+    public void registerBatchExchangeServer(String serverToClientId, BidirectionalBatchExchangeServer server) {
+        if (batchExchangeServers.putIfAbsent(serverToClientId, server) != null) {
+            throw new IllegalStateException("batch exchange server for id [" + serverToClientId + "] already exists");
+        }
+    }
+
+    /**
+     * Unregister a bidirectional batch exchange server.
+     */
+    public void unregisterBatchExchangeServer(String serverToClientId) {
+        batchExchangeServers.remove(serverToClientId);
     }
 
     /**

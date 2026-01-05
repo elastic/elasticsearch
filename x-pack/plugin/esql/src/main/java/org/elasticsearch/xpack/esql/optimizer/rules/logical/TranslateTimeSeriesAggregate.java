@@ -253,6 +253,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         }
                     }));
                 }
+            } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
+                firstPassAggs.add(agg);
             }
         }
         if (aggregate.child().output().contains(timestamp.get()) == false) {

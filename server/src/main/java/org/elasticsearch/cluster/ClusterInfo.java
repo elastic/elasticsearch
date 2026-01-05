@@ -420,12 +420,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
     public static Map<String, Boolean> buildNodesWriteLoadHotspottingTable(
         Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
-        long writeLoadQueueLatencyThreshold)
-    {
+        long writeLoadQueueLatencyThreshold
+    ) {
         final Map<String, Boolean> nodesWriteLoadHotspotting = new HashMap<>(nodeUsageStatsForThreadPools.size());
         nodeUsageStatsForThreadPools.forEach((nodeId, nodeUsageStats) -> {
-            NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats
-                .threadPoolUsageStatsMap()
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats threadPoolUsageStats = nodeUsageStats.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE);
             boolean isHotspotting = threadPoolUsageStats.maxThreadPoolQueueLatencyMillis() >= writeLoadQueueLatencyThreshold;
             nodesWriteLoadHotspotting.put(nodeId, isHotspotting);

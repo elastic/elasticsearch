@@ -474,7 +474,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             });
             final Map<String, Boolean> nodesWriteLoadHotspotting = ClusterInfo.buildNodesWriteLoadHotspottingTable(
                 nodeThreadPoolUsageStatsPerNode,
-                writeLoadConstraintSettings.getQueueLatencyThreshold().millis());
+                writeLoadConstraintSettings.getQueueLatencyThreshold().millis()
+            );
 
             final var newClusterInfo = new ClusterInfo(
                 leastAvailableSpaceUsages,

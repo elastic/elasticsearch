@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -258,8 +258,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
+    protected AttributeSet computeReferences() {
+        // Ensures field resolution is aware of all attributes used in the PromQL plan.
+        AttributeSet.Builder references = AttributeSet.builder();
+        promqlPlan().forEachDown(lp -> references.addAll(lp.references()));
+        return references.build();
+    }
+
+    @Override
     public void postAnalysisVerification(Failures failures) {
         LogicalPlan p = promqlPlan();
+        // TODO(sidosera): Remove once instant query support is added.
+        if (isInstantQuery()) {
+            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
+            return;
+        }
 
         // Validate top-level expression
         switch (p) {
@@ -299,21 +312,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                         }
                         if (s.evaluation().at().value() != null) {
                             failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
-                        }
-                    }
-                    if (s instanceof RangeSelector rs) {
-                        if (step().value() != null) {
-                            Duration rangeDuration = (Duration) rs.range().fold(null);
-                            if (rangeDuration.equals(step().value()) == false) {
-                                failures.add(
-                                    fail(
-                                        rs.range(),
-                                        "the duration for range vector selector [{}] "
-                                            + "must be equal to the query's step for range queries at this time",
-                                        rs.range().sourceText()
-                                    )
-                                );
-                            }
                         }
                     }
                 }

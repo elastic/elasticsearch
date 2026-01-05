@@ -255,9 +255,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/137691
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/70_text_similarity_rank_retriever/Text similarity reranker with min_score zero includes all docs}
-  issue: https://github.com/elastic/elasticsearch/issues/137732
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testUpdateMappingConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/137758
@@ -378,6 +375,18 @@ tests:
 - class: org.elasticsearch.search.query.RescoreKnnVectorQueryIT
   method: testKnnSearchRescore
   issue: https://github.com/elastic/elasticsearch/issues/140078
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/131369
+- class: org.elasticsearch.xpack.esql.plugin.IndexResolutionIT
+  method: testResolvesDateMath
+  issue: https://github.com/elastic/elasticsearch/issues/140105
+- class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
+  method: testLocalDateMathExpression
+  issue: https://github.com/elastic/elasticsearch/issues/140106
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test072RunEsAsDifferentUserAndGroup
+  issue: https://github.com/elastic/elasticsearch/issues/140127
 
 # Examples:
 #

@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -50,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.LongStream;
 
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
@@ -76,6 +78,7 @@ public class StatelessIndexCommitListenerIT extends AbstractServerlessStatelessP
         private final Map<ShardId, Map<Long, Engine.IndexCommitRef>> retainedCommits = new HashMap<>();
         private final Map<ShardId, Set<Long>> deletedCommits = new HashMap<>();
         private final Object mutex = new Object();
+        private final AtomicBoolean throwOnNewCommitNotification = new AtomicBoolean();
 
         public TestServerlessStatelessPlugin(Settings settings) {
             super(settings);
@@ -128,10 +131,21 @@ public class StatelessIndexCommitListenerIT extends AbstractServerlessStatelessP
                     Engine.IndexCommitRef indexCommitRef,
                     Set<String> additionalFiles
                 ) {
-                    synchronized (mutex) {
-                        Map<Long, Engine.IndexCommitRef> commits = retainedCommits.computeIfAbsent(shardId, s -> new HashMap<>());
-                        var previous = commits.put(indexCommitRef.getIndexCommit().getGeneration(), indexCommitRef);
-                        assertThat("Commit already exists " + indexCommitRef.getIndexCommit().getGeneration(), previous, nullValue());
+                    var success = false;
+                    try {
+                        synchronized (mutex) {
+                            if (throwOnNewCommitNotification.get()) {
+                                throw new IllegalStateException("boom");
+                            }
+                            Map<Long, Engine.IndexCommitRef> commits = retainedCommits.computeIfAbsent(shardId, s -> new HashMap<>());
+                            var previous = commits.put(indexCommitRef.getIndexCommit().getGeneration(), indexCommitRef);
+                            assertThat("Commit already exists " + indexCommitRef.getIndexCommit().getGeneration(), previous, nullValue());
+                        }
+                        success = true;
+                    } finally {
+                        if (success == false) {
+                            IOUtils.closeWhileHandlingException(indexCommitRef);
+                        }
                     }
                 }
 
@@ -187,6 +201,14 @@ public class StatelessIndexCommitListenerIT extends AbstractServerlessStatelessP
                     throw new AssertionError("Failed to release commit with generation " + generation + " on shard " + shardId + e);
                 }
             }
+        }
+
+        void throwOnNewCommitNotification() {
+            throwOnNewCommitNotification.set(true);
+        }
+
+        void doNotThrowOnNewCommitNotification() {
+            throwOnNewCommitNotification.set(false);
         }
 
         @Override
@@ -393,6 +415,18 @@ public class StatelessIndexCommitListenerIT extends AbstractServerlessStatelessP
         }
 
         releaseCommit(lastFlushGeneration);
+    }
+
+    public void testRefIsNotReleasedUponNotificationFailure() {
+        var plugin = getStatelessPluginInstance();
+        try {
+            indexDocs(indexName, scaledRandomIntBetween(10, 100));
+            plugin.throwOnNewCommitNotification();
+            indicesAdmin().prepareFlush(indexName).get();
+        } finally {
+            plugin.doNotThrowOnNewCommitNotification();
+            releaseCommit(plugin.listRetainedCommits(shardId).getLast());
+        }
     }
 
     private TestServerlessStatelessPlugin getStatelessPluginInstance() {

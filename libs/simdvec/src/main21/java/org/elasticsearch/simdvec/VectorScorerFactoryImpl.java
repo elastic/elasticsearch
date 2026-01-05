@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
@@ -17,6 +18,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.FloatVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.DotProductSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.EuclideanSupplier;
@@ -32,6 +34,21 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
     static {
         INSTANCE = NativeAccess.instance().getVectorSimilarityFunctions().map(ignore -> new VectorScorerFactoryImpl()).orElse(null);
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(VectorSimilarityType similarityType, IndexInput input) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        if (input instanceof MemorySegmentAccessInput == false) {
+            return Optional.empty();
+        }
+        // TODO: implement
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
+        return FloatVectorScorer.create(sim, values, queryVector);
     }
 
     @Override

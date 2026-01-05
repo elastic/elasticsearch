@@ -231,3 +231,33 @@
   - match: {index_templates.0.index_template.template.lifecycle.downsampling_method: "last_value"}
   - match: {index_templates.0.index_template.template.lifecycle.downsampling.0.after: "1d"}
   - match: {index_templates.0.index_template.template.lifecycle.downsampling.0.fixed_interval: "5m"}
+
+---
+"Add data stream lifecycle with frozen_after":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_index_template/{name}
+          capabilities: [ "dlm.frozen_after" ]
+      test_runner_features: [ "capabilities" ]
+      reason: "Frozen after added"
+
+  - do:
+      indices.put_index_template:
+        name: test-lifecycle
+        body:
+          index_patterns: frozen-*
+          data_stream: {}
+          template:
+            lifecycle:
+              data_retention: "30d"
+              frozen_after: "10d"
+
+  - do:
+      indices.get_index_template:
+        name: test-lifecycle
+
+  - match: {index_templates.0.name: test-lifecycle}
+  - match: {index_templates.0.index_template.template.lifecycle.enabled: true}
+  - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
+  - match: {index_templates.0.index_template.template.lifecycle.frozen_after: "10d"}

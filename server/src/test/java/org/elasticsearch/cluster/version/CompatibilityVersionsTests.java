@@ -101,7 +101,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedTransportVersion() {
         List<TransportVersion> transportVersions = IntStream.range(0, randomIntBetween(2, 10))
-            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
+            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random(), false))
             .toList();
         TransportVersion min = Collections.min(transportVersions);
         List<CompatibilityVersions> compatibilityVersions = transportVersions.stream()
@@ -117,14 +117,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> CompatibilityVersions.ensureVersionsCompatibility(
-                new CompatibilityVersions(
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        TransportVersionUtils.getFirstVersion(),
-                        TransportVersionUtils.getPreviousVersion(min)
-                    ),
-                    Map.of()
-                ),
+                new CompatibilityVersions(TransportVersionUtils.getPreviousVersion(min, true), Map.of()),
                 compatibilityVersions
             )
         );

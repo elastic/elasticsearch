@@ -382,6 +382,7 @@ public class Constants {
         "cluster:monitor/allocation/stats",
         "cluster:monitor/profiling/status/get",
         "cluster:monitor/remote/info",
+        "cluster:monitor/reindex/get",
         "cluster:monitor/settings",
         "cluster:monitor/state",
         "cluster:monitor/stats",

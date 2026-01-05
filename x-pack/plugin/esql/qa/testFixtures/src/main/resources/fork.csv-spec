@@ -946,3 +946,19 @@ emp_no:integer | gender:keyword | x:keyword | a:keyword | b:keyword | _fork:keyw
 10081          | M              | M foobar  | M         | foobar    | fork2
 10087          | F              | F foobar  | F         | foobar    | fork2
 ;
+
+limitAfterFork
+required_capability: fork_v9
+
+FROM employees
+| FORK ( WHERE emp_no == 10001 )
+       ( WHERE emp_no == 10002 )
+| LIMIT 10
+| KEEP emp_no, _fork
+| SORT emp_no
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+;

@@ -18,7 +18,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -247,7 +246,7 @@ public class SearchContextStats implements SearchStats {
             doWithContexts(r -> {
                 long minValue = Long.MAX_VALUE;
                 if (hasDocValueSkipper) {
-                    minValue = DocValuesSkipper.globalMinValue(new IndexSearcher(r), field.string());
+                    minValue = DocValuesSkipper.globalMinValue(r, field.string());
                 } else {
                     byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
                     if (minPackedValue != null && minPackedValue.length == 8) {
@@ -282,7 +281,7 @@ public class SearchContextStats implements SearchStats {
             doWithContexts(r -> {
                 long maxValue = Long.MIN_VALUE;
                 if (hasDocValueSkipper) {
-                    maxValue = DocValuesSkipper.globalMaxValue(new IndexSearcher(r), field.string());
+                    maxValue = DocValuesSkipper.globalMaxValue(r, field.string());
                 } else {
                     byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
                     if (maxPackedValue != null && maxPackedValue.length == 8) {

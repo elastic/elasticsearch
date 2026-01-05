@@ -32,12 +32,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
@@ -71,6 +74,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelop
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -202,6 +207,7 @@ public class ExpressionWritables {
         entries.add(Space.ENTRY);
         entries.add(Sqrt.ENTRY);
         entries.add(StEnvelope.ENTRY);
+        entries.add(StNPoints.ENTRY);
         entries.add(StXMax.ENTRY);
         entries.add(StXMin.ENTRY);
         entries.add(StYMax.ENTRY);
@@ -229,9 +235,12 @@ public class ExpressionWritables {
         entries.add(ToIpLeadingZerosOctal.ENTRY);
         entries.add(ToIpLeadingZerosRejected.ENTRY);
         entries.add(ToInteger.ENTRY);
+        entries.add(ToIntegerBase.ENTRY);
         entries.add(ToLong.ENTRY);
+        entries.add(ToLongBase.ENTRY);
         entries.add(ToRadians.ENTRY);
         entries.add(ToString.ENTRY);
+        entries.add(ToTDigest.ENTRY);
         entries.add(ToUnsignedLong.ENTRY);
         entries.add(ToVersion.ENTRY);
         entries.add(Trim.ENTRY);
@@ -257,7 +266,8 @@ public class ExpressionWritables {
             StDistance.ENTRY,
             StGeohash.ENTRY,
             StGeotile.ENTRY,
-            StGeohex.ENTRY
+            StGeohex.ENTRY,
+            StSimplify.ENTRY
         );
     }
 

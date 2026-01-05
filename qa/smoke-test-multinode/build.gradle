@@ -24,9 +24,16 @@ dependencies {
 }
 
 tasks.named("yamlRestTest").configure {
-  systemProperty 'tests.rest.blacklist', [
+  ArrayList<String> blacklist = [
     'cat.templates/10_basic/No templates',
     'cat.templates/10_basic/Sort templates',
     'cat.templates/10_basic/Multiple template',
-  ].join(',')
+  ]
+  if (buildParams.snapshotBuild == false) {
+    blacklist += [
+      // doc_values.cardinality option not available in snapshots
+      "search/395_binary_doc_values_search/*"
+    ]
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -70,9 +72,14 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         List<TestCaseSupplier> cases = cases();
         Set<List<DataType>> valid = cases.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
         List<Set<DataType>> validPerPosition = AbstractFunctionTestCase.validPerPosition(valid);
+        Set<List<DataType>> invalidSignatureSamples = new HashSet<>();
         Iterable<List<DataType>> testCandidates = testCandidates(cases, valid)::iterator;
         for (List<DataType> signature : testCandidates) {
             logger.debug("checking {}", signature);
+            if (invalidSignatureSamples.size() < 50) {
+                // Only keep the first 50 invalid signatures to not blow up memory and because it is sufficient for our tests
+                invalidSignatureSamples.add(signature);
+            }
             List<Expression> args = new ArrayList<>(signature.size());
             for (DataType type : signature) {
                 args.add(randomLiteral(type));
@@ -83,15 +90,18 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             checked++;
         }
         logger.info("checked {} signatures", checked);
-        assertNumberOfCheckedSignatures(checked);
+        assertCheckedSignatures(invalidSignatureSamples);
     }
 
     /**
      * Assert the number of checked signature. Generally shouldn't be overridden but
-     * can be to assert that, for example, there weren't any unsupported signatures.
+     * can be to assert that, for example, there weren't any or a fixed set of unsupported signatures.
+     * Note that types under construction are not checked.
+     *
+     * @param invalidSignatureSamples the first 50 invalid signatures that were checked
      */
-    protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat("didn't check any signatures", checked, greaterThan(0));
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
+        assertThat("didn't check any signatures", invalidSignatureSamples.size(), greaterThan(0));
     }
 
     /**
@@ -150,6 +160,13 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
         String name = signature.get(badArgPosition).typeName();
         return ordinal + "argument of [" + source + "] must be [" + expectedTypeString + "], found value [] type [" + name + "]";
+    }
+
+    protected static Matcher<String> typeErrorMessage(List<DataType> signature, int badArgPosition, String expectedTypeString) {
+        String ordinal = TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT);
+        String sig = sourceForSignature(signature);
+        String name = signature.get(badArgPosition).typeName();
+        return equalTo(ordinal + " argument of [" + sig + "] must be [" + expectedTypeString + "], found value [] type [" + name + "]");
     }
 
     protected static String errorMessageStringForBinaryOperators(

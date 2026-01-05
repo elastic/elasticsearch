@@ -155,7 +155,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (vectorValues == null) {
                 return null;
             }
-            return queryCancellation.isEnabled() ? new ExitableFloatVectorValues(vectorValues, queryCancellation) : vectorValues;
+            return wrapIfNeeded(vectorValues, queryCancellation);
         }
 
         @Override
@@ -545,6 +545,14 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public ByteVectorValues copy() throws IOException {
             return in.copy();
+        }
+    }
+
+    private static FloatVectorValues wrapIfNeeded(FloatVectorValues vectorValues, QueryCancellation queryCancellation) {
+        if (queryCancellation.isEnabled()) {
+            return new ExitableFloatVectorValues(vectorValues, queryCancellation);
+        } else {
+            return vectorValues;
         }
     }
 

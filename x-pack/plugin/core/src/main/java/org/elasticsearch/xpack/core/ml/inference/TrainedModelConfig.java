@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -279,9 +278,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
         fullDefinition = in.readOptionalBoolean();
         platformArchitecture = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
-        }
+        prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
     }
 
     public boolean isPackagedModel() {
@@ -461,9 +458,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         out.writeOptionalString(platformArchitecture);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(prefixStrings);
-        }
+        out.writeOptionalWriteable(prefixStrings);
     }
 
     @Override

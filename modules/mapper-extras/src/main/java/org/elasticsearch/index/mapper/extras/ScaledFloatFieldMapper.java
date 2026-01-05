@@ -800,11 +800,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void close() {
-            scaledFieldData.close();
-        }
-
-        @Override
         public SortedNumericDoubleValues getDoubleValues() {
             final SortedNumericLongValues values = scaledFieldData.getLongValues();
             final LongValues singleValues = SortedNumericLongValues.unwrapSingleton(values);

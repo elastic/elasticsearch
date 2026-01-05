@@ -205,6 +205,31 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         }
 
         @Override
+        protected float bulkScoreFromSegment(
+            MemorySegment vectors,
+            int vectorLength,
+            int vectorPitch,
+            int firstOrd,
+            MemorySegment ordinals,
+            MemorySegment scores,
+            int numNodes
+        ) {
+            long firstByteOffset = (long) firstOrd * vectorPitch;
+            var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.squareDistance7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+
+            float max = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < numNodes; ++i) {
+                var squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                float adjustedDistance = squareDistance * scoreCorrectionConstant;
+                float adjustedScore = 1 / (1f + adjustedDistance);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedScore);
+                max = Math.max(max, adjustedScore);
+            }
+            return max;
+        }
+
+        @Override
         public EuclideanSupplier copy() {
             return new EuclideanSupplier(input.clone(), values, scoreCorrectionConstant);
         }
@@ -279,6 +304,40 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 return 1 / (1 + -1 * adjustedDistance);
             }
             return adjustedDistance + 1;
+        }
+
+        @Override
+        protected float bulkScoreFromSegment(
+            MemorySegment vectors,
+            int vectorLength,
+            int vectorPitch,
+            int firstOrd,
+            MemorySegment ordinals,
+            MemorySegment scores,
+            int numNodes
+        ) {
+            long firstByteOffset = (long) firstOrd * vectorPitch;
+            var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
+            Similarities.dotProduct7uBulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+
+            // Java-side adjustment
+            var aOffset = Float.intBitsToFloat(
+                vectors.asSlice(firstByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
+            );
+            float max = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < numNodes; ++i) {
+                var dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                var secondOrd = ordinals.getAtIndex(ValueLayout.JAVA_INT, i);
+                long secondByteOffset = (long) secondOrd * vectorPitch;
+                var bOffset = Float.intBitsToFloat(
+                    vectors.asSlice(secondByteOffset + vectorLength, Float.BYTES).getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, 0)
+                );
+                float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
+                adjustedDistance = adjustedDistance < 0 ? 1 / (1 + -1 * adjustedDistance) : adjustedDistance + 1;
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, adjustedDistance);
+                max = Math.max(max, adjustedDistance);
+            }
+            return max;
         }
 
         @Override

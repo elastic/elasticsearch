@@ -21,9 +21,11 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -34,6 +36,7 @@ import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFlatVectorsFormat {
 
@@ -78,28 +81,71 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
                 new Lucene99FlatBulkScoringVectorsReader(
                     directIOState,
                     new Lucene99FlatVectorsReader(directIOState, vectorsScorer),
-                    vectorsScorer
+                    vectorsScorer,
+                    true
                 ),
-                new Lucene99FlatVectorsReader(state, vectorsScorer)
+                new Lucene99FlatBulkScoringVectorsReader(state, new Lucene99FlatVectorsReader(state, vectorsScorer), vectorsScorer, false)
             );
         } else {
-            return new Lucene99FlatVectorsReader(state, vectorsScorer);
+            return new Lucene99FlatBulkScoringVectorsReader(
+                state,
+                new Lucene99FlatVectorsReader(state, vectorsScorer),
+                vectorsScorer,
+                false
+            );
         }
     }
 
     static class Lucene99FlatBulkScoringVectorsReader extends FlatVectorsReader {
         private final Lucene99FlatVectorsReader inner;
         private final SegmentReadState state;
+        private final boolean forcePreFetching;
 
-        Lucene99FlatBulkScoringVectorsReader(SegmentReadState state, Lucene99FlatVectorsReader inner, FlatVectorsScorer scorer) {
+        Lucene99FlatBulkScoringVectorsReader(
+            SegmentReadState state,
+            Lucene99FlatVectorsReader inner,
+            FlatVectorsScorer scorer,
+            boolean forcePreFetching
+        ) {
             super(scorer);
             this.inner = inner;
             this.state = state;
+            this.forcePreFetching = forcePreFetching;
         }
 
         @Override
         public void close() throws IOException {
             inner.close();
+        }
+
+        @Override
+        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+            return inner.getOffHeapByteSize(fieldInfo);
+        }
+
+        @Override
+        public void finishMerge() throws IOException {
+            inner.finishMerge();
+        }
+
+        @Override
+        public FlatVectorsReader getMergeInstance() throws IOException {
+            return inner.getMergeInstance();
+        }
+
+        @Override
+        public FlatVectorsScorer getFlatVectorScorer() {
+            return inner.getFlatVectorScorer();
+        }
+
+        @Override
+        public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            inner.search(field, target, knnCollector, acceptDocs);
+        }
+
+        @Override
+        public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            inner.search(field, target, knnCollector, acceptDocs);
         }
 
         @Override
@@ -120,14 +166,14 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             FloatVectorValues vectorValues = inner.getFloatVectorValues(field);
-            if (vectorValues == null || vectorValues.size() == 0) {
+            if (vectorValues == null) {
                 return null;
             }
             if (vectorValues.size() == 0) {
                 return vectorValues;
             }
             FieldInfo info = state.fieldInfos.fieldInfo(field);
-            return new RescorerOffHeapVectorValues(vectorValues, info.getVectorSimilarityFunction(), vectorScorer);
+            return new RescorerOffHeapVectorValues(vectorValues, info.getVectorSimilarityFunction(), vectorScorer, forcePreFetching);
         }
 
         @Override
@@ -146,8 +192,14 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         private final FloatVectorValues inner;
         private final IndexInput inputSlice;
         private final FlatVectorsScorer scorer;
+        private final boolean forcePreFetching;
 
-        RescorerOffHeapVectorValues(FloatVectorValues inner, VectorSimilarityFunction similarityFunction, FlatVectorsScorer scorer) {
+        RescorerOffHeapVectorValues(
+            FloatVectorValues inner,
+            VectorSimilarityFunction similarityFunction,
+            FlatVectorsScorer scorer,
+            boolean forcePreFetching
+        ) {
             this.inner = inner;
             if (inner instanceof HasIndexSlice slice) {
                 this.inputSlice = slice.getSlice();
@@ -156,6 +208,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
             }
             this.similarityFunction = similarityFunction;
             this.scorer = scorer;
+            this.forcePreFetching = forcePreFetching;
         }
 
         @Override
@@ -185,14 +238,17 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
 
         @Override
         public RescorerOffHeapVectorValues copy() throws IOException {
-            return new RescorerOffHeapVectorValues(inner.copy(), similarityFunction, scorer);
+            return new RescorerOffHeapVectorValues(inner.copy(), similarityFunction, scorer, forcePreFetching);
         }
 
         @Override
         public VectorScorer rescorer(float[] target) throws IOException {
-            DocIndexIterator indexIterator = inner.iterator();
-            RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
-            return new PreFetchingFloatBulkScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES);
+            if (forcePreFetching && inputSlice != null) {
+                DocIndexIterator indexIterator = inner.iterator();
+                RandomVectorScorer randomScorer = scorer.getRandomVectorScorer(similarityFunction, inner, target);
+                return new PreFetchingFloatBulkVectorScorer(randomScorer, indexIterator, inputSlice, dimension() * Float.BYTES);
+            }
+            return inner.rescorer(target);
         }
 
         @Override
@@ -201,7 +257,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         }
     }
 
-    private record PreFetchingFloatBulkScorer(
+    private record PreFetchingFloatBulkVectorScorer(
         RandomVectorScorer inner,
         KnnVectorValues.DocIndexIterator indexIterator,
         IndexInput inputSlice,
@@ -226,13 +282,13 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
             if (conjunctionScorer.docID() == -1) {
                 conjunctionScorer.nextDoc();
             }
-            return new FloatBulkScorer(inner, inputSlice, byteSize, indexIterator, conjunctionScorer);
+            return new PrefetchingFloatBulkScorer(inner, inputSlice, byteSize, indexIterator, conjunctionScorer);
         }
     }
 
-    private static class FloatBulkScorer implements VectorScorer.Bulk {
-        private final int BULK_SIZE = 64;
-        private final int SCORE_BULK_SIZE = 32;
+    private static class PrefetchingFloatBulkScorer implements VectorScorer.Bulk {
+        private static final int BULK_SIZE = 64;
+        private static final int SCORE_BULK_SIZE = 32;
         private final KnnVectorValues.DocIndexIterator indexIterator;
         private final DocIdSetIterator matchingDocs;
         private final RandomVectorScorer inner;
@@ -241,7 +297,7 @@ public class DirectIOCapableLucene99FlatVectorsFormat extends DirectIOCapableFla
         private final int[] docBuffer;
         private final float[] scoreBuffer;
 
-        FloatBulkScorer(
+        PrefetchingFloatBulkScorer(
             RandomVectorScorer fvv,
             IndexInput inputSlice,
             int byteSize,

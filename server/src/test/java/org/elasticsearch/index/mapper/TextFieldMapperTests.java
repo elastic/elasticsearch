@@ -390,8 +390,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
 
-        // the field should be stored in a fallback stored field name._original
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+        // the field should be stored in binary doc values (name._original)
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
 
         assertIgnoredSourceIsEmpty(doc);
     }
@@ -589,9 +589,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
 
-        // the field should be stored in a fallback stored field name._original since the keyword cannot act as the delegate
+        // the field should be stored in binary doc values (name._original) since the keyword cannot act as the delegate
         // due to the value exceeding ignore_above
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
 
         // there should be nothing stored by the keyword multi field since the value exceeds ignore_above
         FieldStorageVerifier.forField("name.keyword", doc.rootDoc()).verify();
@@ -728,8 +728,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         var source = source(b -> b.field("name", "QUICK Brown fox"));
         ParsedDocument doc = mapper.parse(source);
 
-        // expect the original, non-normalized value to be stored in a fallback stored field name._original
-        FieldStorageVerifier.forField("name", doc.rootDoc()).expectStoredField().verify();
+        // expect the original, non-normalized value to be stored in binary doc values (name._original)
+        FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
 
         assertIgnoredSourceIsEmpty(doc);
 

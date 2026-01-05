@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
@@ -18,6 +21,12 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
     private static final String USER = "admin-user";
@@ -64,5 +73,41 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         logger.info("Upgrading node {} to version {}", n, upgradeVersion);
         cluster.upgradeNodeToVersion(n, upgradeVersion);
         initClient();
+    }
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    static String bulkIndex(
+        String dataStreamName,
+        int numRequest,
+        int numDocs,
+        Instant startTime,
+        BiFunction<Instant, Integer, String> docSupplier
+    ) throws Exception {
+        String firstIndex = null;
+        for (int i = 0; i < numRequest; i++) {
+            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+            StringBuilder requestBody = new StringBuilder();
+            for (int j = 0; j < numDocs; j++) {
+                requestBody.append("{\"create\": {}}");
+                requestBody.append('\n');
+                requestBody.append(docSupplier.apply(startTime, j));
+                requestBody.append('\n');
+
+                startTime = startTime.plusMillis(1);
+            }
+            bulkRequest.setJsonEntity(requestBody.toString());
+            bulkRequest.addParameter("refresh", "true");
+            var response = client().performRequest(bulkRequest);
+            assertOK(response);
+            var responseBody = entityAsMap(response);
+            assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+            if (firstIndex == null) {
+                firstIndex = (String) ((Map<?, ?>) ((Map<?, ?>) ((List<?>) responseBody.get("items")).get(0)).get("create")).get("_index");
+            }
+        }
+        return firstIndex;
     }
 }

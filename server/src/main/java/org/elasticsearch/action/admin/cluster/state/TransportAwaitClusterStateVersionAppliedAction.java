@@ -30,6 +30,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
@@ -103,6 +104,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
     @Override
     protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
         var cancellableTask = (CancellableTask) task;
+        cancellableTask.addListener(() -> listener.onFailure(new TaskCancelledException(cancellableTask.getReasonCancelled())));
 
         Predicate<ClusterState> predicate = (ClusterState state) -> cancellableTask.isCancelled()
             || state.version() >= request.clusterStateVersion;
@@ -110,7 +112,8 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
         var clusterStateListener = new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                if (cancellableTask.notifyIfCancelled(listener)) {
+                // The listener is notified directly from the task in case of cancellation.
+                if (cancellableTask.isCancelled()) {
                     return;
                 }
 

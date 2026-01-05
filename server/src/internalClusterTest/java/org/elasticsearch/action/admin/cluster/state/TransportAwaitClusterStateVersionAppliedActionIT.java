@@ -10,33 +10,38 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(numClientNodes = 0)
 public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTestCase {
-    public void testVersionsThatAreAlreadyApplied() throws InterruptedException {
+    public void testVersionsThatAreAlreadyApplied() {
         // Sample some of the nodes for asserts.
+        internalCluster().ensureAtLeastNumDataNodes(2);
         var masterNode = internalCluster().getMasterName();
         var node1 = internalCluster().getNonMasterNodeName();
 
-        Consumer<Long> checkAppliedVersion = version -> {
+        BiConsumer<Long, Collection<DiscoveryNode>> checkAppliedVersion = (version, nodes) -> {
             var response = client().execute(
                 TransportAwaitClusterStateVersionAppliedAction.TYPE,
-                AwaitClusterStateVersionAppliedRequest.onAllNodes(version, TimeValue.MINUS_ONE)
+                new AwaitClusterStateVersionAppliedRequest(version, TimeValue.MINUS_ONE, nodes.toArray(new DiscoveryNode[0]))
             ).actionGet();
             assertFalse(response.hasFailures());
             assertTrue(response.failures().isEmpty());
@@ -45,35 +50,41 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
             assertTrue(response.getNodes().stream().anyMatch(r -> r.getNode().getName().equals(node1)));
         };
 
-        var currentlyAppliedVersion = internalCluster().getInstance(ClusterService.class, node1).state().version();
+        var initialState = internalCluster().getInstance(ClusterService.class, node1).state();
         // Succeeds because the version is applied already.
-        checkAppliedVersion.accept(currentlyAppliedVersion);
+        checkAppliedVersion.accept(initialState.version(), initialState.nodes().getAllNodes());
 
         dummyClusterStateUpdate(masterNode, null);
-        awaitClusterState(masterNode, state -> state.version() == currentlyAppliedVersion + 1);
+        awaitClusterState(masterNode, state -> state.version() == initialState.version() + 1);
 
         // We should succeed again since the previous execution succeeded.
-        checkAppliedVersion.accept(currentlyAppliedVersion);
+        checkAppliedVersion.accept(initialState.version(), initialState.nodes().getAllNodes());
     }
 
-    public void testWaitingForVersion() throws InterruptedException {
+    public void testWaitingForVersion() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
         var masterNode = internalCluster().getMasterName();
         var node1 = internalCluster().getNonMasterNodeName();
 
-        var currentState = internalCluster().clusterService(masterNode).state();
+        var initialState = internalCluster().clusterService(masterNode).state();
 
-        String masterNodeId = currentState.nodes().resolveNode(masterNode).getId();
-        String node1Id = currentState.nodes().resolveNode(node1).getId();
+        DiscoveryNode masterDiscoveryNode = initialState.nodes().resolveNode(masterNode);
+        DiscoveryNode node1DiscoveryNode = initialState.nodes().resolveNode(node1);
 
         var onePlusVersionFuture = client().execute(
             TransportAwaitClusterStateVersionAppliedAction.TYPE,
-            new AwaitClusterStateVersionAppliedRequest(currentState.version() + 1, TimeValue.MINUS_ONE, masterNodeId)
+            new AwaitClusterStateVersionAppliedRequest(initialState.version() + 1, TimeValue.MINUS_ONE, masterDiscoveryNode)
         );
 
         // Note that here we are waiting for two updates.
         var twoPlusVersionFuture = client().execute(
             TransportAwaitClusterStateVersionAppliedAction.TYPE,
-            new AwaitClusterStateVersionAppliedRequest(currentState.version() + 2, TimeValue.MINUS_ONE, masterNodeId, node1Id)
+            new AwaitClusterStateVersionAppliedRequest(
+                initialState.version() + 2,
+                TimeValue.MINUS_ONE,
+                masterDiscoveryNode,
+                node1DiscoveryNode
+            )
         );
 
         assertFalse(onePlusVersionFuture.isDone());
@@ -109,18 +120,24 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
     }
 
     public void testNodeNotProcessingClusterState() throws InterruptedException {
+        internalCluster().ensureAtLeastNumDataNodes(2);
         var masterNode = internalCluster().getMasterName();
         var node1 = internalCluster().getNonMasterNodeName();
 
         var initialState = internalCluster().clusterService(masterNode).state();
 
-        String masterNodeId = initialState.nodes().resolveNode(masterNode).getId();
-        String node1Id = initialState.nodes().resolveNode(node1).getId();
+        DiscoveryNode masterDiscoveryNode = initialState.nodes().resolveNode(masterNode);
+        DiscoveryNode node1DiscoveryNode = initialState.nodes().resolveNode(node1);
 
         // Wait for the future version of the cluster state.
         var future = client().execute(
             TransportAwaitClusterStateVersionAppliedAction.TYPE,
-            new AwaitClusterStateVersionAppliedRequest(initialState.version() + 1, TimeValue.MINUS_ONE, masterNodeId, node1Id)
+            new AwaitClusterStateVersionAppliedRequest(
+                initialState.version() + 1,
+                TimeValue.MINUS_ONE,
+                masterDiscoveryNode,
+                node1DiscoveryNode
+            )
         );
 
         assertFalse(future.isDone());
@@ -159,18 +176,51 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
         assertTrue(response.getNodes().stream().anyMatch(r -> r.getNode().getName().equals(node1)));
     }
 
-    public void testNodeLevelTimeout() {
-        var currentlyAppliedVersion = internalCluster().getInstance(ClusterService.class).state().version();
+    public void testTimeout() {
+        var currentState = internalCluster().getInstance(ClusterService.class).state();
 
         var response = client().execute(
             TransportAwaitClusterStateVersionAppliedAction.TYPE,
-            AwaitClusterStateVersionAppliedRequest.onAllNodes(currentlyAppliedVersion + 100, TimeValue.timeValueMillis(100))
+            new AwaitClusterStateVersionAppliedRequest(
+                currentState.version() + 100,
+                TimeValue.timeValueMillis(100),
+                currentState.nodes().getAllNodes().toArray(new DiscoveryNode[0])
+            )
         ).actionGet();
 
         assertEquals(internalCluster().numDataAndMasterNodes(), response.failures().size());
         // The structure is FailedNodeException -> RemoteTransportException -> ElasticsearchTimeoutException
         assertTrue(response.failures().get(0).getCause().getCause() instanceof ElasticsearchTimeoutException);
         assertEquals(0, response.getNodes().size());
+    }
+
+    public void testCancellation() {
+        var currentState = internalCluster().getInstance(ClusterService.class).state();
+
+        var future = client().execute(
+            TransportAwaitClusterStateVersionAppliedAction.TYPE,
+            new AwaitClusterStateVersionAppliedRequest(
+                currentState.version() + 100,
+                TimeValue.MINUS_ONE,
+                currentState.nodes().getAllNodes().toArray(new DiscoveryNode[0])
+            )
+        );
+
+        var tasks = client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setActions(TransportAwaitClusterStateVersionAppliedAction.TYPE.name())
+            .get()
+            .getTasks();
+        assertEquals(1, tasks.size());
+        var thisTask = tasks.get(0);
+
+        assertFalse(future.isDone());
+
+        var cancelRequest = new CancelTasksRequest().setTargetTaskId(thisTask.taskId()).setReason("cancelled");
+        client().execute(TransportCancelTasksAction.TYPE, cancelRequest);
+
+        assertThrows(TaskCancelledException.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
     }
 
     @Override

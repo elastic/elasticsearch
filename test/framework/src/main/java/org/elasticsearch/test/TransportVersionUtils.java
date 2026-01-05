@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 

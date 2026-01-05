@@ -14,7 +14,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -203,11 +202,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 ? null
                 : new ArrayList<>(possiblyImmutableExecutedPipelines);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            requireDataStream = in.readBoolean();
-        } else {
-            requireDataStream = false;
-        }
+        requireDataStream = in.readBoolean();
 
         includeSourceOnError = in.readBoolean();
 
@@ -779,9 +774,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(requireDataStream);
-        }
+        out.writeBoolean(requireDataStream);
 
         out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {

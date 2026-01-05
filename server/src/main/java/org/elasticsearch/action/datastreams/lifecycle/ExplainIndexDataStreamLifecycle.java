@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.datastreams.lifecycle;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -80,11 +79,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
         this.index = in.readString();
         this.managedByLifecycle = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.isInternalDataStream = in.readBoolean();
-        } else {
-            this.isInternalDataStream = false;
-        }
+        this.isInternalDataStream = in.readBoolean();
         if (managedByLifecycle) {
             this.indexCreationDate = in.readOptionalLong();
             this.rolloverDate = in.readOptionalLong();
@@ -158,9 +153,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeBoolean(managedByLifecycle);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(isInternalDataStream);
-        }
+        out.writeBoolean(isInternalDataStream);
         if (managedByLifecycle) {
             out.writeOptionalLong(indexCreationDate);
             out.writeOptionalLong(rolloverDate);

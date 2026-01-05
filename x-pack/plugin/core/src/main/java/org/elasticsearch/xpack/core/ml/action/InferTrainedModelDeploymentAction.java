@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -128,11 +127,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             highPriority = in.readBoolean();
             textInput = in.readOptionalStringCollectionAsList();
             prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                chunkResults = in.readBoolean();
-            } else {
-                chunkResults = false;
-            }
+            chunkResults = in.readBoolean();
         }
 
         public String getId() {
@@ -216,9 +211,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeBoolean(highPriority);
             out.writeOptionalStringCollection(textInput);
             out.writeEnum(prefixType);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeBoolean(chunkResults);
-            }
+            out.writeBoolean(chunkResults);
         }
 
         @Override

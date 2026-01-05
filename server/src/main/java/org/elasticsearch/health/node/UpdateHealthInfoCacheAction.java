@@ -10,7 +10,6 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -91,9 +90,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.nodeId = in.readString();
             this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
             this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
-            this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
-                : null;
+            this.repositoriesHealthInfo = in.readOptionalWriteable(RepositoriesHealthInfo::new);
             this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? in.readOptionalWriteable(FileSettingsService.FileSettingsHealthInfo::new)
                 : null;
@@ -131,9 +128,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             out.writeString(nodeId);
             out.writeOptionalWriteable(diskHealthInfo);
             out.writeOptionalWriteable(dslHealthInfo);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeOptionalWriteable(repositoriesHealthInfo);
-            }
+            out.writeOptionalWriteable(repositoriesHealthInfo);
             if (out.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
                 out.writeOptionalWriteable(fileSettingsHealthInfo);
             }

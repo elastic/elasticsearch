@@ -49,7 +49,6 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .systemProperty("es.queryable_built_in_roles_enabled", "false")
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.DOC_VALUES_SKIPPER)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
         .build();

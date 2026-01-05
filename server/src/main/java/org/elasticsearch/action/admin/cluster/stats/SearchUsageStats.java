@@ -23,8 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.V_8_16_0;
-
 /**
  * Holds a snapshot of the search usage statistics.
  * Used to hold the stats for a single node that's part of a {@link ClusterStatsNodeResponse}, as well as to
@@ -78,7 +76,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.sections = in.readMap(StreamInput::readLong);
         this.totalSearchCount = in.readVLong();
         this.rescorers = in.readMap(StreamInput::readLong);
-        this.retrievers = in.getTransportVersion().onOrAfter(V_8_16_0) ? in.readMap(StreamInput::readLong) : Map.of();
+        this.retrievers = in.readMap(StreamInput::readLong);
         this.extendedSearchUsageStats = in.getTransportVersion().supports(EXTENDED_SEARCH_USAGE_TELEMETRY)
             ? new ExtendedSearchUsageStats(in)
             : ExtendedSearchUsageStats.EMPTY;
@@ -89,11 +87,8 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         out.writeMap(queries, StreamOutput::writeLong);
         out.writeMap(sections, StreamOutput::writeLong);
         out.writeVLong(totalSearchCount);
-
         out.writeMap(rescorers, StreamOutput::writeLong);
-        if (out.getTransportVersion().onOrAfter(V_8_16_0)) {
-            out.writeMap(retrievers, StreamOutput::writeLong);
-        }
+        out.writeMap(retrievers, StreamOutput::writeLong);
         if (out.getTransportVersion().supports(EXTENDED_SEARCH_USAGE_TELEMETRY)) {
             extendedSearchUsageStats.writeTo(out);
         }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -23,16 +22,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.is;
-
 public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSerializationTestCase<CoordinatedInferenceAction.Request> {
-    public void testSerializesPrefixType_WhenTransportVersionIs_InputTypeAdded() throws IOException {
-        var instance = createTestInstance();
-        instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
-        var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), TransportVersions.V_8_13_0);
-        assertOnBWCObject(copy, instance, TransportVersions.V_8_13_0);
-        assertThat(copy.getPrefixType(), is(TrainedModelPrefixStrings.PrefixType.INGEST));
-    }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -105,9 +95,6 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
         CoordinatedInferenceAction.Request instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.V_8_13_0)) {
-            instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
-        }
 
         var newInstance = new CoordinatedInferenceAction.Request(
             instance.getModelId(),

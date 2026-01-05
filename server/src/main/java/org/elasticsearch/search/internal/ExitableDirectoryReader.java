@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -464,6 +465,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public Bits getAcceptOrds(Bits acceptDocs) {
+            return in.getAcceptOrds(acceptDocs);
+        }
+
+        @Override
         public int dimension() {
             return in.dimension();
         }
@@ -568,6 +574,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public float[] vectorValue(int ord) throws IOException {
             return in.vectorValue(ord);
+        }
+
+        @Override
+        public Bits getAcceptOrds(Bits acceptDocs) {
+            return in.getAcceptOrds(acceptDocs);
         }
 
         @Override

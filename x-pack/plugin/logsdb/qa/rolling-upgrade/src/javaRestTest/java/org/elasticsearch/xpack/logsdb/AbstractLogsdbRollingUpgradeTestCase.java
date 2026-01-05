@@ -110,4 +110,18 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         }
         return firstIndex;
     }
+
+    static void createTemplate(String dataStreamName, String id, String template) throws IOException {
+        final String INDEX_TEMPLATE = """
+            {
+                "priority": 200,
+                "index_patterns": ["$DATASTREAM"],
+                "template": $TEMPLATE,
+                "data_stream": {
+                }
+            }""";
+        var putIndexTemplateRequest = new Request("POST", "/_index_template/" + id);
+        putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
+        assertOK(client().performRequest(putIndexTemplateRequest));
+    }
 }

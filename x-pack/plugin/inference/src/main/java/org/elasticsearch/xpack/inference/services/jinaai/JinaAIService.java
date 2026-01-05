@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -393,8 +394,11 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
                 configurationMap.put(
                     EMBEDDING_TYPE,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
-                        "The type of embedding to return. One of [float, bit, binary]. bit and binary are equivalent and are encoded as "
-                            + "bytes with signed int8 precision."
+                        Strings.format(
+                            "The type of embedding to return. One of %s. bit and binary are equivalent and are encoded as "
+                                + "bytes with signed int8 precision.",
+                            EnumSet.allOf(JinaAIEmbeddingType.class)
+                        )
                     )
                         .setLabel("Embedding type")
                         .setDefaultValue("float")
@@ -408,8 +412,11 @@ public class JinaAIService extends SenderService implements RerankingInferenceSe
                 configurationMap.put(
                     SIMILARITY,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
-                        "The similarity measure. One of [cosine, dot_product, l2_norm]. For float embeddings, the default similarity "
-                            + "is dot_product. For bit and binary embeddings, the default similarity is l2_norm."
+                        Strings.format(
+                            "The similarity measure. One of %s. For float embeddings, the default similarity "
+                                + "is dot_product. For bit and binary embeddings, the default similarity is l2_norm.",
+                            EnumSet.allOf(SimilarityMeasure.class)
+                        )
                     )
                         .setLabel("Similarity")
                         .setRequired(false)

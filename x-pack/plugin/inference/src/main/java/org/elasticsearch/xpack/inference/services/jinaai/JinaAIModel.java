@@ -33,13 +33,13 @@ public abstract class JinaAIModel extends Model {
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
         JinaAIRateLimitServiceSettings rateLimitServiceSettings,
-        @Nullable String uri
+        @Nullable URI uri
     ) {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
-        this.uri = Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), getDefaultUri());
+        this.uri = uri;
     }
 
     protected JinaAIModel(JinaAIModel model, TaskSettings taskSettings) {
@@ -71,6 +71,4 @@ public abstract class JinaAIModel extends Model {
     }
 
     public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings);
-
-    public abstract URI getDefaultUri();
 }

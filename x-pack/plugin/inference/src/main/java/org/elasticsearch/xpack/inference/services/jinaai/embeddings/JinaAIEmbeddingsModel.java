@@ -15,14 +15,15 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIModel;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
@@ -72,7 +73,7 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings(),
-            uri
+            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
         );
     }
 
@@ -102,10 +103,5 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     @Override
     public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
-    }
-
-    @Override
-    public URI getDefaultUri() {
-        return buildUri("JinaAI", DEFAULT_URI_BUILDER::build);
     }
 }

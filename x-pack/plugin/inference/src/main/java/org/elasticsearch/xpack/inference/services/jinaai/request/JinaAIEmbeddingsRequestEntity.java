@@ -55,10 +55,8 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, InputType inputT
         JinaAIEmbeddingsTaskSettings taskSettings = model.getTaskSettings();
         if (InputType.isSpecified(inputType)) {
             builder.field(TASK_TYPE_FIELD, convertInputType(inputType));
-        } else {
-            if (InputType.isSpecified(taskSettings.getInputType())) {
-                builder.field(TASK_TYPE_FIELD, convertInputType(taskSettings.getInputType()));
-            }
+        } else if (InputType.isSpecified(taskSettings.getInputType())) {
+            builder.field(TASK_TYPE_FIELD, convertInputType(taskSettings.getInputType()));
         }
 
         if (taskSettings.getLateChunking() != null) {

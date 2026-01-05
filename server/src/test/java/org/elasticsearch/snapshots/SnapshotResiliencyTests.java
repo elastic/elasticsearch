@@ -14,7 +14,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -52,7 +51,6 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -64,7 +62,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.Repository;
@@ -114,7 +111,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -239,10 +235,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     restoreSnapshotResponseListener
                 )
         );
-        final var maybeWaitForGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseListener, index, shards);
 
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-        continueOrDie(maybeWaitForGreenListener, ignore -> {
+
+        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
+            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
                 new SearchRequest(index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseListener
@@ -684,10 +681,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        final var restoredIndexGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseListener, "restored_" + index, shards);
-
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-        continueOrDie(restoredIndexGreenListener, ignored -> {
+        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
+            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
                 new SearchRequest("restored_" + index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseListener.delegateFailure((l, r) -> {
@@ -764,7 +760,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             // finalization
             final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(indices, createIndicesListener);
             for (int i = 0; i < indices; ++i) {
-                client().admin().indices().create(new CreateIndexRequest("index-" + i).settings(defaultIndexSettings(1)), listener);
+                client().admin().indices().create(new CreateIndexRequest("index-" + i), listener);
             }
         });
 
@@ -790,9 +786,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (partialSnapshot) {
                         // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
-                        client().admin()
-                            .indices()
-                            .create(new CreateIndexRequest(index).settings(defaultIndexSettings(1)), ActionListener.noop());
+                        client().admin().indices().create(new CreateIndexRequest(index), ActionListener.noop());
                     }
                 }
 
@@ -994,32 +988,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                         ActionListener.noop()
                                     )
                             );
-                        } else if (shardRouting.started()
-                            && shardRouting.currentNodeId().equals(currentPrimaryNode.node().getId()) == false) {
-                                // The shard recovers from blob store in stateless without needing the original primary node
-                                assertTrue(DiscoveryNode.isStateless(masterNode.settings));
-                                if (masterNodeCount > 1) {
-                                    scheduleNow(() -> testClusterNodes.stopNode(masterNode));
-                                }
-                                testClusterNodes.randomDataNodeSafe()
-                                    .client()
-                                    .admin()
-                                    .cluster()
-                                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
-                                    .execute(ActionListener.running(() -> {
-                                        createdSnapshot.set(true);
-                                        testClusterNodes.randomDataNodeSafe()
-                                            .client()
-                                            .admin()
-                                            .cluster()
-                                            .deleteSnapshot(
-                                                new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName),
-                                                ActionListener.noop()
-                                            );
-                                    }));
-                            } else {
-                                scheduleSoon(this);
-                            }
+                        } else {
+                            scheduleSoon(this);
+                        }
                     });
                 }
             });
@@ -1093,11 +1064,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 )
         );
 
-        final var restoredIndexGreenListener = maybeWaitForGreenAfterRestore(restoreSnapshotResponseStepListener, restoredIndex, shards);
-
         final SubscribableListener<SearchResponse> searchResponseStepListener = new SubscribableListener<>();
 
-        continueOrDie(restoredIndexGreenListener, restoreSnapshotResponse -> {
+        continueOrDie(restoreSnapshotResponseStepListener, restoreSnapshotResponse -> {
+            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
             client().search(
                 new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(documents).trackTotalHits(true)),
                 searchResponseStepListener
@@ -1863,38 +1833,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return createIndexResponseStepListener;
     }
 
-    protected SubscribableListener<Void> maybeWaitForGreenAfterRestore(
-        SubscribableListener<RestoreSnapshotResponse> restoreListener,
-        String indexName,
-        int expectedNumShards
-    ) {
-        final SubscribableListener<ClusterHealthResponse> clusterHealthResponseListener = new SubscribableListener<>();
-        continueOrDie(restoreListener, restoreSnapshotResponse -> {
-            assertEquals(expectedNumShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
-
-            // Wait for green index when the node is stateless, otherwise subsequent search may fail
-            if (DiscoveryNode.isStateless(testClusterNodes.nodes().values().iterator().next().settings)) {
-                client().admin()
-                    .cluster()
-                    .prepareHealth(TimeValue.MINUS_ONE, indexName)
-                    .setWaitForGreenStatus()
-                    .execute(clusterHealthResponseListener);
-            } else {
-                // Just fake a green health since it does not matter in stateful
-                final var clusterHealthResponse = new ClusterHealthResponse();
-                clusterHealthResponse.setStatus(ClusterHealthStatus.GREEN);
-                clusterHealthResponseListener.onResponse(clusterHealthResponse);
-            }
-        });
-
-        final SubscribableListener<Void> greenHealthListener = new SubscribableListener<>();
-        continueOrDie(clusterHealthResponseListener, clusterHealthResponse -> {
-            assertThat(clusterHealthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-            greenHealthListener.onResponse(null);
-        });
-        return greenHealthListener;
-    }
-
     protected void clearDisruptionsAndAwaitSync() {
         testClusterNodes.clearNetworkDisruptions();
         stabilize();
@@ -2025,7 +1963,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         deterministicTaskQueue.scheduleNow(runnable);
     }
 
-    protected Settings defaultIndexSettings(int shards) {
+    private static Settings defaultIndexSettings(int shards) {
         // TODO: randomize replica count settings once recovery operations aren't blocking anymore
         return indexSettings(shards, 0).build();
     }

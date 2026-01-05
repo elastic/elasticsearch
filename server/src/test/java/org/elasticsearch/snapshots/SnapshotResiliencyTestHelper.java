@@ -169,7 +169,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -1154,45 +1153,28 @@ public class SnapshotResiliencyTestHelper {
         }
 
         public void restart() {
-            restart(() -> true);
-        }
-
-        /**
-         * Restart this node by stopping, recreation and starting with the cluster state before stop.
-         * @param scheduleCondition A condition to satisfy before actually starting the node. If the condition is not satisfied,
-         *                          reschedule the start at a future time.
-         */
-        public void restart(BooleanSupplier scheduleCondition) {
             testClusterNodes.disconnectNode(this);
             final ClusterState oldState = this.clusterService.state();
             stop();
             testClusterNodes.nodes().remove(node.getName());
 
-            final Runnable startRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (scheduleCondition.getAsBoolean() == false) {
-                        TestClusterNode.this.scheduleSoon(this);
-                        return;
-                    }
-                    try {
-                        final TestClusterNode restartedNode = testClusterNodes.newNode(
-                            DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles()),
-                            tempDir,
-                            deterministicTaskQueue,
-                            testClusterNodes,
-                            transportInterceptorFactory,
-                            warningConsumer
-                        );
-                        restartedNode.init();
-                        testClusterNodes.nodes().put(node.getName(), restartedNode);
-                        restartedNode.start(oldState);
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
+            scheduleSoon(() -> {
+                try {
+                    final TestClusterNode restartedNode = testClusterNodes.newNode(
+                        DiscoveryNodeUtils.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles()),
+                        tempDir,
+                        deterministicTaskQueue,
+                        testClusterNodes,
+                        transportInterceptorFactory,
+                        warningConsumer
+                    );
+                    restartedNode.init();
+                    testClusterNodes.nodes().put(node.getName(), restartedNode);
+                    restartedNode.start(oldState);
+                } catch (IOException e) {
+                    throw new AssertionError(e);
                 }
-            };
-            scheduleSoon(startRunnable);
+            });
         }
 
         public DiscoveryNode node() {

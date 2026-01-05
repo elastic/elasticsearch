@@ -2095,7 +2095,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     public void testGetClusterFormationStateDoesNotBlockOnMutex() {
         try (Cluster cluster = new Cluster(1)) {
             cluster.runRandomly();
-            cluster.stabilise();
             final Coordinator coordinator = cluster.getAnyNode().coordinator;
             final CyclicBarrier barrier = new CyclicBarrier(2);
 

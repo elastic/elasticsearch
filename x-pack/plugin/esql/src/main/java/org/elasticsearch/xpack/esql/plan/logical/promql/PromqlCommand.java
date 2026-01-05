@@ -27,12 +27,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -270,13 +268,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 // We do support VectorBinaryArithmetic operators as nested expressions, but not at the top-level of a query.
                 fail(p, "top-level binary operators are not supported at this time [{}]", p.sourceText())
             );
-            // TODO add support for group by all
-            case InstantSelector instantSelector -> failures.add(
-                fail(p, "top-level instant vector selectors are not supported at this time [{}]", p.sourceText())
-            );
-            case WithinSeriesAggregate withinSeriesAggregate -> failures.add(
-                fail(p, "top-level within-series aggregations are not supported at this time [{}]", p.sourceText())
-            );
             case RangeSelector rangeSelector -> {
                 if (isRangeQuery()) {
                     failures.add(
@@ -307,21 +298,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                         }
                         if (s.evaluation().at().value() != null) {
                             failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
-                        }
-                    }
-                    if (s instanceof RangeSelector rs) {
-                        if (step().value() != null) {
-                            Duration rangeDuration = (Duration) rs.range().fold(null);
-                            if (rangeDuration.equals(step().value()) == false) {
-                                failures.add(
-                                    fail(
-                                        rs.range(),
-                                        "the duration for range vector selector [{}] "
-                                            + "must be equal to the query's step for range queries at this time",
-                                        rs.range().sourceText()
-                                    )
-                                );
-                            }
                         }
                     }
                 }

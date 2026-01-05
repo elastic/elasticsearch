@@ -346,7 +346,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             () -> retriever.combineInnerRetrieverResults(docs, false)
         );
         assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
+            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] or [semantic_text] field?",
             badDocFieldEx.getMessage()
         );
         assertEquals(400, badDocFieldEx.status().getStatus());
@@ -361,7 +361,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             () -> retriever.combineInnerRetrieverResults(docs, false)
         );
         assertEquals(
-            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] field?",
+            "Failed to retrieve vectors for field [dense_vector_field]. Is it a [dense_vector] or [semantic_text] field?",
             docsWithNoValuesEx.getMessage()
         );
         assertEquals(400, docsWithNoValuesEx.status().getStatus());
@@ -370,8 +370,20 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     }
 
     private void cleanDocsAndHits(List<ScoreDoc[]> docs, ScoreDoc[] hits) {
+        for (ScoreDoc[] docArray : docs) {
+            for (ScoreDoc doc : docArray) {
+                if (doc == null) {
+                    continue;
+                }
+                ((DiversifyRetrieverBuilder.RankDocWithSearchHit) doc).hit().decRef();
+            }
+            Arrays.fill(docArray, null);
+        }
         docs.clear();
         for (ScoreDoc hit : hits) {
+            if (hit == null) {
+                continue;
+            }
             ((DiversifyRetrieverBuilder.RankDocWithSearchHit) hit).hit().decRef();
         }
         Arrays.fill(hits, null);

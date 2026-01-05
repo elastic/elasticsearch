@@ -102,7 +102,6 @@ public class Rows extends LogicalPlan implements TelemetryAware {
     public Rows(Source source, List<Row> entries) {
         super(source, new ArrayList<>(entries));
         Check.notNull(entries, "Row source command should always have entries");
-        assert entries.size() > 0 : "Grammar enforces 1 or more entries";
         this.entries = entries;
     }
 

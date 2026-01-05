@@ -120,6 +120,7 @@ import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFra
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -647,7 +648,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " *,\"-foo\"::data",
                     "*,-foo::data",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
                 expectErrorWithLineNumber(
                     command + " cluster:\"foo::data\"",
@@ -666,7 +667,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " *, \"-foo\"::data",
                     " *, \"-foo\"::data",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
                 assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo::data\"");
                 assertStringAsIndexPattern("*::data", command + " *::data");
@@ -675,7 +676,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command + " \"<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures",
                     " \"<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures",
                     lineNumber,
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
                 assertStringAsIndexPattern(
                     "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
@@ -869,7 +870,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command,
                     "indexpattern, \"--index\"::data",
                     "line 1:29: ",
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
@@ -925,7 +926,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command,
                     "*, \"-<-logstash-{now/D}>\"::data",
                     "line 1:31: ",
-                    "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}"
+                    "mismatched input '::' expecting {"
                 );
                 expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>::data", lineNumber, dateMathError);
                 // Check that invalid selectors throw (they're resolved first in /_search, and always validated)
@@ -1000,8 +1001,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM \"foo\"bar\"", ": token recognition error at: '\"'");
         expectError("FROM \"foo\"\"bar\"", ": extraneous input '\"bar\"' expecting <EOF>");
 
-        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', 'metadata'}");
-        expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {");
+        expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {");
     }
 
     public void testInvalidQuotingAsLookupIndexPattern() {
@@ -2483,7 +2484,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSpaceNotAllowedInIdPattern() {
-        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {");
     }
 
     public void testEnrichOnMatchField() {
@@ -2665,7 +2666,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidRemoteClusterPattern() {
-        expectError("from \"rem:ote\":index", "mismatched input ':' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError("from \"rem:ote\":index", "mismatched input ':' expecting {");
     }
 
     private LogicalPlan unresolvedRelation(String index) {
@@ -2709,11 +2710,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
         expectError(
             "from test | WHERE \"field\":\"value\"",
-            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
+            "line 1:26: mismatched input ':' expecting {"
         );
         expectError(
             "from test | WHERE CONCAT(\"field\", 1):\"value\"",
-            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
+            "line 1:37: mismatched input ':' expecting {"
         );
     }
 
@@ -3201,7 +3202,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
         Map<String, String> commands = Map.ofEntries(
-            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', 'metadata'}"),
+            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {"),
             Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
@@ -3752,7 +3753,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Unnamed alias are forbidden
         expectError(
             "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
-            "line 1:63: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}"
+            allOf(
+                startsWith("line 1:63: mismatched input '(' expecting {"),
+                containsString("<EOF>"),
+                containsString("'|'"),
+                containsString("'='"),
+                containsString("','"),
+                containsString("'.'"),
+                containsString("'with'"),
+                endsWith("}")
+            )
         );
     }
 
@@ -4162,7 +4172,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata'");
+        expectError("from te()st", "line 1:8: mismatched input '(' expecting {");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {

@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
@@ -83,6 +84,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(GEOTILE, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE)),
         Map.entry(GEOHEX, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
         Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new),
+        Map.entry(DATE_RANGE, ToStringFromDateRangeEvaluator.Factory::new),
         Map.entry(HISTOGRAM, ToStringFromHistogramEvaluator.Factory::new),
         Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new)
     );
@@ -120,6 +122,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "text",
                 "unsigned_long",
                 "version",
+                "date_range",
                 "exponential_histogram" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v

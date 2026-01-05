@@ -12,6 +12,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -19,11 +20,14 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 public class ThrottledIteratorTests extends ESTestCase {
@@ -62,7 +66,7 @@ public class ThrottledIteratorTests extends ESTestCase {
             );
             final var blockPermits = new Semaphore(between(0, Math.min(maxRelaxedThreads, maxConcurrency) - 1));
 
-            ThrottledIterator.run(IntStream.range(0, items).boxed().iterator(), (releasable, item) -> {
+            ThrottledIterator.run(new SerialAccessAssertingIterator<>(IntStream.range(0, items).boxed().iterator()), (releasable, item) -> {
                 try (var refs = new RefCountingRunnable(() -> {
                     completedItems.incrementAndGet();
                     releasable.close();
@@ -119,6 +123,45 @@ public class ThrottledIteratorTests extends ESTestCase {
             assertTrue(itemStartLatch.await(0, TimeUnit.SECONDS));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        }
+    }
+
+    private static class SerialAccessAssertingIterator<T> implements Iterator<T> {
+
+        private final AtomicBoolean isAccessing = new AtomicBoolean();
+        private final Iterator<T> delegate;
+
+        private SerialAccessAssertingIterator(Iterator<T> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            try (var ignored = withSerialAccessCheck()) {
+                return delegate.hasNext();
+            }
+        }
+
+        @Override
+        public T next() {
+            try (var ignored = withSerialAccessCheck()) {
+                return delegate.next();
+            }
+        }
+
+        @Override
+        public void remove() {
+            assert false : "not called";
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            assert false : "not called";
+        }
+
+        private Releasable withSerialAccessCheck() {
+            assertTrue(isAccessing.compareAndSet(false, true));
+            return () -> assertTrue(isAccessing.compareAndSet(true, false));
         }
     }
 }

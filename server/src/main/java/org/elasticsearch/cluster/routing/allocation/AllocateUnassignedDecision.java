@@ -280,7 +280,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 TimeValue.timeValueMillis(remainingDelayInMillis)
             );
             case NO -> reuseStore ? Explanations.Allocation.EXISTING_STORES_FORBIDDEN : Explanations.Allocation.ALL_NODES_FORBIDDEN;
-            case WORSE_BALANCE, NO_ATTEMPT, NOT_PREFERRED -> {
+            case WORSE_BALANCE, NO_ATTEMPT -> {
                 assert false : getAllocationDecision();
                 yield getAllocationDecision().toString();
             }

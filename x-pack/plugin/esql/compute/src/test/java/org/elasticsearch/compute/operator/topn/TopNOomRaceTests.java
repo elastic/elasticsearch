@@ -42,8 +42,9 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Runs a few topns in parallel trying to cause an out of memory. {@link TopNOperator} can
- * OOM if it's {@link TopNOperator#close} reduces the circuit breaker but doesn't {@code null}
- * the references as it goes.
+ * run the JVM out of memory if it's {@link TopNOperator#close} reduces the circuit breaker
+ * but doesn't {@code null} the references as it goes. We're looking to throw a
+ * {@link CircuitBreakingException} instead.
  * <p>
  *     It'd be ideal if the nulling and the breaker reductions were atomic, but that's not how
  *     Elasticsearch is. Instead, we figure for some amount of overhead of things that have

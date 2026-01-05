@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -477,5 +479,59 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.runAllTasks();
         assertThat(counter.get(), equalTo(hasWrapper ? 6 : 3));
         assertThat(threadContext.getHeaders(), equalTo(Map.of(testHeader, testHeaderValue)));
+    }
+
+    public void testThreadPoolScheduler() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var scheduler = taskQueue.getThreadPool().scheduler();
+
+        advanceToRandomTime(taskQueue);
+        final long startTime = taskQueue.getCurrentTimeMillis();
+
+        final List<String> strings = new ArrayList<>(5);
+        final List<ScheduledFuture<?>> scheduledFutures = new ArrayList<>(5);
+
+        final long delayMillis = randomLongBetween(1, 100);
+
+        scheduledFutures.add(scheduler.schedule(() -> strings.addLast("deferred"), delayMillis, TimeUnit.MILLISECONDS));
+        assertFalse(taskQueue.hasRunnableTasks());
+        assertTrue(taskQueue.hasDeferredTasks());
+
+        scheduledFutures.add(scheduler.schedule(() -> strings.addLast("runnable"), 0, TimeUnit.MILLISECONDS));
+        assertTrue(taskQueue.hasRunnableTasks());
+
+        scheduledFutures.add(scheduler.schedule(() -> strings.addLast("also runnable"), -1, TimeUnit.MILLISECONDS));
+
+        taskQueue.runAllTasks();
+
+        assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis));
+        assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred"));
+        assertTrue(scheduledFutures.stream().allMatch(Future::isDone));
+
+        final long delayMillis1 = randomLongBetween(2, 100);
+        final long delayMillis2 = randomLongBetween(1, delayMillis1 - 1);
+
+        scheduler.schedule(() -> strings.addLast("further deferred"), delayMillis1, TimeUnit.MILLISECONDS);
+        scheduler.schedule(() -> strings.addLast("not quite so deferred"), delayMillis2, TimeUnit.MILLISECONDS);
+
+        assertFalse(taskQueue.hasRunnableTasks());
+        assertTrue(taskQueue.hasDeferredTasks());
+
+        taskQueue.runAllTasks();
+        assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis + delayMillis1));
+
+        final long cancelledDelayMillis = randomLongBetween(1, 100);
+        final var cancelledBeforeExecution = scheduler.schedule(
+            () -> strings.addLast("cancelled before execution"),
+            cancelledDelayMillis,
+            TimeUnit.MILLISECONDS
+        );
+
+        FutureUtils.cancel(cancelledBeforeExecution);
+        taskQueue.runAllTasks();
+
+        assertThat(strings, containsInAnyOrder("runnable", "also runnable", "deferred", "not quite so deferred", "further deferred"));
+        assertTrue(scheduledFutures.stream().allMatch(Future::isDone));
+        assertTrue(cancelledBeforeExecution.isCancelled());
     }
 }

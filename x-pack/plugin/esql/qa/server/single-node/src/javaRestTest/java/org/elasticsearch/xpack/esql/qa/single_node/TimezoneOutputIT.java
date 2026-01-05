@@ -89,7 +89,8 @@ public class TimezoneOutputIT extends ESRestTestCase {
     private Response esql(String timezone, String expectedContentType) throws IOException {
         String query = (randomBoolean()
             ? "FROM test"
-            : String.format(Locale.ROOT, "ROW date=\"%s\"::date, date_nanos=\"%s\"::date_nanos", DATE, DATE)) + " | SORT date ASC | LIMIT 2";
+            : String.format(Locale.ROOT, "ROW date=\"%s\"::date, date_nanos=\"%s\"::date_nanos", DATE, DATE))
+            + " | SORT date ASC | LIMIT 2";
 
         RestEsqlTestCase.RequestObjectBuilder bodyBuilder = new RestEsqlTestCase.RequestObjectBuilder();
         if (randomBoolean()) {

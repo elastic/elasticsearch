@@ -7,7 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.io.stream;
+package org.elasticsearch.script;
+
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutputHelper;
+import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.io.DataOutput;
@@ -29,6 +33,21 @@ public class DataOutputStreamOutput extends StreamOutput {
     @Override
     public void writeBytes(byte[] b, int offset, int length) throws IOException {
         out.write(b, offset, length);
+    }
+
+    @Override
+    public void writeString(String str) throws IOException {
+        StreamOutputHelper.writeString(str, this);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        StreamOutputHelper.writeOptionalString(str, this);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        StreamOutputHelper.writeGenericString(value, this);
     }
 
     @Override

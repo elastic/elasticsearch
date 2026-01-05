@@ -160,8 +160,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         // Search in EVALs for functions that can take doc values, namely St_Simplify, St_Geotile, St_Geohex, St_Geohash
         exec.forEachDown(EvalExec.class, evalExec -> {
             for (Alias field : evalExec.fields()) {
-                field.forEachDown(SpatialDocValuesFunction.class, spatialAggFunc -> {
-                    if (spatialAggFunc.spatialField() instanceof FieldAttribute fieldAttribute
+                field.forEachDown(SpatialDocValuesFunction.class, spatialFunction -> {
+                    if (spatialFunction.spatialField() instanceof FieldAttribute fieldAttribute
+                        && spatialFunction.prefersDocValuesExtraction()
                         && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes)) {
                         foundAttributes.add(fieldAttribute);
                     }

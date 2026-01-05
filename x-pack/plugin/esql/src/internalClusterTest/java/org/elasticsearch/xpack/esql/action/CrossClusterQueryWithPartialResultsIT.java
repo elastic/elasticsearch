@@ -121,6 +121,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         // Limit to one shard per batch to prevent all ok shards from being grouped with failed shards,
         // which could cause the ok shards to fail if a failed shard is processed first.
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
         try (var resp = runQuery(request)) {
             logger.info("--> response {}", resp);
             assertTrue(resp.isPartial());
@@ -156,6 +157,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         // Limit to one shard per batch to prevent all ok shards from being grouped with failed shards,
         // which could cause the ok shards to fail if a failed shard is processed first.
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
         try (var resp = runQuery(request)) {
             logger.info("--> response {}", resp);
             assertTrue(resp.isPartial());

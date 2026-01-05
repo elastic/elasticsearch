@@ -884,7 +884,7 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 
 These APIs allow to create a new index that contains a copy of data from a provided index and differs in number of shards and/or index settings. They can only be executed on indices that are marked read-only.
 
-Shrink API (`/{index}/_shrink/{target}`) allows to create an index that has fewer shards than the original index.
+The shrink API (`/{index}/_shrink/{target}`) creates an index that has fewer shards than the original index.
 
 Split API (`/{index}/_split/{target}`) allows to create an index that has more shards than the original index.
 

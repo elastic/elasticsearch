@@ -886,7 +886,7 @@ These APIs are used to create a new index that contains a copy of data from a pr
 
 The shrink API (`/{index}/_shrink/{target}`) creates an index that has fewer shards than the original index.
 
-Split API (`/{index}/_split/{target}`) allows to create an index that has more shards than the original index.
+The split API (`/{index}/_split/{target}`) creates an index that has more shards than the original index.
 
 Clone API (`/{index}/_clone/{target}`) allows to create an index that has different set of index settings but the same number of shards as the original index.
 

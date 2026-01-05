@@ -33,6 +33,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -365,40 +366,45 @@ class DownsampleShardIndexer {
             docCountProvider.setLeafReaderContext(ctx);
 
             // For each field, return a tuple with the downsample field producer and the field value leaf
-            final LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors = new LeafDownsampleCollector.FieldCollector<
-                ?>[fieldValueFetchers.size()];
+            final List<LeafDownsampleCollector.FieldCollector<?>> bufferedFieldCollectors = new ArrayList<>(fieldValueFetchers.size());
+            final List<LeafDownsampleCollector.FieldCollector<?>> singleFieldCollectors = new ArrayList<>(fieldValueFetchers.size());
             for (int i = 0; i < fieldValueFetchers.size(); i++) {
                 var fieldValueFetcher = fieldValueFetchers.get(i);
                 var fieldProducer = fieldValueFetcher.fieldProducer();
                 if (fieldProducer instanceof NumericMetricFieldProducer metricFieldProducer) {
-                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
                         metricFieldProducer,
                         fieldValueFetcher.getNumericLeaf(ctx)
-                    );
+                    ));
                 } else if (fieldProducer instanceof ExponentialHistogramFieldProducer exponentialHistogramProducer) {
-                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
                         exponentialHistogramProducer,
                         fieldValueFetcher.getExponentialHistogramLeaf(ctx)
-                    );
+                    ));
                 } else if (fieldProducer instanceof AggregateMetricDoubleFieldProducer numericFieldProducer) {
-                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
                         numericFieldProducer,
                         fieldValueFetcher.getNumericLeaf(ctx)
-                    );
+                    ));
                 } else if (fieldProducer instanceof LastValueFieldProducer lastValueFieldProducer) {
-                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
                         lastValueFieldProducer,
                         fieldValueFetcher.getLeaf(ctx)
-                    );
+                    ));
                 } else if (fieldProducer instanceof TDigestHistogramFieldProducer histogramFieldProducer) {
-                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                    bufferedFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
                         histogramFieldProducer,
                         fieldValueFetcher.getHistogramLeaf(ctx)
-                    );
+                    ));
+                } else if (fieldProducer instanceof AggregateCounterFieldProducer counterFieldProducer) {
+                    singleFieldCollectors.add(new LeafDownsampleCollector.FieldCollector<>(
+                        counterFieldProducer,
+                        fieldValueFetcher.getNumericLeaf(ctx)
+                    ));
                 }
             }
 
-            var leafBucketCollector = new LeafDownsampleCollector(aggCtx, docCountProvider, fieldCollectors);
+            var leafBucketCollector = new LeafDownsampleCollector(aggCtx, docCountProvider, bufferedFieldCollectors, singleFieldCollectors);
             leafBucketCollectors.add(leafBucketCollector);
             return leafBucketCollector;
         }
@@ -415,7 +421,8 @@ class DownsampleShardIndexer {
 
             final AggregationExecutionContext aggCtx;
             final DocCountProvider docCountProvider;
-            final LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors;
+            final List<LeafDownsampleCollector.FieldCollector<?>> bufferedFieldCollectors;
+            final List<LeafDownsampleCollector.FieldCollector<?>> singleFieldCollectors;
 
             // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
             long firstTimeStampForBulkCollection;
@@ -425,12 +432,14 @@ class DownsampleShardIndexer {
             LeafDownsampleCollector(
                 AggregationExecutionContext aggCtx,
                 DocCountProvider docCountProvider,
-                LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors
+                List<LeafDownsampleCollector.FieldCollector<?>> bufferedFieldCollectors,
+                List<LeafDownsampleCollector.FieldCollector<?>> singleFieldCollectors
             ) {
 
                 this.aggCtx = aggCtx;
                 this.docCountProvider = docCountProvider;
-                this.fieldCollectors = fieldCollectors;
+                this.bufferedFieldCollectors = bufferedFieldCollectors;
+                this.singleFieldCollectors = singleFieldCollectors;
             }
 
             @Override
@@ -483,6 +492,9 @@ class DownsampleShardIndexer {
                 }
                 // buffer.add() always delegates to system.arraycopy() and checks buffer size for resizing purposes:
                 docIdBuffer.buffer[docIdBuffer.elementsCount++] = docId;
+                for (var collector : singleFieldCollectors) {
+                    collector.collect(docId);
+                }
                 if (docIdBuffer.size() == DOCID_BUFFER_SIZE) {
                     bulkCollection();
                 }
@@ -499,8 +511,8 @@ class DownsampleShardIndexer {
 
                 downsampleBucketBuilder.collectDocCount(docIdBuffer, docCountProvider);
                 // Iterate over all field values and collect the doc_values for this docId
-                for (int i = 0; i < fieldCollectors.length; i++) {
-                    fieldCollectors[i].collect(docIdBuffer);
+                for (var fieldCollector : bufferedFieldCollectors) {
+                    fieldCollector.collect(docIdBuffer);
                 }
 
                 docsProcessed += docIdBuffer.size();
@@ -513,6 +525,12 @@ class DownsampleShardIndexer {
             record FieldCollector<T>(AbstractDownsampleFieldProducer<T> fieldProducer, T docValues) {
                 void collect(IntArrayList docIdBuffer) throws IOException {
                     fieldProducer.collect(docValues, docIdBuffer);
+                }
+
+                void collect(int docId) throws IOException {
+                    if (fieldProducer instanceof AggregateCounterFieldProducer producer) {
+                        producer.collect((SortedNumericDoubleValues) docValues, docId);
+                    }
                 }
             }
 

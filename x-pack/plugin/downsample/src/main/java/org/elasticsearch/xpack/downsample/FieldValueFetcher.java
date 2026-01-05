@@ -102,8 +102,10 @@ class FieldValueFetcher {
             assert fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE
                 || fieldType.getMetricType() == TimeSeriesParams.MetricType.COUNTER
                 : "only gauges and counters accepted, other metrics should have been handled earlier";
-            if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE
-                && fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE) {
+            if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE) {
+                if (fieldType.getMetricType() == TimeSeriesParams.MetricType.COUNTER) {
+                    return new AggregateCounterFieldProducer(name());
+                }
                 return new NumericMetricFieldProducer.AggregateGauge(name());
             }
             return new NumericMetricFieldProducer.LastValue(name());

@@ -40,7 +40,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -148,18 +148,14 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(
-            field1,
-            sourceText(),
-            FIRST
-        );
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field1, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
         dataType = field1.dataType().noText();
         if (dataType == DataType.NULL) {
             dataType = field2.dataType().noText();
-            return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(field2, sourceText(), SECOND);
+            return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field2, sourceText(), SECOND);
         }
         return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
     }

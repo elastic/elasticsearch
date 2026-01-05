@@ -1,0 +1,5 @@
+pr: 139461
+summary: Fix checks to define if a JOIN is remote
+area: ES|QL
+type: bug
+issues: []

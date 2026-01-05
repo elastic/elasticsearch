@@ -173,7 +173,7 @@ $$$jdbc-cfg-timezone$$$
 `catalog`
 :   Default catalog (cluster) for queries. If unspecified, the queries execute on the data in the local cluster only.
 
-    See [{{ccs}}](docs-content://solutions/search/cross-cluster-search.md).
+    See [{{ccs}}](docs-content://explore-analyze/cross-cluster-search.md).
 
 
 

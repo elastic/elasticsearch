@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -68,6 +69,7 @@ public class TopNBenchmark {
     private static final String LONGS_AND_BYTES_REFS = LONGS + "_and_" + BYTES_REFS;
 
     static {
+        LogConfigurator.configureESLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
         selfTest();
     }
@@ -76,7 +78,9 @@ public class TopNBenchmark {
         try {
             for (String data : TopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
                 for (String topCount : TopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
-                    run(data, Integer.parseInt(topCount));
+                    for (String sortedInput : TopNBenchmark.class.getField("sortedInput").getAnnotationsByType(Param.class)[0].value()) {
+                        run(data, Integer.parseInt(topCount), Boolean.parseBoolean(sortedInput));
+                    }
                 }
             }
         } catch (NoSuchFieldException e) {
@@ -87,10 +91,13 @@ public class TopNBenchmark {
     @Param({ LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS })
     public String data;
 
+    @Param({ "false", "true" })
+    public boolean sortedInput;
+
     @Param({ "10", "10000" })
     public int topCount;
 
-    private static Operator operator(String data, int topCount) {
+    private static Operator operator(String data, int topCount, boolean sortedInput) {
         int count = switch (data) {
             case LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS -> 1;
             case TWO_LONGS, LONGS_AND_BYTES_REFS -> 2;
@@ -125,9 +132,9 @@ public class TopNBenchmark {
             topCount,
             elementTypes,
             encoders,
-            IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, false, false)).toList(),
+            IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, true, false)).toList(),
             16 * 1024,
-            false
+            sortedInput
         );
     }
 
@@ -189,11 +196,11 @@ public class TopNBenchmark {
     @Benchmark
     @OperationsPerInvocation(1024 * BLOCK_LENGTH)
     public void run() {
-        run(data, topCount);
+        run(data, topCount, sortedInput);
     }
 
-    private static void run(String data, int topCount) {
-        try (Operator operator = operator(data, topCount)) {
+    private static void run(String data, int topCount, boolean sortedInput) {
+        try (Operator operator = operator(data, topCount, sortedInput)) {
             Page page = page(data);
             for (int i = 0; i < 1024; i++) {
                 operator.addInput(page.shallowCopy());

@@ -704,7 +704,7 @@ public class TopNOperator implements Operator, Accountable {
         return new TopNOperatorStatus(
             receiveNanos,
             emitNanos,
-            sortedInput ? inputSortedVector.size() : inputQueue.size(),
+            inputQueue != null ? inputQueue.size() : (inputSortedVector != null ? inputSortedVector.size() : 0),
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,
@@ -729,7 +729,7 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     private static class BoundedSortedVector extends ArrayList<Row> implements Accountable, Releasable {
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BoundedSortedVector.class);
         private final CircuitBreaker breaker;
         private final int maxSize;
 

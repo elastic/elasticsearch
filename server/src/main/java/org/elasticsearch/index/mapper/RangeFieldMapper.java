@@ -364,6 +364,9 @@ public class RangeFieldMapper extends FieldMapper {
             @Override
             public AllReader reader(LeafReaderContext context) throws IOException {
                 var docValues = context.reader().getBinaryDocValues(fieldName);
+                if (docValues == null) {
+                    return new ConstantNullsReader();
+                }
                 return new DateRangeDocValuesReader(docValues);
             }
         }

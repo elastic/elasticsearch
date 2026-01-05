@@ -149,16 +149,8 @@ public class MMRResultDiversificationTests extends ESTestCase {
         Supplier<VectorData> queryVectorData = () -> new VectorData(new byte[] { 0x50, 0x20, 0x40, 0x40 });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
 
-        DiversifyRetrieverBuilder.RankDocWithSearchHit[] results = new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(1, 1.0f, 1, new SearchHit(1)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(2, 1.0f, 1, new SearchHit(2)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(3, 1.0f, 1, new SearchHit(3)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(4, 1.0f, 1, new SearchHit(4)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(5, 1.0f, 1, new SearchHit(5)),
-            new DiversifyRetrieverBuilder.RankDocWithSearchHit(6, 1.0f, 1, new SearchHit(6)), };
-
         diversificationContext.setFieldVectors(
-            results,
+            searchHits,
             new MockFieldVectorSuppler(
                 Map.of(
                     1,

@@ -1965,7 +1965,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float delta() {
-            if (validSortedCount() == 0) {
+            if (validSortedCount() < 2) {
                 return 0.0f;
             }
             return weights[validSortedCount() - 1] - weights[0];

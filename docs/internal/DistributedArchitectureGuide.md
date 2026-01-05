@@ -888,7 +888,7 @@ The shrink API (`/{index}/_shrink/{target}`) creates an index that has fewer sha
 
 The split API (`/{index}/_split/{target}`) creates an index that has more shards than the original index.
 
-Clone API (`/{index}/_clone/{target}`) allows to create an index that has different set of index settings but the same number of shards as the original index.
+The clone API (`/{index}/_clone/{target}`) creates an index that has the same number of shards as the original index but may have different index settings.
 
 The main implementation logic is centralized in `TransportResizeAction` however it only creates new index in the cluster state using special `recoverFrom` and `resizeType` parameters. The entire workflow involves multiple components.
 

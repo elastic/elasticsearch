@@ -47,6 +47,7 @@ public class EsqlQueryGenerator {
     public static final String COLUMN_NAME = "name";
     public static final String COLUMN_TYPE = "type";
     public static final String COLUMN_ORIGINAL_TYPES = "original_types";
+    public static boolean firstPipe = true;
 
     /**
      * These are commands that are at the beginning of the query, eg. FROM
@@ -97,10 +98,18 @@ public class EsqlQueryGenerator {
     }
 
     public static CommandGenerator randomPipeCommandGenerator() {
+        if (firstPipe) {
+            firstPipe = false;
+            return SampleGenerator.INSTANCE;
+        }
         return randomFrom(PIPE_COMMANDS);
     }
 
     public static CommandGenerator randomMetricsPipeCommandGenerator() {
+        if (firstPipe) {
+            firstPipe = false;
+            return SampleGenerator.INSTANCE;
+        }
         return randomFrom(TIME_SERIES_PIPE_COMMANDS);
     }
 

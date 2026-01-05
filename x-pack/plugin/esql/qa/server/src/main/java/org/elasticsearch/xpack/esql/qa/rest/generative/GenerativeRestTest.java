@@ -167,6 +167,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 QueryExecuted previousResult;
             };
+            EsqlQueryGenerator.firstPipe = true;
             EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
         }
     }
@@ -225,6 +226,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     @SuppressWarnings("unchecked")
     public QueryExecuted execute(String query, int depth) {
         try {
+            System.out.println("Executing ESQL: " + query);
             Map<String, Object> json = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings

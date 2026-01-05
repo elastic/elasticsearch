@@ -1982,7 +1982,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         return () -> enableInvalidWeightsAssertion = true;
     }
 
-    record ProjectIndex(ProjectId project, String indexName) {
+    // Visible for testing.
+    public record ProjectIndex(ProjectId project, String indexName) {
         ProjectIndex(RoutingAllocation allocation, ShardRouting shard) {
             this(allocation.metadata().projectFor(shard.index()).id(), shard.getIndexName());
         }
